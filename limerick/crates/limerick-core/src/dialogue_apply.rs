@@ -217,10 +217,7 @@ pub struct DialogueTurnOutcome {
 }
 
 #[cfg(test)]
-pub(crate) fn task_proposal_is_grounded_in_final_dialogue(
-    proposal: &str,
-    final_dialogue: &str,
-) -> bool {
+fn task_proposal_is_grounded_in_final_dialogue(proposal: &str, final_dialogue: &str) -> bool {
     grounded_task_assignment_clause(proposal, final_dialogue).is_some()
 }
 
@@ -1259,5 +1256,149 @@ pub fn apply_npc_dialogue_turn_with_validation(
         language_hints,
         assigned_task,
         action,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn task_proposal_requires_concrete_overlap_and_spoken_assignment() {
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "First, help with the potato patch — break the clods and plant seed in the open rows."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "The potato patch has been hard work this spring."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "There is no work for ye in the potato patch today."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "First, help with the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Ask Siobhan at the farm.",
+            "You can ask Siobhan at the farm about digging the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Help with the potato patch.",
+            "Liam will help with the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "See Liam about the potato patch.",
+            "See, Liam has already dug over the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Take seed to the potato patch.",
+            "Take my advice: leave the potato patch alone."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "See to the broken west gate.",
+            "First, see to the broken west gate."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Take care of the potato patch.",
+            "Take care of the potato patch before sundown."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Could ye mend the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Weed the potato patch.",
+            "Would you weed the potato patch?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Carry the turf.",
+            "Please carry the turf."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Could ye please mend the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Would ye mind mending the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Fetch water from the well.",
+            "Plainly, then—Plainly, then—Start by fetching water from the well for the sick woman."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Break stones from the road and carry them to the side.",
+            "Good morning. Ye'd best start with breaking stones from the road — the ford needs clearing. Carry the clods to the side of the path."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "You’d best start by mending the west wall."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Turn over the soil in the potato patch.",
+            "Aye. First, fetch the spade and start turning over the soil in the potato patch."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Turn the potato patch.",
+            "'Tis a fine day for work. The potato patch needs turning — start there. Break up the clods and loosen the soil."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Ye'd best start with sweeping beside the west wall."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Break the stone clods.",
+            "Please break the stone clods."
+        ));
+        for non_assignment in [
+            "I need you to remember that Liam already dug over the potato patch.",
+            "I need you to report that Liam repaired the potato patch.",
+            "Help me remember that Liam dug over the potato patch.",
+            "Please carry word that Liam repaired the potato patch.",
+            "He said I need you to dig over the potato patch.",
+            "Start by leaving the potato patch alone.",
+            "I need you to move away from the potato patch.",
+            "I need you to clear out the potato patch.",
+            "\u{201c}Dig over the potato patch,\u{201d} Liam told me yesterday.",
+            "Dig over the potato patch?",
+            "Help me count the rows in the potato patch.",
+            "Please break the news about the potato patch.",
+            "Please break the silence beside the potato patch.",
+            "Please break the ice beside the potato patch.",
+            "Please clear the air about the potato patch.",
+            "Please bring the matter up about the potato patch.",
+            "Start by remembering that Liam dug over the potato patch.",
+            "Ye'd best start with remembering that Liam dug over the potato patch.",
+            "Ye'd best not start with digging over the potato patch.",
+            "Liam said ye'd best start with digging over the potato patch.",
+            "Please dig no potato patch.",
+            "\u{201c}The potato patch needs digging — start there,\u{201d} Liam told me.",
+        ] {
+            assert!(
+                !task_proposal_is_grounded_in_final_dialogue(
+                    "Dig over the potato patch.",
+                    non_assignment,
+                ),
+                "{non_assignment:?} must not be treated as a direct assignment"
+            );
+        }
+        for negative_proposal in [
+            "Leave the potato patch alone.",
+            "Avoid the potato patch.",
+            "Do not dig over the potato patch.",
+            "Dig no potato patch.",
+            "Move away from the potato patch.",
+        ] {
+            assert!(
+                !task_proposal_is_grounded_in_final_dialogue(
+                    negative_proposal,
+                    "Please dig over the potato patch.",
+                ),
+                "{negative_proposal:?} must not become a durable task"
+            );
+        }
     }
 }

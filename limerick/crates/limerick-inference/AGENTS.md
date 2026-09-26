@@ -16,6 +16,7 @@ cargo test -p limerick-inference --test '*'            # integration (may hit lo
 - **`#[serde(default)]` on optional response fields.** Providers omit fields inconsistently between releases.
 - **Transport code belongs in `limerick-providers`.** Never let provider types leak into `limerick-core`; re-exports keep the `limerick_inference::*` paths stable.
 - **Use the simulator for tests.** `limerick_providers::simulator` is the deterministic test backend — prefer it over mocking HTTP. Ollama REST client (`client.rs`) and auth probes (`validate.rs`) stay in this crate.
+- **`desktop` (default) / `mobile` features.** `desktop` owns `setup` (limerick-setup), `client` (Ollama/vllm process handles), and `hf_downloader` (hf-hub). The workspace dependency sets `default-features = false`, so a member that needs those modules enables `limerick-inference/desktop` (limerick-core's `desktop` feature does). `limerick-npc` and `limerick-input` must stay on the portable surface.
 - **Latency instrumentation is per-category** (intent, dialogue, reaction, sim). Changes require updating the eval scaffolding.
 
 ## Module map
