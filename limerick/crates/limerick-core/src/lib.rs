@@ -43,14 +43,11 @@ pub use limerick_editor as editor;
 // them at their historical paths.
 pub mod dialogue_apply;
 pub mod event_bus;
-#[cfg(feature = "desktop")]
 pub mod game_loop;
-#[cfg(feature = "desktop")]
 pub mod game_session;
 pub mod identity;
 pub mod inference_guard;
 pub mod inference_runtime_v2;
-#[cfg(feature = "desktop")]
 pub mod ipc;
 pub mod loading;
 pub mod mod_source;

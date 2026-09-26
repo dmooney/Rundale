@@ -28,8 +28,10 @@ by CLI, web server, and Tauri backends.
   diagnostics.
 - `mobile`: the portable configuration
   (`cargo check -p limerick-core --no-default-features --features mobile`).
-  It excludes those desktop-only dependencies and the `ipc`, `game_loop`, and
-  `game_session` modules that use them.
+  It excludes those desktop-only dependencies and the pieces that use them:
+  `ipc::editor`, `ipc::bug_report`, the local vLLM slot helpers on
+  `GameConfig`, and the debug-panel diagnostics view. `game_loop`,
+  `game_session`, and the rest of `ipc` build in both configurations.
 
 ## Re-exports
 
