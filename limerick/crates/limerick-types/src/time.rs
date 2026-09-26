@@ -1086,6 +1086,20 @@ mod tests {
         assert_eq!(attached.now(), frozen);
     }
 
+    #[test]
+    fn game_minutes_floor_pre_1970_times() {
+        // 1820 timestamps are negative; seconds must not reach the next minute.
+        let at = |seconds: i64| {
+            let mut clock = GameClock::new(game_time(1820, 3, 20, 8) + Duration::seconds(seconds));
+            clock.pause();
+            clock.game_minutes()
+        };
+        assert_eq!(at(1), at(0));
+        assert_eq!(at(59), at(0));
+        assert_eq!(at(60), at(0).wrapping_add(1));
+        assert_eq!(at(-1), at(0).wrapping_sub(1));
+    }
+
     // ── weekday_name (shared with limerick-diagnostics + ipc handlers) ────────
 
     #[test]
