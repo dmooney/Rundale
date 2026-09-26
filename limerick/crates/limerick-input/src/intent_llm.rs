@@ -235,15 +235,41 @@ pub async fn parse_intent_with_profile_and_audit(
         }
     };
 
-    match result {
-        Ok(resp) => Ok(validated_intent(resp, raw_input)),
-        Err(_) => Ok(PlayerIntent {
-            intent: IntentKind::Unknown,
-            target: None,
-            dialogue: None,
-            atmosphere: detect_atmospheric_topic(raw_input),
-            raw: raw_input.to_string(),
-        }),
+    Ok(match result {
+        Ok(resp) => validated_intent(resp, raw_input),
+        Err(_) => unknown_intent(raw_input),
+    })
+}
+
+/// The structural check an in-process host applies to an Intent reply before
+/// auditing it. Returns the same error text the desktop parser has always
+/// recorded (`"intent JSON parse failed: ..."`), or `None` when the reply
+/// parses.
+pub fn intent_reply_parse_error(text: &str) -> Option<String> {
+    serde_json::from_str::<IntentResponse>(limerick_inference::strip_json_fence(text))
+        .err()
+        .map(|error| format!("intent JSON parse failed: {error}"))
+}
+
+/// Interprets an Intent reply with the desktop semantics: a reply that does
+/// not parse is `Unknown`, never an error. Used by every runtime once its
+/// inference host returns a completed Intent reply.
+pub fn intent_from_reply_text(text: &str, raw_input: &str) -> PlayerIntent {
+    match serde_json::from_str::<IntentResponse>(limerick_inference::strip_json_fence(text)) {
+        Ok(resp) => validated_intent(resp, raw_input),
+        Err(_) => unknown_intent(raw_input),
+    }
+}
+
+/// The intent used when the Intent role fails or is malformed: `Unknown`,
+/// keeping any grounded atmospheric topic from the raw input.
+pub fn unknown_intent(raw_input: &str) -> PlayerIntent {
+    PlayerIntent {
+        intent: IntentKind::Unknown,
+        target: None,
+        dialogue: None,
+        atmosphere: detect_atmospheric_topic(raw_input),
+        raw: raw_input.to_string(),
     }
 }
 

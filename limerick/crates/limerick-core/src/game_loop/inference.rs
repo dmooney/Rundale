@@ -183,3 +183,251 @@ pub async fn rebuild_inference_worker_with_clients(
     let old_worker = slots.worker_handle.lock().await.replace(worker);
     drop(old_worker);
 }
+
+/// Desktop fulfilment of the [`crate::turn_inference::TurnInference`] seam.
+///
+/// Resolves each workload from the live runtime configuration at call time,
+/// exactly as the game loop used to inline: Tier-1 dialogue goes through the
+/// interactive [`InferenceQueue`] (tokens drained and discarded, response
+/// timeout behind the `inference-response-timeout` kill switch), and intent,
+/// travel encounters, and arrival reactions call their category client
+/// directly with an audit record.
+pub struct InProcessInference<'a> {
+    config: &'a Mutex<crate::ipc::GameConfig>,
+    client: &'a Mutex<Option<AnyClient>>,
+    inference_queue: &'a Mutex<Option<InferenceQueue>>,
+    inference_config: &'a InferenceConfig,
+}
+
+impl<'a> InProcessInference<'a> {
+    /// Borrows the runtime slots from a game-loop context.
+    pub fn from_ctx(ctx: &crate::game_loop::GameLoopContext<'a>) -> Self {
+        Self {
+            config: ctx.config,
+            client: ctx.client,
+            inference_queue: ctx.inference_queue,
+            inference_config: ctx.inference_config,
+        }
+    }
+
+    /// Resolves the direct client route for a non-dialogue workload.
+    async fn direct(
+        &self,
+        subrole: limerick_config::InferenceSubrole,
+    ) -> crate::turn_inference::DirectClientInference {
+        let (client, model, profile) = {
+            let config = self.config.lock().await;
+            let base_client = self.client.lock().await;
+            let (client, model) =
+                config.resolve_category_client(subrole.category(), base_client.as_ref());
+            (client, model, config.inference_profile(subrole))
+        };
+        let audit_sink = self
+            .inference_queue
+            .lock()
+            .await
+            .as_ref()
+            .and_then(InferenceQueue::audit_sink);
+        let direct =
+            crate::turn_inference::DirectClientInference::new(client, model, profile, audit_sink);
+        match subrole {
+            limerick_config::InferenceSubrole::TravelEncounter => direct.with_timeout(
+                std::time::Duration::from_secs(TRAVEL_ENCOUNTER_TIMEOUT_SECS),
+            ),
+            limerick_config::InferenceSubrole::ArrivalReaction => {
+                direct.with_timeout(std::time::Duration::from_secs(
+                    crate::config::ReactionConfig::default().llm_timeout_secs,
+                ))
+            }
+            _ => direct,
+        }
+    }
+
+    async fn complete_dialogue(
+        &self,
+        call: crate::turn_inference::InferenceCall,
+        tokens: Option<tokio::sync::mpsc::Sender<String>>,
+    ) -> crate::turn_inference::InferenceOutcome {
+        use crate::inference::{
+            INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferencePriority,
+            QueueRequest, await_inference_response,
+        };
+        use crate::turn_inference::{
+            CallReport, GenerationSettings, InferenceFailureKind, InferenceOutcome,
+        };
+
+        let (queue, model, profile, timeout_secs) = {
+            let queue = self.inference_queue.lock().await.clone();
+            let config = self.config.lock().await;
+            let timeout_secs = if config.flags.is_disabled("inference-response-timeout") {
+                None
+            } else {
+                Some(INFERENCE_RESPONSE_TIMEOUT_SECS)
+            };
+            (
+                queue,
+                config.model_name.clone(),
+                config.inference_profile(call.subrole),
+                timeout_secs,
+            )
+        };
+        // The defaults preserve the measured Qwen2.5-14B-4bit workaround:
+        // frequency_penalty=0.5 suppresses verbatim repetition loops. Keeping the
+        // values in engine config lets each promoted model/backend profile carry
+        // the exact sampling parameters that passed its evidence gate.
+        let generation = self.inference_config.dialogue_generation.for_model(&model);
+        let report = CallReport {
+            model: model.clone(),
+            max_tokens: Some(generation.max_tokens),
+            generation: Some(GenerationSettings {
+                max_tokens: generation.max_tokens,
+                temperature: generation.temperature,
+                frequency_penalty: generation.frequency_penalty,
+                json_mode: generation.json_mode,
+                enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
+            }),
+            metadata: None,
+            partial_output_len: 0,
+        };
+        let failed = |kind, message: String| InferenceOutcome::Failed {
+            kind,
+            message,
+            report: report.clone(),
+        };
+        let Some(queue) = queue else {
+            return failed(
+                InferenceFailureKind::Transport,
+                "no inference queue is configured".to_string(),
+            );
+        };
+        tracing::debug!(
+            model,
+            max_tokens = generation.max_tokens,
+            temperature = generation.temperature,
+            frequency_penalty = generation.frequency_penalty,
+            json_mode = generation.json_mode,
+            enable_thinking = generation.enable_thinking,
+            reasoning_effort = ?generation.reasoning_effort,
+            "submitting Tier-1 dialogue generation profile"
+        );
+        let req_id = call.correlation_id.unwrap_or_default();
+        let (token_tx, token_rx) =
+            tokio::sync::mpsc::channel::<String>(crate::ipc::TOKEN_CHANNEL_CAPACITY);
+        let send_result = queue
+            .send(QueueRequest {
+                id: req_id,
+                model: model.clone(),
+                prompt: call.prompt,
+                system: call.system,
+                token_tx: Some(token_tx),
+                max_tokens: Some(generation.max_tokens),
+                temperature: Some(generation.temperature),
+                frequency_penalty: generation.frequency_penalty,
+                enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
+                priority: InferencePriority::Interactive,
+                role: limerick_config::InferenceCategory::Dialogue,
+                subrole: call.subrole,
+                profile: Some(profile),
+                json_mode: generation.json_mode,
+                json_schema: None,
+                cancel: None,
+            })
+            .await;
+        let response_rx = match send_result {
+            Ok(rx) => rx,
+            Err(e) => {
+                tracing::error!("Failed to submit inference request: {}", e);
+                return failed(InferenceFailureKind::Transport, e.to_string());
+            }
+        };
+
+        // Drain provider tokens for transport backpressure. The engine
+        // quarantines candidate text (#1834), so tokens are forwarded only
+        // when the caller asked for them.
+        let stream_handle = tokio::spawn(async move {
+            let mut token_rx = token_rx;
+            while let Some(token) = token_rx.recv().await {
+                if let Some(tx) = &tokens {
+                    let _ = tx.send(token).await;
+                }
+            }
+        });
+        let outcome = await_inference_response(
+            response_rx,
+            timeout_secs.map(std::time::Duration::from_secs),
+        )
+        .await;
+        if matches!(&outcome, InferenceAwaitOutcome::Response(_)) {
+            let _ = stream_handle.await;
+        } else {
+            stream_handle.abort();
+        }
+        match outcome {
+            InferenceAwaitOutcome::Response(response) => match response.error {
+                Some(error) => {
+                    tracing::warn!("Inference error: {:?}", Some(&error));
+                    failed(InferenceFailureKind::Transport, error)
+                }
+                None => InferenceOutcome::Completed {
+                    text: response.text,
+                    report,
+                },
+            },
+            InferenceAwaitOutcome::Closed => {
+                tracing::warn!(
+                    req_id,
+                    "NPC inference response channel closed without a reply"
+                );
+                failed(
+                    InferenceFailureKind::Interrupted,
+                    "response channel closed".to_string(),
+                )
+            }
+            InferenceAwaitOutcome::TimedOut { secs } => {
+                tracing::warn!(req_id, secs, "NPC inference response timed out");
+                failed(
+                    InferenceFailureKind::TimedOut,
+                    format!("dialogue inference timed out after {secs}s"),
+                )
+            }
+        }
+    }
+}
+
+/// Time budget for LLM travel-encounter enrichment; the canned line is used
+/// when it expires.
+pub const TRAVEL_ENCOUNTER_TIMEOUT_SECS: u64 = 15;
+
+impl crate::turn_inference::TurnInference for InProcessInference<'_> {
+    fn route(
+        &self,
+        subrole: limerick_config::InferenceSubrole,
+    ) -> crate::turn_inference::BoxFuture<'_, crate::turn_inference::RouteStatus> {
+        Box::pin(async move {
+            if subrole == limerick_config::InferenceSubrole::Dialogue {
+                return if self.inference_queue.lock().await.is_some() {
+                    crate::turn_inference::RouteStatus::Live
+                } else {
+                    crate::turn_inference::RouteStatus::Unavailable
+                };
+            }
+            self.direct(subrole).await.route(subrole).await
+        })
+    }
+
+    fn complete_streaming(
+        &self,
+        call: crate::turn_inference::InferenceCall,
+        tokens: Option<tokio::sync::mpsc::Sender<String>>,
+    ) -> crate::turn_inference::BoxFuture<'_, crate::turn_inference::InferenceOutcome> {
+        Box::pin(async move {
+            if call.subrole == limerick_config::InferenceSubrole::Dialogue {
+                return self.complete_dialogue(call, tokens).await;
+            }
+            let direct = self.direct(call.subrole).await;
+            direct.complete_streaming(call, tokens).await
+        })
+    }
+}

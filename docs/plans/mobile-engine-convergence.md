@@ -160,6 +160,22 @@ Exit:
 - The live Endpoint suite passes against `limerick-prod`.
 - A TestFlight build from the new line is uploaded.
 
+## Background inference seam (M, after stage 2)
+
+Stage 2 routes only in-turn inference through the host. Post-turn NPC
+reactions, idle banter, and tier-2/3/4 simulation still call inference
+in-process, so mobile runs without them until this lands (#2025).
+
+- Add a background-inference host seam in shared core, reusing the stage 2
+  inference request and outcome types. Background work yields to player turns
+  and can be cancelled.
+- Apply results through the existing canonical seams with Rule 30
+  revalidation.
+- Desktop keeps in-process fulfilment, unchanged.
+
+Exit: lifecycle tests pass with a scripted host, and mobile runs reactions,
+banter, and background simulation through its host.
+
 ## Stage 6: re-audit, then resume features
 
 - Re-run Milestones 1–3 on the new line: automated gates first, then the
@@ -168,7 +184,8 @@ Exit:
   longer apply.
 - Tag `ios-port` as an archive (for example `archive/ios-port`) and stop
   updating it.
-- Unfreeze feature work. The living world uses the engine's own systems, such as
+- Unfreeze feature work once the background inference seam has landed. The
+  living world uses the engine's own systems, such as
   `limerick-npc` gossip, never mobile-only scripts.
 
 ## Open items
