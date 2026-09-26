@@ -395,18 +395,19 @@ second entry point. Consequences:
 
 ```rust
 pub trait TurnJournal: Send + Sync {
-    fn accept(&self, record: &RequestRecord, events: &[TranscriptEvent]) -> BoxFuture<'_, Result<(), JournalError>>;
-    fn begin_attempt(&self, record: &RequestRecord, events: &[TranscriptEvent]) -> BoxFuture<'_, Result<(), JournalError>>;
-    fn await_clarification(&self, record: &RequestRecord, events: &[TranscriptEvent]) -> BoxFuture<'_, Result<(), JournalError>>;
-    fn commit(&self, commit: &TurnCommit) -> BoxFuture<'_, Result<(), JournalError>>;
-    fn finish_uncommitted(&self, record: &RequestRecord, events: &[TranscriptEvent]) -> BoxFuture<'_, Result<(), JournalError>>;
+    /// Acceptance plus the command event, before interpretation or inference.
+    fn accept(&self, record: RequestRecord, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
+    /// A step that commits no gameplay: attempt start, pending clarification,
+    /// or an uncommitted terminal outcome.
+    fn update(&self, record: RequestRecord, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
+    /// A committed turn, atomically.
+    fn commit(&self, commit: TurnCommit) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
-    fn next_sequence(&self) -> BoxFuture<'_, Result<EventSequence, JournalError>>;
 }
 
 pub struct TurnCommit {
     pub record: RequestRecord,            // terminal Succeeded, committed revision
-    pub events: Vec<TranscriptEvent>,
+    pub events: Vec<PendingEvent>,
     pub task_mutations: Vec<PlayerTask>,  // today's durable per-turn state
 }
 ```
@@ -435,8 +436,8 @@ What Stage 3 must supply:
    transcript events, the task batch, and the authoritative state delta
    (journal entry or snapshot), so desktop autosave and turn commit cannot
    disagree.
-3. Durable `accept`, `begin_attempt`, `await_clarification`, and
-   `finish_uncommitted`, so `recover` sees open requests after a crash.
+3. Durable `accept` and `update`, so `recover` sees open requests after a
+   crash.
 4. Forward compatibility per ADR-025 §4: unknown `TranscriptEventKind` values
    are preserved verbatim and rendered as a fallback line (the Stage 2 enum
    gets an `Unknown { raw }` arm and a round-trip test so Stage 3 does not have
