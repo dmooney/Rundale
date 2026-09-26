@@ -310,3 +310,4 @@ bottom; don't lengthen items past 2-3 lines.
 
 - **A Homebrew Cargo before the rustup proxy on PATH bypasses the pinned toolchain.** Verify `rustc --version` and run gates through the rustup proxy; LLVM coverage tools must match the compiler.
 - **Canonicalize both active and candidate save paths before lock comparison.** On macOS `/tmp` aliases `/private/tmp`; comparing only one canonical path can make a save collide with its own lock.
+- **Action steps ignore a workflow's `run.working-directory`.** `Swatinem/rust-cache` defaults to the repository-root `./target`; a nested Cargo workspace must declare `workspaces: limerick -> target` or CI can report tiny cache hits while recompiling every dependency.
