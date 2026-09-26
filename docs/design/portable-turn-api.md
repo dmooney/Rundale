@@ -459,8 +459,10 @@ Unchanged by design:
   for tracking its convergence with the real loop.
 - The harness walkthrough (`just verify`), which runs `--script` fixtures.
 
-Intentional changes, each to be approved here and shown with before/after
-evidence in its PR:
+Accepted consequences. The project is reset around mobile: desktop must keep
+working and its gates stay green, but it gets no UI feature work. These desktop
+changes fall out of the shared engine and are accepted without desktop UI
+changes; each PR records before/after evidence:
 
 1. **Failed dialogue commits nothing.** Today a failed player-initiated dialogue
    turn keeps its pre-inference mutations (the player's transcript line,
@@ -477,8 +479,8 @@ evidence in its PR:
    fallbacks and per-turn `stream-turn-end` events are kept.
 4. **An ambiguous explicit addressee asks which person**, instead of reporting
    "X is not here." (flag `addressee-clarification`, default on, per Rule 6).
-   Desktop UIs without a choice control show the question and choices as a
-   system line; the next typed input cancels the pending request (§5.1).
+   Desktop shows the question and choices as a system line; the next typed
+   input cancels the pending request (§5.1). No desktop UI work.
 5. **The headless REPL uses the shared pipeline.** Its output becomes the
    staged renderer's (`committed_headless_lines`), which task-bearing turns
    already use. It gains full travel, encounters, arrival reactions, guards,
@@ -493,41 +495,44 @@ fixture, and a proof bundle per [agent-check](../agent/agent-check.md). Live run
 on the inference path use a local scripted OpenAI-compatible server (real HTTP,
 canned replies, disclosed in the evidence).
 
-| #   | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                                   |
-| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| 0   | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                                        |
-| 1   | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                                 |
-| 2   | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                                     |
-| 3   | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                   | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run                   |
-| 4   | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                                       |
-| 5   | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                                 |
-| 6   | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`.                                                                                                                                                                             | ported clarification tests; real-loop test                                                                              |
-| 7   | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server live run and Tauri live run against the scripted server (screenshots), before/after transcripts; real-loop tests |
-| 8   | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                                    |
-| 9   | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                                             |
+| #   | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                    |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 0   | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                         |
+| 1   | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                  |
+| 2   | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                      |
+| 3   | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                   | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run    |
+| 4   | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                        |
+| 5   | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                  |
+| 6   | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`.                                                                                                                                                                             | ported clarification tests; real-loop test                                                               |
+| 7   | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server and Tauri bridge live runs against the scripted server, before/after transcripts; real-loop tests |
+| 8   | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                     |
+| 9   | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                              |
 
 PRs 2 and 4 are independent of each other and of 3; 5 needs 3 and 4; 6 needs 2
 and 5; 7 needs 5 and 6; 8 needs 7.
 
-## 9. Open questions for review
+## 9. Decisions and open questions
 
-1. **Intentional changes (§7, items 1-5).** Approve all five, or name any that
-   must be avoided. Item 2 can be avoided only by releasing uncommitted output,
-   which conflicts with item 1; item 3 can be kept as-is (raw streaming) if the
-   Rule 33 exception is preferred.
-2. **Desktop clarification UX.** The proposal renders the question as a system
-   line and treats the next input as a new request. A choice control in the
-   Svelte UI is UI feature work and is not proposed for Stage 2. Confirm.
-3. **Slash commands.** Proposed: `/`-commands stay on the shared
-   `handle_system_command` path and are not requests in Stage 2 (most are
-   session or admin commands). Mobile's observation commands (`/look`, `/time`,
-   `/weather`, `/map`) can join the lifecycle in Stage 5 if the product needs
-   them in the durable transcript. Confirm.
-4. **Inference outside the turn.** Post-turn reactions (`emit_npc_reactions`),
-   idle banter, and tier-2/3/4 simulation keep calling inference in-process on
-   desktop. Under the mobile feature they have no host seam, so a mobile host
-   runs with them disabled until a background-inference seam exists. Proposed as
-   a new plan item rather than Stage 2 scope. Confirm or pull into Stage 2.
-5. **Script harness.** Proposed: stays on its legacy router (required for
-   unchanged `--script` output). Its convergence would be a separate plan item
-   with a deliberate baseline update. Confirm.
+Decided in review:
+
+- The design in §3-§6 is approved.
+- `ipc::editor` stays desktop-only; mobile bug reporting is #2022; headless
+  drift is #2023; guards stay unchanged, revisit in #2024.
+- §7 consequences are accepted; desktop gets no UI work (mobile-first reset).
+- The script harness stays on its legacy router (required for unchanged
+  `--script` output).
+
+Open:
+
+1. **Slash commands.** Proposed: `/`-commands stay on the shared
+   `handle_system_command` path and are not lifecycle requests in Stage 2 (most
+   are session or admin commands). Mobile's observation commands (`/look`,
+   `/time`, `/weather`, `/map`) can join the lifecycle in Stage 5 if the product
+   needs them in the durable transcript.
+2. **Inference outside the turn.** Post-turn reactions, idle banter, and
+   tier-2/3/4 simulation call inference in-process. Under the mobile feature they
+   have no host seam, so mobile runs without them until a background-inference
+   seam exists. Proposed as a new plan item, not Stage 2 scope.
+3. **iOS build in CI.** `rust-mobile-build` checks only the host target. Proposed:
+   PR 1 adds an `aarch64-apple-ios` check and fixes the pinned toolchain's
+   missing iOS standard library.
