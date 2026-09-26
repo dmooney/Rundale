@@ -178,23 +178,50 @@ impl Default for NpcManager {
     }
 }
 
-/// Returns the unique NPC matching `predicate`, or `None` if zero or
-/// multiple match. Helper for `find_by_role_at` — refusing on ambiguity
-/// keeps the resolver from silently picking the wrong person.
-pub(super) fn unique_match<'a, F>(npcs: &[&'a Npc], predicate: F) -> Option<&'a Npc>
+/// How a player's reference to someone present resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NpcReference {
+    /// Exactly one NPC matched.
+    Unique(NpcId),
+    /// Several NPCs matched equally well; ids sorted ascending. Callers must
+    /// not pick one on the player's behalf.
+    Ambiguous(Vec<NpcId>),
+    /// No NPC present matched.
+    NotFound,
+}
+
+impl NpcReference {
+    /// The matched NPC id, only when the reference is unambiguous.
+    pub fn unique(&self) -> Option<NpcId> {
+        match self {
+            Self::Unique(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    fn unique_npc<'a>(&self, manager: &'a NpcManager) -> Option<&'a Npc> {
+        self.unique().and_then(|id| manager.get(id))
+    }
+}
+
+/// Classifies the NPCs matching `predicate` as unique, ambiguous, or none.
+pub(super) fn match_all<F>(npcs: &[&Npc], predicate: F) -> NpcReference
 where
     F: Fn(&Npc) -> bool,
 {
-    let mut hit: Option<&Npc> = None;
-    for &npc in npcs {
-        if predicate(npc) {
-            if hit.is_some() {
-                return None;
-            }
-            hit = Some(npc);
+    let mut ids: Vec<NpcId> = npcs
+        .iter()
+        .filter(|npc| predicate(npc))
+        .map(|npc| npc.id)
+        .collect();
+    match ids.len() {
+        0 => NpcReference::NotFound,
+        1 => NpcReference::Unique(ids[0]),
+        _ => {
+            ids.sort_by_key(|id| id.0);
+            NpcReference::Ambiguous(ids)
         }
     }
-    hit
 }
 
 /// Maps common Irish 1820 role-vocatives to a canonical occupation token.

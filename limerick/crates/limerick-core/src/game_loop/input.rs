@@ -464,8 +464,8 @@ pub async fn handle_game_input(
         let validated = if is_talk {
             talk_target.filter(|t| {
                 npc_manager
-                    .find_by_name(t, world.player_location)
-                    .or_else(|| npc_manager.find_by_role_at(t, world.player_location))
+                    .resolve_reference_at(t, world.player_location)
+                    .unique()
                     .is_some()
             })
         } else {

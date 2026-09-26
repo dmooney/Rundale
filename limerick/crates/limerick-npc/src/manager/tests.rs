@@ -900,3 +900,87 @@ fn conversation_repair_heals_only_explicit_grounded_identity_claims() {
     assert!(!mgr.is_introduced(NpcId(2)));
     assert_eq!(mgr.heal_introductions_from_conversation(&log), 0);
 }
+
+fn named_npc(id: u32, name: &str, occupation: &str, location: u32) -> Npc {
+    let mut npc = make_test_npc(id, location);
+    npc.name = name.to_string();
+    npc.occupation = occupation.to_string();
+    npc
+}
+
+#[test]
+fn resolve_reference_reports_ambiguous_first_name_instead_of_not_found() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Micheal Connolly", "Farmer", 2));
+    mgr.add_npc(named_npc(2, "Micheal Duffy", "Weaver", 2));
+    mgr.mark_introduced(NpcId(1));
+    mgr.mark_introduced(NpcId(2));
+
+    assert_eq!(
+        mgr.resolve_reference_at("Micheal", LocationId(2)),
+        NpcReference::Ambiguous(vec![NpcId(1), NpcId(2)])
+    );
+    assert!(
+        mgr.find_by_name("Micheal", LocationId(2)).is_none(),
+        "the Option wrapper still refuses to guess"
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Micheal Duffy", LocationId(2)),
+        NpcReference::Unique(NpcId(2)),
+        "a full name disambiguates"
+    );
+}
+
+#[test]
+fn resolve_reference_reports_ambiguous_role_and_keeps_unique_vocative() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Peig Hannigan", "Farmer", 2));
+    mgr.add_npc(named_npc(2, "Liam Murphy", "Farmer", 2));
+    mgr.add_npc(named_npc(3, "Declan Tierney", "Parish Priest", 2));
+
+    assert_eq!(
+        mgr.resolve_reference_at("Farmer", LocationId(2)),
+        NpcReference::Ambiguous(vec![NpcId(1), NpcId(2)])
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Father", LocationId(2)),
+        NpcReference::Unique(NpcId(3)),
+        "the role-vocative fallback is kept"
+    );
+}
+
+#[test]
+fn resolve_reference_prefers_a_unique_role_over_an_ambiguous_name() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Smith Connolly", "Farmer", 2));
+    mgr.add_npc(named_npc(2, "Smith Duffy", "Weaver", 2));
+    mgr.add_npc(named_npc(3, "Bridget Walsh", "Smith", 2));
+    mgr.mark_introduced(NpcId(1));
+    mgr.mark_introduced(NpcId(2));
+
+    // Matches the pre-existing `find_by_name(..).or_else(find_by_role_at)`
+    // behaviour: the unique role match wins over the ambiguous first name.
+    assert_eq!(
+        mgr.resolve_reference_at("Smith", LocationId(2)),
+        NpcReference::Unique(NpcId(3))
+    );
+}
+
+#[test]
+fn resolve_reference_not_found_for_absent_or_blank_reference() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Peig Hannigan", "Widow", 2));
+
+    assert_eq!(
+        mgr.resolve_reference_at("Peig Hannigan", LocationId(9)),
+        NpcReference::NotFound
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("   ", LocationId(2)),
+        NpcReference::NotFound
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Constable", LocationId(2)),
+        NpcReference::NotFound
+    );
+}

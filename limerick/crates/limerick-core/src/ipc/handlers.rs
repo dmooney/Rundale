@@ -815,16 +815,15 @@ pub fn resolve_npc_targets(
     let mut targets = Vec::new();
     let mut seen = HashSet::new();
     for name in target_names {
-        // Primary: literal name (exact or first-name prefix).
-        // Fallback: occupation/role vocative ("Father", "Widow") when
-        // exactly one co-located NPC matches that role — issue #998.
-        let resolved = npc_manager
-            .find_by_name(name, world.player_location)
-            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
-        if let Some(npc) = resolved
-            && seen.insert(npc.id)
+        // The shared resolver tries the literal name (exact or first-name
+        // prefix), then a unique occupation/role vocative ("Father",
+        // "Widow"; issue #998). Ambiguous references resolve to no one.
+        if let Some(id) = npc_manager
+            .resolve_reference_at(name, world.player_location)
+            .unique()
+            && seen.insert(id)
         {
-            targets.push(npc.id);
+            targets.push(id);
         }
     }
 
@@ -876,18 +875,14 @@ pub fn resolve_addressed_targets(
     let mut absent = Vec::new();
     let mut seen_absent = HashSet::new();
     for name in target_names {
-        // Primary: literal name (exact or first-name prefix).
-        // Fallback: occupation/role vocative ("Father", "Widow") when
-        // exactly one co-located NPC matches that role — mirrors the same
-        // fallback in `resolve_npc_targets` so explicit `addressed_to`
-        // names resolve identically regardless of which resolver is used
-        // (#1221).
+        // Same shared resolver as `resolve_npc_targets`, so explicit
+        // `addressed_to` names resolve identically on every path (#1221).
         let npc = npc_manager
-            .find_by_name(name, world.player_location)
-            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
-        if let Some(npc) = npc {
-            if seen_ids.insert(npc.id) {
-                resolved.push(npc.id);
+            .resolve_reference_at(name, world.player_location)
+            .unique();
+        if let Some(id) = npc {
+            if seen_ids.insert(id) {
+                resolved.push(id);
             }
         } else if seen_absent.insert(name.to_lowercase()) {
             absent.push(name.clone());
