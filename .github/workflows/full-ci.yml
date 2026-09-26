@@ -48,6 +48,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -125,6 +127,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: v0-rust-coverage
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -170,6 +173,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -207,6 +212,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Check limerick-core mobile configuration
         run: cargo check -p limerick-core --no-default-features --features mobile
@@ -228,6 +235,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -347,7 +356,7 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: .
+          workspaces: limerick -> target
 
       - name: Install dependencies
         run: npm ci
