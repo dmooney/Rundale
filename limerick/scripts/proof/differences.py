@@ -34,6 +34,8 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover - CI and the dev venv run 3.11+
     import tomli as tomllib
 
+INTENDED_FENCE = "```toml intended-diffs"
+
 # A unit is one comparable step (a command, a request, a turn): a short label
 # and the normalised lines that describe it.
 Unit = tuple[str, list[str]]
@@ -75,12 +77,34 @@ class Intended:
 def load_intended(path: Path | None) -> list[Intended]:
     if path is None:
         return []
-    data = tomllib.loads(path.read_text())
+    return parse_intended(path.read_text(), str(path))
+
+
+def load_intended_markdown(path: Path) -> list[Intended]:
+    """Reads every fenced ```toml intended-diffs block in a Markdown file (a
+    PR body; `render-proof-comment.sh` writes the block from a bundle's
+    `intended-diffs.toml`)."""
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in path.read_text().splitlines():
+        if current is None:
+            if line.strip() == INTENDED_FENCE:
+                current = []
+        elif line.strip() == "```":
+            blocks.append("\n".join(current))
+            current = None
+        else:
+            current.append(line)
+    return [entry for block in blocks for entry in parse_intended(block, str(path))]
+
+
+def parse_intended(text: str, source: str) -> list[Intended]:
+    data = tomllib.loads(text)
     entries = []
     for raw in data.get("intended", []):
         unknown = set(raw) - {"match", "reason", "surface", "name", "required"}
         if unknown or "match" not in raw or not raw.get("reason"):
-            raise SystemExit(f"{path}: each [[intended]] needs match and reason; got {raw}")
+            raise SystemExit(f"{source}: each [[intended]] needs match and reason; got {raw}")
         entries.append(Intended(**raw))
     return entries
 

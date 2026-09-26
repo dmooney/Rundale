@@ -44,6 +44,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     outputs:
       runtime: ${{ steps.filter.outputs.runtime || 'true' }}
+      differential: ${{ steps.filter.outputs.differential || 'true' }}
       promptfoo: ${{ steps.filter.outputs.promptfoo || 'true' }}
     steps:
       - name: Checkout
@@ -69,6 +70,18 @@ jobs:
               - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
+            # Anything compiled into limerick-server / limerick-engine, the
+            # content and fixtures they run, and the differential tooling.
+            differential:
+              - 'limerick/crates/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'rust-toolchain.toml'
+              - 'mods/**'
+              - 'limerick/testing/fixtures/**'
+              - 'limerick/scripts/proof/**'
+              - '.github/scripts/prove-diff-comment.sh'
+              - '.github/workflows/ci.yml'
             promptfoo:
               - 'promptfoo/**'
               - '.github/workflows/ci.yml'
@@ -284,6 +297,88 @@ jobs:
     uses: ./.github/workflows/full-ci.yml
     secrets: inherit
 
+  # Builds main and this PR, runs the same live scenario (limerick-server
+  # against a scripted model server) and every --script fixture on both, and
+  # fails on any difference the PR body does not declare in a
+  # `toml intended-diffs` block (docs/agent/agent-check.md).
+  differential-proof:
+    name: Differential proof
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    env:
+      # Both sides build into the cached target, sharing dependencies.
+      CARGO_TARGET_DIR: ${{ github.workspace }}/limerick/target
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache: false
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+          shared-key: prove-diff
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Read the PR body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr view "$PR_NUMBER" --json body --jq .body >"$RUNNER_TEMP/pr-body.md"
+
+      - name: Run the differential (main vs this PR)
+        run: |
+          python3 limerick/scripts/proof/prove_diff.py \
+            --scenario talk-and-task \
+            --intended-markdown "$RUNNER_TEMP/pr-body.md" \
+            --out "$RUNNER_TEMP/prove-diff"
+
+      - name: Publish the report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          report="$RUNNER_TEMP/prove-diff/report.md"
+          if [[ -f "$report" ]]; then
+            head -c 900000 "$report" >>"$GITHUB_STEP_SUMMARY"
+          fi
+          bash .github/scripts/prove-diff-comment.sh "$report" "$PR_NUMBER" "$RUN_URL" \
+            || echo "::warning::could not post the differential report comment"
+
+      - name: Upload the runs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: prove-diff
+          path: |
+            ${{ runner.temp }}/prove-diff/report.md
+            ${{ runner.temp }}/prove-diff/base/run*/
+            ${{ runner.temp }}/prove-diff/head/run*/
+          if-no-files-found: ignore
+          retention-days: 14
+
   playwright-launcher-windows:
     name: Playwright launcher lifecycle (Windows)
     runs-on: windows-latest
@@ -320,6 +415,7 @@ jobs:
         shell-quality,
         toml-quality,
         runtime-suite,
+        differential-proof,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -337,4 +433,6 @@ jobs:
           PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
           RUNTIME_SUITE_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true' }}
           RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
+          DIFFERENTIAL_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true' }}
+          DIFFERENTIAL_RESULT: ${{ needs.differential-proof.result }}
         run: bash .github/scripts/ci-gate.sh

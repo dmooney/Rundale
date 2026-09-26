@@ -43,6 +43,7 @@ just attach-proof <task-id>                                # post proof bundle a
 
 - `prove_diff.py` (`just prove-diff`) builds the merge-base with `origin/main` in a detached worktree and this working tree, copies each side's binaries, runs a live scenario and every `--script` fixture on both, and fails on differences not listed in an intended-differences TOML.
 - `scripted_openai.py` is the scripted model server (real HTTP, canned replies per workload, request-body log); `drive_session.py` drives `limerick-server` or an attached bridge over `POST /api/submit-input`; `body_diff.py` and `script_compare.py` are the comparators; `noise.py` masks the live server's wall-clock seconds before `/pause`, the one run-to-run difference left by design.
+- CI runs it on runtime pull requests (`Differential proof` in `ci.yml`), reading `toml intended-diffs` blocks from the PR body (`--intended-markdown`); `render-proof-comment.sh` writes that block from a bundle's `intended-diffs.toml`.
 - Documented in [`docs/agent/agent-check.md`](../../docs/agent/agent-check.md#differential-proof).
 
 ### `limerick-mcp-backend.sh` — Start/stop/status/log helper
