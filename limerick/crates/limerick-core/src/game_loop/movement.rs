@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use crate::config::FeatureFlags;
-use crate::config::InferenceCategory;
 use crate::game_loop::GameLoopContext;
 use crate::game_session::{GameEffects, apply_movement, roll_travel_encounter};
 use crate::ipc::{
@@ -27,6 +26,7 @@ use crate::ipc::{
     text_log_typed,
 };
 use crate::npc::reactions::ReactionTemplates;
+use crate::turn_inference::RouteStatus;
 use crate::world::transport::TransportMode;
 
 /// Resolves player movement to `target`, applies all game-state changes, and
@@ -87,44 +87,19 @@ pub async fn handle_movement(
     // Resolve the encounter text — LLM-enriched if a reaction client is
     // available and the `travel-encounters-llm` flag is not disabled.
     // Falls back to canned text on any error/timeout.
+    let inference = ctx.inference();
     let encounter_line: Option<String> = if let Some(rolled) = rolled_encounter.as_ref() {
         let llm_enabled = {
             let cfg = ctx.config.lock().await;
             !cfg.flags.is_disabled("travel-encounters-llm")
         };
-        let (reaction_client, reaction_model, reaction_profile) = if llm_enabled {
-            let config = ctx.config.lock().await;
-            let base_client = ctx.client.lock().await;
-            let resolved =
-                config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
-            let profile =
-                config.inference_profile(limerick_config::InferenceSubrole::TravelEncounter);
-            (resolved.0, resolved.1, profile)
-        } else {
-            (
-                None,
-                String::new(),
-                limerick_config::InferenceProfile::for_subrole(
-                    limerick_config::InferenceSubrole::TravelEncounter,
-                ),
-            )
-        };
-        let text = if let Some(client) = reaction_client.as_ref() {
-            let audit_sink = ctx
-                .inference_queue
-                .lock()
+        let text = if llm_enabled
+            && inference
+                .route(limerick_config::InferenceSubrole::TravelEncounter)
                 .await
-                .as_ref()
-                .and_then(crate::inference::InferenceQueue::audit_sink);
-            crate::game_session::enrich_travel_encounter_with_profile_and_audit(
-                rolled,
-                client,
-                &reaction_model,
-                15,
-                reaction_profile,
-                audit_sink,
-            )
-            .await
+                != RouteStatus::Unavailable
+        {
+            crate::game_session::enrich_travel_encounter_via(rolled, inference.as_ref()).await
         } else {
             rolled.canned.text.clone()
         };
@@ -171,25 +146,9 @@ pub async fn handle_movement(
 
     // Emit NPC arrival reactions — stream gradually like normal NPC dialogue
     if !effects.arrival_reactions.is_empty() {
-        let (
-            all_npcs,
-            current_location_id,
-            loc_name,
-            tod,
-            weather,
-            introduced,
-            reaction_client,
-            reaction_model,
-            reaction_profile,
-        ) = {
+        let (all_npcs, current_location_id, loc_name, tod, weather, introduced) = {
             let world = ctx.world.lock().await;
             let npc_manager = ctx.npc_manager.lock().await;
-            let config = ctx.config.lock().await;
-            let base_client = ctx.client.lock().await;
-            let (rc, rm) =
-                config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
-            let profile =
-                config.inference_profile(limerick_config::InferenceSubrole::ArrivalReaction);
             (
                 npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
                 world.player_location,
@@ -200,22 +159,13 @@ pub async fn handle_movement(
                 world.clock.time_of_day(),
                 world.weather.to_string(),
                 npc_manager.introduced_set(),
-                rc,
-                rm,
-                profile,
             )
         };
 
         let emitter_clone = Arc::clone(&ctx.emitter);
         let emitter_for_token = Arc::clone(&ctx.emitter);
         let emitter_for_turn_end = Arc::clone(&ctx.emitter);
-        let audit_sink = ctx
-            .inference_queue
-            .lock()
-            .await
-            .as_ref()
-            .and_then(crate::inference::InferenceQueue::audit_sink);
-        crate::game_session::stream_reaction_texts_with_profile(
+        crate::game_session::stream_reaction_texts_via(
             &effects.arrival_reactions,
             &all_npcs,
             current_location_id,
@@ -223,11 +173,8 @@ pub async fn handle_movement(
             tod,
             &weather,
             &introduced,
-            reaction_client.as_ref(),
-            &reaction_model,
+            inference.as_ref(),
             None, // inference_log: None — shared code doesn't hold runtime-specific logs
-            reaction_profile,
-            audit_sink,
             &ctx.language,
             move |turn_id, npc_name, subtype| {
                 // Tie the placeholder to `turn_id` via `text_log_for_stream_turn`
