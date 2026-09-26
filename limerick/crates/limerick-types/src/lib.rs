@@ -17,7 +17,7 @@ pub use conversation::{
     ConversationCursor, ConversationExchange, ConversationLog, RememberedObjectAttribute,
     RememberedObjectAttributeKind, RememberedObjectFact,
 };
-pub use dice::{DiceRoll, fixed_n, roll_n};
+pub use dice::{DiceRoll, fixed_n, seeded_n};
 pub use error::LimerickError;
 pub use events::{ContextEventEnvelope, EventBus, GameEvent, ReactionDirection};
 pub use gossip::{GossipItem, GossipNetwork};

@@ -48,11 +48,25 @@ def test_changed_line_is_reported_with_unit_label() -> None:
 
 
 def test_inserted_and_removed_units_are_reported_whole() -> None:
-    assert signs(diff_units("script", "f", [units("a", "c")], [units("a", "b|x", "c")])) == [
-        "+b",
-        "+x",
+    def labelled(*labels: str) -> list[tuple[str, list[str]]]:
+        return [(label, [f"{label} line"]) for label in labels]
+
+    assert signs(diff_units("script", "f", [labelled("a", "c")], [labelled("a", "b", "c")])) == [
+        "+b line"
     ]
-    assert signs(diff_units("script", "f", [units("a", "b", "c")], [units("a", "c")])) == ["-b"]
+    assert signs(diff_units("script", "f", [labelled("a", "b", "c")], [labelled("a", "c")])) == [
+        "-b line"
+    ]
+
+
+def test_units_pair_by_label_in_repetitive_runs() -> None:
+    # Round trips repeat identical units; only the labelled unit that changed
+    # is reported, not a shifted alignment of its neighbours.
+    trip = ["go to crossroads", "go to kilteevan"] * 3
+    base = [(f"cmd {i}", [cmd]) for i, cmd in enumerate(trip)]
+    head = [(label, lines + (["encounter"] if label == "cmd 3" else [])) for label, lines in base]
+    items = diff_units("script", "f", [base], [head])
+    assert [(item.unit, item.sign, item.text) for item in items] == [("cmd 3", "+", "encounter")]
 
 
 def test_a_unit_that_varies_on_base_is_compared_as_a_range() -> None:
@@ -78,7 +92,8 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     path = tmp_path / "intended.toml"
     path.write_text(
         '[[intended]]\nsurface = "script"\nmatch = "Hold time"\nreason = "help text"\n\n'
-        '[[intended]]\nmatch = "never"\nreason = "not observed"\n'
+        '[[intended]]\nmatch = "never"\nreason = "not observed"\n\n'
+        '[[intended]]\nmatch = "maybe"\nreason = "optional"\nrequired = false\n'
     )
     intended = load_intended(path)
     items = [
@@ -87,7 +102,8 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     ]
     undeclared = check(items, intended)
     assert undeclared == [items[1]]  # surface filter excludes the request line
-    assert [entry.hits for entry in intended] == [1, 0]
+    assert [entry.hits for entry in intended] == [1, 0, 0]
+    assert [entry.required for entry in intended] == [True, True, False]
 
 
 def test_name_filter_uses_fnmatch() -> None:
@@ -99,35 +115,11 @@ def test_name_filter_uses_fnmatch() -> None:
 # noise
 
 
-def test_tier_lists_are_sorted_and_undecorated() -> None:
-    line = "  Here: Peig Hannigan 😤 [sharp], Aoife Brennan 🔥 [passionate]"
-    assert noise.script_log_line(line, set()) == "  Here: Aoife Brennan, Peig Hannigan"
-    tiers = "  Tier 2 (nearby): Nora Duffy, Liam Murphy"
-    assert noise.script_log_line(tiers, set()) == "  Tier 2 (nearby): Liam Murphy, Nora Duffy"
-
-
-def test_encounters_emoji_lines_and_save_times_are_masked() -> None:
-    assert noise.script_log_line("  · A fox sits in the road.", set()) is None
-    assert noise.script_log_line("Peig nods. 🙂", set()) is None
-    assert noise.script_log_line("A fixed encounter text", {"A fixed encounter text"}) is None
-    saved = "  #5 — game: 1820-03-20T08:26:01+00:00 | saved: 26 Sep 1:27 PM"
-    assert noise.mask_times(saved) == "  #N — game: <t> | saved: <wall-clock> PM"
-
-
-def test_tier3_prompt_npc_blocks_are_sorted() -> None:
-    prompt = (
-        "Simulate.\n\nNPCs (id in brackets — reuse these in your JSON):\n"
-        "- [17] Ciaran\n  close to Kathleen\n- [16] Kathleen\n  close to Ciaran\n"
-        "For each NPC, return one update."
+def test_live_game_timestamps_lose_their_wall_clock_seconds() -> None:
+    text = '"assigned_at": "1820-03-20T08:26:01Z", "other": "1820-03-20T08:26:59.5Z"'
+    assert noise.game_seconds(text) == (
+        '"assigned_at": "1820-03-20T08:26:<s>Z", "other": "1820-03-20T08:26:<s>Z"'
     )
-    lines = noise.prompt_text(prompt).split("\n")
-    assert lines[3:7] == [
-        "- [16] Kathleen",
-        "  close to Ciaran",
-        "- [17] Ciaran",
-        "  close to Kathleen",
-    ]
-    assert lines[-1] == "For each NPC, return one update."
 
 
 # script_compare
@@ -143,15 +135,15 @@ def test_script_units_split_fields_and_include_exit(tmp_path: Path) -> None:
     }
     out.write_text(json.dumps(record) + "\nnot json\n")
     (tmp_path / "test_x.exit").write_text("0\n")
-    units_ = script_units(out, set())
+    units_ = script_units(out)
     assert units_[0] == ("exit", ["exit: 0"])
     assert units_[1][1] == [
         'command: "/help"',
         'result: "system_command"',
         "response| Available:",
         "response|   /pause",
-        "log: a line",
         "log: b line",
+        "log: a line",
         "log: second",
     ]
     assert units_[2][1] == ["raw: not json"]

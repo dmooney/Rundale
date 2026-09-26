@@ -86,6 +86,29 @@ fn test_npcs_at_location() {
 }
 
 #[test]
+fn npc_lists_come_out_in_id_order() {
+    // Tier lists, simulation prompts, arrivals, and departures are built
+    // from these; insertion order must not leak into them.
+    let mut mgr = NpcManager::new();
+    for id in [42, 7, 19, 3, 88, 25] {
+        mgr.add_npc(make_test_npc(id, 2));
+        mgr.tier_assignments.insert(NpcId(id), CogTier::Tier3);
+    }
+    let ids = |list: Vec<NpcId>| list.into_iter().map(|id| id.0).collect::<Vec<_>>();
+    let sorted = vec![3, 7, 19, 25, 42, 88];
+    assert_eq!(ids(mgr.npcs_in_tier(CogTier::Tier3)), sorted);
+    assert_eq!(
+        ids(mgr
+            .npcs_at(LocationId(2))
+            .iter()
+            .map(|npc| npc.id)
+            .collect()),
+        sorted
+    );
+    assert_eq!(ids(mgr.all_npcs().map(|npc| npc.id).collect()), sorted);
+}
+
+#[test]
 fn test_in_transit_excluded_from_npcs_at() {
     let mut mgr = NpcManager::new();
     let mut npc = make_test_npc(1, 2);

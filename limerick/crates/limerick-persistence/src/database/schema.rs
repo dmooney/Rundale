@@ -26,8 +26,9 @@ pub(super) fn lock_recovered<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     }
 }
 
-/// Creates tables if they don't exist and ensures the "main" branch exists.
-pub(super) fn migrate(conn: &Connection) -> Result<(), LimerickError> {
+/// Creates tables if they don't exist and ensures the "main" branch exists,
+/// stamping a new "main" branch with `now`.
+pub(super) fn migrate(conn: &Connection, now: &str) -> Result<(), LimerickError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS branches (
             id INTEGER PRIMARY KEY,
@@ -73,7 +74,7 @@ pub(super) fn migrate(conn: &Connection) -> Result<(), LimerickError> {
     if !exists {
         conn.execute(
             "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, NULL)",
-            params!["main", chrono::Utc::now().to_rfc3339()],
+            params!["main", now],
         )
         .db_err()?;
     }

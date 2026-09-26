@@ -12,7 +12,8 @@ runs on both sides:
 
 Every difference is reported and checked against the author's intended
 differences (see `differences.py`). Undeclared differences fail, and so do
-declarations that match nothing. Exit status: 0 clean, 1 failed check.
+declarations that match nothing and head runs that disagree with each other.
+Exit status: 0 clean, 1 failed check.
 
     prove_diff.py [--scenario talk-and-task] [--intended FILE] [--base REV]
 """
@@ -34,7 +35,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import noise  # noqa: E402
 from body_diff import load_requests  # noqa: E402
-from differences import Item, Unit, check, diff_units, load_intended, unstable_units  # noqa: E402
+from differences import (  # noqa: E402
+    Intended,
+    Item,
+    Unit,
+    check,
+    diff_units,
+    load_intended,
+    unstable_units,
+)
 from drive_session import isolated_env  # noqa: E402
 from script_compare import script_units  # noqa: E402
 
@@ -190,17 +199,20 @@ def state_units(path: Path) -> list[Unit]:
 
 def compare(
     out: Path, base: Side, head: Side, runs: int, scenarios: list[Path], fixtures: list[str]
-) -> tuple[list[Item], list[str]]:
+) -> tuple[list[Item], list[str], list[str]]:
     base_dirs = [base.run_dir(out, r) for r in range(1, runs + 1)]
     head_dirs = [head.run_dir(out, r) for r in range(1, runs + 1)]
     items: list[Item] = []
     notes: list[str] = []
+    head_unstable: list[str] = []
 
     def unstable(label: str, base_runs: list[list[Unit]], head_runs: list[list[Unit]]) -> None:
         for side, side_runs in (("base", base_runs), ("head", head_runs)):
             count = unstable_units(side_runs)
             if count:
                 notes.append(f"{label}: {side} runs disagree on {count} unit(s)")
+                if side == "head":
+                    head_unstable.append(label)
 
     def surface(label: str, name: str, load: Callable[[Path], list[Unit]], rel: str) -> None:
         base_runs = [load(d / rel) for d in base_dirs]
@@ -214,15 +226,15 @@ def compare(
         surface("state", scenario.stem, state_units, f"{rel}/engine-state.json")
         surface("requests", scenario.stem, load_requests, f"{rel}/requests.jsonl")
 
-    encounters = noise.encounter_texts([base.tree, head.tree])
     for fixture in fixtures:
-        surface(
-            "script",
-            fixture,
-            lambda path: script_units(path, encounters),
-            f"script/{fixture}.jsonl",
-        )
-    return items, notes
+        surface("script", fixture, script_units, f"script/{fixture}.jsonl")
+    return items, notes, head_unstable
+
+
+def _unseen(entry: Intended) -> str:
+    if entry.hits:
+        return ""
+    return " (NOT OBSERVED)" if entry.required else " (not observed; optional)"
 
 
 def resolve_scenarios(names: list[str]) -> list[Path]:
@@ -243,7 +255,7 @@ def main() -> None:
     parser.add_argument("--intended", type=Path, help="intended-differences TOML")
     parser.add_argument("--base", help="base revision (default: merge-base with origin/main)")
     parser.add_argument("--fixtures", default="test_*", help="fixture glob; '' for none")
-    parser.add_argument("--runs", type=int, default=3, help="runs per side")
+    parser.add_argument("--runs", type=int, default=2, help="runs per side")
     parser.add_argument("--jobs", type=int, default=max(2, (os.cpu_count() or 4) // 2))
     parser.add_argument(
         "--out", type=Path, help="output dir (default: ~/.cache/limerick/prove-diff/<repo>)"
@@ -297,9 +309,9 @@ def main() -> None:
         for job in concurrent.futures.as_completed(jobs):
             job.result()
 
-    items, notes = compare(out, base, head, args.runs, scenarios, fixtures)
+    items, notes, head_unstable = compare(out, base, head, args.runs, scenarios, fixtures)
     undeclared = check(items, intended)
-    unobserved = [entry for entry in intended if entry.hits == 0]
+    unobserved = [entry for entry in intended if entry.hits == 0 and entry.required]
 
     report = [
         "# prove-diff report",
@@ -311,23 +323,26 @@ def main() -> None:
         "",
         f"differences: {len(items)} ({len(items) - len(undeclared)} declared, {len(undeclared)} undeclared)",
         f"declarations not observed: {len(unobserved)}",
+        f"head nondeterministic surfaces: {len(head_unstable)}",
     ]
     if notes:
-        report += ["", "## Nondeterminism (compared as a range)", ""]
+        report += ["", "## Nondeterminism", ""]
+        report += [
+            "Runs of one side disagree. Base-side disagreement is compared as a range;",
+            "head-side disagreement fails: the change made a run nondeterministic.",
+            "",
+        ]
         report += [f"- {note}" for note in notes]
     if intended:
         report += ["", "## Intended differences", ""]
-        report += [
-            f"- {e.hits} hit(s){'' if e.hits else ' (NOT OBSERVED)'}: `{e.match}` ({e.reason})"
-            for e in intended
-        ]
+        report += [f"- {e.hits} hit(s){_unseen(e)}: `{e.match}` ({e.reason})" for e in intended]
     if undeclared:
         report += ["", "## Undeclared differences", "", "```text"]
         report += [str(item) for item in undeclared] + ["```"]
     if items and len(undeclared) < len(items):
         report += ["", "## Declared differences", "", "```text"]
         report += [str(item) for item in items if item not in undeclared] + ["```"]
-    verdict = "FAIL" if undeclared or unobserved else "PASS"
+    verdict = "FAIL" if undeclared or unobserved or head_unstable else "PASS"
     report += ["", f"result: {verdict}"]
     text = "\n".join(report) + "\n"
     (out / "report.md").write_text(text)

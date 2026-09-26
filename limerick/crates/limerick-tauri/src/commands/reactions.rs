@@ -131,6 +131,7 @@ pub(super) fn emit_npc_reactions(
         // moved by the time the background task runs).
         let (
             npcs_here,
+            game_minutes,
             reaction_client,
             reaction_model,
             reaction_profile,
@@ -154,6 +155,7 @@ pub(super) fn emit_npc_reactions(
                 config.inference_profile(limerick_core::config::InferenceSubrole::MessageReaction);
             (
                 npcs,
+                world.clock.game_minutes(),
                 client,
                 model,
                 profile,
@@ -221,6 +223,7 @@ pub(super) fn emit_npc_reactions(
         limerick_core::game_loop::emit_npc_reactions(
             player_msg_id,
             player_input,
+            game_minutes,
             npcs_here,
             reaction_client,
             reaction_model,

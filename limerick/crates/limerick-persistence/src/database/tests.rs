@@ -324,6 +324,35 @@ fn test_branch_log() {
 }
 
 #[test]
+fn fixed_timestamps_stamp_every_save_and_branch() {
+    let at = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+    let stamp = at.to_rfc3339();
+    let db = Database::open_memory_with_fixed_timestamps(at).unwrap();
+    let main = db.find_branch("main").unwrap().unwrap();
+    assert_eq!(main.created_at, stamp);
+
+    db.save_snapshot(main.id, &make_test_snapshot()).unwrap();
+    db.create_branch("side", Some(main.id)).unwrap();
+    db.create_branch_with_snapshot("fork", Some(main.id), &make_test_snapshot())
+        .unwrap();
+
+    assert!(
+        db.branch_log(main.id)
+            .unwrap()
+            .iter()
+            .all(|s| s.real_time == stamp)
+    );
+    let branches = db.list_branches().unwrap();
+    assert_eq!(branches.len(), 3);
+    assert!(branches.iter().all(|b| b.created_at == stamp));
+
+    // The default database still stamps with the wall clock.
+    let wall = Database::open_memory().unwrap();
+    let wall_main = wall.find_branch("main").unwrap().unwrap();
+    assert_ne!(wall_main.created_at, stamp);
+}
+
+#[test]
 fn test_clear_journal() {
     let db = Database::open_memory().unwrap();
     let branch = db.find_branch("main").unwrap().unwrap();

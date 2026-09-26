@@ -38,6 +38,10 @@ use limerick_types::LimerickError;
 /// contexts, use [`AsyncDatabase`].
 pub struct Database {
     pub(super) conn: Connection,
+    /// Fixed time for save and branch timestamps, or `None` for the wall
+    /// clock. Only the script harness fixes it, so replays list saves
+    /// identically.
+    fixed_timestamp: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl Database {
@@ -54,19 +58,47 @@ impl Database {
              PRAGMA foreign_keys=ON;",
         )
         .db_err()?;
-        let db = Self { conn };
-        schema::migrate(&db.conn)?;
+        let db = Self {
+            conn,
+            fixed_timestamp: None,
+        };
+        schema::migrate(&db.conn, &db.timestamp())?;
         Ok(db)
     }
 
     /// Opens an in-memory database (for testing).
     pub fn open_memory() -> Result<Self, LimerickError> {
+        Self::open_memory_stamped(None)
+    }
+
+    /// Opens an in-memory database that stamps every save and branch with
+    /// `at` instead of the wall clock, so a replayed script lists its saves
+    /// the same way every run.
+    pub fn open_memory_with_fixed_timestamps(
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, LimerickError> {
+        Self::open_memory_stamped(Some(at))
+    }
+
+    fn open_memory_stamped(
+        fixed_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Self, LimerickError> {
         let conn = Connection::open_in_memory().db_err()?;
         // foreign_keys must be enabled per-connection, including in-memory ones
         conn.execute_batch("PRAGMA foreign_keys=ON;").db_err()?;
-        let db = Self { conn };
-        schema::migrate(&db.conn)?;
+        let db = Self {
+            conn,
+            fixed_timestamp,
+        };
+        schema::migrate(&db.conn, &db.timestamp())?;
         Ok(db)
+    }
+
+    /// The RFC 3339 time a save or branch created now is stamped with.
+    fn timestamp(&self) -> String {
+        self.fixed_timestamp
+            .unwrap_or_else(chrono::Utc::now)
+            .to_rfc3339()
     }
 
     /// Saves a game snapshot to the given branch.
@@ -77,7 +109,7 @@ impl Database {
         branch_id: i64,
         snapshot: &GameSnapshot,
     ) -> Result<i64, LimerickError> {
-        journal::save_snapshot(&self.conn, branch_id, snapshot)
+        journal::save_snapshot(&self.conn, branch_id, snapshot, &self.timestamp())
     }
 
     /// Loads the most recent snapshot for a branch.
@@ -106,7 +138,7 @@ impl Database {
         name: &str,
         parent_branch_id: Option<i64>,
     ) -> Result<i64, LimerickError> {
-        branches::create_branch(&self.conn, name, parent_branch_id)
+        branches::create_branch(&self.conn, name, parent_branch_id, &self.timestamp())
     }
 
     /// Creates a branch and its initial snapshot in one SQLite transaction.
@@ -119,9 +151,10 @@ impl Database {
         parent_branch_id: Option<i64>,
         snapshot: &GameSnapshot,
     ) -> Result<(i64, i64), LimerickError> {
+        let now = self.timestamp();
         let transaction = self.conn.unchecked_transaction().db_err()?;
-        let branch_id = branches::create_branch(&transaction, name, parent_branch_id)?;
-        let snapshot_id = journal::save_snapshot(&transaction, branch_id, snapshot)?;
+        let branch_id = branches::create_branch(&transaction, name, parent_branch_id, &now)?;
+        let snapshot_id = journal::save_snapshot(&transaction, branch_id, snapshot, &now)?;
         transaction.commit().db_err()?;
         Ok((branch_id, snapshot_id))
     }
