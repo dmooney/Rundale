@@ -66,4 +66,3 @@ required-features = ["desktop"]
 [[test]]
 name = "normalize_mod"
 required-features = ["desktop"]
-
