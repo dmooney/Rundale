@@ -1972,9 +1972,8 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
             // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.
             if !app.flags.is_disabled("travel-encounters") {
                 use crate::world::wayfarers;
-                let clock_minutes = app.world.clock.now().timestamp() / 60;
                 let seed = wayfarers::encounter_seed(
-                    clock_minutes,
+                    app.world.clock.game_minutes(),
                     app.world.player_location,
                     destination,
                 );
