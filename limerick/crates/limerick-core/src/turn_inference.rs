@@ -15,8 +15,6 @@
 //!
 //! See `docs/design/portable-turn-api.md` §4.3.
 
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
@@ -27,8 +25,9 @@ use crate::inference::{
     ProviderCallError, ProviderMetadata, ResponseFormat,
 };
 
-/// Boxed future returned by [`TurnInference`] methods.
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+/// Boxed future returned by [`TurnInference`] methods (shared with the
+/// request lifecycle).
+pub use crate::turn::BoxFuture;
 
 /// The reply shape the engine expects from a call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
