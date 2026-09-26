@@ -9,6 +9,10 @@ repository review, with source provenance retained in each plan.
 | 1     | [Phase 1 test cases](phase-1-test-cases.md) | Fixture-only transcript/composer interaction, streaming, keyboard, accessibility, and UI scope |
 | 2     | [Phase 2 test cases](phase-2-test-cases.md) | Embedded Rust, one location/one NPC, inference, cancellation/retry, and local recovery         |
 
+"Phase N" here, in the plan file names, and in `./verify --phase N` means
+product spec Milestone N. It is not the same as the "Mobile Phase N" GitHub
+milestones of the [convergence plan](../plans/mobile-engine-convergence.md).
+
 These are test instructions, not execution reports or evidence that a milestone
 has passed. Record actual results separately, including the build/device or fixture
 used, evidence, failures, and gates that were not run or could not be automated.
