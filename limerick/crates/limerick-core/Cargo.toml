@@ -56,21 +56,9 @@ wiremock = { workspace = true }
 regex = { workspace = true }
 serial_test = { workspace = true }
 
-# Integration tests that drive the desktop-only modules (ipc, game_loop,
-# game_session, editor, diagnostics). The remaining tests also build and run
-# under the mobile configuration.
-[[test]]
-name = "async_llm_integration"
-required-features = ["desktop"]
-
-[[test]]
-name = "demo_context_integration"
-required-features = ["desktop"]
-
-[[test]]
-name = "dialogue_prompt_anchor"
-required-features = ["desktop"]
-
+# Integration tests that use the desktop-only Designer backend or
+# diagnostics. Every other test also builds and runs under the mobile
+# configuration.
 [[test]]
 name = "ipc_field_parity"
 required-features = ["desktop"]
@@ -79,10 +67,3 @@ required-features = ["desktop"]
 name = "normalize_mod"
 required-features = ["desktop"]
 
-[[test]]
-name = "player_gossip_seeding"
-required-features = ["desktop"]
-
-[[test]]
-name = "save_integration"
-required-features = ["desktop"]

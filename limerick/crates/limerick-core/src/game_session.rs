@@ -15,9 +15,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::config::{FeatureFlags, ReactionConfig};
-use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
 use crate::inference::InferenceLog;
+use crate::inference::InferenceLogEntry;
 use crate::inference::{AnyClient, GenerateParams};
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
