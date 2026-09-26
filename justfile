@@ -67,6 +67,14 @@ check:
 agent-check *ARGS:
     bash limerick/scripts/agent-check.sh {{ARGS}}
 
+# Differential proof: builds the merge-base with origin/main and this working
+# tree, runs SCENARIO (limerick/scripts/proof/scenarios/) live plus every
+# --script fixture on both, and fails on any difference not declared with
+# `--intended <file.toml>`. E.g. `just prove-diff talk-and-task --intended
+# .proofs/<id>/intended-diffs.toml`. See docs/agent/agent-check.md.
+prove-diff SCENARIO="talk-and-task" *ARGS:
+    python3 limerick/scripts/proof/prove_diff.py --scenario {{SCENARIO}} {{ARGS}}
+
 # Enforce generated-output, large-file, and documentation-screenshot policy.
 repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
