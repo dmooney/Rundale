@@ -35,7 +35,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import noise  # noqa: E402
 from body_diff import load_requests  # noqa: E402
-from differences import Item, Unit, check, diff_units, load_intended, unstable_units  # noqa: E402
+from differences import (  # noqa: E402
+    Intended,
+    Item,
+    Unit,
+    check,
+    diff_units,
+    load_intended,
+    unstable_units,
+)
 from drive_session import isolated_env  # noqa: E402
 from script_compare import script_units  # noqa: E402
 
@@ -223,6 +231,12 @@ def compare(
     return items, notes, head_unstable
 
 
+def _unseen(entry: Intended) -> str:
+    if entry.hits:
+        return ""
+    return " (NOT OBSERVED)" if entry.required else " (not observed; optional)"
+
+
 def resolve_scenarios(names: list[str]) -> list[Path]:
     paths = []
     for name in names:
@@ -297,7 +311,7 @@ def main() -> None:
 
     items, notes, head_unstable = compare(out, base, head, args.runs, scenarios, fixtures)
     undeclared = check(items, intended)
-    unobserved = [entry for entry in intended if entry.hits == 0]
+    unobserved = [entry for entry in intended if entry.hits == 0 and entry.required]
 
     report = [
         "# prove-diff report",
@@ -321,10 +335,7 @@ def main() -> None:
         report += [f"- {note}" for note in notes]
     if intended:
         report += ["", "## Intended differences", ""]
-        report += [
-            f"- {e.hits} hit(s){'' if e.hits else ' (NOT OBSERVED)'}: `{e.match}` ({e.reason})"
-            for e in intended
-        ]
+        report += [f"- {e.hits} hit(s){_unseen(e)}: `{e.match}` ({e.reason})" for e in intended]
     if undeclared:
         report += ["", "## Undeclared differences", "", "```text"]
         report += [str(item) for item in undeclared] + ["```"]

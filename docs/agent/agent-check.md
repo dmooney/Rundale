@@ -119,6 +119,8 @@ surface = "requests"          # optional: responses | state | requests | script
 name = "talk-and-task"        # optional: fnmatch on the scenario or fixture name
 match = 'WORLD FACTS .* County Roscommon'  # regex searched in the difference line
 reason = "tier-1 prompt names the county"
+# required = false            # optional: only when the base side is random and
+                              # can match the head by chance (reported, not failed)
 ```
 
 With no file, the run passes only if nothing differs, which is the proof for a

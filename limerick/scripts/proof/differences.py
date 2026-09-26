@@ -4,7 +4,8 @@ Every comparator turns a base and a head observation into `Item`s: one per
 changed line, labelled with the surface (`script`, `requests`, `responses`),
 the fixture or scenario name, and the unit (command, request, or turn).
 `check` then matches each item against the intended-differences file; an
-item nothing declares fails, and so does a declaration that matches nothing.
+item nothing declares fails, and so does a required declaration that matches
+nothing.
 
 Intended-differences file (TOML):
 
@@ -13,6 +14,9 @@ Intended-differences file (TOML):
     name = "test_walkthrough"        # optional fnmatch pattern on the name
     match = 'Tier 3 \\(simulated\\)' # regex searched in the item's text
     reason = "tier-3 lists are sorted by NPC id now"
+    required = false                 # optional, default true: false only when
+                                     # the change replaces random base output
+                                     # that can match the head by chance
 """
 
 from __future__ import annotations
@@ -53,6 +57,7 @@ class Intended:
     reason: str
     surface: str | None = None
     name: str | None = None
+    required: bool = True
     hits: int = 0
     pattern: re.Pattern[str] = field(init=False)
 
@@ -73,7 +78,7 @@ def load_intended(path: Path | None) -> list[Intended]:
     data = tomllib.loads(path.read_text())
     entries = []
     for raw in data.get("intended", []):
-        unknown = set(raw) - {"match", "reason", "surface", "name"}
+        unknown = set(raw) - {"match", "reason", "surface", "name", "required"}
         if unknown or "match" not in raw or not raw.get("reason"):
             raise SystemExit(f"{path}: each [[intended]] needs match and reason; got {raw}")
         entries.append(Intended(**raw))

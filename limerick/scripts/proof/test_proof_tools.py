@@ -92,7 +92,8 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     path = tmp_path / "intended.toml"
     path.write_text(
         '[[intended]]\nsurface = "script"\nmatch = "Hold time"\nreason = "help text"\n\n'
-        '[[intended]]\nmatch = "never"\nreason = "not observed"\n'
+        '[[intended]]\nmatch = "never"\nreason = "not observed"\n\n'
+        '[[intended]]\nmatch = "maybe"\nreason = "optional"\nrequired = false\n'
     )
     intended = load_intended(path)
     items = [
@@ -101,7 +102,8 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     ]
     undeclared = check(items, intended)
     assert undeclared == [items[1]]  # surface filter excludes the request line
-    assert [entry.hits for entry in intended] == [1, 0]
+    assert [entry.hits for entry in intended] == [1, 0, 0]
+    assert [entry.required for entry in intended] == [True, True, False]
 
 
 def test_name_filter_uses_fnmatch() -> None:
