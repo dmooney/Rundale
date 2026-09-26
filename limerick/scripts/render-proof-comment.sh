@@ -41,6 +41,7 @@ ac="$bundle/acceptance-criteria.md"
 evidence="$bundle/evidence.md"
 judge="$bundle/judge.md"
 transcript="$bundle/transcript.txt"
+intended="$bundle/intended-diffs.toml"
 
 for required in "$ac" "$evidence" "$judge"; do
     if [[ ! -f "$required" ]]; then
@@ -69,6 +70,18 @@ emit_transcript_inline() {
     else
         cat "$transcript"
     fi
+    echo '```'
+}
+
+# Intended differences for `just prove-diff`: carried in a `toml intended-diffs`
+# fence so the CI differential job can read them back from the PR body.
+emit_intended_diffs() {
+    [[ -f "$intended" ]] || return 0
+    echo
+    echo '### Intended differences'
+    echo
+    echo '```toml intended-diffs'
+    cat "$intended"
     echo '```'
 }
 
@@ -121,6 +134,7 @@ $(cat "$ac")
 $(cat "$evidence")
 EOF
 
+    emit_intended_diffs
     emit_transcript_inline
 
     cat <<EOF

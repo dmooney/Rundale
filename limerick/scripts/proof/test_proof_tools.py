@@ -12,7 +12,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import noise  # noqa: E402
 from body_diff import load_requests  # noqa: E402
-from differences import Intended, Item, check, diff_units, load_intended  # noqa: E402
+from differences import (  # noqa: E402
+    Intended,
+    Item,
+    check,
+    diff_units,
+    load_intended,
+    load_intended_markdown,
+)
 from drive_session import Session, read_scenario  # noqa: E402
 from script_compare import script_units  # noqa: E402
 from scripted_openai import ScriptedServer, classify  # noqa: E402
@@ -104,6 +111,23 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     assert undeclared == [items[1]]  # surface filter excludes the request line
     assert [entry.hits for entry in intended] == [1, 0, 0]
     assert [entry.required for entry in intended] == [True, True, False]
+
+
+def test_intended_differences_are_read_from_a_pr_body(tmp_path: Path) -> None:
+    body = tmp_path / "body.md"
+    body.write_text(
+        'Summary.\n\n```toml\n[[intended]]\nmatch = "not this"\nreason = "plain toml"\n```\n\n'
+        "### Intended differences\n\n```toml intended-diffs\n"
+        '[[intended]]\nsurface = "script"\nmatch = "Tier"\nreason = "id order"\n'
+        "```\n\n```toml intended-diffs\n"
+        '[[intended]]\nmatch = "saved"\nreason = "stamps"\nrequired = false\n'
+        "```\n"
+    )
+    entries = load_intended_markdown(body)
+    assert [(e.match, e.surface, e.required) for e in entries] == [
+        ("Tier", "script", True),
+        ("saved", None, False),
+    ]
 
 
 def test_name_filter_uses_fnmatch() -> None:

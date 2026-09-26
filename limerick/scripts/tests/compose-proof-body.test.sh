@@ -10,6 +10,8 @@
 #   3. Re-composing an already-composed body is idempotent (still one
 #      region, human text still present once) — so re-running attach-proof
 #      never piles up duplicate bundles.
+#   4. A bundle's intended-diffs.toml is carried in one `toml intended-diffs`
+#      fence (and no fence appears without the file).
 set -euo pipefail
 
 scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -64,6 +66,15 @@ result=0
     check "idempotent: still one opener" "$(count_openers "$again_out")" "1"
     check "idempotent: still one closer" "$(count_closers "$again_out")" "1"
     check "idempotent: human text still once" "$(count_lines "$again_out" "$human")" "1"
+
+    # 4. Intended differences travel in a `toml intended-diffs` fence, only
+    #    when the bundle has the file.
+    check "no intended file: no fence" "$(count_lines "$again_out" '```toml intended-diffs')" "0"
+    printf '[[intended]]\nmatch = "x"\nreason = "demo"\n' >".proofs/$id/intended-diffs.toml"
+    intended_out="$(printf '%s' "$again_out" | bash "$compose" "$id")"
+    check "intended file: one fence" "$(count_lines "$intended_out" '```toml intended-diffs')" "1"
+    check "intended file: content carried" "$(count_lines "$intended_out" 'reason = "demo"')" "1"
+    check "intended file: still one opener" "$(count_openers "$intended_out")" "1"
 
     exit "$fails"
 ) || result=$?

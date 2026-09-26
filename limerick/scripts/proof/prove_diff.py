@@ -42,6 +42,7 @@ from differences import (  # noqa: E402
     check,
     diff_units,
     load_intended,
+    load_intended_markdown,
     unstable_units,
 )
 from drive_session import isolated_env  # noqa: E402
@@ -253,6 +254,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--scenario", action="append", default=[], help="name or path")
     parser.add_argument("--intended", type=Path, help="intended-differences TOML")
+    parser.add_argument(
+        "--intended-markdown",
+        type=Path,
+        help="Markdown (a PR body) holding ```toml intended-diffs blocks",
+    )
     parser.add_argument("--base", help="base revision (default: merge-base with origin/main)")
     parser.add_argument("--fixtures", default="test_*", help="fixture glob; '' for none")
     parser.add_argument("--runs", type=int, default=2, help="runs per side")
@@ -273,6 +279,8 @@ def main() -> None:
     base = Side("base", out / "base-tree", base_rev, out / "base" / "bin")
     head = Side("head", repo, head_rev, out / "head" / "bin")
     intended = load_intended(args.intended)
+    if args.intended_markdown:
+        intended += load_intended_markdown(args.intended_markdown)
     scenarios = resolve_scenarios(args.scenario)
 
     if not args.no_build:

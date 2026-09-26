@@ -147,6 +147,26 @@ at it with `LIMERICK_BASE_URL=http://127.0.0.1:P/v1`), `drive_session.py`
 Tauri bridge), `body_diff.py` (request logs), and `script_compare.py`
 (`--script` output directories).
 
+### In CI
+
+The `Differential proof` job in `.github/workflows/ci.yml` runs the same check
+on every pull request that changes code compiled into `limerick-server` or
+`limerick-engine`, `mods/`, the `--script` fixtures, or the proof tooling.
+Docs-only and UI-only pull requests skip it. It builds `main` and the pull
+request's merge commit, runs the `talk-and-task` scenario and every fixture
+on both, and reads the intended differences from the pull request body: every
+fenced block opened with ` ```toml intended-diffs `. When the bundle has
+`.proofs/<id>/intended-diffs.toml`, `compose-proof-body.sh` and
+`just attach-proof` put that block in the body for you. The report goes to
+the job summary, a sticky pull request comment, and a `prove-diff` artifact
+with every run. The job is part of the `CI gate` aggregate, so an undeclared
+difference, an unobserved required declaration, or a nondeterministic head
+run blocks the merge.
+
+To change the declaration, edit the body (`just attach-proof <id>` after
+editing the bundle file) and re-run the job; a body edit alone does not
+trigger a run.
+
 ## Belt-and-suspenders Lints
 
 - Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
