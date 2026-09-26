@@ -2437,7 +2437,7 @@ THIS SOFTWARE.
 
 **Used by:**
 
-- [rustls-webpki 0.103.13](https://github.com/rustls/webpki)
+- [rustls-webpki 0.103.15](https://github.com/rustls/webpki)
 
 ```
 Except as otherwise noted, this project is licensed under the following
@@ -4083,7 +4083,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [hyper-rustls 0.27.9](https://github.com/rustls/hyper-rustls)
-- [rustls 0.23.40](https://github.com/rustls/rustls)
+- [rustls 0.23.45](https://github.com/rustls/rustls)
 
 ```
 Copyright (c) 2016 Joseph Birr-Pixton &lt;jpixton@gmail.com&gt;
