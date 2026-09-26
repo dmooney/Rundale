@@ -11,7 +11,7 @@ use crate::types::NpcState;
 use crate::{Npc, NpcId, RelationshipToneHint};
 use limerick_types::{LimerickError, LocationId};
 
-use super::{NpcManager, role_alias, unique_match};
+use super::{NpcManager, NpcReference, match_all, role_alias};
 
 impl NpcManager {
     // ── NPC storage / CRUD ───────────────────────────────────────────────────
@@ -119,44 +119,41 @@ impl NpcManager {
     /// match. Canonical exact matches are kept for explicit recipient lists
     /// such as UI chip selections; free-text mention parsing is responsible
     /// for not exposing hidden names before introduction. Ambiguous matches
-    /// return `None` rather than guessing.
+    /// return `None` rather than guessing; [`Self::resolve_name_at`] reports
+    /// them.
     pub fn find_by_name(&self, name: &str, location: LocationId) -> Option<&Npc> {
-        let npcs = self.npcs_at(location);
+        self.resolve_name_at(name, location).unique_npc(self)
+    }
+
+    /// Resolves a name at a location, distinguishing an ambiguous name from
+    /// one that matches nobody.
+    ///
+    /// Exact display/canonical matches win; only when there are none are
+    /// introduced first names tried. Several exact matches are ambiguous and
+    /// do not fall through to first names.
+    pub fn resolve_name_at(&self, name: &str, location: LocationId) -> NpcReference {
         let lower = name.trim().to_lowercase();
         if lower.is_empty() {
-            return None;
+            return NpcReference::NotFound;
+        }
+        let npcs = self.npcs_at(location);
+
+        let exact = match_all(&npcs, |npc| {
+            self.display_name(npc).to_lowercase() == lower || npc.name.to_lowercase() == lower
+        });
+        if !matches!(exact, NpcReference::NotFound) {
+            return exact;
         }
 
-        let exact_matches: Vec<&Npc> = npcs
-            .iter()
-            .copied()
-            .filter(|npc| {
-                self.display_name(npc).to_lowercase() == lower || npc.name.to_lowercase() == lower
-            })
-            .collect();
-        match exact_matches.as_slice() {
-            [npc] => return Some(npc),
-            [] => {}
-            _ => return None,
-        }
-
-        let first_name_matches: Vec<&Npc> = npcs
-            .iter()
-            .copied()
-            .filter(|npc| {
-                self.is_introduced(npc.id)
-                    && npc
-                        .name
-                        .to_lowercase()
-                        .split_whitespace()
-                        .next()
-                        .is_some_and(|first| first == lower)
-            })
-            .collect();
-        match first_name_matches.as_slice() {
-            [npc] => Some(npc),
-            _ => None,
-        }
+        match_all(&npcs, |npc| {
+            self.is_introduced(npc.id)
+                && npc
+                    .name
+                    .to_lowercase()
+                    .split_whitespace()
+                    .next()
+                    .is_some_and(|first| first == lower)
+        })
     }
 
     /// Finds an NPC at a location by occupation/role (case-insensitive).
@@ -166,7 +163,13 @@ impl NpcManager {
     /// (e.g. two farmers at the same farm). Used as a fallback by
     /// `resolve_npc_targets` so human players can address NPCs by
     /// role-vocative ("Father", "Priest", "Widow", "Constable") when the
-    /// reference is unambiguous (issue #998).
+    /// reference is unambiguous (issue #998). [`Self::resolve_role_at`]
+    /// reports the ambiguous case.
+    pub fn find_by_role_at(&self, role: &str, location: LocationId) -> Option<&Npc> {
+        self.resolve_role_at(role, location).unique_npc(self)
+    }
+
+    /// Resolves an occupation/role vocative at a location.
     ///
     /// Matching tiers, tried in order until one returns a unique hit:
     /// 1. Exact case-insensitive equality (`"Widow" == "Widow"`).
@@ -174,42 +177,63 @@ impl NpcManager {
     ///    `"Constable"` matches `"Retired Constable"`).
     /// 3. Built-in vocative aliases (`"Father" → priest occupations`).
     ///
-    /// Ambiguous at any tier returns `None` so the caller's "no one here by
-    /// that name" path fires instead of guessing.
-    pub fn find_by_role_at(&self, role: &str, location: LocationId) -> Option<&Npc> {
+    /// When no tier is unique, the earliest ambiguous tier's candidates are
+    /// returned as [`NpcReference::Ambiguous`].
+    pub fn resolve_role_at(&self, role: &str, location: LocationId) -> NpcReference {
         let needle = role.trim();
         if needle.is_empty() {
-            return None;
+            return NpcReference::NotFound;
         }
         let npcs = self.npcs_at(location);
-
-        // Tier 1: exact case-insensitive equality.
-        if let Some(hit) = unique_match(&npcs, |npc| npc.occupation.eq_ignore_ascii_case(needle)) {
-            return Some(hit);
-        }
-
-        // Tier 2: needle matches any whole word in the occupation.
         let needle_lower = needle.to_ascii_lowercase();
-        if let Some(hit) = unique_match(&npcs, |npc| {
-            npc.occupation
-                .split_whitespace()
-                .any(|tok| tok.eq_ignore_ascii_case(&needle_lower))
-        }) {
-            return Some(hit);
-        }
+        let alias = role_alias(&needle_lower);
 
-        // Tier 3: built-in vocative aliases (Irish 1820 Catholic context).
-        if let Some(canonical) = role_alias(&needle_lower)
-            && let Some(hit) = unique_match(&npcs, |npc| {
+        let tiers = [
+            match_all(&npcs, |npc| npc.occupation.eq_ignore_ascii_case(needle)),
+            match_all(&npcs, |npc| {
                 npc.occupation
                     .split_whitespace()
-                    .any(|tok| tok.eq_ignore_ascii_case(canonical))
-            })
+                    .any(|tok| tok.eq_ignore_ascii_case(&needle_lower))
+            }),
+            match alias {
+                Some(canonical) => match_all(&npcs, |npc| {
+                    npc.occupation
+                        .split_whitespace()
+                        .any(|tok| tok.eq_ignore_ascii_case(canonical))
+                }),
+                None => NpcReference::NotFound,
+            },
+        ];
+        if let Some(unique) = tiers
+            .iter()
+            .find(|tier| matches!(tier, NpcReference::Unique(_)))
         {
-            return Some(hit);
+            return unique.clone();
         }
+        tiers
+            .into_iter()
+            .find(|tier| matches!(tier, NpcReference::Ambiguous(_)))
+            .unwrap_or(NpcReference::NotFound)
+    }
 
-        None
+    /// Resolves how the player referred to someone present: by name first,
+    /// then by role vocative.
+    ///
+    /// A unique name or role match wins. Otherwise an ambiguous name is
+    /// reported before an ambiguous role, and a reference that matches no one
+    /// present is [`NpcReference::NotFound`]. This is the single addressee
+    /// resolver used by every conversation-target path.
+    pub fn resolve_reference_at(&self, reference: &str, location: LocationId) -> NpcReference {
+        let by_name = self.resolve_name_at(reference, location);
+        if matches!(by_name, NpcReference::Unique(_)) {
+            return by_name;
+        }
+        let by_role = self.resolve_role_at(reference, location);
+        match (by_name, by_role) {
+            (_, unique @ NpcReference::Unique(_)) => unique,
+            (ambiguous @ NpcReference::Ambiguous(_), _) => ambiguous,
+            (_, other) => other,
+        }
     }
 
     /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
