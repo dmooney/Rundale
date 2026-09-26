@@ -45,7 +45,7 @@ WORK: dict[str, Any] = {
     "assigned_task": "Dig over the potato patch.",
 }
 BACKGROUND = "A drover passes with two heifers and lifts his hat."
-MOVE_PHRASE = re.compile(r"walking on toward (.+?)\s*$")
+MOVE_PHRASE = "walking on toward "
 
 
 def _text(messages: list[dict[str, Any]], role: str) -> str:
@@ -66,9 +66,11 @@ def classify(body: dict[str, Any]) -> tuple[str, str]:
     system = _text(messages, "system")
     user = _text(messages, "user").strip()
     if "input parser" in system:
-        move = MOVE_PHRASE.search(user)
-        if move:
-            intent = {"intent": "move", "target": move.group(1), "dialogue": None}
+        # Plain string search: a regex here backtracks polynomially on input
+        # the game passes through (CodeQL py/polynomial-redos).
+        _, found, target = user.rpartition(MOVE_PHRASE)
+        if found and target.strip():
+            intent = {"intent": "move", "target": target.strip(), "dialogue": None}
         else:
             intent = {"intent": "talk", "target": None, "dialogue": user}
         return "intent", json.dumps(intent)
