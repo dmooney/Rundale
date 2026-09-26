@@ -351,3 +351,75 @@ async fn stream_reaction_texts_handles_empty_reaction_list() {
     assert!(tokens.lock().unwrap().is_empty());
     assert!(turn_ends.lock().unwrap().is_empty());
 }
+
+/// The game loop reaches arrival reactions through the turn inference seam.
+/// Its in-process fulfilment resolves the Reaction category client from the
+/// runtime context and streams the reply exactly as the direct path does.
+#[tokio::test]
+async fn in_process_seam_streams_arrival_reaction_from_the_context_client() {
+    use limerick_core::game_loop::GameLoopContext;
+    use limerick_core::ipc::{CapturingEmitter, ConversationRuntimeState, GameConfig};
+    use limerick_core::npc::manager::NpcManager;
+    use limerick_core::world::WorldState;
+    use tokio::sync::Mutex as AsyncMutex;
+
+    let server = MockServer::start().await;
+    mount_sse_response(&server, "Well, good day to ye").await;
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+
+    let world = AsyncMutex::new(WorldState::new());
+    let npc_manager = AsyncMutex::new(NpcManager::new());
+    let config = AsyncMutex::new(GameConfig::default());
+    let conversation = AsyncMutex::new(ConversationRuntimeState::new());
+    let inference_queue = AsyncMutex::new(None);
+    let client_slot = AsyncMutex::new(Some(client));
+    let cloud_client = AsyncMutex::new(None);
+    let inference_config = limerick_core::config::InferenceConfig::default();
+    let ctx = GameLoopContext {
+        world: &world,
+        npc_manager: &npc_manager,
+        config: &config,
+        conversation: &conversation,
+        inference_queue: &inference_queue,
+        emitter: Arc::new(CapturingEmitter::new()),
+        inference_config: &inference_config,
+        pronunciations: &[],
+        client: &client_slot,
+        cloud_client: &cloud_client,
+        language: LanguageSettings::english_only(),
+        inference_failure_messages: &[],
+        idle_messages: &[],
+    };
+
+    let npc = test_npc();
+    let reactions = [llm_reaction("(canned greeting)")];
+    let (_log_names, tokens, turn_ends, emit_log, emit_token, emit_turn_end) = make_collectors();
+    let inference = ctx.inference();
+    limerick_core::game_session::stream_reaction_texts_via(
+        &reactions,
+        std::slice::from_ref(&npc),
+        LocationId(2),
+        "Darcy's Pub",
+        TimeOfDay::Morning,
+        "Clear",
+        &HashSet::new(),
+        inference.as_ref(),
+        None,
+        &LanguageSettings::english_only(),
+        emit_log,
+        emit_token,
+        emit_turn_end,
+    )
+    .await;
+
+    assert_eq!(turn_ends.lock().unwrap().len(), 1);
+    let streamed = tokens.lock().unwrap().join("");
+    assert!(
+        streamed.contains("Well, good day to ye"),
+        "in-process seam streamed unexpected content: got '{streamed}'"
+    );
+    let requests = server.received_requests().await.expect("recorded requests");
+    assert_eq!(requests.len(), 1, "exactly one provider call");
+    let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(body["stream"], serde_json::json!(true));
+}

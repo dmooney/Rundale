@@ -14,7 +14,6 @@
 
 use tokio_util::sync::CancellationToken;
 
-use crate::config::InferenceCategory;
 use crate::game_loop::{
     GameInputOutcome, GameLoopContext, handle_movement, handle_npc_conversation,
 };
@@ -25,6 +24,7 @@ use crate::input::{
 use crate::ipc::commands::listen::{AtmospherePresentation, render_place_atmosphere};
 use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
+use crate::turn_inference::{InferenceCall, InferenceOutcome, ResponseShape, RouteStatus};
 use crate::world::transport::TransportMode;
 
 // ── Look ──────────────────────────────────────────────────────────────────────
@@ -272,15 +272,14 @@ pub async fn handle_game_input(
         }
     }
 
-    // Resolve the intent client and model (Intent category override, or base).
-    let (client, model) = {
-        let config = ctx.config.lock().await;
-        let base_client = ctx.client.lock().await;
-        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
-    };
-
-    // Parse intent: tries local keywords first, then LLM for ambiguous input.
-    let intent = if let Some(client) = &client {
+    // Parse intent: local keywords first, then the Intent role for input the
+    // local parser does not recognise. A failed or malformed Intent reply is
+    // `Unknown`, never an error.
+    let inference = ctx.inference();
+    let intent_route = inference
+        .route(limerick_config::InferenceSubrole::Intent)
+        .await;
+    let intent = if intent_route != RouteStatus::Unavailable {
         // Capture generation before releasing the lock so we can detect TOCTOU
         // races on re-acquire (#283).
         let gen_before = {
@@ -288,21 +287,24 @@ pub async fn handle_game_input(
             world.clock.inference_pause();
             world.tick_generation
         };
-        let profile = ctx
-            .config
-            .lock()
-            .await
-            .inference_profile(limerick_config::InferenceSubrole::Intent);
-        let audit_sink = ctx
-            .inference_queue
-            .lock()
-            .await
-            .as_ref()
-            .and_then(crate::inference::InferenceQueue::audit_sink);
-        let result = crate::input::parse_intent_with_profile_and_audit(
-            client, &raw, &model, profile, audit_sink,
-        )
-        .await;
+        let parsed = match parse_intent_local(&raw) {
+            Some(local) => local,
+            None => {
+                let call = InferenceCall {
+                    subrole: limerick_config::InferenceSubrole::Intent,
+                    system: Some(crate::input::intent_system_prompt().to_string()),
+                    prompt: raw.clone(),
+                    response: ResponseShape::IntentJson,
+                    correlation_id: None,
+                };
+                match inference.complete(call).await {
+                    InferenceOutcome::Completed { text, .. } => {
+                        crate::input::intent_from_reply_text(&text, &raw)
+                    }
+                    InferenceOutcome::Failed { .. } => crate::input::unknown_intent(&raw),
+                }
+            }
+        };
         {
             let mut world = ctx.world.lock().await;
             world.clock.inference_resume();
@@ -325,9 +327,9 @@ pub async fn handle_game_input(
                 );
             }
         }
-        result.ok()
+        Some(parsed)
     } else {
-        // No client configured — use local keyword parsing only.
+        // No Intent route configured — use local keyword parsing only.
         parse_intent_local(&raw)
     };
 

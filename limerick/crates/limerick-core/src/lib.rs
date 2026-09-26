@@ -43,14 +43,11 @@ pub use limerick_editor as editor;
 // them at their historical paths.
 pub mod dialogue_apply;
 pub mod event_bus;
-#[cfg(feature = "desktop")]
 pub mod game_loop;
-#[cfg(feature = "desktop")]
 pub mod game_session;
 pub mod identity;
 pub mod inference_guard;
 pub mod inference_runtime_v2;
-#[cfg(feature = "desktop")]
 pub mod ipc;
 pub mod loading;
 pub mod mod_source;
@@ -59,6 +56,8 @@ pub mod prompts;
 pub mod secret_store;
 pub mod session_store;
 pub mod tile_cache;
+pub mod turn;
+pub mod turn_inference;
 
 /// How often autosave tasks should snapshot active sessions (seconds).
 /// Used by both the Axum web server and the Tauri desktop backend.

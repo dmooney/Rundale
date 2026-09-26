@@ -4,11 +4,13 @@
 //! any UI layer (Tauri desktop, axum web server, etc.), plus pure functions
 //! that build those types from game state.
 
+#[cfg(feature = "desktop")]
 pub mod bug_report;
 pub mod byok;
 pub mod commands;
 pub mod config;
 pub mod demo;
+#[cfg(feature = "desktop")]
 pub mod editor;
 pub mod engine_state;
 pub mod event_emitter;
@@ -18,6 +20,7 @@ pub mod streaming;
 pub mod turn;
 pub mod types;
 
+#[cfg(feature = "desktop")]
 pub use bug_report::{
     BugContext, BugReportError, BugReportRequest, BugReportResult, BugReportState,
     DiagnosticPayload, GitHubBugConfig, LlmExchange, create_bug_report,

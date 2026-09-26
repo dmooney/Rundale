@@ -15,10 +15,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::config::{FeatureFlags, ReactionConfig};
-use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
+use crate::inference::AnyClient;
 use crate::inference::InferenceLog;
-use crate::inference::{AnyClient, GenerateParams};
+use crate::inference::InferenceLogEntry;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{
@@ -532,6 +532,22 @@ pub async fn enrich_travel_encounter_with_profile_and_audit(
     profile: limerick_config::InferenceProfile,
     audit_sink: Option<crate::inference::InferenceAuditSink>,
 ) -> String {
+    let direct = crate::turn_inference::DirectClientInference::new(
+        Some(client.clone()),
+        model,
+        profile,
+        audit_sink,
+    )
+    .with_timeout(Duration::from_secs(timeout_secs));
+    enrich_travel_encounter_via(rolled, &direct).await
+}
+
+/// Enriches a rolled encounter through the turn inference seam. Any failure,
+/// timeout, or empty reply falls back to the canned line.
+pub async fn enrich_travel_encounter_via(
+    rolled: &RolledEncounter,
+    inference: &dyn crate::turn_inference::TurnInference,
+) -> String {
     let (system, context) = limerick_world::wayfarers::build_enrichment_prompt(
         &rolled.canned,
         rolled.time,
@@ -539,66 +555,34 @@ pub async fn enrich_travel_encounter_with_profile_and_audit(
         rolled.weather,
         rolled.seed,
     );
-
-    let timeout = Duration::from_secs(timeout_secs);
-    let params = GenerateParams {
-        max_tokens: Some(profile.max_output_tokens),
-        temperature: None,
-        frequency_penalty: None,
-        enable_thinking: None,
-        reasoning_effort: None,
-        thinking_level: Some(profile.thinking_level),
-        service_tier: Some(profile.service_tier),
-        reasoning_intent: (profile.configuration_epoch > 0).then_some(profile.reasoning_intent),
-        reasoning_dialect: profile.reasoning_dialect,
-    };
-    let audit = crate::inference::DirectInferenceAudit::new(
-        audit_sink,
-        model,
-        &context,
-        Some(&system),
-        limerick_config::InferenceSubrole::TravelEncounter,
-        false,
-        params.max_tokens,
-        params.thinking_level,
-        params.service_tier,
-        params.temperature,
-        crate::inference::InferencePriority::Interactive,
-    );
-    let detailed = match tokio::time::timeout(
-        timeout,
-        client.generate_detailed_with_format(model, &context, Some(&system), None, params),
-    )
-    .await
-    {
-        Ok(result) => result,
-        Err(_) => Err(crate::inference::ProviderCallError {
-            message: format!("travel encounter inference timed out after {timeout_secs}s"),
-            partial_text: String::new(),
-            metadata: Box::new(crate::inference::ProviderMetadata::unavailable(model)),
-        }),
-    };
-    let result = audit.record(detailed).await;
-
-    match result {
-        Ok(result) => {
-            let text = result.text;
-            let trimmed = text.trim();
-            let cleaned = trimmed.split("---").next().unwrap_or(trimmed).trim();
-            // Strip leading "- " / "* " if the model returned a bullet anyway.
-            let cleaned = cleaned.trim_start_matches(['-', '*', ' ']).trim();
-            // Strip surrounding quotes if the model added them.
-            let cleaned = cleaned.trim_matches(|c: char| c == '"' || c == '\'').trim();
-            // Keep only the first line — some models add follow-ups.
-            let first_line = cleaned.lines().next().unwrap_or("").trim();
-            if first_line.is_empty() {
-                rolled.canned.text.clone()
-            } else {
-                first_line.to_string()
-            }
+    let outcome = inference
+        .complete(crate::turn_inference::InferenceCall {
+            subrole: limerick_config::InferenceSubrole::TravelEncounter,
+            system: Some(system),
+            prompt: context,
+            response: crate::turn_inference::ResponseShape::Text,
+            correlation_id: None,
+        })
+        .await;
+    match outcome.text() {
+        Some(text) => {
+            clean_travel_encounter_reply(text).unwrap_or_else(|| rolled.canned.text.clone())
         }
-        Err(_) => rolled.canned.text.clone(),
+        None => rolled.canned.text.clone(),
     }
+}
+
+/// Normalises a model encounter line; `None` when nothing usable remains.
+fn clean_travel_encounter_reply(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    let cleaned = trimmed.split("---").next().unwrap_or(trimmed).trim();
+    // Strip leading "- " / "* " if the model returned a bullet anyway.
+    let cleaned = cleaned.trim_start_matches(['-', '*', ' ']).trim();
+    // Strip surrounding quotes if the model added them.
+    let cleaned = cleaned.trim_matches(|c: char| c == '"' || c == '\'').trim();
+    // Keep only the first line — some models add follow-ups.
+    let first_line = cleaned.lines().next().unwrap_or("").trim();
+    (!first_line.is_empty()).then(|| first_line.to_string())
 }
 
 /// Rolls a travel encounter for the just-completed journey and logs it to `world`.
@@ -793,15 +777,70 @@ pub async fn stream_reaction_texts_with_profile(
     profile: limerick_config::InferenceProfile,
     audit_sink: Option<crate::inference::InferenceAuditSink>,
     language: &LanguageSettings,
+    emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
+    emit_stream_token: impl FnMut(u64, &str, &str),
+    emit_stream_turn_end: impl FnMut(u64),
+) {
+    let thinking_level = profile.thinking_level;
+    let direct = crate::turn_inference::DirectClientInference::new(
+        client.cloned(),
+        model,
+        profile,
+        audit_sink,
+    )
+    .with_timeout(Duration::from_secs(
+        ReactionConfig::default().llm_timeout_secs,
+    ));
+    stream_reaction_texts_via(
+        reactions,
+        all_npcs,
+        current_location_id,
+        loc_name,
+        tod,
+        weather,
+        introduced,
+        &direct,
+        inference_log.map(|log| (log, thinking_level)),
+        language,
+        emit_text_log,
+        emit_stream_token,
+        emit_stream_turn_end,
+    )
+    .await
+}
+
+/// Streams arrival reactions, calling the model through the turn inference
+/// seam. A reaction uses its canned line when it does not want the model,
+/// when its NPC is unknown, or when the route is unavailable or simulated
+/// (the simulator's free text is gibberish in a chat bubble).
+///
+/// `inference_log` optionally records each model call for the debug panel,
+/// with the thinking level the route used.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_reaction_texts_via(
+    reactions: &[NpcReaction],
+    all_npcs: &[Npc],
+    current_location_id: LocationId,
+    loc_name: &str,
+    tod: TimeOfDay,
+    weather: &str,
+    introduced: &HashSet<NpcId>,
+    inference: &dyn crate::turn_inference::TurnInference,
+    inference_log: Option<(&InferenceLog, limerick_config::ThinkingLevel)>,
+    language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
     mut emit_stream_turn_end: impl FnMut(u64),
 ) {
     use crate::ipc::stream_npc_tokens;
     use crate::npc::reactions::build_reaction_prompt;
+    use crate::turn_inference::{InferenceCall, InferenceOutcome, ResponseShape, RouteStatus};
     use tokio::sync::mpsc;
 
-    let timeout_secs = ReactionConfig::default().llm_timeout_secs;
+    let route_live = inference
+        .route(limerick_config::InferenceSubrole::ArrivalReaction)
+        .await
+        == RouteStatus::Live;
 
     for reaction in reactions {
         let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
@@ -822,145 +861,72 @@ pub async fn stream_reaction_texts_with_profile(
         emit_text_log(turn_id, &reaction.npc_display_name, reaction_subtype);
 
         let (tx, rx) = mpsc::channel::<String>(limerick_inference::TOKEN_CHANNEL_CAPACITY);
-
-        // Capture prompt data here (before the spawn) so we can log it afterwards.
-        let mut llm_log_info: Option<(usize, String, String)> = None; // (prompt_len, system, context)
-        let mut provider_result_rx = None;
-
-        if reaction.use_llm {
-            if let (Some(c), Some(npc)) = (client, npc) {
-                if c.is_simulator() {
-                    // The simulator generates Markov nonsense for free-text
-                    // prompts, which surfaces in the chat bubble as gibberish
-                    // ("bridget from the new collection ... God help us").
-                    // Use the deterministic canned line instead so reactions
-                    // remain readable when offline / in headless test runs.
-                    let _ = tx.try_send(reaction.canned_text.clone());
-                    drop(tx);
-                } else {
-                    let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
-                    let is_introduced = introduced.contains(&reaction.npc_id);
-                    let (system, context) = build_reaction_prompt(
-                        npc,
-                        loc_name,
-                        tod,
-                        weather,
-                        is_introduced,
-                        at_workplace,
-                        language,
-                    );
-                    llm_log_info = Some((context.len(), system.clone(), context.clone()));
-
-                    let c_clone = c.clone();
-                    let model_str = model.to_string();
-                    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
-                    provider_result_rx = Some(result_rx);
-                    let audit_sink = audit_sink.clone();
-                    tokio::spawn(async move {
-                        let params = GenerateParams {
-                            max_tokens: Some(profile.max_output_tokens),
-                            temperature: None,
-                            frequency_penalty: None,
-                            enable_thinking: None,
-                            reasoning_effort: None,
-                            thinking_level: Some(profile.thinking_level),
-                            service_tier: Some(profile.service_tier),
-                            reasoning_intent: (profile.configuration_epoch > 0)
-                                .then_some(profile.reasoning_intent),
-                            reasoning_dialect: profile.reasoning_dialect,
-                        };
-                        let audit = crate::inference::DirectInferenceAudit::new(
-                            audit_sink,
-                            &model_str,
-                            &context,
-                            Some(&system),
-                            limerick_config::InferenceSubrole::ArrivalReaction,
-                            true,
-                            params.max_tokens,
-                            params.thinking_level,
-                            params.service_tier,
-                            params.temperature,
-                            crate::inference::InferencePriority::Interactive,
-                        );
-                        let detailed = match tokio::time::timeout(
-                            Duration::from_secs(timeout_secs),
-                            c_clone.generate_stream_detailed_with_format(
-                                &model_str,
-                                &context,
-                                Some(&system),
-                                tx,
-                                None,
-                                params,
-                            ),
-                        )
-                        .await
-                        {
-                            Ok(result) => result,
-                            Err(_) => Err(crate::inference::ProviderCallError {
-                                message: format!(
-                                    "reaction inference timed out after {timeout_secs}s"
-                                ),
-                                partial_text: String::new(),
-                                metadata: Box::new(
-                                    crate::inference::ProviderMetadata::unavailable(&model_str),
-                                ),
-                            }),
-                        };
-                        let call = audit.record(detailed).await;
-                        let observed = match call {
-                            Ok(result) => (result.metadata, None, 0),
-                            Err(error) => {
-                                let partial_len = error.partial_text.len();
-                                (*error.metadata, Some(error.message), partial_len)
-                            }
-                        };
-                        let _ = result_tx.send(observed);
-                        // tx is consumed by generate_stream; when it returns (success or
-                        // timeout) tx is dropped, closing the channel and allowing
-                        // stream_npc_tokens to finish.
-                    });
-                }
-            } else {
-                // No client or NPC not found — fall back to canned text.
-                // Single send on a fresh channel; try_send will not fail.
-                let _ = tx.try_send(reaction.canned_text.clone());
-                drop(tx);
-            }
-        } else {
-            // Canned text path: send directly through the channel so
-            // stream_npc_tokens can still pace the output word-by-word.
-            let _ = tx.try_send(reaction.canned_text.clone());
-            drop(tx);
-        }
-
         let npc_name = reaction.npc_display_name.clone();
         let started = Instant::now();
-        let accumulated = stream_npc_tokens(rx, |batch| {
-            emit_stream_token(turn_id, &npc_name, batch);
-        })
-        .await;
-        let elapsed_ms = started.elapsed().as_millis() as u64;
-        let provider_result = match provider_result_rx {
-            Some(rx) => rx.await.ok(),
-            None => None,
+
+        let llm_npc = npc.filter(|_| reaction.use_llm && route_live);
+        let (accumulated, llm_call) = match llm_npc {
+            Some(npc) => {
+                let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
+                let is_introduced = introduced.contains(&reaction.npc_id);
+                let (system, context) = build_reaction_prompt(
+                    npc,
+                    loc_name,
+                    tod,
+                    weather,
+                    is_introduced,
+                    at_workplace,
+                    language,
+                );
+                let call = InferenceCall {
+                    subrole: limerick_config::InferenceSubrole::ArrivalReaction,
+                    system: Some(system.clone()),
+                    prompt: context.clone(),
+                    response: ResponseShape::Text,
+                    correlation_id: None,
+                };
+                // The provider call and the paced token pump run concurrently;
+                // the host closes `tx` when the call ends.
+                let (outcome, accumulated) = tokio::join!(
+                    inference.complete_streaming(call, Some(tx)),
+                    stream_npc_tokens(rx, |batch| {
+                        emit_stream_token(turn_id, &npc_name, batch);
+                    })
+                );
+                (accumulated, Some((context.len(), system, context, outcome)))
+            }
+            None => {
+                // Canned text path: send directly through the channel so
+                // stream_npc_tokens can still pace the output word-by-word.
+                let _ = tx.try_send(reaction.canned_text.clone());
+                drop(tx);
+                let accumulated = stream_npc_tokens(rx, |batch| {
+                    emit_stream_token(turn_id, &npc_name, batch);
+                })
+                .await;
+                (accumulated, None)
+            }
         };
+        let elapsed_ms = started.elapsed().as_millis() as u64;
 
         // Finalise this NPC's streaming entry so the UI removes the empty
         // placeholder if no tokens arrived (LLM timeout / empty output) or
         // marks the populated entry as no-longer-streaming otherwise.
         emit_stream_turn_end(turn_id);
 
-        if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
-            (llm_log_info, inference_log)
+        if let (
+            Some((prompt_len, system_prompt, prompt_text, outcome)),
+            Some((log, thinking_level)),
+        ) = (llm_call, inference_log)
         {
-            let (metadata, provider_error, partial_output_len) =
-                provider_result.unwrap_or_else(|| {
-                    (
-                        limerick_inference::ProviderMetadata::unavailable(model),
-                        None,
-                        0,
-                    )
-                });
+            let report = outcome.report();
+            let metadata = report.metadata.clone().unwrap_or_else(|| {
+                limerick_inference::ProviderMetadata::unavailable(&report.model)
+            });
+            let provider_error = match &outcome {
+                InferenceOutcome::Failed { message, .. } => Some(message.clone()),
+                InferenceOutcome::Completed { .. } => None,
+            };
             let failure_kind = provider_error.as_deref().map(|message| {
                 if metadata.http_status == Some(429) {
                     "rate-limited"
@@ -979,7 +945,7 @@ pub async fn stream_reaction_texts_with_profile(
             let entry = InferenceLogEntry {
                 request_id: turn_id,
                 timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                model: model.to_string(),
+                model: report.model.clone(),
                 provider: metadata.provider,
                 api_mode: metadata.api_mode,
                 role: limerick_config::InferenceCategory::Reaction,
@@ -992,7 +958,7 @@ pub async fn stream_reaction_texts_with_profile(
                 system_prompt: Some(system_prompt),
                 prompt_text,
                 response_text: accumulated,
-                max_tokens: Some(profile.max_output_tokens),
+                max_tokens: report.max_tokens,
                 ttft_ms: metadata.ttft_ms,
                 output_tokens: metadata.usage.output_tokens,
                 stream_chunks: Some(metadata.stream_chunks).filter(|count| *count > 0),
@@ -1000,7 +966,7 @@ pub async fn stream_reaction_texts_with_profile(
                 cached_tokens: metadata.usage.cached_tokens,
                 thought_tokens: metadata.usage.thought_tokens,
                 total_tokens: metadata.usage.total_tokens,
-                thinking_level: Some(profile.thinking_level),
+                thinking_level: Some(thinking_level),
                 requested_service_tier: metadata.requested_service_tier,
                 effective_service_tier: metadata.effective_service_tier,
                 provider_request_id: metadata.interaction_id,
@@ -1008,7 +974,7 @@ pub async fn stream_reaction_texts_with_profile(
                 retry_count: metadata.retry_count,
                 http_status: metadata.http_status,
                 failure_kind,
-                partial_output_len,
+                partial_output_len: report.partial_output_len,
                 tier_downgraded,
                 estimated_cost_usd: None,
                 prompt_prefix_hash: None,
