@@ -58,9 +58,10 @@ updates:
     commit-message: { prefix: "chore(deps)" }
     labels: ["dependencies", "infra"]
 
+  # Root tooling + UI + promptfoo bench-site. Promptfoo's own package is a
+  # separate entry below so transitive lockfile-only bumps cannot break it.
   - package-ecosystem: "npm"
-    directories:
-      ["/", "/limerick/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
+    directories: ["/", "/limerick/apps/ui", "/promptfoo/bench-site"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 2
@@ -78,6 +79,33 @@ updates:
       npm-major:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: ["major"]
+
+  # promptfoo is the only direct dependency; Dependabot transitive bumps of
+  # nested packages (hono, csv-parse, …) repeatedly left package-lock.json out
+  # of sync so `npm ci` failed CI. Bump promptfoo itself (full lock regenerate)
+  # and let OSV catch transitive advisories until upstream publishes a release.
+  - package-ecosystem: "npm"
+    directory: "/promptfoo"
+    schedule:
+      { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 2
+    commit-message:
+      { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
+    labels: ["dependencies", "infra"]
+    allow:
+      - dependency-name: "promptfoo"
+    groups:
+      promptfoo-security:
+        applies-to: security-updates
+        patterns: ["promptfoo"]
+      promptfoo-minor-patch:
+        applies-to: version-updates
+        patterns: ["promptfoo"]
+        update-types: ["minor", "patch"]
+      promptfoo-major:
+        applies-to: version-updates
+        patterns: ["promptfoo"]
         update-types: ["major"]
 
   - package-ecosystem: "pip"
