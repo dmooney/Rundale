@@ -82,7 +82,12 @@ struct Probe {
 impl Probe {
     fn spawn(mode: &str, save: &Path) -> Self {
         let mut child = Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "lock_probe_child", "--nocapture", "--test-threads=1"])
+            .args([
+                "--exact",
+                "lock_probe_child",
+                "--nocapture",
+                "--test-threads=1",
+            ])
             .env(MODE_ENV, mode)
             .env(SAVE_ENV, save)
             .stdin(Stdio::piped())
@@ -246,7 +251,10 @@ fn relaunch_acquires_when_killed_owner_pid_now_names_an_unrelated_process() {
     );
     let verdict = try_in_new_process("try", &save);
     unrelated.kill();
-    assert_eq!(verdict, "ACQUIRED", "a reused PID must not lock the save out");
+    assert_eq!(
+        verdict, "ACQUIRED",
+        "a reused PID must not lock the save out"
+    );
 }
 
 #[test]
@@ -258,7 +266,10 @@ fn relaunch_acquires_when_killed_owner_pid_names_a_process_it_cannot_signal() {
     assert_eq!(holder.next_event(), "ACQUIRED");
     holder.kill();
     repoint_recorded_pid(&save, 1);
-    eprintln!("[pid_reuse_eperm] record now names pid 1: {}", describe(&save));
+    eprintln!(
+        "[pid_reuse_eperm] record now names pid 1: {}",
+        describe(&save)
+    );
     assert_eq!(try_in_new_process("try", &save), "ACQUIRED");
 }
 
