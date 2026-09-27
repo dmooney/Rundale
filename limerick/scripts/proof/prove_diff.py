@@ -51,8 +51,8 @@ from script_compare import script_units  # noqa: E402
 BINARIES = ("limerick-server", "limerick-engine")
 FIXTURE_DIR = "limerick/testing/fixtures"
 SCRIPT_TIMEOUT = 600
-# The server's Tier-2 background worker polls every five seconds. Wait past one
-# poll interval so detached simulation requests reach the scripted-model log.
+# The server's world tick claims due Tier-2/Tier-3 work every five seconds. Wait
+# past one tick so detached simulation requests reach the scripted-model log.
 SCENARIO_QUIET_SECONDS = 6.0
 
 
