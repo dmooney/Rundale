@@ -44,16 +44,17 @@ pub(crate) async fn do_submit_input(
 /// Dispatches input while the caller holds [`AppState::persistence_gate`].
 ///
 /// The MCP bridge uses this form so its pre-turn cursor and projected response
-/// belong to the same guarded request.
+/// belong to the same guarded request. Returns the player-facing message of a
+/// turn that ended without committing.
 pub(crate) async fn do_submit_input_locked(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
     text: String,
     addressed_to: Vec<String>,
-) -> Result<limerick_core::game_loop::GameInputOutcome, String> {
+) -> Result<Option<String>, String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
-        return Ok(limerick_core::game_loop::GameInputOutcome::default());
+        return Ok(None);
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
@@ -70,11 +71,11 @@ pub(crate) async fn do_submit_input_locked(
         *sc = tokio_util::sync::CancellationToken::new();
     }
 
-    let outcome = match classify_submitted_input(&text, &addressed_to) {
+    let failure = match classify_submitted_input(&text, &addressed_to) {
         InputResult::SystemCommand(cmd) => {
             touch_player_activity(state).await;
             handle_system_command(cmd, state, app, &text).await?;
-            limerick_core::game_loop::GameInputOutcome::default()
+            None
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -98,7 +99,7 @@ pub(crate) async fn do_submit_input_locked(
                 };
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            let outcome =
+            let step =
                 handle_game_input(raw, addressed_to, state, app.clone(), prelude_emissions).await?;
             // Generate NPC reactions to the player's message in the background.
             if let Some((player_msg_id, raw_for_reactions)) = dispatch {
@@ -110,11 +111,11 @@ pub(crate) async fn do_submit_input_locked(
                     app,
                 );
             }
-            outcome
+            step.failure_message()
         }
     };
 
-    Ok(outcome)
+    Ok(failure)
 }
 
 /// Tauri's production classification seam for input plus NPC chips.
@@ -171,17 +172,6 @@ pub(crate) async fn touch_player_activity(state: &Arc<AppState>) {
     conversation.last_spoken_at = now;
 }
 
-async fn world_update_payload(state: &Arc<AppState>) -> serde_json::Value {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let snapshot = super::snapshot::get_world_snapshot_inner(
-        &world,
-        Some(&npc_manager),
-        &state.pronunciations,
-    );
-    serde_json::to_value(snapshot).unwrap_or(serde_json::Value::Null)
-}
-
 /// Handles `/command` inputs.
 ///
 /// Delegates to [`limerick_core::game_loop::handle_system_command`] via the
@@ -199,36 +189,80 @@ async fn handle_system_command(
     shared_handle(&host, cmd, raw_text).await
 }
 
-/// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
+/// Handles free-form game input as one turn request.
 ///
-/// Delegates to [`limerick_core::game_loop::handle_game_input`] for all shared
-/// logic (intent parsing, Interact narration, no-silent-drop fallback, NPC
-/// conversation) — identical to the server path in `limerick-server` (rule #12 /
-/// #2 mode-parity, #1467). Takes plain `&Arc<AppState>` (not
-/// `tauri::State<...>`) so the body can be called from non-Tauri-extractor
-/// contexts — namely the `mcp_bridge` Axum handlers, which share the same live
-/// AppState as the desktop window. The Tauri callsite passes `state.inner()`.
+/// Releases the player's echo and a before-turn world update, then runs the
+/// turn through the session's [`limerick_core::turn::InProcessTurns`]: the
+/// shared [`limerick_core::game_loop::handle_game_input`] pipeline on a
+/// candidate, committed with its task batch or discarded whole — identical
+/// to the server path in `limerick-server` (rule #12 / #2 mode-parity). The
+/// loading animation runs live during inference; the turn's output is
+/// released at commit. Takes plain `&Arc<AppState>` (not
+/// `tauri::State<...>`) so the `mcp_bridge` Axum handlers, which share the
+/// desktop window's AppState, can call it.
 pub(crate) async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
     state: &Arc<AppState>,
     app: tauri::AppHandle,
-    mut prelude_emissions: Vec<(String, serde_json::Value)>,
-) -> Result<limerick_core::game_loop::GameInputOutcome, String> {
-    let must_stage = {
-        let world = state.world.lock().await;
-        limerick_core::game_loop::input_may_mutate_tasks(&world, &raw)
-    };
-    let before_progress = state.world.lock().await.player_progress.clone();
+    prelude_emissions: Vec<(String, serde_json::Value)>,
+) -> Result<limerick_core::turn::TurnStep, String> {
     let emitter: std::sync::Arc<dyn limerick_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
-    let ctx = limerick_core::game_loop::GameLoopContext {
+    let ctx = game_loop_ctx(state, std::sync::Arc::clone(&emitter));
+    let rules = limerick_core::turn::TurnRules {
+        transport: state.transport.default_mode().clone(),
+        reaction_templates: state.reaction_templates.clone(),
+    };
+    let task_target = task_journal_target(state).await;
+    let app_for_loading = app.clone();
+    let loading: limerick_core::turn::LoadingHook = Arc::new(move || {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        crate::events::spawn_loading_animation(app_for_loading.clone(), cancel.clone());
+        Some(cancel)
+    });
+
+    touch_player_activity(state).await;
+    limerick_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
+    super::snapshot::emit_world_update(state, &app).await;
+
+    let step = state
+        .turns
+        .submit(
+            &ctx,
+            limerick_core::turn::InProcessSubmission {
+                input: limerick_core::turn::TurnInput {
+                    text: raw,
+                    addressed_to,
+                    ..Default::default()
+                },
+                rules,
+                session_store: Arc::clone(&state.session_store),
+                task_target,
+                loading: Some(loading),
+            },
+        )
+        .await;
+
+    super::snapshot::emit_world_update(state, &app).await;
+    step.map_err(|error| {
+        tracing::error!(%error, "player turn could not be committed");
+        format!("failed to commit player turn: {error}")
+    })
+}
+
+/// A shared-orchestration context over the live AppState.
+fn game_loop_ctx(
+    state: &Arc<AppState>,
+    emitter: std::sync::Arc<dyn limerick_core::ipc::EventEmitter>,
+) -> limerick_core::game_loop::GameLoopContext<'_> {
+    limerick_core::game_loop::GameLoopContext {
         world: &state.world,
         npc_manager: &state.npc_manager,
         config: &state.config,
         conversation: &state.conversation,
         inference_queue: &state.inference_queue,
-        emitter: std::sync::Arc::clone(&emitter),
+        emitter,
         inference_config: &state.inference_config,
         pronunciations: &state.pronunciations,
         client: &state.client,
@@ -237,99 +271,23 @@ pub(crate) async fn handle_game_input(
         inference_failure_messages: &state.inference_failure_messages,
         idle_messages: &state.idle_messages,
         inference_override: None,
-    };
-    let transport = state.transport.default_mode().clone();
-    let reaction_templates = state.reaction_templates.clone();
-
-    if must_stage {
-        let task_target = {
-            let save_path = state.save_path.lock().await;
-            let branch_id = state.current_branch_id.lock().await;
-            match (save_path.as_ref(), *branch_id) {
-                (Some(path), Some(branch_id)) => {
-                    Some(limerick_core::session_store::TaskJournalTarget {
-                        session_id: String::new(),
-                        save_path: path.clone(),
-                        branch_id,
-                    })
-                }
-                _ => None,
-            }
-        };
-        prelude_emissions.push((
-            crate::events::EVENT_WORLD_UPDATE.to_string(),
-            world_update_payload(state).await,
-        ));
-        let commit = limerick_core::game_loop::handle_staged_game_input(
-            &ctx,
-            state.session_store.as_ref(),
-            task_target.as_ref(),
-            prelude_emissions,
-            raw,
-            addressed_to,
-            &transport,
-            &reaction_templates,
-        )
-        .await
-        .map_err(|error| {
-            tracing::error!(%error, "player task journal append failed");
-            format!("failed to persist player task: {error}")
-        })?;
-        super::snapshot::emit_world_update(state, &app).await;
-        return Ok(limerick_core::game_loop::GameInputOutcome {
-            task_mutations: commit.task_mutations,
-            dialogue_failure: commit.dialogue_failure,
-            clarification: commit.clarification,
-        });
     }
+}
 
-    touch_player_activity(state).await;
-    limerick_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
-
-    let app_for_loading = app.clone();
-    let spawn_loading = move || {
-        let cancel = tokio_util::sync::CancellationToken::new();
-        crate::events::spawn_loading_animation(app_for_loading.clone(), cancel.clone());
-        Some(cancel)
-    };
-
-    super::snapshot::emit_world_update(state, &app).await;
-    let outcome = limerick_core::game_loop::handle_game_input(
-        &ctx,
-        raw,
-        addressed_to,
-        &transport,
-        &reaction_templates,
-        spawn_loading,
-    )
-    .await;
-    let task_target = {
-        let save_path = state.save_path.lock().await;
-        let branch_id = state.current_branch_id.lock().await;
-        match (save_path.as_ref(), *branch_id) {
-            (Some(path), Some(branch_id)) => {
-                Some(limerick_core::session_store::TaskJournalTarget {
-                    session_id: String::new(),
-                    save_path: path.clone(),
-                    branch_id,
-                })
-            }
-            _ => None,
-        }
-    };
-    persist_task_mutations(
-        state,
-        task_target.as_ref(),
-        before_progress,
-        &outcome.task_mutations,
-    )
-    .await
-    .map_err(|error| {
-        tracing::error!(%error, "player task journal append failed");
-        format!("failed to persist player task: {error}")
-    })?;
-    super::snapshot::emit_world_update(state, &app).await;
-    Ok(outcome)
+/// The active save and branch player-task changes are journaled to.
+async fn task_journal_target(
+    state: &Arc<AppState>,
+) -> Option<limerick_core::session_store::TaskJournalTarget> {
+    let save_path = state.save_path.lock().await;
+    let branch_id = state.current_branch_id.lock().await;
+    match (save_path.as_ref(), *branch_id) {
+        (Some(path), Some(branch_id)) => Some(limerick_core::session_store::TaskJournalTarget {
+            session_id: String::new(),
+            save_path: path.clone(),
+            branch_id,
+        }),
+        _ => None,
+    }
 }
 
 async fn persist_task_mutations(
@@ -354,38 +312,10 @@ async fn persist_task_mutations(
 /// Runs idle banter while the caller holds `persistence_gate`.
 pub(super) async fn run_idle_banter_locked(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let before_progress = state.world.lock().await.player_progress.clone();
-    let task_target = {
-        let save_path = state.save_path.lock().await;
-        let branch_id = state.current_branch_id.lock().await;
-        match (save_path.as_ref(), *branch_id) {
-            (Some(path), Some(branch_id)) => {
-                Some(limerick_core::session_store::TaskJournalTarget {
-                    session_id: String::new(),
-                    save_path: path.clone(),
-                    branch_id,
-                })
-            }
-            _ => None,
-        }
-    };
+    let task_target = task_journal_target(state).await;
     let emitter: std::sync::Arc<dyn limerick_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
-    let ctx = limerick_core::game_loop::GameLoopContext {
-        world: &state.world,
-        npc_manager: &state.npc_manager,
-        config: &state.config,
-        conversation: &state.conversation,
-        inference_queue: &state.inference_queue,
-        emitter: std::sync::Arc::clone(&emitter),
-        inference_config: &state.inference_config,
-        pronunciations: &state.pronunciations,
-        client: &state.client,
-        cloud_client: &state.cloud_client,
-        language: state.language_settings.clone(),
-        inference_failure_messages: &state.inference_failure_messages,
-        idle_messages: &state.idle_messages,
-        inference_override: None,
-    };
+    let ctx = game_loop_ctx(state, emitter);
 
     super::snapshot::emit_world_update(state, app).await;
     // Idle banter spawns no loading animation.

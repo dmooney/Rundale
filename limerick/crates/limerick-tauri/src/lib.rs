@@ -595,6 +595,11 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: never held across acquisition
     /// of any `Mutex` field.
     pub session_store: std::sync::Arc<dyn limerick_core::session_store::SessionStore>,
+    /// The session's turn engine: every free-form player input (window and
+    /// MCP bridge) is a turn request run through it. Its lock is taken only
+    /// inside `InProcessTurns::submit`, under `persistence_gate` and before
+    /// any other lock.
+    pub turns: limerick_core::turn::InProcessTurns,
     /// Per-user, per-machine config dir resolved once at startup (Rule 9).
     /// Hosts `limerick.toml` (non-secret BYOK choices) and the `.onboarded`
     /// marker. API keys live in the OS keychain via `secret_store`.
@@ -1504,6 +1509,7 @@ pub fn run() {
         demo_config,
         shutdown_token: shutdown_token.clone(),
         sim_cancel: Mutex::new(CancellationToken::new()),
+        turns: limerick_core::turn::InProcessTurns::new(),
         session_store,
         user_config_dir,
         project_config_path: engine_config_path,

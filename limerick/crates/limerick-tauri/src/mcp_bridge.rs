@@ -326,7 +326,7 @@ async fn submit_input(
         limerick_core::ipc::conversation_cursor(&world)
     };
 
-    let outcome = crate::commands::input::do_submit_input_locked(
+    let failure = crate::commands::input::do_submit_input_locked(
         &b.state,
         &b.app,
         body.text,
@@ -336,7 +336,7 @@ async fn submit_input(
     .map_err(AppError::from)?;
 
     let mut result = build_submit_result(&b.state, before_turn).await;
-    result.error = outcome.dialogue_failure;
+    result.error = failure;
     Ok(Json(result))
 }
 
@@ -739,6 +739,7 @@ mod tests {
             demo_config: DemoConfig::default(),
             shutdown_token: CancellationToken::new(),
             sim_cancel: Mutex::new(CancellationToken::new()),
+            turns: limerick_core::turn::InProcessTurns::new(),
             session_store,
             user_config_dir: dir.path().to_path_buf(),
             project_config_path: dir.path().join("project.toml"),

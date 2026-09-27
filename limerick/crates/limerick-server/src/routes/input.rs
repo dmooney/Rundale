@@ -87,7 +87,7 @@ pub async fn submit_input(
                     };
                 // Capture location before handle_game_input (which may move the player).
                 let reaction_location = state.world.lock().await.player_location;
-                let outcome = match handle_game_input(
+                let step = match handle_game_input(
                     raw,
                     body.addressed_to,
                     &state,
@@ -95,21 +95,21 @@ pub async fn submit_input(
                 )
                 .await
                 {
-                    Ok(outcome) => outcome,
+                    Ok(step) => step,
                     Err(error) => {
                         tracing::error!(
                             session_id = %state.session_id,
                             %error,
-                            "player task journal append failed"
+                            "player turn could not be committed"
                         );
                         return (
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("failed to persist player task: {error}"),
+                            format!("failed to commit player turn: {error}"),
                         )
                             .into_response();
                     }
                 };
-                dialogue_failure = outcome.dialogue_failure;
+                dialogue_failure = step.failure_message();
                 // Generate NPC reactions to the player's message in the background.
                 if let Some((player_msg_id, raw_for_reactions)) = dispatch {
                     emit_npc_reactions(
@@ -191,15 +191,6 @@ pub async fn emit_world_update(state: &Arc<AppState>) {
         .emit_named(Topic::WorldUpdate, "world-update", &ws);
 }
 
-async fn world_update_payload(state: &Arc<AppState>) -> serde_json::Value {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = limerick_core::ipc::snapshot_from_world(&world);
-    snapshot.name_hints =
-        limerick_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-    serde_json::to_value(snapshot).unwrap_or(serde_json::Value::Null)
-}
-
 /// Handles `/command` system inputs.
 ///
 /// Delegates to [`limerick_core::game_loop::handle_system_command`] via the
@@ -216,99 +207,67 @@ pub async fn handle_system_command(
     shared_handle(&host, cmd, raw_text).await
 }
 
-/// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
+/// Handles free-form game input as one turn request.
 ///
-/// Delegates to [`limerick_core::game_loop::handle_game_input`] for all shared
-/// logic (#696 slice 4).  Emits a world-update snapshot before and after
-/// NPC-conversation paths so the frontend inference-pause indicator stays
-/// accurate during long inference calls.
+/// Releases the player's echo and a before-turn world update (so the frontend
+/// sees the inference-pause flag), then runs the turn through the session's
+/// [`limerick_core::turn::InProcessTurns`]: the shared
+/// [`limerick_core::game_loop::handle_game_input`] pipeline on a candidate,
+/// committed with its task batch or discarded whole. The loading animation
+/// runs live during inference; the turn's output is released at commit. A
+/// world update after the turn clears the inference-pause flag.
 pub async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
     state: &Arc<AppState>,
-    mut prelude_emissions: Vec<(String, serde_json::Value)>,
-) -> Result<limerick_core::game_loop::GameInputOutcome, limerick_core::error::LimerickError> {
-    let must_stage = {
-        let world = state.world.lock().await;
-        limerick_core::game_loop::input_may_mutate_tasks(&world, &raw)
-    };
-    let before_progress = state.world.lock().await.player_progress.clone();
+    prelude_emissions: Vec<(String, serde_json::Value)>,
+) -> Result<limerick_core::turn::TurnStep, limerick_core::turn::TurnError> {
     let emitter: std::sync::Arc<dyn limerick_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
     let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
-    let transport = state.transport.default_mode().clone();
-    let reaction_templates = state
-        .game_mod
-        .as_ref()
-        .map(|gm| gm.reactions.clone())
-        .unwrap_or_default();
-
-    if must_stage {
-        let task_target = state
-            .save_identity
-            .task_journal_target(&state.session_id)
-            .await;
-        prelude_emissions.push((
-            "world-update".to_string(),
-            world_update_payload(state).await,
-        ));
-        let commit = limerick_core::game_loop::handle_staged_game_input(
-            &ctx,
-            state.session_store.as_ref(),
-            task_target.as_ref(),
-            prelude_emissions,
-            raw,
-            addressed_to,
-            &transport,
-            &reaction_templates,
-        )
-        .await?;
-        emit_world_update(state).await;
-        return Ok(limerick_core::game_loop::GameInputOutcome {
-            task_mutations: commit.task_mutations,
-            dialogue_failure: commit.dialogue_failure,
-            clarification: commit.clarification,
-        });
-    }
-
-    touch_player_activity(state).await;
-    limerick_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
-
-    let state_for_loading = Arc::clone(state);
-    let spawn_loading = move || {
-        let cancel = tokio_util::sync::CancellationToken::new();
-        spawn_loading_animation(Arc::clone(&state_for_loading), cancel.clone());
-        Some(cancel)
+    let rules = limerick_core::turn::TurnRules {
+        transport: state.transport.default_mode().clone(),
+        reaction_templates: state
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.reactions.clone())
+            .unwrap_or_default(),
     };
-
-    // Emit world-update before so the frontend sees the inference-pause flag
-    // when NPC conversation starts.
-    emit_world_update(state).await;
-
-    let outcome = limerick_core::game_loop::handle_game_input(
-        &ctx,
-        raw,
-        addressed_to,
-        &transport,
-        &reaction_templates,
-        spawn_loading,
-    )
-    .await;
     let task_target = state
         .save_identity
         .task_journal_target(&state.session_id)
         .await;
-    persist_task_mutations(
-        state,
-        task_target.as_ref(),
-        before_progress,
-        &outcome.task_mutations,
-    )
-    .await?;
+    let state_for_loading = Arc::clone(state);
+    let loading: limerick_core::turn::LoadingHook = Arc::new(move || {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        spawn_loading_animation(Arc::clone(&state_for_loading), cancel.clone());
+        Some(cancel)
+    });
 
-    // Emit world-update after to clear the inference-pause flag.
+    touch_player_activity(state).await;
+    limerick_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
     emit_world_update(state).await;
-    Ok(outcome)
+
+    let step = state
+        .turns
+        .submit(
+            &ctx,
+            limerick_core::turn::InProcessSubmission {
+                input: limerick_core::turn::TurnInput {
+                    text: raw,
+                    addressed_to,
+                    ..Default::default()
+                },
+                rules,
+                session_store: Arc::clone(&state.session_store),
+                task_target,
+                loading: Some(loading),
+            },
+        )
+        .await;
+
+    emit_world_update(state).await;
+    step
 }
 
 async fn persist_task_mutations(
