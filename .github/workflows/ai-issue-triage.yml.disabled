@@ -1,5 +1,13 @@
 name: "AI issue triage (GitHub Models)"
 
+# Disabled 2026-09-26. GitHub Models was retired on 2026-07-30
+# (https://github.blog/changelog/2026-07-30-github-models-is-now-retired/).
+# Classification used actions/ai-inference against models.github.ai and now
+# fails with 410 / non-JSON responses. GitHub Actions ignores files without a
+# .yml/.yaml extension. Restore the .yml suffix and rewire to another provider
+# before re-enabling. Manual labeling via .github/triage-labels.json still
+# applies; triage-audit.yml continues to audit label coverage.
+#
 # Auto-labels new/reopened issues with one priority (P0-P3) + theme label(s)
 # using GitHub Models (actions/ai-inference). The model only *suggests*; the
 # apply step validates every suggestion against .github/triage-labels.json, so
