@@ -1,247 +1,89 @@
 //! Advisory save-file locking.
 //!
-//! New locks use an atomically-created `<save_path>.lock` directory containing
-//! a fully-written owner record. The directory is the exclusion primitive:
-//! while its owner record is being published, peers conservatively treat it as
-//! locked. Plain PID lock files from older Limerick versions remain readable and
-//! a parseable dead owner is migrated safely on the next acquisition.
+//! A save is locked by an exclusive kernel lock (`flock` on Unix, including
+//! iOS; `LockFileEx` on Windows) held on `<save_path>.lock` through
+//! [`std::fs::File::try_lock`]. The kernel releases the lock when its owner
+//! process ends for any reason, including a force-quit or an iOS jetsam kill,
+//! so a relaunch never depends on whether a recorded PID is still alive. The
+//! file records the owner's PID for diagnostics only. See ADR-026.
+//!
+//! Earlier builds locked with an owner directory at the same path. A leftover
+//! directory whose recorded owner is dead is removed on the next acquisition;
+//! a live or unreadable one keeps the save locked.
 
 use std::collections::HashMap;
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File};
+use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-const OWNER_FILENAME: &str = "owner.json";
-const OWNER_VERSION: u8 = 1;
-static OWNER_COUNTER: AtomicU64 = AtomicU64::new(0);
+/// Owner record file inside a lock directory written by earlier builds.
+const LEGACY_OWNER_FILENAME: &str = "owner.json";
+const LEGACY_OWNER_VERSION: u8 = 1;
+/// Bounds retries when a released lock file is replaced while opening it.
+const MAX_OPEN_ATTEMPTS: usize = 8;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct OwnerRecord {
-    version: u8,
-    pid: u32,
-    token: String,
+/// Locks held by this process, by lock path. The kernel lock belongs to one
+/// open file, so a second acquisition in the same process shares it instead of
+/// opening the file again (which would conflict with our own lock).
+struct LiveGuards(Mutex<Option<HashMap<PathBuf, LiveGuard>>>);
+
+struct LiveGuard {
+    file: Arc<File>,
+    holders: usize,
 }
 
-impl OwnerRecord {
-    fn new(pid: u32) -> Self {
-        let counter = OWNER_COUNTER.fetch_add(1, Ordering::Relaxed);
-        Self {
-            version: OWNER_VERSION,
-            pid,
-            token: format!("{pid}-{counter}"),
-        }
-    }
-
-    fn is_valid(&self) -> bool {
-        self.version == OWNER_VERSION && self.pid > 0 && !self.token.trim().is_empty()
-    }
-}
-
-#[derive(Clone)]
-struct LiveGuardEntry {
-    owner: OwnerRecord,
-    refcount: Arc<AtomicUsize>,
-}
-
-struct LiveGuardRegistry(Mutex<Option<HashMap<PathBuf, LiveGuardEntry>>>);
-
-impl LiveGuardRegistry {
+impl LiveGuards {
     const fn new() -> Self {
         Self(Mutex::new(None))
     }
 
-    fn with_lock<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&mut HashMap<PathBuf, LiveGuardEntry>) -> R,
-    {
-        let mut guard = self.0.lock().expect("LiveGuardRegistry mutex poisoned");
-        f(guard.get_or_insert_with(HashMap::new))
+    fn lock(&self) -> MutexGuard<'_, Option<HashMap<PathBuf, LiveGuard>>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
-static LIVE_GUARDS: LiveGuardRegistry = LiveGuardRegistry::new();
+static LIVE_GUARDS: LiveGuards = LiveGuards::new();
 
-/// Advisory lock backed by a `.lock` owner directory.
+/// Advisory lock on a save file, held until the last guard for it drops.
 pub struct SaveFileLock {
     lock_path: PathBuf,
-    owner: OwnerRecord,
-    refcount: Arc<AtomicUsize>,
-}
-
-enum LockObservation {
-    Missing,
-    Owner(OwnerRecord),
-    LegacyPid(u32),
-    Invalid,
+    file: Arc<File>,
 }
 
 impl SaveFileLock {
-    /// Attempts to acquire the save lock.
+    /// Attempts to acquire the save lock without blocking.
     ///
-    /// Only a parseable owner whose process is known dead is eligible for
-    /// cleanup. Missing, unreadable, incomplete, or malformed owner state is
-    /// treated as locked so a peer can never steal a just-published lock.
+    /// Returns `None` when another process holds it, when a lock directory
+    /// from an earlier build names a live or unreadable owner, or when the
+    /// lock file cannot be opened. Acquiring again in the process that holds
+    /// the lock succeeds and shares it.
     pub fn try_acquire(save_path: &Path) -> Option<Self> {
-        Self::try_acquire_with(save_path, std::process::id(), is_process_alive)
-    }
-
-    fn try_acquire_with(
-        save_path: &Path,
-        my_pid: u32,
-        is_alive: impl Fn(u32) -> bool + Copy,
-    ) -> Option<Self> {
         let lock_path = Self::lock_path_for(save_path);
-        if let Some(guard) = Self::reentrant_acquire(&lock_path, my_pid) {
-            return Some(guard);
+        let mut guards = LIVE_GUARDS.lock();
+        let guards = guards.get_or_insert_with(HashMap::new);
+        if let Some(live) = guards.get_mut(&lock_path) {
+            live.holders += 1;
+            return Some(Self {
+                lock_path,
+                file: Arc::clone(&live.file),
+            });
         }
 
-        let cleanup_path = Self::cleanup_path_for(&lock_path);
-        if path_exists_or_unreadable(&cleanup_path) {
+        if !clear_dead_legacy_directory(&lock_path) {
             return None;
         }
-
-        match fs::create_dir(&lock_path) {
-            Ok(()) => return Self::publish_owner(lock_path, OwnerRecord::new(my_pid)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(_) => return None,
-        }
-
-        match observe_lock(&lock_path) {
-            LockObservation::Owner(owner) if owner.pid == my_pid => {
-                Self::reentrant_acquire_matching(&lock_path, &owner)
-            }
-            LockObservation::Owner(owner) if is_alive(owner.pid) => None,
-            LockObservation::LegacyPid(pid) if is_alive(pid) => None,
-            LockObservation::Owner(_) | LockObservation::LegacyPid(_) => {
-                Self::replace_stale(lock_path, cleanup_path, my_pid, is_alive)
-            }
-            LockObservation::Missing => Self::try_acquire_with(save_path, my_pid, is_alive),
-            LockObservation::Invalid => None,
-        }
-    }
-
-    fn replace_stale(
-        lock_path: PathBuf,
-        cleanup_path: PathBuf,
-        my_pid: u32,
-        is_alive: impl Fn(u32) -> bool + Copy,
-    ) -> Option<Self> {
-        let cleanup = StaleCleanupGuard::try_acquire(cleanup_path)?;
-
-        // Re-read only after winning the cleanup mutex. Another contender may
-        // already have replaced the stale owner while this caller waited.
-        match observe_lock(&lock_path) {
-            LockObservation::Owner(owner) if owner.pid == my_pid => {
-                return Self::reentrant_acquire_matching(&lock_path, &owner);
-            }
-            LockObservation::Owner(owner) if is_alive(owner.pid) => return None,
-            LockObservation::LegacyPid(pid) if is_alive(pid) => return None,
-            LockObservation::Invalid => return None,
-            LockObservation::Owner(owner) => {
-                tracing::info!(
-                    pid = owner.pid,
-                    path = %lock_path.display(),
-                    "Replacing stale save-lock owner directory"
-                );
-                if fs::remove_dir_all(&lock_path).is_err() {
-                    return None;
-                }
-            }
-            LockObservation::LegacyPid(pid) => {
-                tracing::info!(
-                    pid,
-                    path = %lock_path.display(),
-                    "Replacing stale legacy save-lock file"
-                );
-                if fs::remove_file(&lock_path).is_err() {
-                    return None;
-                }
-            }
-            LockObservation::Missing => {}
-        }
-
-        let result = match fs::create_dir(&lock_path) {
-            Ok(()) => Self::publish_owner(lock_path, OwnerRecord::new(my_pid)),
-            Err(_) => None,
-        };
-        drop(cleanup);
-        result
-    }
-
-    fn publish_owner(lock_path: PathBuf, owner: OwnerRecord) -> Option<Self> {
-        let temp_path = lock_path.join(format!(".{OWNER_FILENAME}.tmp"));
-        let owner_path = lock_path.join(OWNER_FILENAME);
-        let body = serde_json::to_vec(&owner).ok()?;
-        let publish_result = (|| -> std::io::Result<()> {
-            let mut file = fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&temp_path)?;
-            file.write_all(&body)?;
-            file.sync_all()?;
-            fs::rename(&temp_path, &owner_path)?;
-            #[cfg(unix)]
-            fs::File::open(&lock_path)?.sync_all()?;
-            Ok(())
-        })();
-        if publish_result.is_err() {
-            let _ = fs::remove_file(&temp_path);
-            let _ = fs::remove_dir_all(&lock_path);
-            return None;
-        }
-
-        let refcount = Arc::new(AtomicUsize::new(1));
-        LIVE_GUARDS.with_lock(|map| {
-            map.insert(
-                lock_path.clone(),
-                LiveGuardEntry {
-                    owner: owner.clone(),
-                    refcount: Arc::clone(&refcount),
-                },
-            );
-        });
-        Some(Self {
-            lock_path,
-            owner,
-            refcount,
-        })
-    }
-
-    fn reentrant_acquire(lock_path: &Path, my_pid: u32) -> Option<Self> {
-        LIVE_GUARDS.with_lock(|map| {
-            let entry = map.get(lock_path)?;
-            (entry.owner.pid == my_pid
-                && matches!(
-                    observe_lock(lock_path),
-                    LockObservation::Owner(ref owner) if owner == &entry.owner
-                ))
-            .then(|| {
-                entry.refcount.fetch_add(1, Ordering::AcqRel);
-                Self {
-                    lock_path: lock_path.to_path_buf(),
-                    owner: entry.owner.clone(),
-                    refcount: Arc::clone(&entry.refcount),
-                }
-            })
-        })
-    }
-
-    fn reentrant_acquire_matching(lock_path: &Path, owner: &OwnerRecord) -> Option<Self> {
-        LIVE_GUARDS.with_lock(|map| {
-            let entry = map.get(lock_path)?;
-            (&entry.owner == owner).then(|| {
-                entry.refcount.fetch_add(1, Ordering::AcqRel);
-                Self {
-                    lock_path: lock_path.to_path_buf(),
-                    owner: entry.owner.clone(),
-                    refcount: Arc::clone(&entry.refcount),
-                }
-            })
-        })
+        let file = Arc::new(lock_file(&lock_path)?);
+        guards.insert(
+            lock_path.clone(),
+            LiveGuard {
+                file: Arc::clone(&file),
+                holders: 1,
+            },
+        );
+        Some(Self { lock_path, file })
     }
 
     /// Returns the lock path for a save file.
@@ -250,113 +92,183 @@ impl SaveFileLock {
         path.push(".lock");
         PathBuf::from(path)
     }
-
-    fn cleanup_path_for(lock_path: &Path) -> PathBuf {
-        let mut path = lock_path.as_os_str().to_os_string();
-        path.push(".cleanup");
-        PathBuf::from(path)
-    }
 }
 
 impl Drop for SaveFileLock {
     fn drop(&mut self) {
-        if self.refcount.fetch_sub(1, Ordering::AcqRel) != 1 {
+        let mut guards = LIVE_GUARDS.lock();
+        let Some(guards) = guards.as_mut() else {
+            return;
+        };
+        let Some(live) = guards.get_mut(&self.lock_path) else {
+            return;
+        };
+        live.holders -= 1;
+        if live.holders > 0 {
             return;
         }
+        guards.remove(&self.lock_path);
 
-        LIVE_GUARDS.with_lock(|map| {
-            if map.get(&self.lock_path).is_some_and(|entry| {
-                entry.owner == self.owner && Arc::ptr_eq(&entry.refcount, &self.refcount)
-            }) {
-                map.remove(&self.lock_path);
-            }
-        });
-
-        // Never delete a successor's lock if the on-disk owner changed.
-        if matches!(
-            observe_lock(&self.lock_path),
-            LockObservation::Owner(ref owner) if owner == &self.owner
-        ) && let Err(error) = fs::remove_dir_all(&self.lock_path)
+        // Remove the file while still holding its lock, and only if the path
+        // still names our file, so a successor's lock file is never removed.
+        // A contender that opened our file before the removal locks an
+        // unlinked file, notices, and retries on a fresh one.
+        if same_file(&self.file, &self.lock_path)
+            && let Err(error) = fs::remove_file(&self.lock_path)
             && error.kind() != std::io::ErrorKind::NotFound
         {
             tracing::warn!(
                 path = %self.lock_path.display(),
                 %error,
-                "Failed to remove save-lock owner directory on drop"
+                "Failed to remove save-lock file on release"
             );
         }
+        // The kernel lock is released when the last handle to the file closes.
     }
 }
 
-struct StaleCleanupGuard {
-    path: PathBuf,
-}
-
-impl StaleCleanupGuard {
-    fn try_acquire(path: PathBuf) -> Option<Self> {
-        fs::create_dir(&path).ok().map(|()| Self { path })
-    }
-}
-
-impl Drop for StaleCleanupGuard {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir(&self.path);
-    }
-}
-
-fn path_exists_or_unreadable(path: &Path) -> bool {
-    path.try_exists().unwrap_or(true)
-}
-
-fn observe_lock(lock_path: &Path) -> LockObservation {
-    let metadata = match fs::symlink_metadata(lock_path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return LockObservation::Missing;
+/// Opens `lock_path` and takes the exclusive kernel lock on it.
+fn lock_file(lock_path: &Path) -> Option<File> {
+    for _ in 0..MAX_OPEN_ATTEMPTS {
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+            .ok()?;
+        if file.try_lock().is_err() {
+            return None;
         }
-        Err(_) => return LockObservation::Invalid,
-    };
-
-    if metadata.is_dir() {
-        let body = match fs::read(lock_path.join(OWNER_FILENAME)) {
-            Ok(body) => body,
-            Err(_) => return LockObservation::Invalid,
-        };
-        return match serde_json::from_slice::<OwnerRecord>(&body) {
-            Ok(owner) if owner.is_valid() => LockObservation::Owner(owner),
-            _ => LockObservation::Invalid,
-        };
+        // The previous owner may have released and removed this file between
+        // our open and our lock. Its path now names nothing or a newer file,
+        // so retry on whatever the path names now.
+        if !same_file(&file, lock_path) {
+            continue;
+        }
+        record_owner_pid(&mut file);
+        return Some(file);
     }
+    None
+}
 
-    if metadata.is_file() {
-        return match fs::read_to_string(lock_path)
-            .ok()
-            .and_then(|body| body.trim().parse::<u32>().ok())
+/// Records this process's PID in the lock file, for diagnostics and so older
+/// builds (which read the PID) keep treating a held save as locked.
+fn record_owner_pid(file: &mut File) {
+    let written = file
+        .set_len(0)
+        .and_then(|()| file.rewind())
+        .and_then(|()| file.write_all(std::process::id().to_string().as_bytes()));
+    if let Err(error) = written {
+        tracing::debug!(%error, "Could not record the save-lock owner PID");
+    }
+}
+
+#[cfg(unix)]
+fn same_file(file: &File, path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (file.metadata(), fs::metadata(path)) {
+        (Ok(open), Ok(named)) => open.dev() == named.dev() && open.ino() == named.ino(),
+        _ => false,
+    }
+}
+
+/// Windows cannot create a file at a path whose previous file is pending
+/// deletion while any handle to it is open, so the path always names the file
+/// that was opened.
+#[cfg(not(unix))]
+fn same_file(_file: &File, path: &Path) -> bool {
+    path.is_file()
+}
+
+#[derive(Deserialize)]
+struct LegacyOwnerRecord {
+    version: u8,
+    pid: u32,
+}
+
+enum LegacyDirectory {
+    /// No lock directory at the path.
+    Absent,
+    /// A lock directory whose recorded owner process is gone.
+    DeadOwner,
+    /// A lock directory with a live, unreadable, or incomplete owner.
+    Held,
+}
+
+fn observe_legacy_directory(lock_path: &Path) -> LegacyDirectory {
+    match fs::symlink_metadata(lock_path) {
+        Ok(metadata) if metadata.is_dir() => {}
+        _ => return LegacyDirectory::Absent,
+    }
+    let owner = fs::read(lock_path.join(LEGACY_OWNER_FILENAME))
+        .ok()
+        .and_then(|body| serde_json::from_slice::<LegacyOwnerRecord>(&body).ok());
+    match owner {
+        Some(owner)
+            if owner.version == LEGACY_OWNER_VERSION
+                && owner.pid > 0
+                && !is_process_alive(owner.pid) =>
         {
-            Some(pid) if pid > 0 => LockObservation::LegacyPid(pid),
-            _ => LockObservation::Invalid,
-        };
+            LegacyDirectory::DeadOwner
+        }
+        _ => LegacyDirectory::Held,
     }
+}
 
-    LockObservation::Invalid
+/// Removes a lock directory left by an earlier build whose owner is dead.
+/// Returns `false` when such a directory still holds the save.
+fn clear_dead_legacy_directory(lock_path: &Path) -> bool {
+    match observe_legacy_directory(lock_path) {
+        LegacyDirectory::Absent => true,
+        LegacyDirectory::Held => false,
+        LegacyDirectory::DeadOwner => {
+            tracing::info!(
+                path = %lock_path.display(),
+                "Removing save-lock directory left by a dead owner"
+            );
+            match fs::remove_dir_all(lock_path) {
+                Ok(()) => true,
+                Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+            }
+        }
+    }
 }
 
 /// Checks whether a save file is currently locked.
 ///
-/// Invalid or unreadable state is conservatively locked. A parseable stale PID
-/// is reported unlocked so discovery UIs may identify it as reclaimable.
+/// Probes the kernel lock with a shared lock that is released at once. A
+/// contender acquiring at the same instant can be refused once; it is never
+/// granted a lock another process holds. Unreadable state reports locked.
 pub fn is_locked(save_path: &Path) -> bool {
-    match observe_lock(&SaveFileLock::lock_path_for(save_path)) {
-        LockObservation::Missing => false,
-        LockObservation::Owner(owner) => is_process_alive(owner.pid),
-        LockObservation::LegacyPid(pid) => is_process_alive(pid),
-        LockObservation::Invalid => true,
+    let lock_path = SaveFileLock::lock_path_for(save_path);
+    if LIVE_GUARDS
+        .lock()
+        .as_ref()
+        .is_some_and(|guards| guards.contains_key(&lock_path))
+    {
+        return true;
+    }
+    match fs::symlink_metadata(&lock_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return false,
+        Err(_) => return true,
+        Ok(metadata) if metadata.is_dir() => {
+            return matches!(observe_legacy_directory(&lock_path), LegacyDirectory::Held);
+        }
+        Ok(_) => {}
+    }
+    match File::open(&lock_path) {
+        Ok(file) => file.try_lock_shared().is_err(),
+        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
     }
 }
 
 #[cfg(unix)]
 fn is_process_alive(pid: u32) -> bool {
-    let result = unsafe { libc::kill(pid as libc::pid_t, 0) };
+    let Ok(pid) = libc::pid_t::try_from(pid) else {
+        return false;
+    };
+    let result = unsafe { libc::kill(pid, 0) };
     result == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 

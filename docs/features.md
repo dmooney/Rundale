@@ -311,7 +311,7 @@ Categories are `dialogue`, `simulation`, `intent`, or `reaction`.
 
 ### Cross-Process Save Lock
 
-- File-based lock prevents two running instances from opening or writing to the same save concurrently, preventing corruption
+- A kernel file lock (`flock`, or `LockFileEx` on Windows) on `<save>.lock` prevents two running instances from opening or writing to the same save concurrently. The operating system releases it when the owning process ends, including a force-quit or an iOS jetsam kill, so a relaunch never finds its own save locked ([ADR-026](adr/026-kernel-save-lock.md))
 
 ### Git-Like Branching Saves
 
