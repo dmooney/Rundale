@@ -1,0 +1,1 @@
+ALTER TABLE "invocations" ADD COLUMN "cancellation_requested" boolean DEFAULT false NOT NULL;

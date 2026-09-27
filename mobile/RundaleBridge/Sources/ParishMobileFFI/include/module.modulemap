@@ -1,0 +1,4 @@
+module ParishMobileFFI {
+    header "parish_mobile_ffi.h"
+    export *
+}

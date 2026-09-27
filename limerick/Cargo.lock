@@ -3435,6 +3435,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "limerick-mobile-ffi"
+version = "0.1.0"
+dependencies = [
+ "limerick-core",
+ "serde_json",
+]
+
+[[package]]
 name = "limerick-mod"
 version = "0.1.0"
 dependencies = [

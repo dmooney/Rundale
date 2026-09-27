@@ -1,0 +1,16 @@
+[package]
+name = "limerick-mobile-ffi"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "C boundary between the native iPhone client and the shared Limerick engine"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# The shared engine in its portable configuration. There is no mobile-only
+# runtime: #2044 re-points this boundary at `limerick_core::turn::TurnEngine`.
+limerick-core = { path = "../limerick-core", default-features = false, features = ["mobile"] }
+serde_json = { workspace = true }
