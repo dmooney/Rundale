@@ -9,11 +9,11 @@
 //! 2. Location-log subscriber
 //! 3. Chat-transcript subscriber
 //! 4. Game-events subscriber (#1222)
-//! 5. World tick (5 s)
+//! 5. World tick (5 s) — also claims due Tier-3/Tier-2 jobs after the pump
 //! 6. Inactivity tick (1 s)
 //! 7. Autosave tick
-//! 8. Tier-2 simulation tick (#1198)
-//! 9. Tier-3 simulation tick
+//! 8. Tier-2 simulation worker (#1198)
+//! 9. Tier-3 simulation worker
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -352,10 +352,20 @@ pub(super) fn spawn_session_ticks(
         }));
     }
 
+    // Due Tier-3/Tier-2 work is claimed by the world tick and executed by the
+    // worker tasks below. Each tier's in-flight flag admits one job at a time,
+    // so a single slot is enough.
+    let (tier3_tx, mut tier3_rx) = tokio::sync::mpsc::channel::<Tier3Job>(1);
+    let (tier2_tx, mut tier2_rx) = tokio::sync::mpsc::channel::<Tier2Job>(1);
+
     // ── World tick (5 s) ─────────────────────────────────────────────────────
     {
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
+        let jobs = BackgroundSimSenders {
+            tier3: tier3_tx,
+            tier2: tier2_tx,
+        };
         handles.push(tokio::spawn(async move {
             // Round-robin cursor for budgeted gossip propagation (#466).
             let mut gossip_cursor: usize = 0;
@@ -379,70 +389,7 @@ pub(super) fn spawn_session_ticks(
                         .emit_named(Topic::WorldUpdate, "world-update", &snap);
                 }
 
-                {
-                    let _persistence_guard = s.persistence_gate.lock().await;
-                    // Snapshot simulation flags outside the world/npc locks to
-                    // avoid nesting config → world, which inverts the
-                    // project-wide lock order.
-                    let (banshee_enabled, tier4_enabled) = {
-                        let cfg = s.config.lock().await;
-                        (
-                            !cfg.flags.is_disabled("banshee"),
-                            limerick_core::game_loop::tier4_simulation_enabled(&cfg.flags),
-                        )
-                    };
-
-                    let mut world = s.world.lock().await;
-                    let mut npc_mgr = s.npc_manager.lock().await;
-
-                    // Advance the world one pump through the single shared
-                    // helper (rule #12): weather + schedules + tier
-                    // reassignment + banshee + budgeted gossip + Tier 4. The
-                    // budgeted gossip cursor round-robins across ticks (#466).
-                    {
-                        use limerick_core::game_loop::{
-                            AdvanceOptions, GossipMode, WeatherMode, advance_world,
-                        };
-
-                        let mut rng = rand::rng();
-                        let report = advance_world(
-                            &mut world,
-                            &mut npc_mgr,
-                            &mut rng,
-                            AdvanceOptions {
-                                weather: WeatherMode::Single,
-                                run_banshee: banshee_enabled,
-                                gossip: GossipMode::Budgeted {
-                                    cursor: gossip_cursor,
-                                    budget: GOSSIP_BUDGET_PER_TICK,
-                                },
-                                run_tier4: tier4_enabled,
-                            },
-                        );
-                        gossip_cursor = report.gossip_cursor;
-                    }
-
-                    // Advance the generation counter so handle_game_input can
-                    // detect TOCTOU races (see issue #283).
-                    //
-                    // Skip while inference-paused: the player input is
-                    // mid-flight and the clock is frozen, so this tick is a
-                    // no-op from the player's perspective. Bumping the
-                    // counter anyway falsely tripped the TOCTOU guard.
-                    if !world.clock.is_inference_paused() {
-                        world.increment_tick_generation();
-                    }
-
-                    // #621 — Per-session tick metric. Emitted as a structured
-                    // tracing event so log-based metric tools can aggregate
-                    // tick counts per session without a Prometheus exporter.
-                    tracing::debug!(
-                        target: "limerick_server::metrics",
-                        session_id = %s.session_id,
-                        tick = world.tick_generation,
-                        "session.tick"
-                    );
-                }
+                gossip_cursor = advance_world_tick(&s, gossip_cursor, &jobs).await;
             }
         }));
     }
@@ -584,14 +531,14 @@ pub(super) fn spawn_session_ticks(
         }));
     }
 
-    // ── Tier-2 simulation tick ────────────────────────────────────────────────
+    // ── Tier-2 simulation worker ──────────────────────────────────────────────
     //
-    // Mirrors the Tier-2 polling task from `limerick-tauri/src/setup.rs` and the
-    // `dispatch_headless_tier2_tick` helper from `limerick-engine/src/headless.rs`.
-    // Previously missing from the web backend (TD-040), so `GossipSpread` events
-    // never fired on the Axum path. The shared `mint_tier2_gossip` helper (TD-030)
-    // is called for post-processing instead of repeating the loop body a third time
-    // (rule #12).
+    // Executes jobs claimed by the world tick, mirroring `dispatch_tier2` in
+    // `limerick-tauri/src/setup.rs` and `dispatch_headless_tier2_tick` in
+    // `limerick-engine/src/headless.rs`. Previously missing from the web backend
+    // (TD-040), so `GossipSpread` events never fired on the Axum path. The shared
+    // `mint_tier2_gossip` helper (TD-030) is called for post-processing instead
+    // of repeating the loop body a third time (rule #12).
     //
     // Lock ordering: world → npc_manager (documented contract, matches the main
     // world-tick above and the Tauri site — both hold world first, npc_manager
@@ -602,51 +549,18 @@ pub(super) fn spawn_session_ticks(
         let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
             loop {
-                tokio::select! {
+                let Tier2Job {
+                    groups,
+                    time_desc,
+                    weather_str,
+                    context_epoch,
+                } = tokio::select! {
                     _ = token.cancelled() => break,
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                }
-
-                // ── Check whether a Tier-2 tick is due ───────────────────────
-                let (needs_tick, in_flight, groups, time_desc, weather_str, context_epoch) = {
-                    let _persistence_guard = s.persistence_gate.lock().await;
-                    let world = s.world.lock().await;
-                    let npc_mgr = s.npc_manager.lock().await;
-                    let now = world.clock.now();
-                    if !npc_mgr.needs_tier2_tick(now) || npc_mgr.tier2_in_flight() {
-                        continue;
-                    }
-                    let groups = limerick_core::game_loop::build_tier2_groups(&world, &npc_mgr);
-                    if groups.is_empty() {
-                        continue;
-                    }
-                    let time_desc = world.clock.time_of_day().to_string();
-                    let weather_str = world.weather.to_string();
-                    (
-                        true,
-                        false,
-                        groups,
-                        time_desc,
-                        weather_str,
-                        world.event_bus.context_epoch(),
-                    )
+                    job = tier2_rx.recv() => match job {
+                        Some(job) => job,
+                        None => break,
+                    },
                 };
-                let _ = (needs_tick, in_flight); // consumed by the checks above
-
-                // Mark in-flight before releasing the lock so a concurrent tick
-                // cannot start a second batch.
-                {
-                    let _persistence_guard = s.persistence_gate.lock().await;
-                    let current_epoch = {
-                        let world = s.world.lock().await;
-                        world.event_bus.context_epoch()
-                    };
-                    if current_epoch != context_epoch {
-                        continue;
-                    }
-                    let mut npc_mgr = s.npc_manager.lock().await;
-                    npc_mgr.set_tier2_in_flight(true);
-                }
 
                 // ── Snapshot the sim client + model outside game-state locks ─
                 let (client_opt, model, profile) = {
@@ -749,7 +663,7 @@ pub(super) fn spawn_session_ticks(
         }));
     }
 
-    // ── Tier-3 simulation tick ────────────────────────────────────────────────
+    // ── Tier-3 simulation worker ──────────────────────────────────────────────
     //
     // Keep the web runtime in parity with Tauri and headless. Tier 3 is a
     // direct batch call because its distant-NPC snapshot and canonical apply
@@ -761,48 +675,18 @@ pub(super) fn spawn_session_ticks(
         let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
             loop {
-                tokio::select! {
+                let Tier3Job {
+                    snapshots,
+                    time_desc,
+                    weather,
+                    season,
+                    context_epoch,
+                } = tokio::select! {
                     _ = token.cancelled() => break,
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                }
-
-                let (snapshots, time_desc, weather, season, context_epoch) = {
-                    let _persistence_guard = s.persistence_gate.lock().await;
-                    let world = s.world.lock().await;
-                    let mut npc_mgr = s.npc_manager.lock().await;
-                    let now = world.clock.now();
-                    if !npc_mgr.needs_tier3_tick(now) || npc_mgr.tier3_in_flight() {
-                        continue;
-                    }
-
-                    let npc_names: std::collections::HashMap<_, _> = npc_mgr
-                        .all_npcs()
-                        .map(|npc| (npc.id, npc.name.clone()))
-                        .collect();
-                    let tier3_ids = npc_mgr.npcs_in_tier(limerick_core::npc::types::CogTier::Tier3);
-                    let snapshots: Vec<limerick_core::npc::ticks::Tier3Snapshot> = tier3_ids
-                        .iter()
-                        .filter_map(|id| npc_mgr.get(*id))
-                        .map(|npc| {
-                            limerick_core::npc::ticks::tier3_snapshot_from_npc(
-                                npc,
-                                &world.graph,
-                                &npc_names,
-                            )
-                        })
-                        .collect();
-                    if snapshots.is_empty() {
-                        continue;
-                    }
-
-                    npc_mgr.set_tier3_in_flight(true);
-                    (
-                        snapshots,
-                        world.clock.time_of_day().to_string(),
-                        world.weather.to_string(),
-                        format!("{:?}", world.clock.season()),
-                        world.event_bus.context_epoch(),
-                    )
+                    job = tier3_rx.recv() => match job {
+                        Some(job) => job,
+                        None => break,
+                    },
                 };
 
                 let (client_opt, model, profile, grounding_enabled) = {
@@ -891,6 +775,179 @@ pub(super) fn spawn_session_ticks(
     }
 
     handles
+}
+
+/// A claimed Tier-2 batch: the co-located groups and prompt context captured
+/// under the game-state locks, executed by the Tier-2 worker.
+#[derive(Debug)]
+struct Tier2Job {
+    groups: Vec<limerick_core::npc::ticks::Tier2Group>,
+    time_desc: String,
+    weather_str: String,
+    context_epoch: u64,
+}
+
+/// A claimed Tier-3 batch: distant-NPC snapshots and prompt context captured
+/// under the game-state locks, executed by the Tier-3 worker.
+#[derive(Debug)]
+struct Tier3Job {
+    snapshots: Vec<limerick_core::npc::ticks::Tier3Snapshot>,
+    time_desc: String,
+    weather: String,
+    season: String,
+    context_epoch: u64,
+}
+
+/// Hands jobs claimed by the world tick to the per-session simulation workers.
+struct BackgroundSimSenders {
+    tier3: tokio::sync::mpsc::Sender<Tier3Job>,
+    tier2: tokio::sync::mpsc::Sender<Tier2Job>,
+}
+
+/// Runs one world-tick pump and claims any due Tier-3/Tier-2 work, all under
+/// a single hold of the persistence gate and world/NPC locks. Returns the
+/// advanced gossip cursor.
+///
+/// The claims must follow `advance_world` in the same critical section, as in
+/// the Tauri world tick and the headless REPL. Tiers can lag NPC state until
+/// the next pump: `apply_movement` reassigns tiers before ticking schedules, so
+/// an NPC who arrives during the player's travel keeps a stale tier. A Tier-2
+/// check made from its own timer could then see stale or refreshed tiers
+/// depending on which timer fired first after a player turn (#2078).
+async fn advance_world_tick(
+    s: &AppState,
+    gossip_cursor: usize,
+    jobs: &BackgroundSimSenders,
+) -> usize {
+    let _persistence_guard = s.persistence_gate.lock().await;
+    // Snapshot simulation flags outside the world/npc locks to avoid nesting
+    // config → world, which inverts the project-wide lock order.
+    let (banshee_enabled, tier4_enabled) = {
+        let cfg = s.config.lock().await;
+        (
+            !cfg.flags.is_disabled("banshee"),
+            limerick_core::game_loop::tier4_simulation_enabled(&cfg.flags),
+        )
+    };
+
+    let mut world = s.world.lock().await;
+    let mut npc_mgr = s.npc_manager.lock().await;
+
+    // Advance the world one pump through the single shared helper (rule #12):
+    // weather + schedules + tier reassignment + banshee + budgeted gossip +
+    // Tier 4. The budgeted gossip cursor round-robins across ticks (#466).
+    let next_cursor = {
+        use limerick_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
+
+        let mut rng = rand::rng();
+        advance_world(
+            &mut world,
+            &mut npc_mgr,
+            &mut rng,
+            AdvanceOptions {
+                weather: WeatherMode::Single,
+                run_banshee: banshee_enabled,
+                gossip: GossipMode::Budgeted {
+                    cursor: gossip_cursor,
+                    budget: GOSSIP_BUDGET_PER_TICK,
+                },
+                run_tier4: tier4_enabled,
+            },
+        )
+        .gossip_cursor
+    };
+
+    // Advance the generation counter so handle_game_input can detect TOCTOU
+    // races (see issue #283).
+    //
+    // Skip while inference-paused: the player input is mid-flight and the
+    // clock is frozen, so this tick is a no-op from the player's perspective.
+    // Bumping the counter anyway falsely tripped the TOCTOU guard.
+    if !world.clock.is_inference_paused() {
+        world.increment_tick_generation();
+    }
+
+    // #621 — Per-session tick metric. Emitted as a structured tracing event so
+    // log-based metric tools can aggregate tick counts per session without a
+    // Prometheus exporter.
+    tracing::debug!(
+        target: "limerick_server::metrics",
+        session_id = %s.session_id,
+        tick = world.tick_generation,
+        "session.tick"
+    );
+
+    if let Some(job) = claim_tier3_job(&world, &mut npc_mgr)
+        && jobs.tier3.try_send(job).is_err()
+    {
+        npc_mgr.set_tier3_in_flight(false);
+    }
+    if let Some(job) = claim_tier2_job(&world, &mut npc_mgr)
+        && jobs.tier2.try_send(job).is_err()
+    {
+        npc_mgr.set_tier2_in_flight(false);
+    }
+
+    next_cursor
+}
+
+/// Claims a Tier-3 batch when one is due and none is in flight, marking it in
+/// flight.
+fn claim_tier3_job(
+    world: &limerick_core::world::WorldState,
+    npc_mgr: &mut limerick_core::npc::manager::NpcManager,
+) -> Option<Tier3Job> {
+    if !npc_mgr.needs_tier3_tick(world.clock.now()) || npc_mgr.tier3_in_flight() {
+        return None;
+    }
+
+    let npc_names: std::collections::HashMap<_, _> = npc_mgr
+        .all_npcs()
+        .map(|npc| (npc.id, npc.name.clone()))
+        .collect();
+    let snapshots: Vec<limerick_core::npc::ticks::Tier3Snapshot> = npc_mgr
+        .npcs_in_tier(limerick_core::npc::types::CogTier::Tier3)
+        .iter()
+        .filter_map(|id| npc_mgr.get(*id))
+        .map(|npc| {
+            limerick_core::npc::ticks::tier3_snapshot_from_npc(npc, &world.graph, &npc_names)
+        })
+        .collect();
+    if snapshots.is_empty() {
+        return None;
+    }
+
+    npc_mgr.set_tier3_in_flight(true);
+    Some(Tier3Job {
+        snapshots,
+        time_desc: world.clock.time_of_day().to_string(),
+        weather: world.weather.to_string(),
+        season: format!("{:?}", world.clock.season()),
+        context_epoch: world.event_bus.context_epoch(),
+    })
+}
+
+/// Claims a Tier-2 batch when one is due, none is in flight, and at least one
+/// co-located group exists, marking it in flight.
+fn claim_tier2_job(
+    world: &limerick_core::world::WorldState,
+    npc_mgr: &mut limerick_core::npc::manager::NpcManager,
+) -> Option<Tier2Job> {
+    if !npc_mgr.needs_tier2_tick(world.clock.now()) || npc_mgr.tier2_in_flight() {
+        return None;
+    }
+    let groups = limerick_core::game_loop::build_tier2_groups(world, npc_mgr);
+    if groups.is_empty() {
+        return None;
+    }
+
+    npc_mgr.set_tier2_in_flight(true);
+    Some(Tier2Job {
+        groups,
+        time_desc: world.clock.time_of_day().to_string(),
+        weather_str: world.weather.to_string(),
+        context_epoch: world.event_bus.context_epoch(),
+    })
 }
 
 /// Applies one publish-time-stamped event to the debug/MCP event ring.
@@ -1273,6 +1330,97 @@ mod tests {
         for handle in handles {
             handle.abort();
         }
+    }
+
+    /// #2078: tiers can be stale between pumps (after a move, NPCs who arrived
+    /// during travel keep their pre-arrival tier). The Tier-2 claim must see
+    /// the post-pump tiers of the same tick; a claim made from its own timer
+    /// could run before the pump and miss a group that is already eligible.
+    #[tokio::test]
+    async fn world_tick_claims_tier2_groups_after_post_move_tier_reassignment() {
+        use chrono::TimeZone;
+        use limerick_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
+        use limerick_core::npc::types::CogTier;
+        use limerick_core::npc::{Npc, NpcId};
+        use limerick_core::world::LocationId;
+        use limerick_core::world::graph::WorldGraph;
+        use limerick_core::world::time::GameClock;
+
+        let state = crate::routes::tests::test_app_state();
+        let locations: Vec<serde_json::Value> = (1u32..=5)
+            .map(|id| {
+                let connections: Vec<_> = [id.checked_sub(1).filter(|n| *n >= 1), Some(id + 1)]
+                    .into_iter()
+                    .flatten()
+                    .filter(|target| *target <= 5)
+                    .map(|target| serde_json::json!({ "target": target, "path_description": "a road" }))
+                    .collect();
+                serde_json::json!({
+                    "id": id,
+                    "name": format!("Chain {id}"),
+                    "description_template": "A test location.",
+                    "indoor": false,
+                    "public": true,
+                    "connections": connections
+                })
+            })
+            .collect();
+        let graph =
+            WorldGraph::load_from_str(&serde_json::json!({ "locations": locations }).to_string())
+                .expect("synthetic chain graph should load");
+
+        let pair = [NpcId(2078), NpcId(2079)];
+        {
+            let mut world = state.world.lock().await;
+            world.graph = graph;
+            world.player_location = LocationId(1);
+            world.clock =
+                GameClock::new(chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
+            world.clock.pause();
+
+            let mut npc_mgr = state.npc_manager.lock().await;
+            for id in pair {
+                let mut npc = Npc::new_test_npc();
+                npc.id = id;
+                npc.name = format!("Pair {}", id.0);
+                npc.set_location(LocationId(4));
+                npc_mgr.add_npc(npc);
+            }
+            let quiet = AdvanceOptions {
+                weather: WeatherMode::Skip,
+                run_banshee: false,
+                gossip: GossipMode::Skip,
+                run_tier4: false,
+            };
+            advance_world(&mut world, &mut npc_mgr, &mut rand::rng(), quiet);
+            assert_eq!(npc_mgr.tier_of(pair[0]), Some(CogTier::Tier3));
+
+            // Moving the player without a pump leaves the pair's tier stale
+            // (still Tier 3), the same staleness an arrival during travel
+            // leaves behind.
+            world.player_location = LocationId(3);
+            assert!(
+                limerick_core::game_loop::build_tier2_groups(&world, &npc_mgr).is_empty(),
+                "before the pump no Tier-2 group exists, so a pre-pump claim would miss it"
+            );
+        }
+
+        let (tier3_tx, _tier3_rx) = tokio::sync::mpsc::channel(1);
+        let (tier2_tx, mut tier2_rx) = tokio::sync::mpsc::channel(1);
+        let jobs = super::BackgroundSimSenders {
+            tier3: tier3_tx,
+            tier2: tier2_tx,
+        };
+        super::advance_world_tick(&state, 0, &jobs).await;
+
+        let job = tier2_rx
+            .try_recv()
+            .expect("the world tick must claim the Tier-2 group made eligible by the move");
+        assert_eq!(job.groups.len(), 1);
+        assert_eq!(job.groups[0].location, LocationId(4));
+        let ids: Vec<_> = job.groups[0].npcs.iter().map(|npc| npc.id).collect();
+        assert_eq!(ids, pair.to_vec());
+        assert!(state.npc_manager.lock().await.tier2_in_flight());
     }
 
     #[tokio::test]
