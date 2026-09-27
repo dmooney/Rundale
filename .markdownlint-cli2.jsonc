@@ -46,5 +46,11 @@
     "**/graphify-out/**",
     ".opencode/**",
     ".codex/**",
+    // Plain-text exports of the Endpoints design documents, kept verbatim.
+    "endpoints/docs/product-vision.md",
+    "endpoints/docs/software-architecture.md",
+    "mobile/DerivedData/**",
+    "mobile/.build/**",
+    "mobile/**/.build/**",
   ],
 }

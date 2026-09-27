@@ -18,10 +18,10 @@ tokens, no retry, and the versioned streaming projection
 
 ## Engine wire agreement
 
-The input schema is the JSON serialization of
-`limerick_core::mobile::EndpointInvocation` in
-[`limerick/crates/limerick-core/src/mobile/mod.rs`](../../limerick/crates/limerick-core/src/mobile/mod.rs).
-The Rust DTO uses `serde(rename_all = "camelCase")`, so the request uses
+The input schema is the JSON serialization of the `EndpointInvocation` DTO
+from the `ios-port` branch's mobile-only runtime, which was not carried over to
+`main` (ADR-025). The shared engine produces this invocation again once the FFI
+boundary is wired to its turn API (#2044). That DTO used `serde(rename_all = "camelCase")`, so the request uses
 `sessionID`, `logicalRequestID`, `attemptID`, `playerInput`,
 `currentLocation`, `knownPeople`, `knownPlaces`, `authoredFacts`, and
 `recentConversation`. All fields are required and unknown fields are rejected.

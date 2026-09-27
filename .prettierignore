@@ -28,6 +28,7 @@ pnpm-lock.yaml
 limerick/crates/limerick-tauri/gen/
 promptfoo/bench-site/
 **/graphify-out/
+endpoints/packages/database/migrations/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)
@@ -42,6 +43,10 @@ promptfoo/leaderboard/
 
 # Intentionally-malformed mod content (loader test data)
 mods/
+
+# Plain-text exports of the Limerick Endpoints design documents, kept verbatim
+endpoints/docs/product-vision.md
+endpoints/docs/software-architecture.md
 
 # Data we don't want reflowed
 *.jsonl

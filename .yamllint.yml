@@ -32,3 +32,6 @@ ignore: |
   promptfoo/bench-site/
   **/pnpm-lock.yaml
   limerick/testing/
+  mobile/DerivedData/
+  mobile/.build/
+  mobile/*/.build/

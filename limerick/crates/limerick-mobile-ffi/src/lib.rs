@@ -215,8 +215,7 @@ pub extern "C" fn parish_mobile_open(
                 );
             }
         };
-        if matches!(kind, parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME)
-            && object.is_empty()
+        if matches!(kind, parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME) && object.is_empty()
         {
             return fail(
                 out_response,
@@ -327,7 +326,10 @@ mod tests {
         serde_json::from_slice(&bytes).expect("response is JSON")
     }
 
-    fn open(kind: parish_mobile_open_kind_t, request: &str) -> (parish_mobile_status_t, u64, Value) {
+    fn open(
+        kind: parish_mobile_open_kind_t,
+        request: &str,
+    ) -> (parish_mobile_status_t, u64, Value) {
         let mut handle = 99;
         let mut response = empty_owned();
         let status = parish_mobile_open(kind, borrowed(request), &mut handle, &mut response);
@@ -379,7 +381,10 @@ mod tests {
     #[test]
     fn open_rejects_malformed_payloads_before_not_wired() {
         let cases = [
-            (parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW, "not json"),
+            (
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                "not json",
+            ),
             (parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW, "[]"),
             (parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME, "{}"),
         ];
