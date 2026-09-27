@@ -33,11 +33,27 @@ pub struct InProcessSubmission {
 
 /// One session's turn engine, fulfilling inference in-process.
 ///
-/// The runtime holds its `persistence_gate` across [`Self::submit`]; the
-/// engine lock is taken inside it, before any state lock.
+/// The runtime holds its `persistence_gate` across [`Self::submit`] and
+/// [`Self::reset`]; the engine lock is taken inside them, before any state
+/// lock.
 pub struct InProcessTurns {
-    engine: Mutex<TurnEngine>,
+    turns: Mutex<Turns>,
+}
+
+/// An engine and the journal it writes.
+struct Turns {
+    engine: TurnEngine,
     journal: Arc<SessionStoreTurnJournal>,
+}
+
+impl Turns {
+    fn fresh() -> Self {
+        let journal = Arc::new(SessionStoreTurnJournal::new());
+        Self {
+            engine: TurnEngine::new(journal.clone(), TurnRules::default()),
+            journal,
+        }
+    }
 }
 
 impl Default for InProcessTurns {
@@ -49,11 +65,17 @@ impl Default for InProcessTurns {
 impl InProcessTurns {
     /// A fresh engine with no request history.
     pub fn new() -> Self {
-        let journal = Arc::new(SessionStoreTurnJournal::new());
         Self {
-            engine: Mutex::new(TurnEngine::new(journal.clone(), TurnRules::default())),
-            journal,
+            turns: Mutex::new(Turns::fresh()),
         }
+    }
+
+    /// Drops every request record and transcript event, including a
+    /// question still waiting for an answer. The runtime calls it wherever it
+    /// resets its runtime-only conversation context (new game, load, fork),
+    /// because requests belong to the game they were made in.
+    pub async fn reset(&self) {
+        *self.turns.lock().await = Turns::fresh();
     }
 
     /// Runs one submission to its end: committed, failed, or parked on a
@@ -72,12 +94,13 @@ impl InProcessTurns {
             task_target,
             loading,
         } = submission;
-        let mut engine = self.engine.lock().await;
-        self.journal.bind(session_store, task_target);
+        let mut turns = self.turns.lock().await;
+        let Turns { engine, journal } = &mut *turns;
+        journal.bind(session_store, task_target);
         engine.set_rules(rules);
         engine.set_loading(loading);
         let inference = InProcessInference::from_ctx(live);
-        let result = super::drive_in_process(&mut engine, live, input, &inference).await;
+        let result = super::drive_in_process(engine, live, input, &inference).await;
         engine.set_loading(None);
         result
     }

@@ -122,6 +122,7 @@ pub async fn do_fork_branch_inner(
         ws
     };
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
+    state.turns.reset().await;
     state.game_events.lock().await.clear();
     let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
     limerick_core::ipc::emit_game_context_reset_then_world_update(
@@ -209,7 +210,9 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         emitter: &emitter,
         game_events: &state.game_events,
     })
-    .await
+    .await?;
+    state.turns.reset().await;
+    Ok(())
 }
 
 // ── Persistence endpoints ────────────────────────────────────────────────────
@@ -440,6 +443,7 @@ pub async fn restore_snapshot_and_emit(
         drop(npc_manager);
         drop(world);
         *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
+        state.turns.reset().await;
         state.game_events.lock().await.clear();
         let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
         limerick_core::ipc::emit_game_context_reset_then_world_update(

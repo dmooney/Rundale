@@ -1960,3 +1960,59 @@ async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
     assert!(contents(&events).contains(&"Mícheál is not here.".to_string()));
     assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
 }
+
+#[tokio::test]
+async fn resetting_in_process_turns_drops_a_pending_question() {
+    use limerick_core::session_store::{DbSessionStore, SessionStore};
+    use limerick_core::turn::{InProcessSubmission, InProcessTurns};
+
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let saves = tempfile::tempdir().unwrap();
+    let store: Arc<dyn SessionStore> = Arc::new(DbSessionStore::new(saves.path().to_path_buf()));
+    let turns = InProcessTurns::new();
+    let submit = |text: &str| InProcessSubmission {
+        input: said(text),
+        rules: live.rules(),
+        session_store: Arc::clone(&store),
+        task_target: None,
+        loading: None,
+    };
+
+    // New input first cancels a question still waiting for an answer.
+    let asked = turns
+        .submit(&live.ctx(), submit("talk to Mícheál about the harvest"))
+        .await
+        .unwrap();
+    asking(&asked);
+    let next = turns.submit(&live.ctx(), submit("look")).await.unwrap();
+    assert_eq!(
+        next.events[0].event.kind,
+        TranscriptEventKind::ResponseCompleted
+    );
+    assert_eq!(
+        next.events[0].event.terminal_outcome,
+        Some(TerminalOutcome::Cancelled)
+    );
+
+    // After a reset (new game, load), the question belongs to the old game:
+    // new input starts clean.
+    let asked = turns
+        .submit(&live.ctx(), submit("talk to Mícheál about the harvest"))
+        .await
+        .unwrap();
+    asking(&asked);
+    turns.reset().await;
+    let next = turns.submit(&live.ctx(), submit("look")).await.unwrap();
+    assert_eq!(
+        next.events[0].event.kind,
+        TranscriptEventKind::PlayerCommand
+    );
+    assert!(matches!(
+        next.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+}
