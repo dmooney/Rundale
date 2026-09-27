@@ -10,13 +10,15 @@
 //! machine ([`lifecycle`]), transcript events ([`transcript`]), the
 //! durability seam ([`journal`]), and the projection of committed wire
 //! emissions onto transcript events ([`projection`]). The turn engine
-//! ([`engine`]) drives them over the shared game-loop pipeline. Design:
+//! ([`engine`]) drives them over the shared game-loop pipeline, and
+//! [`host`] is how in-process runtimes submit input through it. Design:
 //! `docs/design/portable-turn-api.md`.
 
 use std::future::Future;
 use std::pin::Pin;
 
 pub mod engine;
+pub mod host;
 pub mod ids;
 pub mod journal;
 pub mod lifecycle;
@@ -27,14 +29,18 @@ pub mod transcript;
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub use engine::{
-    HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, PendingInference,
-    TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep, drive_in_process,
+    HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, LoadingHook,
+    PendingInference, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep,
+    drive_in_process,
 };
+pub use host::{InProcessSubmission, InProcessTurns};
 pub use ids::{
     EventSequence, ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision,
     TranscriptEventId, TranscriptItemId,
 };
-pub use journal::{JournalError, MemoryTurnJournal, TurnCommit, TurnJournal};
+pub use journal::{
+    JournalError, MemoryTurnJournal, SessionStoreTurnJournal, TurnCommit, TurnJournal,
+};
 pub use lifecycle::{
     AddresseeSelection, ClarificationChoice, ClarificationPrompt, IgnoredReason, LifecycleError,
     RequestAttempt, RequestPhase, RequestRecord, TerminalOutcome,

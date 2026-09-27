@@ -33,6 +33,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 use super::BoxFuture;
 use super::ids::{ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision};
@@ -44,6 +45,7 @@ use super::lifecycle::{
 use super::projection::project_emissions;
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
 use crate::config::{InferenceConfig, InferenceSubrole};
+use crate::game_loop::flush_staged_emissions;
 use crate::game_loop::inference::InProcessInference;
 use crate::game_loop::{
     AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
@@ -51,7 +53,7 @@ use crate::game_loop::{
 };
 use crate::game_mod::PronunciationEntry;
 use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
-use crate::ipc::{GameConfig, text_log};
+use crate::ipc::{GameConfig, StreamEndPayload, text_log};
 use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
 use crate::turn_inference::{
@@ -145,6 +147,18 @@ pub struct TurnStep {
 }
 
 impl TurnStep {
+    /// The player-facing message of an attempt that ended without
+    /// committing (failed or interrupted), when the step ends one.
+    pub fn failure_message(&self) -> Option<String> {
+        match self.status {
+            TurnStatus::Completed {
+                outcome: TerminalOutcome::Failed | TerminalOutcome::Interrupted,
+                ..
+            } => failure_message(&self.events),
+            _ => None,
+        }
+    }
+
     fn ignored(
         request_id: Option<LogicalRequestId>,
         attempt_id: Option<ExecutionAttemptId>,
@@ -219,8 +233,8 @@ impl InferenceRoutes {
     }
 }
 
-/// Turn rules a runtime supplies once: how the player travels and how NPCs
-/// greet an arrival.
+/// Turn rules a runtime supplies: how the player travels and how NPCs greet
+/// an arrival.
 #[derive(Debug, Clone)]
 pub struct TurnRules {
     /// Travel mode for movement.
@@ -228,6 +242,20 @@ pub struct TurnRules {
     /// Arrival-reaction templates from the loaded mod.
     pub reaction_templates: ReactionTemplates,
 }
+
+impl Default for TurnRules {
+    /// Walking, with no arrival-reaction templates.
+    fn default() -> Self {
+        Self {
+            transport: TransportMode::walking(),
+            reaction_templates: ReactionTemplates::default(),
+        }
+    }
+}
+
+/// Starts the runtime's loading indicator for a player-initiated NPC turn
+/// and returns the token that stops it (the pipeline's `spawn_loading`).
+pub type LoadingHook = Arc<dyn Fn() -> Option<CancellationToken> + Send + Sync>;
 
 /// A model call from a running attempt, handed to the engine.
 struct YieldedCall {
@@ -357,6 +385,38 @@ struct RunningAttempt {
     next_ordinal: u32,
     /// How the most recent dialogue call ended: `None` when it completed.
     last_dialogue_failure: Option<Option<InferenceFailureKind>>,
+    /// Loading indicators the attempt started, held to stop them on drop.
+    _loading: LoadingTokens,
+}
+
+/// Loading indicators an attempt started. The attempt and its pipeline each
+/// hold a handle; both are dropped when the attempt ends, and dropping one
+/// stops every indicator, because a stopped attempt never reaches the
+/// pipeline's own cancel.
+#[derive(Default, Clone)]
+struct LoadingTokens(Arc<std::sync::Mutex<Vec<CancellationToken>>>);
+
+impl LoadingTokens {
+    fn push(&self, token: CancellationToken) {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(token);
+    }
+}
+
+impl Drop for LoadingTokens {
+    fn drop(&mut self) {
+        let tokens = std::mem::take(
+            &mut *self
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        for token in tokens {
+            token.cancel();
+        }
+    }
 }
 
 impl RunningAttempt {
@@ -378,6 +438,7 @@ enum Next {
 pub struct TurnEngine {
     journal: Arc<dyn TurnJournal>,
     rules: TurnRules,
+    loading: Option<LoadingHook>,
     routes: InferenceRoutes,
     revision: StateRevision,
     records: HashMap<LogicalRequestId, RequestRecord>,
@@ -390,6 +451,7 @@ impl TurnEngine {
         Self {
             journal,
             rules,
+            loading: None,
             routes: InferenceRoutes::live(),
             revision: StateRevision::default(),
             records: HashMap::new(),
@@ -400,6 +462,18 @@ impl TurnEngine {
     /// Sets the route availability attempts started from now on see.
     pub fn set_routes(&mut self, routes: InferenceRoutes) {
         self.routes = routes;
+    }
+
+    /// Sets the turn rules attempts started from now on use.
+    pub fn set_rules(&mut self, rules: TurnRules) {
+        self.rules = rules;
+    }
+
+    /// Sets the loading indicator attempts started from now on show while a
+    /// player-initiated NPC turn waits for its reply. Progress is live: it
+    /// is shown during the attempt, not held back to the commit.
+    pub fn set_loading(&mut self, loading: Option<LoadingHook>) {
+        self.loading = loading;
     }
 
     /// The current authoritative revision.
@@ -869,6 +943,16 @@ impl TurnEngine {
             rules: self.rules.clone(),
         });
         let attempt_env = Arc::clone(&env);
+        let loading_tokens = LoadingTokens::default();
+        let spawn_loading = {
+            let hook = self.loading.clone();
+            let tokens = loading_tokens.clone();
+            move || {
+                let token = hook.as_ref().and_then(|hook| hook())?;
+                tokens.push(token.clone());
+                Some(token)
+            }
+        };
         let future: AttemptFuture = Box::pin(async move {
             let ctx = attempt_env.context();
             handle_game_input_settled(
@@ -877,7 +961,7 @@ impl TurnEngine {
                 addressed_to,
                 &attempt_env.rules.transport,
                 &attempt_env.rules.reaction_templates,
-                || None,
+                spawn_loading,
                 settled.as_ref(),
             )
             .await
@@ -892,6 +976,7 @@ impl TurnEngine {
             location_before,
             next_ordinal,
             last_dialogue_failure: None,
+            _loading: loading_tokens,
         });
         self.advance(live).await
     }
@@ -998,6 +1083,11 @@ impl TurnEngine {
         }
 
         if let Some(message) = outcome.dialogue_failure {
+            // The candidate is discarded, but the player still sees the
+            // failed turn end: its empty placeholder, its failed terminal
+            // with the recovery message, and the end of the stream.
+            let presentation = failure_presentation(finished.emissions());
+            drop(finished);
             let (terminal, kind) = match last_dialogue_failure {
                 Some(Some(InferenceFailureKind::Interrupted)) => {
                     (TerminalOutcome::Interrupted, "interrupted")
@@ -1009,11 +1099,12 @@ impl TurnEngine {
             let events = self
                 .end_uncommitted(&request_id, &mut builder, terminal, kind, &message)
                 .await?;
+            flush_staged_emissions(live.emitter.as_ref(), presentation.clone());
             return Ok(TurnStep {
                 request_id: Some(request_id),
                 attempt_id: Some(attempt_id),
                 events,
-                emissions: Vec::new(),
+                emissions: presentation,
                 status: TurnStatus::Completed {
                     outcome: terminal,
                     revision: None,
@@ -1158,6 +1249,57 @@ fn release_system_line(
     let payload = serde_json::to_value(text_log("system", line)).unwrap_or(serde_json::Value::Null);
     live.emitter.emit_event("text-log", payload.clone());
     vec![("text-log".to_string(), payload)]
+}
+
+/// The emissions that show a failed player-initiated turn ending, taken from
+/// its discarded candidate: each failed `stream-turn-end` (it carries only
+/// the recovery message) preceded by its empty placeholder line, then one
+/// `stream-end` without language hints. Nothing the candidate produced
+/// before the failure — earlier speakers' lines, hints, actions — is kept.
+fn failure_presentation(
+    emissions: &[(String, serde_json::Value)],
+) -> Vec<(String, serde_json::Value)> {
+    let failed_turn = |payload: &serde_json::Value| {
+        (payload["status"] == "failed")
+            .then(|| payload["turn_id"].as_u64())
+            .flatten()
+    };
+    let failed: Vec<u64> = emissions
+        .iter()
+        .filter(|(name, _)| name == "stream-turn-end")
+        .filter_map(|(_, payload)| failed_turn(payload))
+        .collect();
+    let mut presentation: Vec<(String, serde_json::Value)> = emissions
+        .iter()
+        .filter(|(name, payload)| match name.as_str() {
+            "text-log" => {
+                payload["stream_turn_id"]
+                    .as_u64()
+                    .is_some_and(|turn| failed.contains(&turn))
+                    && payload["content"] == ""
+            }
+            "stream-turn-end" => failed_turn(payload).is_some(),
+            _ => false,
+        })
+        .cloned()
+        .collect();
+    if emissions.iter().any(|(name, _)| name == "stream-end") {
+        let end = StreamEndPayload { hints: Vec::new() };
+        presentation.push((
+            "stream-end".to_string(),
+            serde_json::to_value(end).unwrap_or(serde_json::Value::Null),
+        ));
+    }
+    presentation
+}
+
+/// The content of the last `Error` event.
+fn failure_message(events: &[TranscriptEvent]) -> Option<String> {
+    events
+        .iter()
+        .rev()
+        .find(|event| event.event.kind == TranscriptEventKind::Error)
+        .and_then(|event| event.event.content.clone())
 }
 
 fn failure_kind_name(kind: InferenceFailureKind) -> &'static str {

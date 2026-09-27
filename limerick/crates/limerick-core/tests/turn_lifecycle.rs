@@ -11,6 +11,7 @@ use std::sync::Arc;
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::game_loop::GameLoopContext;
 use limerick_core::game_loop::inference::InProcessInference;
+use limerick_core::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE;
 use limerick_core::game_mod::GameMod;
 use limerick_core::inference::{AnyClient, InferenceQueue, InferenceRequest, InferenceResponse};
 use limerick_core::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter, GameConfig};
@@ -519,13 +520,25 @@ async fn a_failed_dialogue_commits_nothing_and_retries_as_a_new_attempt() {
         error.event.metadata.get("errorKind").map(String::as_str),
         Some("transport")
     );
-    assert!(failed_step.emissions.is_empty());
+    // Only the failed turn's end is shown: its empty placeholder, the failed
+    // terminal with the recovery message, and the end of the stream.
+    let names: Vec<&str> = failed_step
+        .emissions
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(names, ["text-log", "stream-turn-end", "stream-end"]);
+    assert_eq!(failed_step.emissions[0].1["content"], "");
+    let terminal = &failed_step.emissions[1].1;
+    assert_eq!(terminal["status"], "failed");
+    assert_eq!(terminal["recovery_message"], DIALOGUE_RETRY_MESSAGE);
+    assert_eq!(failed_step.emissions[2].1["hints"], serde_json::json!([]));
     assert_eq!(
         live.fingerprint().await,
         before,
         "failure has no authoritative effect"
     );
-    assert!(live.emitter.is_empty());
+    assert_eq!(live.emitter.events(), failed_step.emissions);
 
     let retry = engine.retry(&live.ctx(), &first.request_id).await.unwrap();
     assert_eq!(
@@ -788,6 +801,63 @@ async fn a_failed_second_addressee_fails_the_whole_turn() {
             .all(|event| event.event.kind != TranscriptEventKind::NpcDialogue)
     );
     assert_reducer_contract(&journal.events(), &first.request_id);
+    // The first speaker's line is never shown: only the failed second turn's
+    // end is released.
+    let released = serde_json::to_string(&done.emissions).unwrap();
+    assert!(!released.contains(NPC_LINE), "{released}");
+    let names: Vec<&str> = done
+        .emissions
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(names, ["text-log", "stream-turn-end", "stream-end"]);
+    assert_eq!(
+        done.emissions[1].1["turn_id"],
+        done.emissions[0].1["stream_turn_id"]
+    );
+    assert_eq!(live.emitter.events(), done.emissions);
+}
+
+#[tokio::test]
+async fn loading_shows_while_dialogue_waits_and_stops_when_the_attempt_ends() {
+    let live = Live::rundale();
+    let (mut engine, _journal) = engine(&live);
+    let started: Arc<std::sync::Mutex<Vec<tokio_util::sync::CancellationToken>>> = Arc::default();
+    let hook_started = Arc::clone(&started);
+    engine.set_loading(Some(Arc::new(move || {
+        let token = tokio_util::sync::CancellationToken::new();
+        hook_started.lock().unwrap().push(token.clone());
+        Some(token)
+    })));
+    let npc = live.first_npc_here().await;
+
+    // Committed: the indicator runs while the reply is awaited.
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Good day to you."))
+        .await
+        .unwrap();
+    let step = to_dialogue(&mut engine, &live, step).await;
+    assert_eq!(started.lock().unwrap().len(), 1);
+    assert!(!started.lock().unwrap()[0].is_cancelled());
+    let pending = awaiting(&step).clone();
+    engine
+        .resume(&live.ctx(), resolution(&pending, completed(&npc_reply())))
+        .await
+        .unwrap();
+    assert!(started.lock().unwrap()[0].is_cancelled());
+
+    // Stopped mid-wait: the pipeline never reaches its own cancel, so the
+    // engine stops the indicator.
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "And how is the family?"))
+        .await
+        .unwrap();
+    let step = to_dialogue(&mut engine, &live, step).await;
+    let pending = awaiting(&step).clone();
+    assert_eq!(started.lock().unwrap().len(), 2);
+    assert!(!started.lock().unwrap()[1].is_cancelled());
+    engine.stop(&live.ctx(), &pending.attempt_id).await.unwrap();
+    assert!(started.lock().unwrap()[1].is_cancelled());
 }
 
 // Oracle: `endpoint_failure_requires_the_invocation_base_revision`.
@@ -1889,4 +1959,60 @@ async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
     ));
     assert!(contents(&events).contains(&"Mícheál is not here.".to_string()));
     assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
+}
+
+#[tokio::test]
+async fn resetting_in_process_turns_drops_a_pending_question() {
+    use limerick_core::session_store::{DbSessionStore, SessionStore};
+    use limerick_core::turn::{InProcessSubmission, InProcessTurns};
+
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let saves = tempfile::tempdir().unwrap();
+    let store: Arc<dyn SessionStore> = Arc::new(DbSessionStore::new(saves.path().to_path_buf()));
+    let turns = InProcessTurns::new();
+    let submit = |text: &str| InProcessSubmission {
+        input: said(text),
+        rules: live.rules(),
+        session_store: Arc::clone(&store),
+        task_target: None,
+        loading: None,
+    };
+
+    // New input first cancels a question still waiting for an answer.
+    let asked = turns
+        .submit(&live.ctx(), submit("talk to Mícheál about the harvest"))
+        .await
+        .unwrap();
+    asking(&asked);
+    let next = turns.submit(&live.ctx(), submit("look")).await.unwrap();
+    assert_eq!(
+        next.events[0].event.kind,
+        TranscriptEventKind::ResponseCompleted
+    );
+    assert_eq!(
+        next.events[0].event.terminal_outcome,
+        Some(TerminalOutcome::Cancelled)
+    );
+
+    // After a reset (new game, load), the question belongs to the old game:
+    // new input starts clean.
+    let asked = turns
+        .submit(&live.ctx(), submit("talk to Mícheál about the harvest"))
+        .await
+        .unwrap();
+    asking(&asked);
+    turns.reset().await;
+    let next = turns.submit(&live.ctx(), submit("look")).await.unwrap();
+    assert_eq!(
+        next.events[0].event.kind,
+        TranscriptEventKind::PlayerCommand
+    );
+    assert!(matches!(
+        next.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
 }

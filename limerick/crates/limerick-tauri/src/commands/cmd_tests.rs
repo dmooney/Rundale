@@ -127,6 +127,7 @@ pub fn test_app_state() -> Arc<AppState> {
         demo_config: DemoConfig::default(),
         shutdown_token,
         sim_cancel: Mutex::new(CancellationToken::new()),
+        turns: limerick_core::turn::InProcessTurns::new(),
         session_store,
         user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         project_config_path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

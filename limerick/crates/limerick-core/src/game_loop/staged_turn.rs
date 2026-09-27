@@ -2,8 +2,10 @@
 //!
 //! [`TurnCandidate`] is the isolated copy of live state a turn runs against;
 //! the turn engine (`crate::turn::TurnEngine`) runs every attempt on one.
-//! [`handle_staged_game_input`] is the staged entry point the runtimes use
-//! today for turns that may mutate durable task progress.
+//! [`handle_staged_game_input`] is the older staged entry point for turns that
+//! may mutate durable task progress; the server and Tauri submit every turn
+//! through the engine instead, and only the headless REPL still uses it
+//! (removed with the REPL's own pipeline in #2023).
 
 use std::future::Future;
 use std::sync::Arc;
