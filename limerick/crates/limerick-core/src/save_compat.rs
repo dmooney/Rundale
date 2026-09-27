@@ -27,12 +27,20 @@ use std::path::Path;
 
 use crate::error::LimerickError;
 use crate::persistence::{Database, SaveInspection, TranscriptEventRow, inspect_save_with};
+use crate::session_store::TaskJournalTarget;
 use crate::turn::{FALLBACK_LINE, PendingEvent, RequestRecord, TranscriptEventKind};
 use limerick_types::ContentIdentity;
 
-/// What a runtime tells the player when it refuses a save.
+/// What a runtime tells the player when it refuses a save the player chose
+/// to load: the current game carries on and a new game is offered.
 pub const INCOMPATIBLE_SAVE_MESSAGE: &str = "This save can't be opened by this version of the \
      game. It has been left exactly as it was. Type /new to start a new game.";
+
+/// What a runtime tells the player when the save it would resume at launch
+/// is refused and it starts a new game in a new save file instead.
+pub const INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE: &str = "Your last save can't be opened by this \
+     version of the game. It has been left exactly as it was, and a new game has been started \
+     in a new save file.";
 
 /// The most fallback lines shown when a save opens; older ones stay in the
 /// save but are not listed.
@@ -125,12 +133,33 @@ pub fn transcript_fallback_lines_at(
     transcript_fallback_lines(&Database::open(path)?, branch_id)
 }
 
+/// The fallback lines of the save and branch a runtime just bound, or none
+/// when no save is bound or the transcript cannot be read (logged).
+pub async fn fallback_lines_for(target: Option<&TaskJournalTarget>) -> Vec<String> {
+    let Some(target) = target else {
+        return Vec::new();
+    };
+    let path = target.save_path.clone();
+    let branch_id = target.branch_id;
+    match tokio::task::spawn_blocking(move || transcript_fallback_lines_at(&path, branch_id)).await
+    {
+        Ok(Ok(lines)) => lines,
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "could not read the transcript for fallback lines");
+            Vec::new()
+        }
+        Err(error) => {
+            tracing::warn!(%error, "fallback-line task failed");
+            Vec::new()
+        }
+    }
+}
+
 /// Whether this build can present a stored transcript event: its kind is
 /// known and its payload reads.
 fn is_presentable(row: &TranscriptEventRow) -> bool {
     TranscriptEventKind::parse(&row.kind).is_known()
-        && serde_json::from_str::<PendingEvent>(&row.event)
-            .is_ok_and(|event| event.kind.is_known())
+        && serde_json::from_str::<PendingEvent>(&row.event).is_ok_and(|event| event.kind.is_known())
 }
 
 #[cfg(test)]

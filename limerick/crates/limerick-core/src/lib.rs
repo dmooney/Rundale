@@ -75,6 +75,7 @@ pub use limerick_input as input;
 pub use limerick_mod as game_mod;
 pub use limerick_npc as npc;
 pub use limerick_persistence as persistence;
+pub use limerick_types::ContentIdentity;
 pub use limerick_types::ReactionDirection;
 pub use limerick_types::dice;
 pub use limerick_types::error;

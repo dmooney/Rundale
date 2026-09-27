@@ -2342,61 +2342,119 @@ async fn a_request_open_when_the_process_stopped_is_interrupted_on_open_and_neve
     assert_strictly_increasing(&journal.events().unwrap());
 }
 
+/// Saves of every prior format, and one a newer build wrote, open through
+/// the runtimes' check and journal new turns (#2037, #2038). See
+/// `limerick-persistence/tests/save_format.rs` for the fixtures.
 #[tokio::test]
-async fn a_save_from_before_the_turn_journal_opens_and_journals_turns() {
-    use limerick_core::persistence::Database;
+async fn saves_of_every_prior_format_open_and_journal_turns() {
+    use limerick_core::persistence::{Database, SAVE_FORMAT_VERSION};
+    use limerick_core::save_compat;
+    use limerick_core::turn::FALLBACK_LINE;
 
-    let live = Live::rundale();
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("limerick_001.db");
-    std::fs::copy(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../limerick-persistence/tests/fixtures/pre_turn_journal_save.db"),
-        &path,
-    )
-    .unwrap();
-    let branch_id = Database::open(&path)
-        .unwrap()
-        .find_branch("main")
-        .unwrap()
-        .unwrap()
-        .id;
-    let save = Save {
-        _dir: dir,
-        path,
-        branch_id,
-    };
-    {
-        // Play on from the saved game, as a relaunch would.
-        let recovery = Database::open(&save.path)
-            .unwrap()
-            .load_recovery_data(branch_id)
-            .unwrap()
-            .unwrap();
-        let mut world = live.world.lock().await;
-        let mut npcs = live.npc_manager.lock().await;
-        recovery.snapshot.restore(&mut world, &mut npcs);
-        world.clock.pause();
-    }
-
-    let (mut engine, _) = save.engine(&live).await;
-    assert_eq!(engine.revision(), StateRevision(0));
-    assert!(engine.recover().await.unwrap().is_empty());
-    let npc = live.first_npc_here().await;
-    let step = engine
-        .submit(&live.ctx(), talk_to(&npc, "Grand weather."))
-        .await
+    for (fixture, format, fallback_lines) in [
+        ("pre_turn_journal_save.db", 1, 0),
+        ("turn_journal_v2_save.db", 2, 0),
+        ("future_format_unknown_event_save.db", 4, 1),
+    ] {
+        let live = Live::rundale();
+        let content = live.world.lock().await.content.clone();
+        assert!(content.is_some(), "the Rundale world carries its identity");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("limerick_001.db");
+        std::fs::copy(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures")
+                .join(fixture),
+            &path,
+        )
         .unwrap();
-    run_scripted(&mut engine, &live, step, "").await;
-    drop(engine);
 
-    let (engine, journal) = save.engine(&live).await;
-    assert_eq!(engine.revision(), StateRevision(1));
-    let stored = journal.events().unwrap();
-    assert!(kinds(&stored).contains(&TranscriptEventKind::NpcDialogue));
-    assert_eq!(
-        stored.last().unwrap().event.state_revision,
-        Some(StateRevision(1))
-    );
-    assert_eq!(save.snapshots().0, 3, "two saved snapshots and the turn's");
+        // Opened as a runtime opens it.
+        let inspection = save_compat::check_save(&path, content.as_ref()).unwrap();
+        assert_eq!(inspection.format_version, format, "{fixture}");
+        let db = save_compat::open_checked(&path, content.as_ref()).unwrap();
+        let branch_id = db.find_branch("main").unwrap().unwrap().id;
+        let recovery = db.load_recovery_data(branch_id).unwrap().unwrap();
+        let snapshots_before = db.branch_log(branch_id).unwrap().len();
+        let revision_before = db
+            .turn_requests(branch_id)
+            .unwrap()
+            .iter()
+            .filter_map(|row| row.committed_revision)
+            .max()
+            .unwrap_or(0);
+        assert_eq!(
+            save_compat::transcript_fallback_lines(&db, branch_id).unwrap(),
+            vec![FALLBACK_LINE.to_string(); fallback_lines],
+            "{fixture}"
+        );
+        drop(db);
+        let save = Save {
+            _dir: dir,
+            path,
+            branch_id,
+        };
+        {
+            // Play on from the saved game, as a relaunch would.
+            let mut world = live.world.lock().await;
+            let mut npcs = live.npc_manager.lock().await;
+            limerick_core::session_store::RecoveryBundle {
+                snapshot_id: recovery.snapshot_id,
+                snapshot: recovery.snapshot,
+                journal: recovery.journal,
+            }
+            .restore(&mut world, &mut npcs);
+            world.clock.pause();
+        }
+
+        let (mut engine, _) = save.engine(&live).await;
+        assert_eq!(
+            engine.revision(),
+            StateRevision(revision_before),
+            "{fixture}"
+        );
+        assert!(engine.recover().await.unwrap().is_empty());
+        let npc = live.first_npc_here().await;
+        let step = engine
+            .submit(&live.ctx(), talk_to(&npc, "Grand weather."))
+            .await
+            .unwrap();
+        run_scripted(&mut engine, &live, step, "").await;
+        drop(engine);
+
+        let (engine, journal) = save.engine(&live).await;
+        assert_eq!(
+            engine.revision(),
+            StateRevision(revision_before + 1),
+            "{fixture}"
+        );
+        let stored = journal.events().unwrap();
+        assert!(kinds(&stored).contains(&TranscriptEventKind::NpcDialogue));
+        assert_eq!(
+            stored.last().unwrap().event.state_revision,
+            Some(StateRevision(revision_before + 1))
+        );
+        assert_eq!(
+            stored
+                .iter()
+                .filter(|event| !event.event.kind.is_known())
+                .count(),
+            fallback_lines,
+            "{fixture}: an unknown event is kept"
+        );
+        let (count, latest) = save.snapshots();
+        assert_eq!(
+            count,
+            snapshots_before + 1,
+            "{fixture}: the turn's snapshot"
+        );
+        assert_eq!(latest.content, content, "{fixture}: records its content");
+
+        let stamped: u32 = rusqlite::Connection::open(&save.path)
+            .unwrap()
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stamped, format.max(SAVE_FORMAT_VERSION), "{fixture}");
+        let _ = Database::open(&save.path).unwrap();
+    }
 }

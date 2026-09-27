@@ -2936,3 +2936,109 @@ async fn gesture_reaction_emits_action_subtype_through_event_bus() {
         "Greeting source must be the NPC display name"
     );
 }
+
+// ── Save forward compatibility (#2038) ──────────────────────────────────────
+
+fn save_fixture(name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../limerick-persistence/tests/fixtures")
+        .join(name)
+}
+
+fn text_log_contents(stream: &mut limerick_core::event_bus::EventStream) -> Vec<String> {
+    let mut lines = Vec::new();
+    while let Some(event) = stream.try_recv() {
+        if event.event == "text-log" {
+            lines.push(
+                event.payload["content"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            );
+        }
+    }
+    lines
+}
+
+#[tokio::test]
+async fn loading_an_unreadable_save_is_refused_and_leaves_it_untouched() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("limerick_002.db");
+    std::fs::copy(save_fixture("unreadable_state_save.db"), &path).unwrap();
+    let before = std::fs::read(&path).unwrap();
+    let mut state = test_app_state();
+    let parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    parts.saves_dir = temp.path().to_path_buf();
+    let location_before = state.world.lock().await.player_location;
+    let mut stream = state
+        .event_bus
+        .subscribe(&[limerick_core::event_bus::Topic::TextLog]);
+
+    let (status, message) = load_branch(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Json(LoadBranchRequest {
+            file_path: path.to_string_lossy().into_owned(),
+            branch_id: 1,
+        }),
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(status, axum::http::StatusCode::CONFLICT);
+    assert_eq!(
+        message,
+        limerick_core::save_compat::INCOMPATIBLE_SAVE_MESSAGE
+    );
+    assert_eq!(
+        text_log_contents(&mut stream),
+        vec![limerick_core::save_compat::INCOMPATIBLE_SAVE_MESSAGE.to_string()],
+        "the player is told and offered a new game"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), before, "byte-identical");
+    assert_eq!(state.world.lock().await.player_location, location_before);
+    assert!(
+        state.save_identity.save_path.lock().await.is_none(),
+        "not bound"
+    );
+    assert!(
+        limerick_core::persistence::SaveFileLock::try_acquire(&path).is_some(),
+        "the candidate lock is released"
+    );
+}
+
+#[tokio::test]
+async fn loading_a_save_with_an_unknown_event_kind_shows_a_fallback_line() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut state = test_app_state();
+    let session_dir = temp.path().join(&state.session_id);
+    std::fs::create_dir_all(&session_dir).unwrap();
+    let path = session_dir.join("limerick_002.db");
+    std::fs::copy(save_fixture("future_format_unknown_event_save.db"), &path).unwrap();
+    let parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    parts.saves_dir = session_dir.clone();
+    parts.session_store = Arc::new(crate::session_store_impl::DbSessionStore::new(
+        temp.path().to_path_buf(),
+    ));
+    let mut stream = state
+        .event_bus
+        .subscribe(&[limerick_core::event_bus::Topic::TextLog]);
+
+    load_branch(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Json(LoadBranchRequest {
+            file_path: path.to_string_lossy().into_owned(),
+            branch_id: 1,
+        }),
+    )
+    .await
+    .unwrap();
+
+    let lines = text_log_contents(&mut stream);
+    assert_eq!(
+        lines,
+        vec![
+            "Loaded limerick_002.db (branch: main).".to_string(),
+            limerick_core::turn::FALLBACK_LINE.to_string(),
+        ]
+    );
+}
