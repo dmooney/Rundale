@@ -111,9 +111,7 @@ impl SqliteTurnJournal {
     /// The journaled record of `id` on this branch. Blocking.
     pub fn request(&self, id: &LogicalRequestId) -> Result<Option<RequestRecord>, JournalError> {
         let db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
-        db.turn_requests(self.branch_id)?
-            .into_iter()
-            .find(|row| row.request_id == id.as_str())
+        db.turn_request(self.branch_id, id.as_str())?
             .map(|row| Ok(serde_json::from_str(&row.record)?))
             .transpose()
     }

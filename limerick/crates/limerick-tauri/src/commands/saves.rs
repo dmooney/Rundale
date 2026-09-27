@@ -566,10 +566,20 @@ pub async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String>
 /// load, fork, launch): restores that branch's journaled requests and
 /// revision and interrupts requests a stopped process left open. A failure
 /// is logged; the next turn retries the open and reports it.
+///
+/// The recovery events are durable in the save's journal, which is where a
+/// transcript is read from; the desktop UI has no transcript rehydration, so
+/// they are counted in the log rather than emitted.
 pub(crate) async fn open_turns(state: &Arc<AppState>) {
     let target = super::input::task_journal_target(state).await;
-    if let Err(error) = state.turns.open(target).await {
-        tracing::warn!(%error, "could not open the turn journal; the next turn retries");
+    match state.turns.open(target).await {
+        Ok(recovered) => tracing::debug!(
+            recovered = recovered.len(),
+            "opened the turn journal of the bound save"
+        ),
+        Err(error) => {
+            tracing::warn!(%error, "could not open the turn journal; the next turn retries");
+        }
     }
 }
 

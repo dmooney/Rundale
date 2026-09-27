@@ -115,15 +115,7 @@ pub struct TurnJournalWriter<'t> {
 impl TurnJournalWriter<'_> {
     /// The stored request `request_id`, on any branch.
     pub fn request(&self, request_id: &str) -> Result<Option<TurnRequestRow>, LimerickError> {
-        self.tx
-            .query_row(
-                "SELECT request_id, branch_id, phase, is_open, committed_revision, record
-                 FROM requests WHERE request_id = ?1",
-                params![request_id],
-                request_row,
-            )
-            .optional()
-            .db_err()
+        request(self.tx, request_id)
     }
 
     /// The stored event `event_id`, on any branch.
@@ -237,6 +229,21 @@ where
     let value = write(&TurnJournalWriter { tx: &tx, now })?;
     tx.commit().db_err()?;
     Ok(value)
+}
+
+/// The stored request `request_id`, on any branch.
+pub(super) fn request(
+    conn: &Connection,
+    request_id: &str,
+) -> Result<Option<TurnRequestRow>, LimerickError> {
+    conn.query_row(
+        "SELECT request_id, branch_id, phase, is_open, committed_revision, record
+         FROM requests WHERE request_id = ?1",
+        params![request_id],
+        request_row,
+    )
+    .optional()
+    .db_err()
 }
 
 /// Every request of `branch_id`, in insertion order.

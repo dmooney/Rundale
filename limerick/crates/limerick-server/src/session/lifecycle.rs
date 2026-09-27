@@ -478,7 +478,9 @@ async fn restore_session(
         .await;
     // Reopen the turn journal of the resumed branch: its revision and
     // requests come back, and a request the previous process left open ends
-    // interrupted instead of running again.
+    // interrupted instead of running again. The recovery events stay in the
+    // journal (the host logs their count); nothing is emitted before the
+    // session exists.
     if let Err(error) = app_state
         .turns
         .open(Some(limerick_core::session_store::TaskJournalTarget {

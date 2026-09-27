@@ -167,6 +167,9 @@ impl MemoryTurnJournal {
     /// durable storage, and a failed `durable` leaves the journal unchanged.
     /// Writers must be serialized (the turn engine is the only writer), so
     /// nothing can invalidate the commit while `durable` runs.
+    ///
+    /// The script harness's real-loop journal (`limerick-engine`
+    /// `real_loop.rs`) uses it to append task batches to its own save.
     pub async fn commit_with<F, Fut>(
         &self,
         commit: TurnCommit,

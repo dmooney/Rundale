@@ -261,6 +261,15 @@ impl Database {
         turn_journal::requests(&self.conn, branch_id, false)
     }
 
+    /// The request `request_id` if it was journaled on `branch_id`.
+    pub fn turn_request(
+        &self,
+        branch_id: i64,
+        request_id: &str,
+    ) -> Result<Option<TurnRequestRow>, LimerickError> {
+        Ok(turn_journal::request(&self.conn, request_id)?.filter(|row| row.branch_id == branch_id))
+    }
+
     /// The requests of `branch_id` that are not yet terminal.
     pub fn open_turn_requests(&self, branch_id: i64) -> Result<Vec<TurnRequestRow>, LimerickError> {
         turn_journal::requests(&self.conn, branch_id, true)
