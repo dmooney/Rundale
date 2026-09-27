@@ -36,8 +36,8 @@ pub use ids::{
 };
 pub use journal::{JournalError, MemoryTurnJournal, TurnCommit, TurnJournal};
 pub use lifecycle::{
-    ClarificationChoice, ClarificationPrompt, IgnoredReason, LifecycleError, RequestAttempt,
-    RequestPhase, RequestRecord, TerminalOutcome,
+    AddresseeSelection, ClarificationChoice, ClarificationPrompt, IgnoredReason, LifecycleError,
+    RequestAttempt, RequestPhase, RequestRecord, TerminalOutcome,
 };
 pub use projection::{PRESENTATION_EMISSIONS, TRANSCRIPT_EMISSIONS, project_emissions};
 pub use transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
