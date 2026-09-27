@@ -1,0 +1,402 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 5234,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "God save ye, stranger\u2014there's talk of secret meetings at the Lime Kiln; I overheard Sean Ruadh Kelly speaking of them. The morning's quiet here, though the iron is waiting and I've a mind to strike it hard.\n*A lanky red-haired lad with soot on his face leans forward, wiping soot from his hands.*"
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 5689,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I couldn't say how the harvest will look, stranger; that is a farmer's concern, and Siobhan Murphy at Murphy's Farm would know better than me. Here at the forge, I can only tell ye the morning is clear and the iron is ready.\n*A lanky red-haired lad with soot on his face leans forward, then turns back towards the glowing hearth.*"
+    },
+    {
+      "id": "preflight-3",
+      "kind": "preflight",
+      "label": "Preflight call 3",
+      "metrics": {
+        "elapsed_ms": 4573,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "grounding_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Have you seen Father Declan today?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Fr. Declan Tierney is not here.\nSure, that name is known hereabouts.\n*A lanky red-haired lad with soot on his face shakes his head and leans towards the newcomer.*"
+    },
+    {
+      "id": "preflight-4",
+      "kind": "preflight",
+      "label": "Preflight call 4",
+      "metrics": {
+        "elapsed_ms": 7905,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "And how is your own family keeping?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "They're keeping well enough, thank God; Da is here at the forge, and Mam is well at home. I'm eager to take my turn at the anvil, though Da still keeps an eye on every blow.\n*A lanky red-haired lad with soot on his face glances proudly towards Seamus and rests a hand on the anvil.*"
+    },
+    {
+      "id": "preflight-5",
+      "kind": "preflight",
+      "label": "Preflight call 5",
+      "metrics": {
+        "elapsed_ms": 8773,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Is old Festus the cooper still at his shop by the bridge?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I can't say he is, friend; I know no Festus the cooper, nor any shop by a bridge in this parish. Ye'd best ask the right person hereabouts, for a cooper's business is beyond what I know.\n*A lanky red-haired lad with soot on his face leans forward and shakes his head.*"
+    },
+    {
+      "id": "preflight-6",
+      "kind": "preflight",
+      "label": "Preflight call 6",
+      "metrics": {
+        "elapsed_ms": 5751,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How do I get to the abbey in town?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I know no abbey hereabouts, friend, so I cannot give ye a road to it. The only lane from the forge runs south to Kilteevan Village; beyond that, ye'd best ask the right person hereabouts.\n*A lanky red-haired lad with soot on his face looks puzzled towards the lane south.*"
+    },
+    {
+      "id": "preflight-7",
+      "kind": "preflight",
+      "label": "Preflight call 7",
+      "metrics": {
+        "elapsed_ms": 8310,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Tell me about your work, but keep it brief.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I help Da at the forge: heating iron, working the bellows, and fetching tools, though he still watches each blow at the anvil. 'Tis hard work, but a fine thing when a red bar takes the shape ye meant\u2014most times.\n*A lanky red-haired lad with soot on his face glances from the bellows to the scarred anvil.*"
+    },
+    {
+      "id": "preflight-8",
+      "kind": "preflight",
+      "label": "Preflight call 8",
+      "metrics": {
+        "elapsed_ms": 9078,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I cannot sleep for worrying. What would you advise?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Take the worry to Fr. Declan and tell him plainly what keeps ye awake; that is nearer his work than mine. I know iron better than sleeplessness, so I cannot give ye a sure remedy.\n*A lanky red-haired lad with soot on his face sets the tongs aside and rubs soot from his fingers.*"
+    },
+    {
+      "id": "preflight-9",
+      "kind": "preflight",
+      "label": "Preflight call 9",
+      "metrics": {
+        "elapsed_ms": 8090,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Do you know Padraig Darcy?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Aye, I know Padraig Darcy; he is the publican at Darcy's Pub. I cannot say how he fares this morning, for I have not seen him at the forge.\n*A lanky red-haired lad with soot on his face wipes soot from his thumb and glances towards the lane.*"
+    },
+    {
+      "id": "preflight-10",
+      "kind": "preflight",
+      "label": "Preflight call 10",
+      "metrics": {
+        "elapsed_ms": 5659,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "What can you tell me of Ballyglass Castle?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I know no Ballyglass Castle in this parish, friend, and I've never laid eyes on any such place. Ye'd best ask the right person hereabouts; castles are beyond what I know, and I won't make up a road to it.\n*A lanky red-haired lad with soot on his face sets down the tongs and frowns towards the lane.*"
+    },
+    {
+      "id": "preflight-11",
+      "kind": "preflight",
+      "label": "Preflight call 11",
+      "metrics": {
+        "elapsed_ms": 4923,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "grounding_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I heard Cormac Duffy was at the mill. Is that true?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Sure, that name is known hereabouts.\n*A lanky red-haired lad with soot on his face frowns and wipes soot from his palm.*"
+    },
+    {
+      "id": "preflight-12",
+      "kind": "preflight",
+      "label": "Preflight call 12",
+      "metrics": {
+        "elapsed_ms": 6172,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Thank you. I should let you return to your work.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "openai/gpt-5.6-luna",
+        "reasoning_effort": "max",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Aye, I ought to get back to it; Da has the iron near ready, and I\u2019d not have him waiting on me. There\u2019s still a worry sitting in my gut, though I can\u2019t say what it is.\n*A lanky red-haired lad with soot on his face turns towards the hearth and reaches for the tongs.*"
+    }
+  ],
+  "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-08-08/gpt-5.6-luna-max-reasoning-4096",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-max-reasoning-4096-preflight.turns.jsonl",
+      "sha256": "9e7f90acaad25ffdd02e573a8e3eca1e3d5fc81cdbdd7199a7b0e3121f1a3085"
+    }
+  ],
+  "version": 1
+}

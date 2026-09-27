@@ -8,7 +8,7 @@
 
 Continuous, **quantitative** quality regression sensors over Tier 1 / Tier 2 NPC output — independent of, and complementary to, the existing pentest plan. The pentest plan red-teams for security; this plan tracks output _quality_ over model swaps, prompt edits, and gameplay changes.
 
-This is the deferred LLM-as-judge piece from Phase 3 of the harness-engineering plan ([PR #538](https://github.com/dmooney/Rundale/pull/538)). When that PR lands, Phase 3 introduces capture-on-green snapshot baselines + structural rubrics in `crates/parish-cli/tests/eval_baselines.rs`; those are computational sensors. This plan adds the inferential sensors the article calls out as the hardest piece of the Behaviour harness.
+This is the deferred LLM-as-judge piece from Phase 3 of the harness-engineering plan ([PR #538](https://github.com/dmooney/Rundale/pull/538)). When that PR lands, Phase 3 introduces capture-on-green snapshot baselines + structural rubrics in `crates/limerick-engine/tests/eval_baselines.rs`; those are computational sensors. This plan adds the inferential sensors the article calls out as the hardest piece of the Behaviour harness.
 
 ## Status
 
@@ -24,7 +24,7 @@ Proposed. No code yet. Once accepted, lands as a small standalone PR with a `jus
   - "NPC stays in character (occupation, age, personality) across multiple turns."
   - "JSON sidecar is well-formed and the `action` field is a valid enum value."
 - **Tier 2 simulation** (`mods/rundale/prompts/tier2_system.txt`) — JSON validity, mood enum validity, summary plausibility.
-- **Intent parsing** (the `parse_intent` LLM call in `parish-input`) — exact-match accuracy on a curated corpus of player utterances.
+- **Intent parsing** (the `parse_intent` LLM call in `limerick-input`) — exact-match accuracy on a curated corpus of player utterances.
 - A **`just eval-quality`** recipe and a **`/eval-quality`** skill (sister to `/rubric`) to run the suite ad-hoc.
 - A leaderboard JSON in `testing/evals/quality/leaderboard.json` capturing each (model, prompt-template-version, rubric) → score, so model swaps and prompt edits are visible.
 
@@ -90,14 +90,14 @@ Add `tier2.yaml`, `intent.yaml`, expand corpus, add rubrics as you find recurrin
 
 ### Phase C — Leaderboard tooling
 
-A small CLI (`scripts/eval-leaderboard.py` or extend `parish-cli`) that prints the leaderboard sorted by score, filters by model/prompt version, and diffs any two runs. Useful for prompt iteration.
+A small CLI (`scripts/eval-leaderboard.py` or extend `limerick-engine`) that prints the leaderboard sorted by score, filters by model/prompt version, and diffs any two runs. Useful for prompt iteration.
 
 ## Critical files
 
 - New: `testing/evals/quality/tier1.yaml`, `corpus/`, `leaderboard.json`
 - New: `.agents/skills/eval-quality/SKILL.md`
 - Edit: `justfile` (add `eval-quality` recipe)
-- Edit (after [PR #538](https://github.com/dmooney/Rundale/pull/538) lands): `crates/parish-cli/tests/eval_baselines.rs` (cross-reference in module doc)
+- Edit (after [PR #538](https://github.com/dmooney/Rundale/pull/538) lands): `crates/limerick-engine/tests/eval_baselines.rs` (cross-reference in module doc)
 - Reference: `mods/rundale/prompts/tier1_system.txt`, `tier1_context.txt`, `tier2_system.txt`
 
 ## Verification
@@ -112,4 +112,4 @@ A small CLI (`scripts/eval-leaderboard.py` or extend `parish-cli`) that prints t
 - [ADR-018 NPC Multidimensional Intelligence](../adr/018-npc-intelligence-dimensions.md) — characterisation rubrics will lean on this.
 - [ADR-020 NPC Tool Use](../adr/020-npc-tool-use.md) — if accepted, rubrics shift from JSON-shape to tool-args-shape.
 - [Promptfoo Pentest Plan](promptfoo-pentest-plan.md) — sibling effort; share the harness wiring but keep corpora separate.
-- `crates/parish-cli/tests/eval_baselines.rs` — Phase 3 structural sensors this plan complements.
+- `crates/limerick-engine/tests/eval_baselines.rs` — Phase 3 structural sensors this plan complements.

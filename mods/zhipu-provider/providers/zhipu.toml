@@ -1,4 +1,5 @@
 id = "zhipu"
+recommended_preset = "recommended"
 display_name = "Zhipu AI"
 kind = "openai-compat"
 default_base_url = "https://open.bigmodel.cn/api/paas"

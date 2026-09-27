@@ -2,7 +2,7 @@
 > The canonical, maintained versions of each section now live in `docs/design/`.
 > See [docs/index.md](../index.md) for the full documentation index.
 
-# Rundale — An Irish Living World Text Adventure (on the Parish engine)
+# Rundale — An Irish Living World Text Adventure (on the Limerick engine)
 
 ## Overview
 
@@ -113,7 +113,7 @@ The world is built on real Irish geography. All places are real. All people and 
 - ODbL licensed (attribution required)
 - Download: https://download.geofabrik.de/europe/ireland-and-northern-ireland.html
 
-**Parish/townland boundaries**: Townlands.ie
+**Limerick/townland boundaries**: Townlands.ie
 
 - GeoJSON/Shapefile/CSV downloads
 - Roscommon: 7 baronies, 62 civil parishes, 110 electoral divisions, 2,082 townlands

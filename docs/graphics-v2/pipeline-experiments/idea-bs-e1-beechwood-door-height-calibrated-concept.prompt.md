@@ -15,7 +15,7 @@ Image 6: fixed slate single-house door crop. Secondary door/facade material refe
 Local paths:
 
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-beechwood-close-control.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-beechwood-close-map-source.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-thatched-single-house-door-fixed.png

@@ -1,29 +1,34 @@
-# Rundale Documentation — Parish Engine
+# Rundale Documentation — Limerick Engine
 
 > Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) (agent quick reference)
 
 This is the documentation hub for **Rundale**, an Irish Living World Text
-Adventure set in 1820, built on the **Parish** engine. Start here to find the
+Adventure set in 1820, built on the **Limerick** engine. Start here to find the
 right document. The tables below link the active and durable material; focused
 subcollections keep their own indexes so large evidence corpora stay navigable.
 
 ## Project status
 
-Rundale ships features across many subsystems in parallel rather than along a
-single linear phase. The authoritative status view is the **feature-status
-matrix** in the [Roadmap](requirements/roadmap.md).
+The current product direction is the **native iPhone text-adventure reset**.
+Start with the [versioned product specifications](product-specs/README.md) for
+scope, the six milestones, acceptance criteria, and the Quality Gate. The
+[mobile architecture guide](agent/mobile-architecture.md) maps the proposed
+technical direction and decisions that still need evidence.
 
-Quick orientation: the core simulation (world graph, time/weather, cognitive
-LOD tiers 1–4, NPC memory/gossip, branching persistence, natural-language
-input), the Tauri + Svelte desktop GUI, the web server, per-category + cloud +
-MLX inference, the Parish Designer editor, and the rundale-bench harness are all
-shipped. Active design work centres on world expansion, the save/load UI,
-mythology hooks, and dialogue-quality evals.
+Existing engine, Tauri/Svelte, web, tooling, and content documentation remains
+useful implementation reference. The [earlier feature matrix](requirements/roadmap.md)
+records that work; it is not the mobile roadmap or evidence of mobile completion.
+No mobile milestone is certified by this documentation reorganization.
+
+The [Phase 1 and Phase 2 test plans](test-plans/README.md) provide companion cases
+for interaction and embedded-runtime verification; they do not record test results.
 
 ## How docs are organised
 
 | Folder           | Contains                                                        | Status vocabulary                |
 | ---------------- | --------------------------------------------------------------- | -------------------------------- |
+| `product-specs/` | Current mobile requirements and proposed technical vision       | Requirements · Proposed          |
+| `agent/`         | Task routing, scoped invariants, build and proof procedures     | Engineering guidance             |
 | `design/`        | Durable subsystem reference — how a shipped/extant system works | Implemented · Partial            |
 | `design/ideas/`  | Brainstorms, RFCs, speculative proposals                        | Brainstorm · Proposed            |
 | `plans/`         | Active implementation plans                                     | In progress · Proposed · Planned |
@@ -47,12 +52,13 @@ Every design/plan doc carries a `> Status: …` header. See
 | [NPC System](design/npc-system.md)                                           | Implemented                          | [008](adr/008-structured-json-llm-output.md), [018](adr/018-npc-intelligence-dimensions.md)                                                                                     |
 | [Inference Pipeline](design/inference-pipeline.md)                           | Implemented                          | [005](adr/005-ollama-local-inference.md), [010](adr/010-prompt-injection-defenses.md), [013](adr/013-cloud-llm-dialogue.md), [017](adr/017-per-category-inference-providers.md) |
 | [Player Input](design/player-input.md)                                       | Implemented                          | [006](adr/006-natural-language-input.md)                                                                                                                                        |
+| [Portable Turn API](design/portable-turn-api.md)                             | Accepted                             | [025](adr/025-mobile-runtime-on-shared-engine.md)                                                                                                                               |
 | [Persistence & Save System](design/persistence.md)                           | Implemented                          | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md)                                                                                            |
 | [GUI Design](design/gui-design.md)                                           | Implemented                          | [016](adr/016-tauri-svelte-gui.md)                                                                                                                                              |
-| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | In progress (#1630 fresh rebuild)    | [Graphics V2 research index](graphics-v2/README.md)                                                                                                                             |
-| [Parish Notebook UI](design/parish-notebook-ui.md)                           | Proposed (earlier Svelte direction)  | [Illustrated Notebook plan](plans/illustrated-notebook-real.md)                                                                                                                 |
-| [Godot-Based Rundale](design/godot-parish-game-plan.md)                      | Proposed (separate client direction) | [Interactive Parish Diorama](design/ideas/parish-diorama.md)                                                                                                                    |
-| [Parish Designer (GUI editor)](design/designer-editor.md)                    | Implemented                          | —                                                                                                                                                                               |
+| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | Retired historical experiment        | [Chat-first stabilization contract](../limerick/apps/ui/CHAT_FIRST_STABILIZATION.md)                                                                                            |
+| [Limerick Notebook UI](design/rundale-notebook-ui.md)                        | Proposed (earlier Svelte direction)  | [Illustrated Notebook plan](plans/illustrated-notebook-real.md)                                                                                                                 |
+| [Godot-Based Rundale](design/godot-rundale-game-plan.md)                     | Proposed (separate client direction) | [Interactive Limerick Diorama](design/ideas/rundale-diorama.md)                                                                                                                 |
+| [Limerick Designer (GUI editor)](design/designer-editor.md)                  | Implemented                          | —                                                                                                                                                                               |
 | [Debug System](design/debug-system.md)                                       | Implemented                          | —                                                                                                                                                                               |
 | [Debug UI](design/debug-ui.md)                                               | Implemented                          | —                                                                                                                                                                               |
 | [Ambient Sound](design/ambient-sound.md)                                     | Implemented                          | [015](adr/015-ambient-sound-system.md)                                                                                                                                          |
@@ -67,58 +73,60 @@ Every design/plan doc carries a `> Status: …` header. See
 
 ## Visual client and graphics research
 
-The visual work has three related but distinct tracks. The active default-client
-direction is the Pixi notebook play screen; the Diorama and Godot documents are
-future presentation approaches, not substitutes for its implementation plan.
+The existing desktop/web visual work has three related but distinct tracks.
+Its default implementation is the semantic chat-first shell with responsive DOM
+art; it is reference material for the native reset. The retired Pixi notebook,
+Diorama, and Godot documents remain historical or exploratory records.
 
-| Need                                                                  | Start here                                                                   | Follow with                                                                                                           |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Default visual play surface                                           | [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | [implementation plan](plans/illustrated-notebook-real.md) and [active roadmap](plans/illustrated-notebook-roadmap.md) |
-| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                          | Its task-oriented links and scoped guidance                                                                           |
-| Runtime-composed visual scene system                                  | [Interactive Parish Diorama RFC](design/ideas/parish-diorama.md)             | [Diorama implementation plan](plans/parish-diorama-implementation.md)                                                 |
-| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-parish-game-plan.md)                 | Treat as an exploratory alternative client                                                                            |
+| Need                                                                  | Start here                                                                           | Follow with                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Existing desktop/web play surface                                     | [Chat-first stabilization contract](../limerick/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)            |
+| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                                  | Its task-oriented links and scoped guidance                            |
+| Runtime-composed visual scene system                                  | [Interactive Limerick Diorama RFC](design/ideas/rundale-diorama.md)                  | [Diorama implementation plan](plans/rundale-diorama-implementation.md) |
+| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-rundale-game-plan.md)                        | Treat as an exploratory alternative client                             |
 
 ## Design ideas / RFCs
 
 Speculative and forward-looking — not (yet) committed work.
 
-| Document                                                                                       | Status     |
-| ---------------------------------------------------------------------------------------------- | ---------- |
-| [Independent NPC Agents](design/independent-npc-agents.md)                                     | Proposed   |
-| [Interactive Parish Diorama (runtime-composed scene graphics)](design/ideas/parish-diorama.md) | Proposed   |
-| [RAG Lore Recall](design/ideas/rag-lore-recall.md)                                             | Proposed   |
-| [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md)               | Proposed   |
-| [Mythology Layer (Future Hooks)](design/ideas/mythology-hooks.md)                              | Proposed   |
-| [Visual Effects System](design/ideas/visual-effects-system.md)                                 | Proposed   |
-| [Debt Shield](design/ideas/debt-shield.md)                                                     | Proposed   |
-| [iOS Port (on-device)](design/ideas/ios-port.md)                                               | Proposed   |
-| [Cloud Run Hosting](design/ideas/cloud-run-hosting.md)                                         | Proposed   |
-| [Emotion-Driven Dialogue & Simulation](design/ideas/emotion-driven-dialogue-and-simulation.md) | Brainstorm |
-| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                    | Superseded |
-| [Map Panel Evolution](design/ideas/map-evolution.md)                                           | Brainstorm |
-| [Input Line Enrichment Ideas](design/ideas/input-enrichment-ideas.md)                          | Brainstorm |
-| [NPC Prompt Immersion Ideas](design/ideas/npc-prompt-immersion-ideas.md)                       | Brainstorm |
-| [Game Ideas Brainstorm](design/ideas/game-ideas-brainstorm.md)                                 | Brainstorm |
-| [Game Mechanics Brainstorm](design/ideas/game-mechanics-brainstorm.md)                         | Brainstorm |
-| [Music & Sound: Creative Vision](design/ideas/music-sound-brainstorm.md)                       | Brainstorm |
-| [Night Visions](design/ideas/night-visions.md)                                                 | Parked     |
+| Document                                                                                          | Status     |
+| ------------------------------------------------------------------------------------------------- | ---------- |
+| [Independent NPC Agents](design/independent-npc-agents.md)                                        | Proposed   |
+| [Interactive Limerick Diorama (runtime-composed scene graphics)](design/ideas/rundale-diorama.md) | Proposed   |
+| [RAG Lore Recall](design/ideas/rag-lore-recall.md)                                                | Proposed   |
+| [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md)                  | Proposed   |
+| [Mythology Layer (Future Hooks)](design/ideas/mythology-hooks.md)                                 | Proposed   |
+| [Visual Effects System](design/ideas/visual-effects-system.md)                                    | Proposed   |
+| [Debt Shield](design/ideas/debt-shield.md)                                                        | Proposed   |
+| [iOS Port (on-device)](design/ideas/ios-port.md)                                                  | Proposed   |
+| [Cloud Run Hosting](design/ideas/cloud-run-hosting.md)                                            | Proposed   |
+| [Emotion-Driven Dialogue & Simulation](design/ideas/emotion-driven-dialogue-and-simulation.md)    | Brainstorm |
+| [Graphical World View (pixel scenes)](design/ideas/graphical-world-view.md)                       | Superseded |
+| [Map Panel Evolution](design/ideas/map-evolution.md)                                              | Brainstorm |
+| [Input Line Enrichment Ideas](design/ideas/input-enrichment-ideas.md)                             | Brainstorm |
+| [NPC Prompt Immersion Ideas](design/ideas/npc-prompt-immersion-ideas.md)                          | Brainstorm |
+| [Game Ideas Brainstorm](design/ideas/game-ideas-brainstorm.md)                                    | Brainstorm |
+| [Game Mechanics Brainstorm](design/ideas/game-mechanics-brainstorm.md)                            | Brainstorm |
+| [Music & Sound: Creative Vision](design/ideas/music-sound-brainstorm.md)                          | Brainstorm |
+| [Night Visions](design/ideas/night-visions.md)                                                    | Parked     |
 
 ## Plans — active
 
-| Plan                                                                                                     | Status      |
-| -------------------------------------------------------------------------------------------------------- | ----------- |
-| [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed    |
-| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | In progress |
-| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | In progress |
-| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned     |
-| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned     |
-| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial     |
-| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                       | Planned     |
-| [Rundale-Bench](plans/rundale-bench.md)                                                                  | In progress |
-| [LLM Quality Evals](plans/llm-quality-evals.md)                                                          | Proposed    |
-| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                     | Proposed    |
-| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                | Proposed    |
-| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                              | Proposed    |
+| Plan                                                                                                        | Status      |
+| ----------------------------------------------------------------------------------------------------------- | ----------- |
+| [Mobile Engine Convergence](plans/mobile-engine-convergence.md)                                             | Accepted    |
+| [Interactive Limerick Diorama — Runtime Compositor Implementation](plans/rundale-diorama-implementation.md) | Proposed    |
+| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                                 | Retired     |
+| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                    | Closed      |
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                       | Planned     |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                     | Planned     |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                                  | Partial     |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                          | Planned     |
+| [Rundale-Bench](plans/rundale-bench.md)                                                                     | In progress |
+| [LLM Quality Evals](plans/llm-quality-evals.md)                                                             | Proposed    |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                        | Proposed    |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                   | Proposed    |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                                 | Proposed    |
 
 ## Supporting implementation records
 
@@ -132,8 +140,8 @@ not the top-level product roadmap.
 | Game quality harness             | [architecture](design/game-quality-harness-architecture.md) · [plan](plans/game-quality-harness.md)                                                                                  |
 | Harness parity and ingest        | [mock/shadow design](design/harness-mock-shadow.md) · [plan](plans/harness-mock-shadow.md) · [ingest design](design/harness-skill-ingest.md) · [plan](plans/harness-skill-ingest.md) |
 | NPC arrival greetings            | [design](design/npc-arrival-greetings.md) · [plan](plans/npc-arrival-greetings.md)                                                                                                   |
-| MCP cold registration            | [design](design/parish-mcp-cold-register.md) · [plan](plans/parish-mcp-cold-register.md)                                                                                             |
-| Earlier Svelte notebook proposal | [design](design/parish-notebook-ui.md) · [plan](plans/parish-notebook-ui.md)                                                                                                         |
+| MCP cold registration            | [design](design/limerick-mcp-cold-register.md) · [plan](plans/limerick-mcp-cold-register.md)                                                                                         |
+| Earlier Svelte notebook proposal | [design](design/rundale-notebook-ui.md) · [plan](plans/rundale-notebook-ui.md)                                                                                                       |
 | Dialogue turn seam               | [design record](design/1172-1173-dialogue-seam.md)                                                                                                                                   |
 | IPC type contract                | [decision record](design/frontend-ipc-types.md)                                                                                                                                      |
 
@@ -162,32 +170,33 @@ not the top-level product roadmap.
 
 See the [ADR Index](adr/README.md) for the full table and template.
 
-| ADR                                                       | Decision                                 | Status                    |
-| --------------------------------------------------------- | ---------------------------------------- | ------------------------- |
-| [001](adr/001-graph-based-world.md)                       | Graph-based world                        | Accepted                  |
-| [002](adr/002-cognitive-lod-tiers.md)                     | 4-tier cognitive level-of-detail         | Accepted                  |
-| [003](adr/003-sqlite-wal-persistence.md)                  | SQLite WAL persistence                   | Accepted                  |
-| [004](adr/004-git-like-branching-saves.md)                | Git-like branching saves                 | Accepted                  |
-| [005](adr/005-ollama-local-inference.md)                  | Ollama local inference                   | Accepted                  |
-| [006](adr/006-natural-language-input.md)                  | Natural-language input                   | Accepted                  |
-| [007](adr/007-time-scale-20min-day.md)                    | 20 real minutes = 1 game day             | Accepted                  |
-| [008](adr/008-structured-json-llm-output.md)              | Structured JSON LLM output               | Accepted                  |
-| [009](adr/009-real-geography-fictional-people.md)         | Real geography, fictional people         | Accepted                  |
-| [010](adr/010-prompt-injection-defenses.md)               | Prompt-injection defenses                | Accepted                  |
-| [011](adr/011-geo-tool-osm-pipeline.md)                   | parish-geo-tool OSM pipeline             | Accepted                  |
-| [012](adr/012-documentation-hierarchy.md)                 | Hierarchical documentation organization  | Accepted (amended by 024) |
-| [013](adr/013-cloud-llm-dialogue.md)                      | Cloud LLM for player dialogue            | Accepted                  |
-| [014](adr/014-web-mobile-architecture.md)                 | Web & mobile thin-client architecture    | Accepted                  |
-| [015](adr/015-ambient-sound-system.md)                    | Ambient sound system (rodio, GUI-only)   | Accepted                  |
-| [016](adr/016-tauri-svelte-gui.md)                        | Replace egui with Tauri 2 + Svelte GUI   | Accepted                  |
-| [017](adr/017-per-category-inference-providers.md)        | Per-category inference providers         | Accepted                  |
-| [018](adr/018-npc-intelligence-dimensions.md)             | NPC multidimensional intelligence        | Accepted                  |
-| [019](adr/019-json-structured-output-for-npc-dialogue.md) | JSON structured output for NPC dialogue  | Accepted                  |
-| [020](adr/020-npc-tool-use.md)                            | NPC function-calling / tool-use output   | Proposed                  |
-| [021](adr/021-npc-memory-retrieval.md)                    | Embedding-based NPC memory retrieval     | Proposed                  |
-| [022](adr/022-engine-config-extraction.md)                | Extract engine tuning into configuration | Accepted                  |
-| [023](adr/023-web-testing-server.md)                      | Web server mode for Chrome GUI testing   | Accepted                  |
-| [024](adr/024-documentation-reorg-v2.md)                  | Documentation reorganization v2          | Accepted                  |
+| ADR                                                       | Decision                                     | Status                                   |
+| --------------------------------------------------------- | -------------------------------------------- | ---------------------------------------- |
+| [001](adr/001-graph-based-world.md)                       | Graph-based world                            | Accepted                                 |
+| [002](adr/002-cognitive-lod-tiers.md)                     | 4-tier cognitive level-of-detail             | Accepted                                 |
+| [003](adr/003-sqlite-wal-persistence.md)                  | SQLite WAL persistence                       | Accepted                                 |
+| [004](adr/004-git-like-branching-saves.md)                | Git-like branching saves                     | Accepted                                 |
+| [005](adr/005-ollama-local-inference.md)                  | Ollama local inference                       | Accepted                                 |
+| [006](adr/006-natural-language-input.md)                  | Natural-language input                       | Accepted                                 |
+| [007](adr/007-time-scale-20min-day.md)                    | 20 real minutes = 1 game day                 | Accepted                                 |
+| [008](adr/008-structured-json-llm-output.md)              | Structured JSON LLM output                   | Accepted                                 |
+| [009](adr/009-real-geography-fictional-people.md)         | Real geography, fictional people             | Accepted                                 |
+| [010](adr/010-prompt-injection-defenses.md)               | Prompt-injection defenses                    | Accepted                                 |
+| [011](adr/011-geo-tool-osm-pipeline.md)                   | limerick-geo-tool OSM pipeline               | Accepted                                 |
+| [012](adr/012-documentation-hierarchy.md)                 | Hierarchical documentation organization      | Accepted (amended by 024)                |
+| [013](adr/013-cloud-llm-dialogue.md)                      | Cloud LLM for player dialogue                | Accepted                                 |
+| [014](adr/014-web-mobile-architecture.md)                 | Web & mobile thin-client architecture        | Accepted (mobile part superseded by 025) |
+| [015](adr/015-ambient-sound-system.md)                    | Ambient sound system (rodio, GUI-only)       | Accepted                                 |
+| [016](adr/016-tauri-svelte-gui.md)                        | Replace egui with Tauri 2 + Svelte GUI       | Accepted                                 |
+| [017](adr/017-per-category-inference-providers.md)        | Per-category inference providers             | Accepted                                 |
+| [018](adr/018-npc-intelligence-dimensions.md)             | NPC multidimensional intelligence            | Accepted                                 |
+| [019](adr/019-json-structured-output-for-npc-dialogue.md) | JSON structured output for NPC dialogue      | Accepted                                 |
+| [020](adr/020-npc-tool-use.md)                            | NPC function-calling / tool-use output       | Proposed                                 |
+| [021](adr/021-npc-memory-retrieval.md)                    | Embedding-based NPC memory retrieval         | Proposed                                 |
+| [022](adr/022-engine-config-extraction.md)                | Extract engine tuning into configuration     | Accepted                                 |
+| [023](adr/023-web-testing-server.md)                      | Web server mode for Chrome GUI testing       | Accepted                                 |
+| [024](adr/024-documentation-reorg-v2.md)                  | Documentation reorganization v2              | Accepted                                 |
+| [025](adr/025-mobile-runtime-on-shared-engine.md)         | Mobile runtime on the shared Limerick engine | Accepted                                 |
 
 ## Requirements & status
 
@@ -296,11 +305,11 @@ cross-reference matrix, and suggested reading order.
 
 Custom slash commands for common development workflows.
 
-| Skill                   | Description                                                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/check`                | Quality gates — `just check` (pre-commit) and `just verify` (pre-push)                                           |
-| `/parish-engine [mode]` | Run the engine to observe behaviour — script harness, `prove`, `play`, `rubric`, `demo`, `browser`, `screenshot` |
-| `/backlog <mode>`       | GitHub issue lifecycle — `triage`, `fix-one <issue#>`, or `drain`                                                |
-| `/techdebt [path]`      | Technical-debt loop; `crate-audit` mode for crate-layout refactors                                               |
+| Skill                     | Description                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/check`                  | Quality gates — `just check` (pre-commit) and `just verify` (pre-push)                                           |
+| `/limerick-engine [mode]` | Run the engine to observe behaviour — script harness, `prove`, `play`, `rubric`, `demo`, `browser`, `screenshot` |
+| `/backlog <mode>`         | GitHub issue lifecycle — `triage`, `fix-one <issue#>`, or `drain`                                                |
+| `/techdebt [path]`        | Technical-debt loop; `crate-audit` mode for crate-layout refactors                                               |
 
 Skill definitions live in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink.

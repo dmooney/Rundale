@@ -110,7 +110,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 
 11. **Mark mythological locations in parish data**
 
-    - Update `data/parish.json`: add `mythological_significance` to The Fairy Fort (FairyFort), The Crossroads (Crossroads), Lough Shore (HolyWell nearby)
+    - Update `data/world.json`: add `mythological_significance` to The Fairy Fort (FairyFort), The Crossroads (Crossroads), Lough Shore (HolyWell nearby)
     - Description templates for these locations include subtle atmospheric hooks at night: "The hawthorn around the fort seems to lean inward in the dark."
 
 12. **Write tests**
@@ -146,6 +146,6 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 
 ## Resolved Issues
 
-- **ASCII map layout**: Use **spatial positioning** with approximate coordinates per location. Each location in `data/parish.json` gets `x, y` fields (integer grid coordinates, ~20x15 grid). This produces a map that reflects actual geography (lough to the east, village center, farms scattered). A simple list view is available as a fallback for accessibility. The spatial coordinates are authored by hand alongside the location data.
+- **ASCII map layout**: Use **spatial positioning** with approximate coordinates per location. Each location in `data/world.json` gets `x, y` fields (integer grid coordinates, ~20x15 grid). This produces a map that reflects actual geography (lough to the east, village center, farms scattered). A simple list view is available as a fallback for accessibility. The spatial coordinates are authored by hand alongside the location data.
 - **Palette anchor points**: Use **7 named times** matching the `TimeOfDay` enum (Dawn, Morning, Midday, Afternoon, Dusk, Night, Midnight). Each anchor defines RGB values for background, text, and accent colors. Interpolation between anchors produces smooth transitions. 24 anchor points would be overkill — the 7 named transitions already cover the perceptually distinct lighting changes. Fine-tuning individual RGB values is easier with fewer anchors.
 - **Mythology content scope**: Confirmed: **this phase installs hooks only**. The hooks include: `mythological_significance` field on locations, `beliefs` field on NPCs, festival-triggered prompt modifiers, and time-of-day context modifiers for mythological locations. Actual supernatural content (what the NPCs say, what "strange" events occur) is authored after hooks are in place and tested. Content authoring is not a phase — it is ongoing creative work informed by playtesting.

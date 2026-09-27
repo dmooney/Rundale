@@ -1,10 +1,11 @@
 name: Rundale Full CI
 
-# Expensive correctness gates preserved outside the sub-minute `ci.yml` fast
-# lane. These jobs intentionally run on main/develop pushes, merge-queue
-# entries, nightly schedule, and manual dispatch.
+# Expensive correctness gates. Runtime-changing pull requests call this workflow
+# from `ci.yml`; main/develop pushes, merge-queue entries, the nightly schedule,
+# and manual dispatch remain independent backstops.
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -20,7 +21,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,17 +37,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -110,12 +113,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
           components: llvm-tools-preview
@@ -124,6 +127,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: v0-rust-coverage
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -144,7 +148,7 @@ jobs:
       - name: Enforce coverage floor
         env:
           NEXTEST_PROFILE: ci
-        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --ignore-filename-regex 'build\.rs' --fail-under-lines 60.8
+        run: cargo llvm-cov nextest --workspace --all-targets --exclude limerick-client --ignore-filename-regex 'build\.rs' --fail-under-lines 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
@@ -158,7 +162,7 @@ jobs:
         toolchain: [stable, beta]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
@@ -169,6 +173,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -184,23 +190,57 @@ jobs:
       - name: Compile workspace
         run: cargo check --workspace --all-targets
 
+  rust-mobile-build:
+    name: Rust mobile configuration build
+    # Stages 1.3 and 2 of docs/plans/mobile-engine-convergence.md: limerick-core,
+    # including the shared game loop, must lint clean and pass its tests without
+    # the desktop-only dependencies (local-inference bootstrap, editor,
+    # chronicle, diagnostics). No GTK/WebKit packages are
+    # installed on purpose, so a desktop native dependency leaking into the
+    # mobile graph fails this job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          clean: true
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache: false
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+
+      - name: Lint limerick-core mobile configuration
+        run: cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings
+
+      - name: Test limerick-core mobile configuration
+        run: cargo test -p limerick-core --no-default-features --features mobile
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -214,9 +254,9 @@ jobs:
             librsvg2-dev
 
       - name: Build engine once
-        run: cargo build -p parish-engine
+        run: cargo build -p limerick-engine
 
-      - name: Run every fixture script (parallel)
+      - name: Run every legacy regression fixture (parallel)
         shell: bash
         run: |
           set -euo pipefail
@@ -231,23 +271,26 @@ jobs:
             fi
             echo "ok: $f"
           EOF
-          export BIN="$PWD/target/debug/parish-engine"
-          find testing/fixtures -maxdepth 1 -name '*.txt' -print0 \
+          export BIN="$PWD/target/debug/limerick-engine"
+          find testing/fixtures -maxdepth 1 -name 'test_*.txt' -print0 \
             | xargs -0 -P "$(nproc)" -I{} bash "$runner" {}
 
-      - name: Build server + client
-        run: cargo build -p parish-server -p parish-client
+      - name: Run asserted shipping-loop scenarios
+        run: cargo test -p limerick-scenario --test scenarios
 
-      - name: parish-client smoke test
+      - name: Build server + client
+        run: cargo build -p limerick-server -p limerick-client
+
+      - name: limerick-client smoke test
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/parish-mcp-backend.sh start
-          trap 'bash scripts/parish-mcp-backend.sh stop' EXIT
-          out=$(PARISH_SERVER=http://127.0.0.1:3030 ./target/debug/parish "look")
+          bash scripts/limerick-mcp-backend.sh start
+          trap 'bash scripts/limerick-mcp-backend.sh stop' EXIT
+          out=$(LIMERICK_SERVER=http://127.0.0.1:3030 ./target/debug/limerick "look")
           echo "$out"
           grep -q "Kilteevan" <<<"$out" || {
-            echo "::error::parish-client smoke: 'look' output did not include the starting location"
+            echo "::error::limerick-client smoke: 'look' output did not include the starting location"
             exit 1
           }
 
@@ -257,19 +300,19 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
+          cache-dependency-path: limerick/apps/ui/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -295,29 +338,29 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
+          cache-dependency-path: limerick/apps/ui/package-lock.json
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: .
+          workspaces: limerick -> target
 
       - name: Install dependencies
         run: npm ci
@@ -336,9 +379,9 @@ jobs:
         if: runner.os == 'macOS'
         run: npx playwright install chromium
 
-      - name: Prebuild parish web server binary
-        working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish-server
+      - name: Prebuild limerick web server binary
+        working-directory: ${{ github.workspace }}/limerick
+        run: cargo build -p limerick-server
 
       - name: Run Playwright e2e
         run: npx playwright test
@@ -348,7 +391,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: parish/apps/ui/playwright-report/
+          path: |
+            limerick/apps/ui/playwright-report/
+            limerick/apps/ui/e2e/test-results/
           if-no-files-found: ignore
 
   full-ci-gate:
@@ -358,6 +403,7 @@ jobs:
         rust-quality-gate,
         rust-coverage-ratchet,
         rust-multi-channel,
+        rust-mobile-build,
         game-harness,
         ui-quality,
         ui-e2e,

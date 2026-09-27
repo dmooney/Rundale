@@ -35,10 +35,10 @@ keep the warm value range, and preserve doors/topology/zoom.
 
 ## Outputs
 
-| ID  | Image                                                                     | Prompt                                                                          | Report                                                                          | Result                                      |
-| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------- |
-| E1  | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.png`     | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.prompt.md`     | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.report.md`     | Good hybrid, but repeated containers remain |
-| E2  | `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.png` | `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.prompt.md` | `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.report.md` | Accepted convergence point                  |
+| ID  | Image                                                                 | Prompt                                                                          | Report                                                                          | Result                                      |
+| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.png` | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.prompt.md`     | `pipeline-experiments/idea-bu-e1-bt-e2-e3-concept-realism-hybrid.report.md`     | Good hybrid, but repeated containers remain |
+| E2  | `authorities/beechwood-concept-realism-bu-e2.png`                     | `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.prompt.md` | `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.report.md` | Accepted convergence point                  |
 
 Comparison plate:
 

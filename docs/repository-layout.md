@@ -1,7 +1,7 @@
 # Repository Layout
 
 ```text
-parish/
+limerick/
   crates/              14 workspace members (types, config, world, npc, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures

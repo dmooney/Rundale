@@ -11,7 +11,7 @@
 ENV_FILE := justfile_directory() / "../.env"
 BENCH := justfile_directory()
 REPO_ROOT := justfile_directory() / ".."
-SCRIPTS := REPO_ROOT / "parish" / "scripts" / "local-eval"
+SCRIPTS := REPO_ROOT / "limerick" / "scripts" / "local-eval"
 SAMPLES_DIR := BENCH / "artifacts"
 
 # Bundled candidate fleets — re-cached as model lineup shifts.

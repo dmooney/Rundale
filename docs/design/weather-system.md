@@ -8,7 +8,7 @@ Weather is a simulation driver. Weather state is part of world state and affects
 
 ## Weather Enum
 
-The `Weather` enum in `crates/parish-types/src/ids.rs` defines seven conditions:
+The `Weather` enum in `crates/limerick-types/src/ids.rs` defines seven conditions:
 
 | Variant        | Description          |
 | -------------- | -------------------- |
@@ -39,6 +39,6 @@ The `Weather` enum in `crates/parish-types/src/ids.rs` defines seven conditions:
 
 ## Source Modules
 
-- [`parish-types/src/ids.rs`](../../parish/crates/parish-types/src/ids.rs) — `Weather` enum definition
-- [`parish-palette/src/lib.rs`](../../parish/crates/parish-palette/src/lib.rs) — Time-of-day palette interpolation (no weather input)
-- [`parish-npc`](../../parish/crates/parish-npc/) — Weather-aware NPC behavior
+- [`limerick-types/src/ids.rs`](../../limerick/crates/limerick-types/src/ids.rs) — `Weather` enum definition
+- [`limerick-palette/src/lib.rs`](../../limerick/crates/limerick-palette/src/lib.rs) — Time-of-day palette interpolation (no weather input)
+- [`limerick-npc`](../../limerick/crates/limerick-npc/) — Weather-aware NPC behavior

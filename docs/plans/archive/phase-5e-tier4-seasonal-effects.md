@@ -9,7 +9,7 @@
 
 ## Runtime wiring note
 
-`tick_tier4` is dispatched inline inside the background tick scope (not via `spawn_blocking` as the original plan suggested). Measured CPU cost is sub-millisecond for typical NPC counts (~30 NPCs), so `spawn_blocking` would add complexity without benefit. See `crates/parish-tauri/src/lib.rs`, `crates/parish-server/src/lib.rs`, and `crates/parish-cli/src/headless.rs` for the call sites.
+`tick_tier4` is dispatched inline inside the background tick scope (not via `spawn_blocking` as the original plan suggested). Measured CPU cost is sub-millisecond for typical NPC counts (~30 NPCs), so `spawn_blocking` would add complexity without benefit. See `crates/limerick-tauri/src/lib.rs`, `crates/limerick-server/src/lib.rs`, and `crates/limerick-engine/src/headless.rs` for the call sites.
 
 ## Goal
 
@@ -17,7 +17,7 @@ Implement the pure CPU Tier 4 rules engine for far-away NPCs (no LLM), seasonal 
 
 ## Tasks
 
-### 1. Tier 4 Rules Engine (`crates/parish-core/src/npc/tier4.rs` — new file)
+### 1. Tier 4 Rules Engine (`crates/limerick-core/src/npc/tier4.rs` — new file)
 
 ```rust
 use rand::Rng;
@@ -73,13 +73,13 @@ Add a health field to `Npc`:
 
 ```rust
 pub struct Npc {
-    // ... existing fields ...
+    // Unrelated fields are omitted from this design sketch.
     /// Whether the NPC is currently ill. Set by Tier 4 rules.
     pub is_ill: bool,
 }
 ```
 
-### 3. Seasonal schedule overrides (`crates/parish-core/src/npc/types.rs`)
+### 3. Seasonal schedule overrides (`crates/limerick-core/src/npc/types.rs`)
 
 ```rust
 /// Returns seasonal schedule overrides for an NPC based on their occupation.

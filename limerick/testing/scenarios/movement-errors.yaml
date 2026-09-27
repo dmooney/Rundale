@@ -1,0 +1,32 @@
+version: 1
+name: movement-errors
+description: Invalid and redundant movement leave canonical location unchanged.
+steps:
+  - input: go to Kilteevan Village
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: already
+      absent_events:
+        - world-update
+  - input: go to Atlantis
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+      absent_events:
+        - world-update
+  - input: go to the crossroads
+    expect:
+      location: The Crossroads
+      events:
+        - name: world-update
+  - input: go to the crossroads
+    expect:
+      location: The Crossroads
+      events:
+        - name: text-log
+          contains: already
+      absent_events:
+        - world-update

@@ -1,4 +1,5 @@
 id = "anthropic"
+recommended_preset = "recommended"
 display_name = "Anthropic"
 aliases = ["claude"]
 kind = "anthropic"

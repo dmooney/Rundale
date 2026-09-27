@@ -1,6 +1,6 @@
 # Early 19th Century Irish English: Corpora, Sources & Dialect Features
 
-_Reference document for Parish — a Rust TUI game set in 1820s rural County Roscommon, Ireland_
+_Reference document for Limerick — a Rust TUI game set in 1820s rural County Roscommon, Ireland_
 
 ---
 
@@ -8,7 +8,7 @@ _Reference document for Parish — a Rust TUI game set in 1820s rural County Ros
 
 ### P.W. Joyce — _English As We Speak It in Ireland_ (1910)
 
-The single best resource for 1820s-era Irish English. Joyce was born in 1827 in rural Limerick/Cork, so his childhood memories are literally from the period Parish is set in. The book catalogues hundreds of real speech examples, organised by feature: idioms calqued from Irish, grammar, swearing, proverbs, pronunciation, and vocabulary. He draws heavily on period literature (Gerald Griffin, Kickham, Crofton Croker) and his own first-hand experience.
+The single best resource for 1820s-era Irish English. Joyce was born in 1827 in rural Limerick/Cork, so his childhood memories are literally from the period Limerick is set in. The book catalogues hundreds of real speech examples, organised by feature: idioms calqued from Irish, grammar, swearing, proverbs, pronunciation, and vocabulary. He draws heavily on period literature (Gerald Griffin, Kickham, Crofton Croker) and his own first-hand experience.
 
 - **Project Gutenberg (HTML, full text):** <https://www.gutenberg.org/files/34251/34251-h/34251-h.htm>
 - **Project Gutenberg (multiple formats — epub, kindle, plain text):** <https://www.gutenberg.org/ebooks/34251>
@@ -20,10 +20,10 @@ The single best resource for 1820s-era Irish English. Joyce was born in 1827 in 
 1. Sources of Anglo-Irish Dialect
 1. Affirming, Assenting, and Saluting
 1. Asserting by Negative of Opposite
-1. Idioms Derived from the Irish Language _(most useful for Parish)_
+1. Idioms Derived from the Irish Language _(most useful for Limerick)_
 1. The Devil and his Territory
 1. Swearing
-1. Grammar and Pronunciation _(most useful for Parish)_
+1. Grammar and Pronunciation _(most useful for Limerick)_
 1. Proverbs
 1. Exaggeration and Redundancy
 1. Comparisons
@@ -35,7 +35,7 @@ The single best resource for 1820s-era Irish English. Joyce was born in 1827 in 
 
 ### Gerald Griffin — _The Collegians_ (1829)
 
-A novel by a Limerick man, set in contemporary Munster. The dialogue is packed with authentic Hiberno-English of exactly the Parish period. Danny Mann speaks with “d” for “th” throughout. Joyce cites Griffin constantly as one of the most faithful dialect sources for southern Irish English. The lower-class characters’ speech is the gold — the gentry speak more standardised English.
+A novel by a Limerick man, set in contemporary Munster. The dialogue is packed with authentic Hiberno-English of exactly the Limerick period. Danny Mann speaks with “d” for “th” throughout. Joyce cites Griffin constantly as one of the most faithful dialect sources for southern Irish English. The lower-class characters’ speech is the gold — the gentry speak more standardised English.
 
 - **Internet Archive (multiple formats):** <https://archive.org/details/collegians00grifrich>
 - **Project Gutenberg (if available):** search for “Gerald Griffin Collegians”
@@ -45,7 +45,7 @@ A novel by a Limerick man, set in contemporary Munster. The dialogue is packed w
 
 ### Charles Kickham — _Knocknagow_ (1879)
 
-Set in Tipperary, slightly later than Parish but documenting speech patterns that were already well-established by the 1820s. Another source Joyce cites constantly. Features constructions like “‘Twas to dhrame it I did sir” and “Is it yourself that’s in it?”
+Set in Tipperary, slightly later than Limerick but documenting speech patterns that were already well-established by the 1820s. Another source Joyce cites constantly. Features constructions like “‘Twas to dhrame it I did sir” and “Is it yourself that’s in it?”
 
 - **Internet Archive:** search “Knocknagow Kickham” at <https://archive.org>
 - **Project Gutenberg:** <https://www.gutenberg.org/ebooks/44645>
@@ -63,7 +63,7 @@ Carleton gives the northern/Ulster dialect very fully, especially Tyrone and eas
 
 ### Crofton Croker — _Fairy Legends and Traditions of the South of Ireland_ (1825)
 
-Contemporary with Parish’s setting. Contains dialect dialogue in the context of folk tales.
+Contemporary with Limerick’s setting. Contains dialect dialogue in the context of folk tales.
 
 - **Internet Archive:** <https://archive.org/search?query=crofton+croker+fairy+legends>
 
@@ -82,7 +82,7 @@ These supply the gentry / middling-farmer register and are programmatically conv
 - **Period dictionaries** — filtered to game-domain entries (agriculture, kinship, religion, trade). Useful as lexical attestation for the OED 1820 cutoff anachronism wordlist used by the period-axis judge.
   - **Internet Archive search:** <https://archive.org/search?query=dictionary+english+language+1820>
 
-These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md).
+These four sources feed `training/src/limerick_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../plans/gemma4-rundale-training-plan.md).
 
 ---
 
@@ -90,7 +90,7 @@ These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_lette
 
 ### CORIECOR — Corpus of Irish English Correspondence
 
-The motherlode. ~6,500 texts, ~4 million words. Mostly personal letters from 1731–1940 by Irish emigrants and their families. This is how real Irish people actually wrote English in the Parish period — not literary representations, but genuine vernacular.
+The motherlode. ~6,500 texts, ~4 million words. Mostly personal letters from 1731–1940 by Irish emigrants and their families. This is how real Irish people actually wrote English in the Limerick period — not literary representations, but genuine vernacular.
 
 - **CORVIZ browser (University of Bergen):** <https://corviz.h.uib.no/>
   - Browse metadata, some letter titles and dates visible
@@ -225,7 +225,7 @@ No LLM has been trained on early 19th century Irish or Hiberno-English. The exis
 
 ### Historical Irish Corpora (Not LLM-Trained, But Available)
 
-**Corpas Stairiúil na Gaeilge (1600–1926)** — A searchable corpus of 3,000+ texts published in Irish between 1600 and 1926 from the Royal Irish Academy. This covers Parish’s era. ~19 million words total across 4,000+ texts. No generative model has been trained on it.
+**Corpas Stairiúil na Gaeilge (1600–1926)** — A searchable corpus of 3,000+ texts published in Irish between 1600 and 1926 from the Royal Irish Academy. This covers Limerick’s era. ~19 million words total across 4,000+ texts. No generative model has been trained on it.
 
 - **Online search interface:** <http://corpas.ria.ie/>
 - **CD-ROM (1600–1882 subset):** Published by RIA in 2004, available from <https://shop.ria.ie/>
@@ -236,13 +236,13 @@ No LLM has been trained on early 19th century Irish or Hiberno-English. The exis
 
 ### The Gap
 
-Parish sits in a triple no-man’s-land that no existing model covers:
+Limerick sits in a triple no-man’s-land that no existing model covers:
 
 1. **Historical Irish (Gaeilge)** — Corpora exist (RIA’s 19M words) but no generative model has been trained on them.
 1. **Historical Hiberno-English** — CORIECOR has 4M words of authentic 18th–19th century Irish English correspondence, but it’s not freely downloadable.
 1. **Actual 1820s Roscommon speech** — A code-switching mix of both languages, with Irish substrate grammar mapped onto English. Nobody has modelled this at all.
 
-### Recommended Approach for Parish NPC Inference
+### Recommended Approach for Limerick NPC Inference
 
 Rather than hunting for a pre-existing model, build your own fine-tune. Take a small generative model that fits your hardware (Llama 3.2 3B, Gemma 2B, Qwen 2.5 3B — whatever fits VRAM on the RX 9070 or Mac Mini M4) and QLoRA fine-tune with:
 

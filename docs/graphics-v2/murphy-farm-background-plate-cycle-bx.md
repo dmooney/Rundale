@@ -6,11 +6,11 @@ lon `-8.079662971357214`.
 
 ## Inputs
 
-- Source crop: `pipeline-experiments/idea-bx-murphy-farm-z17-map-crop.png`.
+- Source crop: `map-sources/murphy-farm-z17-map-crop.png`.
 - Deterministic controls:
   - `pipeline-experiments/idea-bx-murphy-farm-control-soft-planting-control.png`
   - `pipeline-experiments/idea-bx-murphy-farm-control-oblique-raw-warp.png`
-- Style target: `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.png`.
+- Style target: `authorities/beechwood-concept-realism-bu-e2.png`.
 - Door references:
   - `style-crops/illustrated-style-low-camera-slate-single-house-door-fixed.png`
   - `style-crops/illustrated-style-low-camera-thatched-single-house-door-fixed.png`

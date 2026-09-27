@@ -4,7 +4,7 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [008](../adr/008-structured-json-llm-output.md), [010](../adr/010-prompt-injection-defenses.md)
 >
-> Measurement record: [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.
+> Measurement record: local archive `docs/proofs/local-perf/evidence.md` — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.
 
 ## Per-Category Latency Budgets
 
@@ -17,7 +17,7 @@ The engine recognizes four inference categories. Each has a different latency ex
 | Simulation | < 800 ms       | < 1500 ms               | Background world tick; runs concurrently with player turn — must finish before next player input arrives |
 | Dialogue   | < 1000 ms ttft | streaming, no total cap | First token must land quickly; rest streams under the player's reading speed                             |
 
-These budgets are not enforced in code today — they are the success criteria for the `/inf-bench` harness (`crates/parish-inference/examples/inf_bench.rs`) and the gate against which provider/model choices are validated.
+These budgets are not enforced in code today — they are the success criteria for the `/inf-bench` harness (`crates/limerick-inference/examples/inf_bench.rs`) and the gate against which provider/model choices are validated.
 
 ## Pipeline Architecture
 
@@ -27,7 +27,7 @@ Simulation Tiers ─┼─ Background  lane (cap 32) ─┼─► Single-flight 
                   └─ Batch       lane (cap 64) ─┘
 ```
 
-The inference queue is **one** `InferenceQueue` struct (`crates/parish-inference/src/lib.rs:124`) wrapping **three** Tokio mpsc channels — one per priority lane. A single worker task drains them in strict priority order.
+The inference queue is **one** `InferenceQueue` struct (`crates/limerick-inference/src/lib.rs:124`) wrapping **three** Tokio mpsc channels — one per priority lane. A single worker task drains them in strict priority order.
 
 ### Priority Lanes
 
@@ -37,11 +37,11 @@ The inference queue is **one** `InferenceQueue` struct (`crates/parish-inference
 | Background  | 32       | Tier 2 nearby NPC simulation (JSON)        |
 | Batch       | 64       | Tier 3 distant NPC batch simulation (JSON) |
 
-Capacities are set at queue construction in each frontend — see `crates/parish-server/src/routes.rs:205-207`, `crates/parish-tauri/src/commands.rs:305-307`, and `crates/parish-engine/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
+Capacities are set at queue construction in each frontend — see `crates/limerick-server/src/routes.rs:205-207`, `crates/limerick-tauri/src/commands.rs:305-307`, and `crates/limerick-engine/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
 
 ### Single-Flight Worker
 
-`spawn_inference_worker` (`crates/parish-inference/src/lib.rs:453`) runs one LLM call at a time using `tokio::select!` with biased ordering:
+`spawn_inference_worker` (`crates/limerick-inference/src/lib.rs:453`) runs one LLM call at a time using `tokio::select!` with biased ordering:
 
 ```rust
 tokio::select! {
@@ -57,15 +57,15 @@ tokio::select! {
 
 ## Inference Use Cases
 
-Parish makes LLM calls from five inbound paths. Three go through the priority queue; two bypass it by resolving a per-category client directly via `GameConfig::resolve_category_client()` (`crates/parish-core/src/ipc/config.rs:90`).
+Limerick makes LLM calls from five inbound paths. Three go through the priority queue; two bypass it by resolving a per-category client directly via `GameConfig::resolve_category_client()` (`crates/limerick-core/src/ipc/config.rs:90`).
 
-| Use case                   | Category   | Path                       | Streaming | Output               | Call site                                                                |
-| -------------------------- | ---------- | -------------------------- | --------- | -------------------- | ------------------------------------------------------------------------ |
-| Player dialogue (Tier 1)   | Dialogue   | Interactive lane           | Yes       | Text + JSON tail     | `crates/parish-tauri/src/commands.rs:825` (and server / CLI equivalents) |
-| Nearby NPC sim (Tier 2)    | Simulation | Background lane            | No        | JSON                 | `crates/parish-npc/src/ticks.rs:533`                                     |
-| Distant NPC batch (Tier 3) | Simulation | Batch lane                 | No        | JSON                 | `crates/parish-npc/src/ticks.rs:853`                                     |
-| NPC arrival reactions      | Reaction   | Direct call (bypass queue) | Optional  | Plain text, ≤100 tok | `crates/parish-npc/src/reactions.rs:876`                                 |
-| Player intent parsing      | Intent     | Direct call (bypass queue) | No        | JSON                 | `crates/parish-tauri/src/commands.rs:495-503`                            |
+| Use case                   | Category   | Path                       | Streaming | Output               | Call site                                                                  |
+| -------------------------- | ---------- | -------------------------- | --------- | -------------------- | -------------------------------------------------------------------------- |
+| Player dialogue (Tier 1)   | Dialogue   | Interactive lane           | Yes       | Text + JSON tail     | `crates/limerick-tauri/src/commands.rs:825` (and server / CLI equivalents) |
+| Nearby NPC sim (Tier 2)    | Simulation | Background lane            | No        | JSON                 | `crates/limerick-npc/src/ticks.rs:533`                                     |
+| Distant NPC batch (Tier 3) | Simulation | Batch lane                 | No        | JSON                 | `crates/limerick-npc/src/ticks.rs:853`                                     |
+| NPC arrival reactions      | Reaction   | Direct call (bypass queue) | Optional  | Plain text, ≤100 tok | `crates/limerick-npc/src/reactions.rs:876`                                 |
+| Player intent parsing      | Intent     | Direct call (bypass queue) | No        | JSON                 | `crates/limerick-tauri/src/commands.rs:495-503`                            |
 
 Queue-based calls compete for the single in-flight worker slot. Direct-category calls run concurrently on their own per-category `OpenAiClient` instances, limited only by each provider's HTTP connection pool. Effective parallelism is therefore `1 (worker) + N (direct-category clients, one per Intent/Reaction call in flight)`.
 
@@ -73,7 +73,7 @@ Reaction timeouts are caller-supplied (the `reactions.rs` helper takes `timeout_
 
 ### Request shape (json_schema, cancel-token, streaming stats)
 
-`InferenceRequest` (`crates/parish-inference/src/lib.rs`) carries optional shape and lifecycle controls in addition to the prompt:
+`InferenceRequest` (`crates/limerick-inference/src/lib.rs`) carries optional shape and lifecycle controls in addition to the prompt:
 
 | Field         | Type                           | Purpose                                                                                                                                                                                      |
 | ------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -112,7 +112,7 @@ Worker captures streaming stats via `StreamStats { ttft, tokens }` and records t
 
 ### macOS / Apple Silicon + vllm-mlx
 
-Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
+Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See the local archive at `docs/proofs/local-perf/evidence.md` for raw data and methodology; below is the design-relevant summary.
 
 | Category         | ttft p50      | total p50    | total p95 | budget               | verdict                                                                              |
 | ---------------- | ------------- | ------------ | --------- | -------------------- | ------------------------------------------------------------------------------------ |
@@ -185,23 +185,26 @@ The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRou
 
 Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client and swaps per-category clients atomically.
 
-### Recommended Models (May 2026 refresh)
+### Candidate Models and Promotion Status
 
-> This section is **refreshable** — specific picks will drift as the open-model landscape evolves. Last refresh: May 2026 (added macOS / vllm-mlx path measured against per-category budgets). See ADR-005 for the architectural decision; this section owns the specific picks.
+> Specific candidates drift as the open-model landscape evolves. A candidate
+> is not a production recommendation until the frozen holdout, hard-failure,
+> reliability, latency, and memory gates in `promptfoo/` produce a passing
+> receipt. As of July 2026, no fully local dialogue profile is qualified.
 
-#### Linux / Windows + Ollama (RX 9070 16 GB + i9-13900KS, matches ADR-005)
+#### Linux / Windows candidates (RX 9070 16 GB + i9-13900KS)
 
-| Category                   | Local pick                | Cloud pick                | Why                                                                                                                  |
-| -------------------------- | ------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B | Claude Sonnet 4.6         | Quality-critical; 9B fits in 16 GB VRAM with headroom                                                                |
-| Simulation (Tier 2 nearby) | Qwen 3.5 9B               | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
-| Simulation (Tier 3 batch)  | Qwen 3.5 9B               | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
-| Intent                     | Ministral 3 3B            | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
-| Reaction                   | Ministral 3 3B            | Gemini 2.5 Flash-Lite     | Short, fast responses; shares the 3B model with Intent                                                               |
+| Category                   | Local pick                              | Cloud pick                | Why                                                                                                                  |
+| -------------------------- | --------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B (unqualified) | Claude Sonnet 4.6         | Quality-critical; candidates must pass the promotion gate before setup may call them qualified                       |
+| Simulation (Tier 2 nearby) | Qwen 3.5 9B                             | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
+| Simulation (Tier 3 batch)  | Qwen 3.5 9B                             | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
+| Intent                     | Ministral 3 3B                          | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
+| Reaction                   | Ministral 3 3B                          | Gemini 2.5 Flash-Lite     | Short, fast responses; shares the 3B model with Intent                                                               |
 
 #### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
 
-Two-slot Qwen loadout (recommended):
+Legacy two-slot Qwen candidate (experimental; not production-qualified):
 
 | Category   | Local pick                                              | Cloud pick            | Notes                                                                                                                                  |
 | ---------- | ------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -213,13 +216,15 @@ Two-slot Qwen loadout (recommended):
 Both models load through vllm-mlx 0.3.x's clean mlx_lm path
 (`mllm=False`) — neither matches the MLLM pattern that traps gemma-3.
 Memory footprint ~9.3 GB resident total (1.3 GB + 8 GB).
-**16 GB unified memory is the minimum for local-everything.** Below
-16 GB, route through BYOK cloud (OpenRouter / Anthropic / Google) —
-the small-slot-only fallback produces flat, anachronistic dialogue
-(Opus-blind 2.96/5) and isn't a recommended default. See
-[evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026)
-and the May 2026 Opus-blind compare in
-[`quality_eval_20260511T163000Z.md`](../proofs/local-perf/quality_eval_20260511T163000Z.md).
+The older May 2026 measurements remain useful historical baselines, but they
+predate the production-prompt holdout, hard-failure, reliability, and
+player-ready-turn gate. The current setup therefore recommends BYOK cloud
+(OpenRouter / Anthropic / Google) for dialogue at every memory tier and labels
+the local profile experimental. Below 16 GB, the small-slot-only fallback also
+produces flat, anachronistic dialogue (Opus-blind 2.96/5). See the “Qwen
+two-slot validation (May 2026)” section of the local archive at
+`docs/proofs/local-perf/evidence.md` and the May 2026 Opus-blind comparison at
+`docs/proofs/local-perf/quality_eval_20260511T163000Z.md`.
 
 The 7B tier was the prior Dialogue pick. With the sprinkle-only
 `language_directive` patch the 14B → 7B Overall quality gap is only
@@ -260,7 +265,7 @@ model = "gemini-2.5-flash-lite"
 api_key = "$GOOGLE_API_KEY"
 ```
 
-**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the larger model stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction. The engine's built-in auto-selector picks a gemma4 tier based on VRAM / unified memory (see `select_model_for_vram` in `crates/parish-setup/src/model_select.rs`); override here if you want something different:
+**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the larger model stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction. The engine's built-in auto-selector picks a gemma4 tier based on VRAM / unified memory (see `select_model_for_vram` in `crates/limerick-setup/src/model_select.rs`); override here if you want something different:
 
 ```toml
 [provider]
@@ -279,7 +284,7 @@ base_url = "http://localhost:11435"
 model = "ministral3:3b"
 ```
 
-**Apple Silicon local (macOS, MLX engine)** — two vllm-mlx processes, one per slot. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-setup/src/process.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
+**Apple Silicon local (macOS, MLX engine)** — two vllm-mlx processes, one per slot. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/limerick-setup/src/process.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
 
 ```toml
 [provider]
@@ -413,11 +418,11 @@ The Inference tab in the debug panel shows:
 
 ## Web Server Inference Path
 
-The `parish-server` crate provides a browser-accessible game mode via axum (HTTP + WebSocket). Its inference pipeline mirrors the Tauri path but has distinct characteristics worth noting.
+The `limerick-server` crate provides a browser-accessible game mode via axum (HTTP + WebSocket). Its inference pipeline mirrors the Tauri path but has distinct characteristics worth noting.
 
 ### EventBus
 
-Server-push events (world snapshots, theme updates, NPC streaming tokens, text log entries) are broadcast to WebSocket clients via `EventBus` (`crates/parish-server/src/state.rs`):
+Server-push events (world snapshots, theme updates, NPC streaming tokens, text log entries) are broadcast to WebSocket clients via `EventBus` (`crates/limerick-server/src/state.rs`):
 
 - `send()` — returns the receiver count; logs `tracing::warn!` if the channel has no active subscribers (capacity 256, drop-on-overflow for slow receivers).
 - `emit()` — serialises the payload to `serde_json::Value` first; logs `tracing::warn!` if serialisation fails so silent event loss is observable in structured logs.
@@ -461,14 +466,14 @@ Both log `tracing::debug!` at startup. Serialisation errors inside either loop s
 - [Cognitive LOD](cognitive-lod.md) — Tier determines model selection and batch strategy
 - [Player Input](player-input.md) — Natural language input parsed via this pipeline
 - [Debug UI](debug-ui.md) — Debug panel that displays inference call log
-- [Local-perf evidence](../proofs/local-perf/evidence.md) — raw measurements for the macOS / vllm-mlx path, the four-runtime benchmark, and the corrected vllm-mlx-doesn't-hang finding
+- Local archive `docs/proofs/local-perf/evidence.md` — raw measurements for the macOS / vllm-mlx path, the four-runtime benchmark, and the corrected vllm-mlx-doesn't-hang finding
 - [ADR 005: Ollama Local Inference](../adr/005-ollama-local-inference.md)
 - [ADR 008: Structured JSON LLM Output](../adr/008-structured-json-llm-output.md)
 
 ## Source Modules
 
-- [`parish-inference`](../../parish/crates/parish-inference/src/) — inference queue, worker, validation, and logs
-- [`parish-diagnostics/debug_snapshot`](../../parish/crates/parish-diagnostics/src/debug_snapshot/) — `InferenceLogEntry`, `InferenceDebug` structs (re-exported as `parish_core::debug_snapshot`)
-- [`parish-providers`](../../parish/crates/parish-providers/src/) — provider HTTP clients and simulator/mock backends
-- [`parish-input`](../../parish/crates/parish-input/src/) — Player input parsing
-- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC context construction
+- [`limerick-inference`](../../limerick/crates/limerick-inference/src/) — inference queue, worker, validation, and logs
+- [`limerick-diagnostics/debug_snapshot`](../../limerick/crates/limerick-diagnostics/src/debug_snapshot/) — `InferenceLogEntry`, `InferenceDebug` structs (re-exported as `limerick_core::debug_snapshot`)
+- [`limerick-providers`](../../limerick/crates/limerick-providers/src/) — provider HTTP clients and simulator/mock backends
+- [`limerick-input`](../../limerick/crates/limerick-input/src/) — Player input parsing
+- [`limerick-npc`](../../limerick/crates/limerick-npc/src/) — NPC context construction

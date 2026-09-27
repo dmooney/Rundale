@@ -23,7 +23,7 @@ Inspection performed:
 
 ## Verdict
 
-AQ is a visually strong fresh notebook-style plate, but a mixed direct-control result. It improves the illustrated-parish-notebook feel and mostly solves AO's chimney/stub failure without needing a cleanup edit. It is worse than AO/AP3 for map/control fidelity and open-field restraint: the result invents a more composed crossroads settlement, adds more buildings/compound emphasis than the crop clearly supports, and uses many low stone-wall fragments around roads and yards. Treat it as useful evidence for style and roof-negative prompting, not as a better one-shot topology recipe than AO.
+AQ is a visually strong fresh notebook-style plate, but a mixed direct-control result. It improves the illustrated-rundale-notebook feel and mostly solves AO's chimney/stub failure without needing a cleanup edit. It is worse than AO/AP3 for map/control fidelity and open-field restraint: the result invents a more composed crossroads settlement, adds more buildings/compound emphasis than the crop clearly supports, and uses many low stone-wall fragments around roads and yards. Treat it as useful evidence for style and roof-negative prompting, not as a better one-shot topology recipe than AO.
 
 ## Audit
 

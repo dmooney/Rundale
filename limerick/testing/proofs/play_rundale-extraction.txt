@@ -1,0 +1,34 @@
+# Verification fixture for rundale-extraction.
+#
+# Exercises the game in a way that surfaces mod-specific content
+# (start location, NPC dialogue language) so the same fixture run under
+# two different active base mods produces transcripts that prove the
+# engine carries no Rundale-specific defaults.
+#
+# Run twice:
+#   echo 'active_base = "testbed"' > mods/mod-list.toml
+#   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
+#     -- --script parish/testing/proofs/play_rundale-extraction.txt \
+#     > .proofs/rundale-extraction/transcript-testbed.txt
+#
+#   echo 'active_base = "rundale"' > mods/mod-list.toml
+#   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
+#     -- --script parish/testing/proofs/play_rundale-extraction.txt \
+#     > .proofs/rundale-extraction/transcript-rundale.txt
+#
+# Expected divergence:
+#   - location, splash text, NPC names differ
+#   - testbed NPC replies contain pig-Latin suffixes (-ay/-way)
+#   - rundale NPC replies contain Hiberno-English markers
+#     (ye/'tis/Dia dhuit/mo chara)
+#   - testbed transcript matches `Irish|Roscommon|1820` zero times
+
+/status
+/time
+look
+/npcs
+/help
+say hello, how are you today?
+/wait 30
+look
+/npcs

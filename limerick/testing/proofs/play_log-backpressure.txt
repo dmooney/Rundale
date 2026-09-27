@@ -1,0 +1,94 @@
+# log-backpressure play-test
+# ===========================
+# Exercises the bounded character/location log writer in
+# parish-server/src/session/ticks.rs. Drive this against a LIVE
+# parish-server (the in-process GameTestHarness does NOT run
+# spawn_session_ticks):
+#
+#   PARISH_USER_DATA_DIR=/tmp/parish-log-backpressure \
+#     bash parish/scripts/parish-mcp-backend.sh start   # or: just web 3001
+#   parish --script parish/testing/proofs/play_log-backpressure.txt
+#
+# After the run (PARISH_USER_DATA_DIR is the FULL log root — no app suffix):
+#
+#   ls /tmp/parish-log-backpressure/logs/branch-1/
+#   grep '<!-- PROFILE_START -->' /tmp/parish-log-backpressure/logs/branch-1/player.md
+#   grep '^### ' /tmp/parish-log-backpressure/logs/branch-1/player.md
+#   ls /tmp/parish-log-backpressure/logs/branch-1/loc-*.md
+#
+# C3 signal: player.md has a PROFILE_START marker (write_all_profiles ran)
+# AND multiple "### <date>, HH:MM" journal headings (PlayerMoved events
+# written through the new bounded writer task — no loss under burst). At
+# least one loc-*.md confirms LocationLogManager still routes through the
+# writer. The intentionally tight movement + /stub burst below produces more
+# journal-writing events than a small queue capacity, so it pushes the
+# bounded channel toward saturation and proves the writer applies
+# backpressure rather than dropping or deadlocking.
+
+# 1. Baseline: confirm world is up and capture starting location.
+/status
+/time
+/debug here
+/npcs
+
+# 2. Burst of back-and-forth movement to fire many PlayerMoved events fast.
+#    Each move writes "Arrived" to player.md and a "Player arrived" entry to
+#    the destination loc — the work items that flow through the bounded queue.
+go to The Crossroads
+/debug here
+go to Darcy's Pub
+/debug here
+go to The Crossroads
+/debug here
+go to Kilteevan Village
+/debug here
+go to The Crossroads
+/debug here
+go to Darcy's Pub
+/debug here
+go to The Crossroads
+/debug here
+go to Kilteevan Village
+/debug here
+go to The Crossroads
+/debug here
+go to Darcy's Pub
+/debug here
+
+# 3. Burst of stub dialogue at the pub so many DialogueOccurred events fire
+#    back-to-back — each writes a You:/I: block to the NPC log and a Dialogue
+#    entry to the pub's loc log. Tight loop to stress the writer queue.
+/npcs
+/stub Padraig Darcy: Sure, the parish is quiet this morning.
+say Good morning, Padraig.
+/stub Padraig Darcy: The roads are soft after the rain, God help us.
+say What news from the road?
+/stub Padraig Darcy: There's talk of a fair come the spring.
+say And how are the crops faring?
+/stub Padraig Darcy: The landlord's man was about again, bad cess to him.
+say Has the rent gone up?
+/stub Padraig Darcy: Aye, a quiet word travels far in this parish.
+say Mind yourself, Padraig.
+
+# 4. Advance time fast so schedule/mood ticks fire more NPC and location
+#    events on top of the player-driven burst (NpcArrived/NpcDeparted →
+#    more writer-queue traffic).
+/speed fast
+/wait 180
+/status
+/npcs
+
+# 5. A few more moves for additional distinct-timestamp journal entries
+#    after the time jump.
+go to The Crossroads
+/debug here
+go to Kilteevan Village
+/debug here
+go to The Crossroads
+/debug here
+
+# 6. Final snapshot — confirms the world is still live and the writer queue
+#    drained without deadlock or crash after the burst.
+/time
+/status
+/map

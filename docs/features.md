@@ -1,6 +1,6 @@
-# Parish — Feature List
+# Limerick — Feature List
 
-Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM-driven NPCs with a cognitive level-of-detail simulation. Every NPC lives an ongoing life — working, gossiping, attending festivals — whether or not the player is watching.
+Rundale is a text-based adventure game set in 1820s rural Ireland, powered by LLM-driven NPCs with a cognitive level-of-detail simulation. Every NPC lives an ongoing life — working, gossiping, attending festivals — whether or not the player is watching.
 
 ---
 
@@ -32,13 +32,13 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 
 ### Weather System
 
-- **Seven weather states:** Clear, PartlyCloudy, Overcast, LightRain, HeavyRain, Fog, Storm (`crates/parish-types/src/ids.rs`)
+- **Seven weather states:** Clear, PartlyCloudy, Overcast, LightRain, HeavyRain, Fog, Storm (`crates/limerick-types/src/ids.rs`)
 - Weather transition engine runs in the simulation tick path
 - **Adjacent-state-only transitions** — weather cannot jump from Clear directly to Storm; it must step through intermediate states
 - **2-hour minimum dwell** — once a weather state is entered it persists for at least 2 in-game hours before any transition is considered
 - **Season-biased probabilities** — transition likelihoods are weighted by the current season (e.g. Fog is more common in autumn, Storm more common in winter)
 - Weather state available to NPC dialogue context
-- **Weather-gated travel** — connections carry optional `hazard` tags (`flood`, `lakeshore`, `exposed`) that make paths impassable in a storm, slower in heavy rain, or treacherous in fog. The flooded ford refuses the player back; an alternate route is used where one exists (`crates/parish-world/src/movement.rs`). `/weather` shows the current weather; `/weather <name>` forces a state for testing.
+- **Weather-gated travel** — connections carry optional `hazard` tags (`flood`, `lakeshore`, `exposed`) that make paths impassable in a storm, slower in heavy rain, or treacherous in fog. The flooded ford refuses the player back; an alternate route is used where one exists (`crates/limerick-world/src/movement.rs`). `/weather` shows the current weather; `/weather <name>` forces a state for testing.
 - **NPCs seek shelter** — during heavy rain and storms, NPCs move indoors or to the nearest sheltered location
 
 ### Travel
@@ -46,7 +46,7 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 - Per-edge travel time computed from lat/lon distance
 - **Transport modes:** walk vs. horse/cart — configurable travel speeds per mode, surfaced into travel-time calculations
 - **Travel encounters:** time-of-day-weighted en-route encounters with ~20% base probability modulated by time of day, mod-driven flavour text in `encounters.json` keyed by time period
-- **Wayfarers** — traveling NPCs randomly encountered on roads during movement. Each encounter resolves through the wayfarer system (`parish-world/src/wayfarers.rs`): an encounter is selected, an enrichment prompt is built for the LLM, and the wayfarer's dialogue is integrated into the travel narrative. Seed-based for reproducibility.
+- **Wayfarers** — traveling NPCs randomly encountered on roads during movement. Each encounter resolves through the wayfarer system (`limerick-world/src/wayfarers.rs`): an encounter is selected, an enrichment prompt is built for the LLM, and the wayfarer's dialogue is integrated into the travel narrative. Seed-based for reproducibility.
 
 ### Festivals
 
@@ -62,7 +62,9 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 ### Mythology
 
 - Locations carry a `mythological_significance` field that is surfaced into NPC prompts
-- Reserved for future folklore systems (Phase 6); data fields exist, no active effects
+- Three offline place actions expose distinct layers of the same canonical scene: `listen` / `/listen` renders ordinary ambience, `/omen` offers a cautious present-tense sign but never a prophecy, and `/folklore` returns the location's exact authored tradition or says that no old account comes readily to mind
+- Natural-language intent can also detect discussion of omens, folklore, or listening to the world and prepend a brief atmospheric cue while the underlying conversational turn continues; it does not replace the turn
+- The renderer is seeded from canonical world state, so the same save moment gives the same answer; broader consequential folklore encounters remain future work
 
 ---
 
@@ -70,7 +72,7 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 
 ### Cognitive Level-of-Detail (LOD)
 
-Parish's core innovation: NPCs are simulated at different fidelity levels based on proximity to the player.
+Limerick's core innovation: NPCs are simulated at different fidelity levels based on proximity to the player.
 
 | Tier       | Proximity        | Method                | Description                                                                                            |
 | ---------- | ---------------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -192,9 +194,13 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 
 **Game Control:**
 
+- `listen` / `/listen` — Hear the current place's ordinary soundscape, shaped by time, season, weather, and shelter.
+- `/omen` — Notice a detail that local belief might read as a sign. The wording stays uncertain and present-tense; it never promises an outcome or changes canonical state.
+- `/folklore` — Recall the current location's exact authored tradition. At an ordinary place, it says that no old account comes readily to mind rather than claiming none exists or inventing one.
+- Natural discussion of omens, folklore, or listening to the world adds a short deterministic atmospheric cue while the conversational turn continues. An explicit slash command always performs only its named place action.
 - `/pause` / `/resume` — Pause or resume the simulation
 - `/quit` — Exit game
-- `/new` — Start a fresh game
+- `/new` / `/new-game` — Start a fresh game
 - `/status` — Show current game state
 - `/time` — Display current in-game time
 - `/where` — Show current location
@@ -215,7 +221,7 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 **Display:**
 
 - `/map` — List available tile sources; `/map <id>` switches to the named tile source (gated on the `period-map-tiles` flag)
-- `/designer` — Open the parish designer
+- `/designer` — Open the Limerick Designer
 - `/theme [arg]` — Show or set the UI theme
 - `/irish` — Toggle the Focail (Irish pronunciation) sidebar
 - `/improv` — Toggle improv craft mode for NPC dialogue
@@ -229,13 +235,18 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 
 Known engine flags (all **default-on**; disable to opt out):
 
+- `place-listening` — deterministic, offline `/listen`, `/omen`, and `/folklore` responses plus the supplemental atmospheric cue for natural topic intent.
 - `period-map-tiles` — `/map <id>` tile-source switching.
 - `local-inference-onboarding` — first-run wizard that downloads bundled
   vllm-mlx + Qwen weights on macOS, or routes to BYOK on other hosts.
   Disable to skip the wizard entirely and force startup to use
-  whatever `PARISH_*` env vars / `parish.toml` already configure.
+  whatever `LIMERICK_*` env vars / `limerick.toml` already configure.
 - `night-visions` (planned) — see `docs/design/ideas/night-visions.md`.
 - `banshee` — banshee death-herald system: keening cries announce impending NPC death during dusk-to-dawn windows (see Death & The Banshee).
+- `tier4-simulation` — seasonal CPU-only life events for NPCs more than five
+  graph edges from the player. The same kill switch governs web, desktop,
+  headless, and bulk-time harness pumps; disabling it does not enable or alter
+  autonomous NPC conversation chains.
 
 Flags documented in plans but not yet implemented:
 
@@ -323,7 +334,7 @@ Categories are `dialogue`, `simulation`, `intent`, or `reaction`.
 | **Simulator**     | Offline (default) | Generates nonsense locally, no network or model download                                                                              |
 | **Ollama**        | Local             | Auto-start, auto-install, GPU detection, automatic model selection by VRAM                                                            |
 | **LM Studio**     | Local             |                                                                                                                                       |
-| **vLLM**          | Local             | vllm-mlx on Apple Silicon (16 GB+ unified memory)                                                                                     |
+| **vLLM**          | Local             | vllm-mlx on Apple Silicon; current bundled dialogue profiles are experimental, not production-qualified                               |
 | **OpenRouter**    | Cloud             |                                                                                                                                       |
 | **OpenAI**        | Cloud             |                                                                                                                                       |
 | **Anthropic**     | Cloud             | Native `/v1/messages` API — not the OpenAI-compatibility shim                                                                         |
@@ -347,7 +358,7 @@ Four independent inference categories, each with its own provider/model/key over
 - **Intent** — Player input parsing and classification
 - **Reaction** — NPC emote/mood reactions
 
-Use dot-notation commands (e.g. `/provider.reaction openai`) or `PARISH_REACTION_*` env vars to route a specific category.
+Use dot-notation commands (e.g. `/provider.reaction openai`) or `LIMERICK_REACTION_*` env vars to route a specific category.
 
 ### Priority Queue
 
@@ -368,11 +379,11 @@ Use dot-notation commands (e.g. `/provider.reaction openai`) or `PARISH_REACTION
 
 ### Configuration Resolution
 
-Provider config is resolved by `resolve_config` in `crates/parish-config/src/provider.rs`. Later layers override earlier ones:
+Provider config is resolved by `resolve_config` in `crates/limerick-config/src/provider.rs`. Later layers override earlier ones:
 
 1. Hardcoded defaults (default provider is **Simulator**; no network or API key required)
-2. TOML config file (`parish.toml`) with per-category overrides
-3. Environment variables (`PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`)
+2. TOML config file (`limerick.toml`) with per-category overrides
+3. Environment variables (`LIMERICK_PROVIDER`, `LIMERICK_BASE_URL`, `LIMERICK_API_KEY`, `LIMERICK_MODEL`)
 4. CLI flags (`--provider`, `--model`, `--api-key`, `--base-url`)
 
 ### Reachability & Timeouts
@@ -395,7 +406,7 @@ Five-layer defense against prompt injection:
 - Auto-starts `ollama serve` if not running; shuts down cleanly on exit
 - Binary detection via PATH; auto-installs if missing
 - **GPU detection** via `nvidia-smi`, `rocm-smi`, or `sysctl hw.memsize` (Apple Silicon unified memory)
-- **Automatic model selection by VRAM** (`crates/parish-setup/src/model_select.rs`):
+- **Automatic model selection by VRAM** (`crates/limerick-setup/src/model_select.rs`):
   - ≥25 GB → `gemma4:31b` (dense)
   - ≥17 GB → `gemma4:26b` (MoE, 4B active)
   - ≥11 GB → `gemma4:e4b` (edge, 4.5B effective)
@@ -406,15 +417,15 @@ Five-layer defense against prompt injection:
 
 On first launch (or when no inference provider is configured), the engine presents a **SetupOverlay** fork screen:
 
-- **Local inference path** — downloads bundled Qwen2.5 weights for vllm-mlx on macOS (16 GB+ unified memory), or auto-installs Ollama on Linux/Windows
-- **BYOK cloud path** — configure any supported cloud provider with your own API key
+- **Local inference path (experimental)** — downloads bundled Qwen2.5 weights for vllm-mlx on macOS, or auto-installs Ollama on Linux/Windows; setup shows that no current profile has passed the production dialogue gate
+- **BYOK cloud path (recommended for dialogue)** — configure any supported cloud provider with your own API key
 
 The BYOK flow is driven by two tools:
 
-- `parish_setup_status` — reads current setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`
-- `parish_setup_byok` — persists a provider config (provider id, API key, optional base URL / model override) and rebuilds the live inference worker
+- `limerick_setup_status` — reads current setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`
+- `limerick_setup_byok` — persists a provider config (provider id, API key, optional base URL / model override) and rebuilds the live inference worker
 
-API keys are stored in the **OS keychain** via the `SecretStore` trait (using the `keyring` crate), never in plaintext config files. `parish.toml` explicitly excludes the `api_key` field — secrets and config are deliberately separated. The `local-inference-onboarding` feature flag (default-on) controls whether the wizard appears; disable to skip it entirely and force startup to use whatever `PARISH_*` env vars or `parish.toml` already configure.
+API keys are stored in the **OS keychain** via the `SecretStore` trait (using the `keyring` crate), never in plaintext config files. `limerick.toml` explicitly excludes the `api_key` field — secrets and config are deliberately separated. The `local-inference-onboarding` feature flag (default-on) controls whether the wizard appears; disable to skip it entirely and force startup to use whatever `LIMERICK_*` env vars or `limerick.toml` already configure.
 
 In the GUI, the onboarding flow renders as a **SetupOverlay** component with a fork UX (`ByokOnboarding.svelte`, `LocalInferenceFork.svelte`), live weight-download progress with a triquetra spinner SVG, and streaming setup-message updates. In server mode, the equivalent HTTP endpoints are `/api/setup-status` and `/api/submit-byok`.
 
@@ -422,9 +433,9 @@ In the GUI, the onboarding flow renders as a **SetupOverlay** component with a f
 
 For a shippable `.app` that runs with zero Python or vllm-mlx setup on the end user's machine:
 
-- `just build-vllm-mlx-bundle` (~5 min, ~360 MB compressed) materializes a relocatable Python runtime at `parish/dist/vllm-mlx/python-runtime/` with vllm-mlx pip-installed via `python-build-standalone` — no venv (absolute paths would break when the bundle moves)
+- `just build-vllm-mlx-bundle` (~5 min, ~360 MB compressed) materializes a relocatable Python runtime at `limerick/dist/vllm-mlx/python-runtime/` with vllm-mlx pip-installed via `python-build-standalone` — no venv (absolute paths would break when the bundle moves)
 - `cargo tauri build` includes the bundle under `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`
-- On first launch, the app detects the bundle, recommends local inference for Macs with ≥16 GB unified memory, and downloads Qwen2.5 weights with a live progress bar
+- On first launch, the app detects the bundle, offers local inference as experimental, recommends BYOK for dialogue, and downloads Qwen2.5 weights with a live progress bar only when the user chooses local
 - CI: `.github/workflows/build-vllm-mlx-bundle.yml` (manual trigger)
 
 For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime falls through to a `PATH`-installed vllm-mlx (`uv tool install vllm-mlx`).
@@ -437,9 +448,9 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ### Rate Limiting
 
-- Outbound request throttling per provider client, gating every LLM call before it leaves the process (`crates/parish-providers/src/rate_limit.rs`)
+- Outbound request throttling per provider client, gating every LLM call before it leaves the process (`crates/limerick-providers/src/rate_limit.rs`)
 - Token-bucket / GCRA quota via the `governor` crate — sustained `per_minute` rate plus a `burst` capacity
-- Per-category overrides under `[engine.inference.rate_limits.*]` in `parish.toml` (`dialogue`, `simulation`, `intent`, `reaction`), resolved by `RateLimitConfig::for_category`; plus a `default` limit for the base client (`crates/parish-config/src/engine.rs`)
+- Per-category overrides under `[engine.inference.rate_limits.*]` in `limerick.toml` (`dialogue`, `simulation`, `intent`, `reaction`), resolved by `RateLimitConfig::for_category`; plus a `default` limit for the base client (`crates/limerick-config/src/engine.rs`)
 - Off by default — omitting the config (or setting `per_minute = 0`) leaves clients unthrottled, preserving existing behavior
 - Both blocking (`acquire`) and non-blocking (`try_acquire`) entry points so callers can either queue or shed load
 
@@ -447,38 +458,33 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ## GUI (Tauri 2 + Svelte 5)
 
-### Illustrated Parish Viewport
+### Chat-First Illustrated Viewport
 
-- The default play view closely follows the illustrated parish notebook concept: a full-bleed,
-  oblique rural scene rendered in Pixi, a restrained top status ribbon, a nearby-people strip,
-  and a right-edge sewn notebook page
-- Action stamps and the single-line **Player intent** field stay near the lower centre of the
-  scene; Map, Time & Weather, active-intent, and utility cards sit at the edges
-- The game canvas remains visually stable while notebook sheets are open; closing a sheet
-  restores focus to the control that opened it without shifting the viewport
-- There is no persistent dashboard or default content overlay. A semantic live summary exposes
-  location, time phase, weather, season, pause/festival state, the selected nearby person, and
-  response readiness to assistive technology
+- The default play view is semantic Svelte DOM: `StatusBar`, a responsive scene
+  header, the readable `ChatPanel`, enriched `InputField`, `Sidebar`, and map
+  context.
+- Approved watercolor plates, NPC portraits, and selected icons are responsive
+  DOM images; the retired Pixi/notebook renderer is not shipped.
+- Desktop keeps map, nearby people, and language hints beside chat. Mobile keeps
+  the transcript and input primary with explicit Map and People & Words controls.
+- Transcript attribution, streaming, reactions, sticky scrolling, history,
+  mentions, slash/model/location completion, and quick travel remain in the
+  primary interaction model.
 
-### Notebook Sheets
+### Coordinated Surfaces
 
-- **Journal:** scrolling conversation history with player, NPC, and system speaker labels,
-  asterisk-wrapped emote styling, real-time NPC streaming, auto-scroll, and the Celtic-knot
-  loading treatment
-- **People:** nearby parish residents and their current identity/state details
-- **Focail:** the Irish-word and pronunciation guide
-- **Map:** the full parish map, opened from its illustrated card or with M
-- **Time & Weather:** clock, weather, season, simulation/reply state, and active festival
-- **Ledger:** save/load branch picker, opened from the notebook utility tabs or with F5
-- **Debug, Mod, Bug Report, and Shortcuts:** contained utility sheets opened from the notebook's
-  **More** tab or their shortcuts
-- Only one sheet is open at a time. Escape, the close control, or the backdrop dismisses a
-  dismissible sheet; a required Mod selection remains open until the player chooses a mod.
-  Notebook wrappers isolate the existing feature internals from the concept-faithful first view
+- **Map:** the full parish map, opened from the mobile/desktop control or M.
+- **Ledger:** save/load branch picker, opened from the status bar or F5.
+- **Debug:** eight diagnostic tabs, opened from Developer tools or F12.
+- **Mod, Bug Report, and Shortcuts:** contained utility surfaces opened from
+  Developer tools or their shortcuts.
+- One presentation-neutral coordinator owns these surfaces. It prevents overlap,
+  blocks dismissal of required mod selection, cancels in-flight bug preparation
+  safely, and restores focus to the invoking control or player input.
 
 ### Map
 
-- **Full notebook map sheet** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
+- **Full coordinated map surface** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
 - **Animated travel** — when the player moves between locations, the map smoothly pans and zooms to the destination, interpolating both center and zoom level across the journey's duration so the post-travel view is already framed when the player arrives
 - **Tile sources:** `/map` lists configured tile sources; `/map <id>` switches to one (requires the `period-map-tiles` flag)
 - Fixed-scale Mercator projection from real lat/lon coordinates
@@ -493,7 +499,7 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ### Save Picker
 
-- Ledger-style notebook sheet (F5 hotkey)
+- Coordinated Ledger surface (F5 hotkey)
 - Branch DAG tree visualization with hierarchical layout
 - Create, load, fork, and manage save branches visually
 - Auto-zoom bounding box for branch tree viewport
@@ -501,7 +507,7 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 ### Debug Panel
 
 - **8 tabs:** Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference
-- Contained in a notebook utility sheet, opened with F12 or from More
+- Contained in a coordinated utility surface, opened with F12 or Developer tools
 - **Overview:** Game clock, time of day, season, weather, speed, pause state, festival, location, tier summary (T1-T4 NPC counts and names)
 - **NPCs:** Selectable NPC list with detailed view (age, occupation, personality, relationships, memory)
 - **World:** World state inspection
@@ -533,7 +539,7 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 
 - Press **F2** to capture a screenshot of the current game view
 - Screenshots are saved to the platform-appropriate pictures directory
-- The MCP tool `parish_latest_screenshot` returns metadata (path, timestamp, size) for the most recent player-triggered capture
+- The MCP tool `limerick_latest_screenshot` returns metadata (path, timestamp, size) for the most recent player-triggered capture
 - Server endpoints: `/api/take-screenshot` and `/api/latest-screenshot`; agent-triggered capture reuses the latest verified screenshot with a warning when the desktop window cannot produce a fresh capture
 - Automated screenshot capture via `--screenshot <dir>` flag: captures at four times of day for use in `just screenshots`
 
@@ -550,10 +556,10 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 - **Enter** — activate a focused control or send the current intent
 - **Esc** — close the active dismissible sheet or stop the demo
 
-### Parish Designer (GUI Editor)
+### Limerick Designer (GUI Editor)
 
-- Integrated GUI editor at the `/editor` route, accessible from both the Tauri desktop app and the web server (`PARISH_ENABLE_EDITOR=1`)
-- Follows the mode-parity rule — every editor command is implemented once in `parish-core` and wired to both backends
+- Integrated GUI editor at the `/editor` route, accessible from both the Tauri desktop app and the web server (`LIMERICK_ENABLE_EDITOR=1`)
+- Follows the mode-parity rule — every editor command is implemented once in `limerick-core` and wired to both backends
 - **Mod browser** — lists all mods under `mods/`, switch between them without restarting
 - **NPC editor** — edit identity, six-axis intelligence (tunable via sliders), home/workplace (location picker, no id-memorizing), knowledge items, gossip seeds, and relationships with automatic bidirectional bookkeeping
 - **Schedule timeline** — read-only 24-hour SVG band per season/day-type showing when each NPC is where
@@ -586,10 +592,10 @@ Location-based ambient audio with distance attenuation and weather dampening:
 
 ### Axum Backend
 
-- `parish-server` crate (`crates/parish-server/`) serves the same Svelte UI over HTTP + WebSocket
-- One isolated engine session per `parish_sid` cookie — each browser tab gets its own game instance
+- `limerick-server` crate (`crates/limerick-server/`) serves the same Svelte UI over HTTP + WebSocket
+- One isolated engine session per `limerick_sid` cookie — each browser tab gets its own game instance
 - Library crate plus a runnable binary with `--port PORT` flag (default 3001)
-- **Tile proxy** at `/tiles/{*path}` with a 3-tier cache: user-local disk cache (configurable via `PARISH_TILE_CACHE_DIR`), bundled tiles shipped with the app (`PARISH_BUNDLED_TILES_DIR`), and upstream fetch from tile servers as the final fallback. Tiles are served as XYZ slippy-map fragments for MapLibre GL.
+- **Tile proxy** at `/tiles/{*path}` with a 3-tier cache: user-local disk cache (configurable via `LIMERICK_TILE_CACHE_DIR`), bundled tiles shipped with the app (`LIMERICK_BUNDLED_TILES_DIR`), and upstream fetch from tile servers as the final fallback. Tiles are served as XYZ slippy-map fragments for MapLibre GL.
 
 ### Authentication
 
@@ -609,7 +615,7 @@ Location-based ambient audio with distance attenuation and weather dampening:
 
 - Per-session save isolation — game state lives under `<user-data>/saves/<session_id>/` and survives server restarts
 - User-data root is platform-native: `~/Library/Application Support/Rundale` (macOS), `$XDG_DATA_HOME/rundale` (Linux), `%APPDATA%\Rundale` (Windows)
-- Override with `PARISH_SAVES_DIR` (saves), `PARISH_TILE_CACHE_DIR` (tile cache), or `PARISH_USER_DATA_DIR` (root)
+- Override with `LIMERICK_SAVES_DIR` (saves), `LIMERICK_TILE_CACHE_DIR` (tile cache), or `LIMERICK_USER_DATA_DIR` (root)
 
 ### Monitoring
 
@@ -621,25 +627,25 @@ Location-based ambient audio with distance attenuation and weather dampening:
 
 ---
 
-## Thin HTTP Client (`parish-client`)
+## Thin HTTP Client (`limerick-client`)
 
 ### Architecture
 
-- Separate `parish` binary that talks to a running `parish-server` over HTTP — no engine in-process, no game state owned locally
+- Separate `limerick` binary that talks to a running `limerick-server` over HTTP — no engine in-process, no game state owned locally
 - All game logic lives on the server; the client is a thin shell that serializes commands and renders responses
 
 ### Four Modes
 
-| Mode            | Invocation               | Description                                                                      |
-| --------------- | ------------------------ | -------------------------------------------------------------------------------- |
-| **Single-shot** | `parish "<cmd>"`         | One command, formatted output, exits immediately                                 |
-| **Script**      | `parish --script <file>` | Batch fixture execution from a `.txt` command file                               |
-| **REPL**        | `parish` (no args)       | Interactive read-eval-print loop with history and tab completion                 |
-| **JSON**        | `parish --json "<cmd>"`  | Raw `CommandResponse` JSON — suitable for piping into `jq` or automation scripts |
+| Mode            | Invocation                 | Description                                                                      |
+| --------------- | -------------------------- | -------------------------------------------------------------------------------- |
+| **Single-shot** | `limerick "<cmd>"`         | One command, formatted output, exits immediately                                 |
+| **Script**      | `limerick --script <file>` | Batch fixture execution from a `.txt` command file                               |
+| **REPL**        | `limerick` (no args)       | Interactive read-eval-print loop with history and tab completion                 |
+| **JSON**        | `limerick --json "<cmd>"`  | Raw `CommandResponse` JSON — suitable for piping into `jq` or automation scripts |
 
 ### Cookie Persistence
 
-- The server's `parish_sid` cookie is saved to disk between runs
+- The server's `limerick_sid` cookie is saved to disk between runs
 - Subsequent invocations automatically resume the same save branch without re-authentication
 
 ### Use Cases
@@ -681,7 +687,7 @@ mods/<mod-name>/
 
 - `geo_kind` — `real` (geocoded from OSM), `manual` (author-pinned coordinates), or `fictional` (purely invented)
 - Relative anchors let fictional clusters subordinate to a real place — a fictional cottage can be placed "2 km north-east of Kilteevan"
-- `mythological_significance` field surfaced into NPC prompts
+- `mythological_significance` is surfaced into NPC prompts and supplies the exact authored tradition for `/folklore`; the related `/listen` and `/omen` actions never fabricate additional world facts
 - Connection edges with prose descriptions and optional hazard tags
 
 ### Default Mod: Rundale
@@ -699,40 +705,40 @@ Shipped at `mods/rundale/` (`mod.toml` id: `rundale`, title: "Rundale", descript
 
 ## Multiple Runtime Modes
 
-Parish ships as five binaries with one shared engine core:
+Limerick ships as five binaries with one shared engine core:
 
-| Binary          | Mode                                   | Has engine in-process?              | Description                                                                                            |
-| --------------- | -------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `parish-tauri`  | `just run`, `--screenshot <dir>`       | yes                                 | Default desktop experience — full GUI in a native window; `--screenshot` captures at four times of day |
-| `parish-engine` | `--headless`, `--script FILE`          | yes                                 | Single-process terminal REPL; `--script` drives the deterministic test harness                         |
-| `parish-server` | `--port PORT` (`just web`)             | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI over HTTP + WebSocket                                 |
-| `parish-client` | single-shot / script / REPL / `--json` | no — thin shell                     | Drive a running `parish-server` over HTTP; lightweight terminal alternative                            |
-| `parish-mcp`    | MCP server bridge                      | no — bridge                         | Expose `mcp__parish__*` tools to AI agents over HTTP to a running backend                              |
+| Binary            | Mode                                   | Has engine in-process?              | Description                                                                                            |
+| ----------------- | -------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `limerick-tauri`  | `just run`, `--screenshot <dir>`       | yes                                 | Default desktop experience — full GUI in a native window; `--screenshot` captures at four times of day |
+| `limerick-engine` | `--headless`, `--script FILE`          | yes                                 | Single-process terminal REPL; `--script` drives the deterministic test harness                         |
+| `limerick-server` | `--port PORT` (`just web`)             | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI over HTTP + WebSocket                                 |
+| `limerick-client` | single-shot / script / REPL / `--json` | no — thin shell                     | Drive a running `limerick-server` over HTTP; lightweight terminal alternative                          |
+| `limerick-mcp`    | MCP server bridge                      | no — bridge                         | Expose `mcp__limerick__*` tools to AI agents over HTTP to a running backend                            |
 
 ### Mode Parity Rule
 
-Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring. A given feature's behavior cannot diverge between runtimes.
+Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `limerick-core`; entry-point crates contain only thin wiring. A given feature's behavior cannot diverge between runtimes.
 
 ### MCP Bridge
 
-The desktop app (`parish-tauri`) can expose an in-process MCP bridge via `--mcp-port <N>`. This opens an Axum router on `127.0.0.1:<N>` that serves a subset of game endpoints (world snapshot, submit input, save/load, setup, screenshot) to the external `parish-mcp` binary. The bridge enforces mode parity — every Tauri IPC command that has an MCP counterpart is verified at compile time.
+The desktop app (`limerick-tauri`) can expose an in-process MCP bridge via `--mcp-port <N>`. This opens an Axum router on `127.0.0.1:<N>` that serves a subset of game endpoints (world snapshot, submit input, save/load, setup, screenshot) to the external `limerick-mcp` binary. The bridge enforces mode parity — every Tauri IPC command that has an MCP counterpart is verified at compile time.
 
-- `parish-mcp` connects to the bridge over HTTP and registers itself as an MCP server for AI agents (Claude Code, etc.)
-- The same bridge is used by `parish/scripts/parish-mcp-backend.sh` for the headless server path
+- `limerick-mcp` connects to the bridge over HTTP and registers itself as an MCP server for AI agents (Claude Code, etc.)
+- The same bridge is used by `limerick/scripts/limerick-mcp-backend.sh` for the headless server path
 - Bridge endpoints: world snapshot, map, NPCs, save state, submit input, new game, save/load branch, setup status, setup BYOK, latest screenshot
 
 ---
 
 ## Developer Tools
 
-### Geo Tool (`parish-geo-tool`)
+### Geo Tool (`limerick-geo-tool`)
 
 - Standalone Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box
 - Cached responses, dry-run preview, hand-curated merge mode
 - `realign-coords` utility for snapping coordinates to historical map positions
-- Lives as its own crate at `crates/parish-geo-tool/`
+- Lives as its own crate at `crates/limerick-geo-tool/`
 
-### NPC Tool (`parish-npc-tool`)
+### NPC Tool (`limerick-npc-tool`)
 
 - SQLite-backed NPC builder for bulk generation, querying, and editing
 - Bulk-generate parish or county populations with seedable randomness and 1820s demographic weights
@@ -770,9 +776,9 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 
 ### Architecture Fitness Tests
 
-- `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces:
+- `crates/limerick-core/tests/architecture_fitness.rs` mechanically enforces:
   - **Leaf-crate purity** — no `tauri`/`axum`/`tower`/`wry`/`tao` dependencies in shared crates
-  - **CLI-vs-leaf duplication bans** — shared logic must live in a leaf crate, not duplicated in `parish-engine/`
+  - **CLI-vs-leaf duplication bans** — shared logic must live in a leaf crate, not duplicated in `limerick-engine/`
   - **Orphaned-module detection** — source files on disk but not declared as `mod` are rejected
 - Each failure prints a self-correcting hint
 
@@ -781,7 +787,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - `justfile` with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`
 - Witness-marker scan (`just witness-scan`) — rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files
 - Doc-path validator (`just check-doc-paths`) — ensures every backtick-cited file path in `docs/` actually exists
-- `just setup` — one-time recipe installing system dependencies, Rust toolchain, Node.js v20+, and frontend packages
+- `just setup` — one-time recipe installing system dependencies, Rust toolchain, Node.js 24 LTS, and frontend packages
 - `just act-*` recipes for running CI workflows locally via `nektos/act`
 - `just reset-onboarding` — clears keychain entries and config markers for end-to-end testing of the BYOK flow
 
@@ -840,9 +846,9 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - **Phases 1–4 complete:** Core loop, world graph, NPC system with all four cognitive tiers dispatched, SQLite persistence with branching saves
 - **Phases 5A–5E complete:** Event bus and tier transitions, weather state machine, long-term memory and gossip network, Tier 3 batch inference (10 NPCs per call, daily), Tier 4 rules engine (birth, death, illness, marriage, trade per season)
 - **Phase 8 complete:** Tauri GUI rewrite with Svelte 5 frontend
-- **Web server shipped:** Axum backend in `parish-server`, same Svelte UI over HTTP + WebSocket, Cloudflare Access JWT / Google OAuth / loopback auth, per-session save isolation, Prometheus `/metrics`
-- **Parish Designer shipped:** Integrated GUI editor at `/editor` for NPCs, locations, schedules, and mod data
-- **MCP bridge shipped:** `parish-mcp` exposes `mcp__parish__*` tools to AI agents
+- **Web server shipped:** Axum backend in `limerick-server`, same Svelte UI over HTTP + WebSocket, Cloudflare Access JWT / Google OAuth / loopback auth, per-session save isolation, Prometheus `/metrics`
+- **Limerick Designer shipped:** Integrated GUI editor at `/editor` for NPCs, locations, schedules, and mod data
+- **MCP bridge shipped:** `limerick-mcp` exposes `mcp__limerick__*` tools to AI agents
 - **rundale-bench shipped:** Reproducible LLM benchmark for dialogue quality, Gaeilge fluency, and per-provider latency
 - **Ambient sound system shipped:** Location-based audio with distance attenuation, weather dampening, and GUI-only playback (feature-gated)
 - All 40+ slash commands
@@ -860,7 +866,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 ### Partially Implemented
 
 - Full web & mobile client (web server shipped; mobile client planned)
-- Mythology hooks (data fields exist in world.json, no active effects; Phase 6 planned)
+- Wider mythology systems (the three place-attention actions now surface ambience, cautious signs, and authored location lore; consequential folklore encounters and world effects remain planned for Phase 6)
 
 ### In Progress
 

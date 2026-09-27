@@ -1,4 +1,4 @@
-# ShellCheck config for Rundale shell scripts (hooks + parish/scripts).
+# ShellCheck config for Rundale shell scripts (hooks + limerick/scripts).
 # Severity gate is set per-invocation (CI uses -S warning).
 
 # Follow `source`d files so sourced helpers are analyzed, not skipped.

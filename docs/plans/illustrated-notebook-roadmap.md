@@ -1,7 +1,11 @@
 # Roadmap: Illustrated Notebook UI
 
-Status: Integrated default play surface complete; deferred follow-on slices are
-tracked with their residual risks below.
+Status: Closed and retired. Preserved as a historical implementation record.
+
+The Pixi notebook experiment was removed by the chat-first stabilization
+migration. Approved scene and portrait assets remain available to the semantic
+DOM chat shell; the renderer, interaction adapters, and notebook-only contracts
+described below no longer ship.
 
 This is the source of truth for finishing the Rundale illustrated notebook play
 surface. GitHub issues should track executable slices; this document preserves
@@ -37,10 +41,10 @@ The fresh #1630 baseline adds:
 - A PixiJS play surface hosted by
   `IllustratedNotebookGame.svelte`.
 - A new renderer/layout/interaction boundary under
-  `parish/apps/ui/src/lib/illustrated-parish/`; it does not inherit the rejected
+  `limerick/apps/ui/src/lib/illustrated-limerick/`; it does not inherit the rejected
   `src/lib/illustrated-notebook/` visual implementation.
 - A fresh asset kit under
-  `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: desktop/mobile parish
+  `limerick/apps/ui/static/rundale/illustrated-notebook-v2/`: desktop/mobile parish
   plates, concept-referenced raster parchment/ink cutouts, approved person
   portraits and markers, and the explicitly approved hand-sewn page. The kit
   does not import either rejected `notebook-ui` asset set.
@@ -177,7 +181,7 @@ independently usable and documented.
 Every notebook UI PR must include:
 
 - Focused unit/component tests for behavior touched.
-- Relevant `parish-world` tests if scene metadata or prompt/provenance rules
+- Relevant `limerick-world` tests if scene metadata or prompt/provenance rules
   change.
 - `fnm exec --using 22 npm run check`, `lint`, `format:check`, and `build` when
   frontend code changes.

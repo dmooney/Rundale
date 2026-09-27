@@ -1,0 +1,11 @@
+# #1833 — accepted work becomes durable task progression.
+#
+# Exact phrases from the escaped live harness run. The canned Tier-1 response
+# keeps the proof deterministic while the production dialogue/apply/action
+# seams classify, assign, publish, and progress authoritative task state.
+go to Darcy's Pub
+/npcs
+/stub Padraig Darcy: {"dialogue":"First, help with the potato patch — break the clods and plant seed in the open rows.","action":"points toward the field","mood":"busy","language_hints":[],"assigned_task":"Break the clods and plant seed in the potato patch.","internal_thought":null}
+I'll take the work. What would you have me do first?
+I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.
+/status

@@ -11,7 +11,7 @@ When the player speaks to an NPC, the Tier 1 prompt is assembled from a fixed se
 1. The NPC's identity, personality, and mood (`build_tier1_system_prompt`).
 2. Relationship summaries ("PEOPLE YOU KNOW").
 3. The four hand-authored `knowledge` bullets per NPC in `mods/rundale/npcs.json` ("WHAT'S ON YOUR MIND").
-4. Per-turn context: location, time, recent conversation, short-term memory, a **keyword-based** long-term-memory recall (`LongTermMemory::recall_context_string`, `crates/parish-npc/src/ticks.rs`), and gossip.
+4. Per-turn context: location, time, recent conversation, short-term memory, a **keyword-based** long-term-memory recall (`LongTermMemory::recall_context_string`, `crates/limerick-npc/src/ticks.rs`), and gossip.
 
 The world's actual lore is far richer than this: `mods/rundale/{world,npcs,festivals}.json` contain location folklore, mythological significance, festival dates and meanings, and the biographies and relationships of every other NPC. None of it reaches the prompt unless it happens to be one of the four `knowledge` bullets. So when a player asks Padraig "what is Lughnasa?" the model either answers from its own training data (often wrong for a 1820 Irish parish) or hallucinates.
 
@@ -26,7 +26,7 @@ Ground Tier 1 dialogue in the parish's own JSON lore. Each turn, retrieve the to
 
 ## Approach
 
-A small retrieval-augmented-generation (RAG) layer, factored as a standalone `parish-rag` crate, prototyped in PR #486. The crate is deliberately minimal — a demo of the pattern, not a vector database.
+A small retrieval-augmented-generation (RAG) layer, factored as a standalone `limerick-rag` crate, prototyped in PR #486. The crate is deliberately minimal — a demo of the pattern, not a vector database.
 
 ```text
 mods/rundale/*.json ──► build_rundale_corpus ──► Vec<LoreChunk>   (one fact per chunk, ~280 chunks)
@@ -49,7 +49,7 @@ mods/rundale/*.json ──► build_rundale_corpus ──► Vec<LoreChunk>   (o
 | Component                                     | Responsibility                                                                                                                                                                                                                                                                                                 |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LoreChunk` / `build_rundale_corpus(mod_dir)` | Read the mod's JSON and split it into one-fact-per-chunk passages: per location (description + folklore as separate chunks), per NPC (identity + personality + each knowledge entry + each relationship), per festival. Chunk granularity is the lever that keeps a single recall from blowing out the prompt. |
-| `AnyEmbedder`                                 | Unified handle over embedding backends, mirroring `parish-inference::AnyClient`. Two variants: `HashEmbedder` and `OllamaEmbedder`.                                                                                                                                                                            |
+| `AnyEmbedder`                                 | Unified handle over embedding backends, mirroring `limerick-inference::AnyClient`. Two variants: `HashEmbedder` and `OllamaEmbedder`.                                                                                                                                                                          |
 | `LoreDocument` / `LoreIndex`                  | An embedded chunk and the in-memory vector store. `search()` is a linear cosine-similarity scan returning the top-k — fine for a few hundred chunks.                                                                                                                                                           |
 | `format_recall_block(hits)`                   | Render retrieved hits as the "KNOWLEDGE YOU RECALL (things you know from living here):" block. Returns an empty string when there are no hits, so callers append unconditionally.                                                                                                                              |
 
@@ -64,8 +64,8 @@ The split mirrors the rest of the project: deterministic offline fallback for re
 
 Retrieval happens in **per-turn context assembly**, not the system prompt:
 
-- Injected inside `build_enhanced_context_with_config` (`crates/parish-npc/src/ticks.rs`), immediately **after** the existing keyword long-term-memory recall and **before** gossip context.
-- Rationale: the query changes every turn, so there is no caching benefit to putting it in the (otherwise stable) system prompt; and placing it next to the existing LTM recall reads naturally. The "KNOWLEDGE YOU RECALL" header is intentionally distinct from the LTM "You recall: …" header so the model can tell _parish lore_ apart from _this NPC's personal memories_.
+- Injected inside `build_enhanced_context_with_config` (`crates/limerick-npc/src/ticks.rs`), immediately **after** the existing keyword long-term-memory recall and **before** gossip context.
+- Rationale: the query changes every turn, so there is no caching benefit to putting it in the (otherwise stable) system prompt; and placing it next to the existing LTM recall reads naturally. The "KNOWLEDGE YOU RECALL" header is intentionally distinct from the LTM "You recall: …" header so the model can tell _limerick lore_ apart from _this NPC's personal memories_.
 
 ### The async boundary
 
@@ -89,7 +89,7 @@ min_score   = 0.0                 # drop hits below this cosine score
 
 ## Cross-frontend wiring (mode parity)
 
-CLAUDE.md rule 2 requires CLI, web server, and Tauri to share behaviour, and shared logic to live in `parish-core`. So the corpus-load + embed + index build is a single shared helper (`parish-core::rag_init::{build_embedder, build_lore_index}`), and each frontend only does thin wiring:
+CLAUDE.md rule 2 requires CLI, web server, and Tauri to share behaviour, and shared logic to live in `limerick-core`. So the corpus-load + embed + index build is a single shared helper (`limerick-core::rag_init::{build_embedder, build_lore_index}`), and each frontend only does thin wiring:
 
 - The index is built **once at startup** (gated on the flag) and handed to the `NpcManager` as an `Option<Arc<LoreIndex>>`. An `Arc<AnyEmbedder>` is stored alongside so the per-turn dialogue path can embed the player query.
 - **CLI** (`headless.rs`): build after `NpcManager::load_from_file`, store on `App`.
@@ -116,7 +116,7 @@ This work is sequenced **after** PR #443 (the structured emotion system). The tw
 
 ## Verification
 
-- **Unit:** flag-off / no-index path omits the block; flag-on with the Hash embedder injects a relevant chunk (`crates/parish-npc/src/ticks.rs` tests, plus the `parish-rag` crate's own tests).
+- **Unit:** flag-off / no-index path omits the block; flag-on with the Hash embedder injects a relevant chunk (`crates/limerick-npc/src/ticks.rs` tests, plus the `limerick-rag` crate's own tests).
 - **Harness:** assert the seeded flag is on, capture the assembled prompt for a canned NPC turn, confirm "KNOWLEDGE YOU RECALL" is present; disable the flag and confirm it disappears.
 - **Gameplay proof:** a `/prove rag-recall` script asks Padraig "What is Lughnasa and when is it celebrated?" and asserts both that the recall block appears in the prompt and that the festival's date is referenced in the response.
 

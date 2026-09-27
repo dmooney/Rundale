@@ -1,0 +1,12 @@
+# #1853 — explicit work-seeking receives useful grounded guidance.
+#
+# The canned non-answers reproduce both escaped completions deterministically.
+# Production obligation derivation, canonical validation, authored roster
+# grounding, dialogue publication, and task-state isolation remain live.
+go to Darcy's Pub
+/npcs
+/stub Padraig Darcy: {"dialogue":"Plainly, then—what brings ye to Kilteevan?","action":"shrugs","mood":"curious","language_hints":[],"assigned_task":"Invent a job","internal_thought":null}
+talk to Padraig Darcy about Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?
+/stub Padraig Darcy: {"dialogue":"I cannot promise work, but I understand you are seeking it.","action":"","mood":"curious","language_hints":[],"assigned_task":null,"internal_thought":null}
+talk to Padraig Darcy about I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.
+/status

@@ -1,0 +1,11 @@
+# Regression proof for #1831: the canonical start date is Monday, 20 March
+# 1820 (Spring). Every command below exercises the real script-mode debug
+# schedule renderer and must resolve season-neutral fallback prose.
+
+/time
+/debug schedule Siobhan
+/debug schedule Declan
+/debug schedule Roisin
+/debug schedule Aoife
+/debug schedule Niamh
+/quit

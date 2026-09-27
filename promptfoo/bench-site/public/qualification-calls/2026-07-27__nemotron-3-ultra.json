@@ -1,0 +1,404 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 1138,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 725,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-3",
+      "kind": "preflight",
+      "label": "Preflight call 3",
+      "metrics": {
+        "elapsed_ms": 2110,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Have you seen Father Declan today?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-4",
+      "kind": "preflight",
+      "label": "Preflight call 4",
+      "metrics": {
+        "elapsed_ms": 991,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "And how is your own family keeping?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-5",
+      "kind": "preflight",
+      "label": "Preflight call 5",
+      "metrics": {
+        "elapsed_ms": 2076,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [
+          "canonical_repetition_guard"
+        ],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Is old Festus the cooper still at his shop by the bridge?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-6",
+      "kind": "preflight",
+      "label": "Preflight call 6",
+      "metrics": {
+        "elapsed_ms": 2513,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How do I get to the abbey in town?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-7",
+      "kind": "preflight",
+      "label": "Preflight call 7",
+      "metrics": {
+        "elapsed_ms": 1961,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [
+          "canonical_repetition_guard"
+        ],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Tell me about your work, but keep it brief.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-8",
+      "kind": "preflight",
+      "label": "Preflight call 8",
+      "metrics": {
+        "elapsed_ms": 1683,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I cannot sleep for worrying. What would you advise?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-9",
+      "kind": "preflight",
+      "label": "Preflight call 9",
+      "metrics": {
+        "elapsed_ms": 3577,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Do you know Padraig Darcy?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-10",
+      "kind": "preflight",
+      "label": "Preflight call 10",
+      "metrics": {
+        "elapsed_ms": 1019,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "What can you tell me of Ballyglass Castle?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-11",
+      "kind": "preflight",
+      "label": "Preflight call 11",
+      "metrics": {
+        "elapsed_ms": 787,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [
+          "canonical_repetition_guard"
+        ],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I heard Cormac Duffy was at the mill. Is that true?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-12",
+      "kind": "preflight",
+      "label": "Preflight call 12",
+      "metrics": {
+        "elapsed_ms": 1285,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Thank you. I should let you return to your work.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    }
+  ],
+  "candidate": "nvidia/nemotron-3-ultra-550b-a55b@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-07-27/nemotron-3-ultra",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/nemotron-3-ultra-preflight.turns.jsonl",
+      "sha256": "78b03455fb4133985e06bafd7054eba9e8b11db3aee350028db2cf95afec8aa7"
+    }
+  ],
+  "version": 1
+}

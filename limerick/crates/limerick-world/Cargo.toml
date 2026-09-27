@@ -1,0 +1,20 @@
+[package]
+name = "limerick-world"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "World graph, movement, weather, and environment state for the Limerick engine"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-config = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+strsim = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }

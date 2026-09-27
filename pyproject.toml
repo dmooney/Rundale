@@ -1,6 +1,6 @@
 # Repo-wide Python tooling config (ruff + mypy + pytest).
-# Python here is dev/bench/eval tooling (rundale-bench/, parish/scripts/,
-# parish/testing/eval/), not shipped runtime code. Install the pinned tools with:
+# Python here is dev/bench/eval tooling (rundale-bench/, limerick/scripts/,
+# limerick/testing/eval/), not shipped runtime code. Install the pinned tools with:
 #   python3 -m venv .venv-dev && .venv-dev/bin/pip install -r requirements-dev.txt
 
 [tool.ruff]
@@ -31,9 +31,10 @@ no_implicit_optional = true
 exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs']
 
 [tool.pytest.ini_options]
-# The bench has bespoke phase tests (test_phase*.py, test_grade.py) under
-# rundale-bench/. Collect those; do not recurse into vendored/generated trees.
-testpaths = ["rundale-bench"]
+# The bench has bespoke phase tests; the scheduled player agent has transport
+# contract tests under limerick/testing/eval; the differential proof tools test
+# under limerick/scripts/proof. Collect all three in the CI pytest gate.
+testpaths = ["rundale-bench", "limerick/testing/eval", "limerick/scripts/proof"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
 addopts = "-q"

@@ -12,7 +12,7 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# Frontend: tabs, matching parish/apps/ui/.prettierrc (useTabs: true)
+# Frontend: tabs, matching limerick/apps/ui/.prettierrc (useTabs: true)
 [*.{ts,svelte,js,mjs,cjs}]
 indent_style = tab
 

@@ -1,4 +1,5 @@
 id = "mistral"
+recommended_preset = "recommended"
 display_name = "Mistral"
 kind = "openai-compat"
 default_base_url = "https://api.mistral.ai"

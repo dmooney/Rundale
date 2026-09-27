@@ -30,7 +30,7 @@ plates. It is an ordering experiment.
 - E2 grid audit:
   `pipeline-experiments/idea-bp-e2-hard-isomorphic-grid-check.png`
 - Style target:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 - Door/material references:
   `style-crops/illustrated-style-low-camera-slate-single-house-door-fixed.png`
   and

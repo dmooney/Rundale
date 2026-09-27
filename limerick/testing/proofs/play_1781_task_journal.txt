@@ -1,0 +1,11 @@
+# #1781 — player-visible task assignment and progression.
+#
+# Crash durability itself is asserted by the real headless dispatch integration
+# test; this script proves that the same authored assignment and physical action
+# remain intelligible through the player-facing harness.
+go to Darcy's Pub
+/npcs
+/stub Padraig Darcy: {"dialogue":"First, help with the potato patch — break the clods and plant seed in the open rows.","action":"points toward the field","mood":"busy","language_hints":[],"assigned_task":"Dig over the potato patch.","internal_thought":null}
+say Padraig, have ye work I can begin here?
+I set to work in the potato patch, breaking clods and planting seed.
+/status

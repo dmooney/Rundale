@@ -2,11 +2,10 @@ name: Rundale CI
 
 # Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
-# Sub-minute fast lane for pull requests and main/develop pushes. Pull requests
-# that touch the shipped browser/server seam additionally run the complete
-# Playwright contract.
-# Other expensive Rust, coverage, game-harness, and UI runtime jobs live in
-# `full-ci.yml`.
+# Fast lint/format lane for every change. Pull requests that touch runtime code,
+# gameplay content, fixtures, or the runtime workflows additionally call the
+# complete correctness suite in `full-ci.yml`. The aggregate `CI gate` remains
+# the repository's single required branch-protection context.
 
 on:
   pull_request:
@@ -22,7 +21,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,9 +31,8 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed. Browser UI and parish-server seam changes
-  # use this output to opt into the complete Playwright contract; other
-  # expensive path-sensitive jobs live in `full-ci.yml`.
+  # Detect whether a pull request can affect the shipped runtime or its
+  # acceptance sensors. Runtime changes opt into the complete reusable suite.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -45,28 +43,47 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     outputs:
-      rust: ${{ steps.filter.outputs.rust || 'true' }}
-      ui: ${{ steps.filter.outputs.ui || 'true' }}
+      runtime: ${{ steps.filter.outputs.runtime || 'true' }}
+      differential: ${{ steps.filter.outputs.differential || 'true' }}
+      promptfoo: ${{ steps.filter.outputs.promptfoo || 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Path filter
         id: filter
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@v4
         with:
           filters: |
-            rust:
-              - 'parish/crates/**'
-              - 'parish/Cargo.toml'
-              - 'parish/Cargo.lock'
-              - 'parish/testing/**'
-              - 'parish/.config/nextest.toml'
+            runtime:
+              - 'limerick/crates/**'
+              - 'limerick/apps/ui/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'limerick/config/**'
+              - 'rust-toolchain.toml'
+              - 'limerick/testing/**'
+              - 'limerick/scripts/**'
+              - 'limerick/justfile'
+              - 'limerick/.config/nextest.toml'
               - 'mods/**'
+              - 'deploy/**'
               - '.github/workflows/ci.yml'
-            ui:
-              - 'parish/apps/ui/**'
-              - 'parish/crates/parish-server/**'
+              - '.github/workflows/full-ci.yml'
+            # Anything compiled into limerick-server / limerick-engine, the
+            # content and fixtures they run, and the differential tooling.
+            differential:
+              - 'limerick/crates/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'rust-toolchain.toml'
+              - 'mods/**'
+              - 'limerick/testing/fixtures/**'
+              - 'limerick/scripts/proof/**'
+              - '.github/scripts/prove-diff-comment.sh'
+              - '.github/workflows/ci.yml'
+            promptfoo:
+              - 'promptfoo/**'
               - '.github/workflows/ci.yml'
 
   agent-check:
@@ -87,7 +104,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
           fetch-depth: 0
@@ -96,37 +113,41 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"
+        run: bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"
 
   docs-consistency:
-    name: Docs consistency (paths cited in agent docs exist on disk)
+    name: Docs and repository artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Check cited paths exist
         working-directory: ${{ github.workspace }}
-        run: ./parish/scripts/check-doc-paths.sh
+        run: ./limerick/scripts/check-doc-paths.sh
+
+      - name: Check tracked repository artifacts
+        working-directory: ${{ github.workspace }}
+        run: ./limerick/scripts/check-repository-artifacts.sh
 
   format-quality:
     name: Docs/data formatting (Prettier + markdownlint)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Root-scoped tooling (configs + package.json live at the repo root, not in
-    # parish/ which is this workflow's global default working-directory).
+    # limerick/ which is this workflow's global default working-directory).
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -152,10 +173,10 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -177,6 +198,40 @@ jobs:
       - name: Pytest
         run: pytest
 
+  promptfoo-quality:
+    name: Promptfoo keyless end-to-end
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.promptfoo == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: promptfoo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: promptfoo/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install promptfoo
+        run: npm ci --ignore-scripts
+
+      - name: Run offline seam tests
+        run: npm test
+
+      - name: Run keyless promptfoo dialogue
+        run: npm run test:keyless
+
   shell-quality:
     name: Shell quality (shellcheck + shfmt)
     runs-on: ubuntu-latest
@@ -187,7 +242,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install shfmt
         run: |
@@ -207,7 +262,7 @@ jobs:
 
       - name: Proof-tooling unit tests
         run: |
-          for t in parish/scripts/tests/*.test.sh; do
+          for t in limerick/scripts/tests/*.test.sh; do
             echo "== $t =="
             bash "$t"
           done
@@ -222,7 +277,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install taplo
         uses: taiki-e/install-action@v2
@@ -235,69 +290,94 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
-  ui-e2e:
-    name: UI Playwright e2e
+  runtime-suite:
+    name: Runtime correctness suite
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true'
+    uses: ./.github/workflows/full-ci.yml
+    secrets: inherit
+
+  # Builds main and this PR, runs the same live scenario (limerick-server
+  # against a scripted model server) and every --script fixture on both, and
+  # fails on any difference the PR body does not declare in a
+  # `toml intended-diffs` block (docs/agent/agent-check.md).
+  differential-proof:
+    name: Differential proof
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: ${{ github.workspace }}
+    env:
+      # Both sides build into the cached target, sharing dependencies.
+      CARGO_TARGET_DIR: ${{ github.workspace }}/limerick/target
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
+          fetch-depth: 0
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: .
+          workspaces: limerick -> target
+          shared-key: prove-diff
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
 
-      - name: Build UI
-        run: npm run build
+      - name: Read the PR body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr view "$PR_NUMBER" --json body --jq .body >"$RUNNER_TEMP/pr-body.md"
 
-      - name: Run managed-server integration races
-        run: npm run test:playwright-launcher-integration
+      - name: Run the differential (main vs this PR)
+        run: |
+          python3 limerick/scripts/proof/prove_diff.py \
+            --scenario talk-and-task \
+            --intended-markdown "$RUNNER_TEMP/pr-body.md" \
+            --out "$RUNNER_TEMP/prove-diff"
 
-      - name: Install Playwright browser (Linux-only OS deps)
-        if: runner.os == 'Linux'
-        run: npx playwright install --with-deps chromium
+      - name: Publish the report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          report="$RUNNER_TEMP/prove-diff/report.md"
+          if [[ -f "$report" ]]; then
+            head -c 900000 "$report" >>"$GITHUB_STEP_SUMMARY"
+          fi
+          bash .github/scripts/prove-diff-comment.sh "$report" "$PR_NUMBER" "$RUN_URL" \
+            || echo "::warning::could not post the differential report comment"
 
-      - name: Install Playwright browser (macOS)
-        if: runner.os == 'macOS'
-        run: npx playwright install chromium
-
-      - name: Prebuild parish web server binary
-        working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish-server
-
-      - name: Run Playwright e2e
-        run: npx playwright test
-
-      - name: Upload Playwright report
+      - name: Upload the runs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
-          path: parish/apps/ui/playwright-report/
+          name: prove-diff
+          path: |
+            ${{ runner.temp }}/prove-diff/report.md
+            ${{ runner.temp }}/prove-diff/base/run*/
+            ${{ runner.temp }}/prove-diff/head/run*/
           if-no-files-found: ignore
+          retention-days: 14
 
   playwright-launcher-windows:
     name: Playwright launcher lifecycle (Windows)
@@ -305,23 +385,22 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       - name: Run built-in launcher lifecycle tests
         run: node --test scripts/playwright-worktree-server.test.js
 
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
-  # the conditional complete Playwright contract for shipped browser/server
-  # seam changes.
+  # the conditional complete correctness suite for runtime changes.
   ci-gate:
     name: CI gate
     needs:
@@ -332,9 +411,11 @@ jobs:
         format-quality,
         python-quality,
         playwright-launcher-windows,
+        promptfoo-quality,
         shell-quality,
         toml-quality,
-        ui-e2e,
+        runtime-suite,
+        differential-proof,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -344,12 +425,14 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout gate implementation
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Require gated jobs to succeed or be skipped
         env:
           GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
           PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
-          UI_E2E_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true' }}
-          UI_E2E_RESULT: ${{ needs.ui-e2e.result }}
+          RUNTIME_SUITE_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true' }}
+          RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
+          DIFFERENTIAL_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true' }}
+          DIFFERENTIAL_RESULT: ${{ needs.differential-proof.result }}
         run: bash .github/scripts/ci-gate.sh

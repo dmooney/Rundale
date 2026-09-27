@@ -1,6 +1,6 @@
 {
   "name": "rundale-dev",
-  "description": "Parish engine + Rundale game-content authoring kit. Bundles skills (check/prove/play/land/drain-backlog/rundale-geo-tool/...), session hooks (auto-fmt, quality gates, cadence reminders), the parish-mcp bridge, and LSP wiring (rust-analyzer + svelte + typescript) so contributors get the same Claude Code setup as the maintainer.",
+  "description": "Limerick engine + Rundale game-content authoring kit. Bundles skills (check/prove/play/land/drain-backlog/rundale-geo-tool/...), session hooks (auto-fmt, quality gates, cadence reminders), the limerick-mcp bridge, and LSP wiring (rust-analyzer + svelte + typescript) so contributors get the same Claude Code setup as the maintainer.",
   "version": "0.1.0",
   "author": {
     "name": "David Mooney"

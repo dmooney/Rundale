@@ -1,0 +1,31 @@
+[package]
+name = "limerick-client"
+version = "0.1.0"
+edition = "2024"
+description = "Synchronous CLI client for the Limerick game server"
+license = "GPL-3.0-only"
+publish = false
+default-run = "limerick"
+
+[[bin]]
+name = "limerick"
+path = "src/main.rs"
+
+[dependencies]
+reqwest = { workspace = true, features = ["json", "cookies"] }
+clap = { workspace = true, features = ["env"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+# Session-cookie path resolution is routed through the shared persistence
+# path helpers (rule #9) instead of an ad-hoc $HOME fallback (TD-003).
+limerick-persistence = { workspace = true }
+limerick-config = { workspace = true }
+limerick-providers = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+keyring = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

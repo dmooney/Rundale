@@ -1,4 +1,5 @@
 id = "siliconflow"
+recommended_preset = "recommended"
 display_name = "SiliconFlow"
 kind = "openai-compat"
 default_base_url = "https://api.siliconflow.cn/v1"

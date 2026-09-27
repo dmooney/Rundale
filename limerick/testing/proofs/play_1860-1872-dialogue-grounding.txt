@@ -1,0 +1,22 @@
+# 1860-1872 — canonical dialogue routing and world grounding
+# ==========================================================
+# Deterministic gameplay proof. Canned provider completions still pass through
+# the production canonical dialogue validator/apply seam.
+
+go to The Crossroads
+go to Darcy's Pub
+/wait 660
+/session
+
+# The active music fact is authored by the production `/session` command. The
+# contradictory completion must be replaced before memory/event rendering.
+/stub Padraig Darcy: There are only general airs being hummed, with no one singer taking the floor; tonight 'tis only the general clatter of the room.
+talk to Padraig Darcy about What do you make of tonight's song?
+
+# Establish an object attribute, then force a conflicting later completion.
+/stub Padraig Darcy: Aye, a red wool ribbon with one blue stitch; I have it in mind.
+talk to Padraig Darcy about The red wool ribbon has one blue stitch through its centre.
+/stub Padraig Darcy: A small mark like that turns a plain scrap of silk into a whole life's remembrance.
+talk to Padraig Darcy about What did I tell you about the ribbon?
+
+/status

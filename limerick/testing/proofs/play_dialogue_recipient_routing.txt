@@ -1,0 +1,5 @@
+# Live server proof: a question's subject is not an additional dialogue recipient.
+/new
+/pause
+/npcs
+talk to Peig Hannigan about Where is Padraig Darcy?

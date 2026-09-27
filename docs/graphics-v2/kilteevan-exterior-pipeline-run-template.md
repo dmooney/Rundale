@@ -19,6 +19,11 @@ is only the per-location checklist.
 
 ## Artifact Manifest
 
+PNG entries below are ignored local working paths and become archive-relative
+keys when a run is retained. Prompt, report, and audit Markdown sidecars remain
+tracked. Promote only reviewed inputs required by a clean checkout into
+`map-sources/` or `authorities/`.
+
 - Source crop: `pipeline-experiments/idea-<cycle>-<location-slug>-source-map-crop.png`
 - Source/crop report: `pipeline-experiments/idea-<cycle>-<location-slug>-source-map-crop.report.md`
 - Map-reader notes: `pipeline-experiments/idea-<cycle>-<location-slug>-map-reader-notes.md`
@@ -29,7 +34,7 @@ is only the per-location checklist.
 - Direct render: `pipeline-experiments/idea-<cycle>-<location-slug>-bu-style.png`
 - Direct render report: `pipeline-experiments/idea-<cycle>-<location-slug>-bu-style.report.md`
 - Bounded correction, if used: `pipeline-experiments/idea-<cycle>-<location-slug>-bounded-<failure>.png`
-- Comparison plate: `cartographic-comparisons/<cycle>-<location-slug>-pipeline-comparison.png`
+- Comparison plate: `pipeline-experiments/idea-<cycle>-<location-slug>-pipeline-comparison.png`
 
 ## Subagent Checklist
 
@@ -109,13 +114,14 @@ Inputs:
 
 Output:
 
-- direct render copied into the repo.
+- direct render saved under the ignored working path and ingested into the
+  external archive if retained.
 
 Pass criteria:
 
 - render subagent calls imagegen where available,
 - no prior failed/generated renders for the same location are visible,
-- output is saved with prompt/report sidecars,
+- output is archived by path/hash while prompt/report sidecars remain tracked,
 - coordinator-called imagegen, if unavoidable, is reported as a pipeline
   exception.
 

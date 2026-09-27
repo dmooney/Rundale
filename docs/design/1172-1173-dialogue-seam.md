@@ -28,9 +28,46 @@ trace here.
 
 ## Change
 
-### B2 (#1173) — one shared seam in `parish-core`
+### Explicit current-turn obligations (#1832)
 
-Add `parish_core::game_session::apply_npc_dialogue_turn`, next to
+The pre-inference `DialogueGroundingSnapshot` also carries a conservative,
+ordered set of obligations derived from the player's exact live utterance:
+known-person referral, stated player name, request for work, and request for
+lodging. The same typed values render the `PLAYER REQUESTS TO ANSWER NOW`
+prompt contract and validate the final delivered line. This covers declarative
+multi-facet introductions that contain no question mark and therefore do not
+activate the older answer-first question heuristic.
+
+After semantic guards, repetition handling, and the display cap, the canonical
+apply seam verifies that every recognized facet remains acknowledged. A partial
+candidate is replaced whole and its metadata discarded before state, memory,
+events, or UI output. The deterministic replacement addresses each facet in
+player order while making no claim that an NPC is hiring or that a place offers
+lodging. Unrecognized or merely topical mentions create no obligation.
+
+### Wave 2: typed factual grounding
+
+Dialogue candidates now cross a semantic trust boundary at the same canonical
+apply seam. Before inference, `DialogueGroundingSnapshot` freezes the authored
+calendar, people, occupations, workplaces, current locations, and location
+relationships that the candidate is allowed to claim. It also carries a small
+typed referent context maintained per conversation and cleared on a location
+change. The context distinguishes unknown people from role-marked unknown
+places and permits pronoun continuity only when the referent is unambiguous.
+
+`validate_dialogue_candidate` compares factual claims against that immutable
+snapshot. Unsupported current-festival claims, confirmations of unknown people
+or places, and contradictions about occupation, workplace, or geography reject
+the entire candidate. Rejection returns the deterministic safe fallback and
+discards all candidate metadata before memory, events, NPC state, or UI-visible
+events can observe it. This is deliberately a whole-candidate decision: the
+validator never substitutes a noun while leaving the surrounding false claim
+intact. The direct apply API and both game-loop modes use the same validator and
+snapshot, with mode-parity coverage at the real-loop seam.
+
+### B2 (#1173) — one shared seam in `limerick-core`
+
+Add `limerick_core::game_session::apply_npc_dialogue_turn`, next to
 `apply_movement`, doing all five steps over plain `&mut WorldState` /
 `&mut NpcManager` borrows (no runtime-specific I/O, so no `EventEmitter`
 parameter — the `DialogueOccurred` publish goes to `world.event_bus`, the
@@ -89,7 +126,7 @@ Callers become thin:
 
 ### B1 (#1172) — mode-parity golden test
 
-`parish-engine/tests/mode_parity.rs`: build a `GameTestHarness`, subscribe to
+`limerick-engine/tests/mode_parity.rs`: build a `GameTestHarness`, subscribe to
 `world.event_bus`, drive one deterministic dialogue input (`talk to <npc> …`)
 through the legacy `execute` path; capture the `GameEvent`s. Roll back to the
 pre-state, drive the _same_ input through `execute_via_real_loop` (the real
@@ -99,15 +136,15 @@ set-semantic runs — reuse `shadow::normalize` shape) and assert equality. A
 second test drops a step from one path behind a test-only switch (or asserts the
 pre-fix inequality on a captured fixture) to prove the guard bites (C6).
 
-Test lives in `parish-engine` (not `parish-core` as the issue's `e.g.`
-suggested) because only `parish-engine` can reach all of `GameTestHarness`,
-`execute_via_real_loop`, and the headless `App` — `parish-core` cannot depend on
-`parish-engine`. Noted as an intentional deviation.
+Test lives in `limerick-engine` (not `limerick-core` as the issue's `e.g.`
+suggested) because only `limerick-engine` can reach all of `GameTestHarness`,
+`execute_via_real_loop`, and the headless `App` — `limerick-core` cannot depend on
+`limerick-engine`. Noted as an intentional deviation.
 
 ## Affected subsystems
 
-- `parish-core` (`game_session.rs`) — new seam; `game_loop/npc_turn.rs` — call site.
-- `parish-engine` (`headless.rs`, `testing.rs`) — route through seam; new
+- `limerick-core` (`game_session.rs`) — new seam; `game_loop/npc_turn.rs` — call site.
+- `limerick-engine` (`headless.rs`, `testing.rs`) — route through seam; new
   `tests/mode_parity.rs`.
 - No new mod files, no new `Npc`/`World` fields, no new event variants.
 
@@ -136,4 +173,4 @@ suggested) because only `parish-engine` can reach all of `GameTestHarness`,
 `/debug memory Niamh Darcy` shows `Overheard: a newcomer said '…' and Padraig
 Darcy replied '…'` — impossible before the fix because the addressed path never
 called `record_witness_memories`. Fixture:
-`parish/testing/fixtures/play_1172-1173-dialogue-seam.txt`.
+`limerick/testing/proofs/play_1172-1173-dialogue-seam.txt`.

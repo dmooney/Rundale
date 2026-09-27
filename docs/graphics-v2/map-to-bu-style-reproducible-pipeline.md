@@ -4,7 +4,7 @@
 
 This pipeline turns historical map data for a Kilteevan parish exterior into a
 Graphics V2 background plate that is geometrically accurate, low 3/4
-orthographic, and in the accepted BU E2 / parish-notebook concept-realism style.
+orthographic, and in the accepted BU E2 / rundale-notebook concept-realism style.
 
 This is not yet a production batch renderer. Current image models are not
 reliable enough for arbitrary real-world locations or fully automated runtime
@@ -38,15 +38,19 @@ notes, controls, style targets, and renders are secondary aids.
 
 ## Required Artifacts Per Location
 
-Each attempted exterior needs a saved artifact bundle:
+Each attempted exterior needs a saved artifact bundle. PNG working files use
+the ignored `pipeline-experiments/` directory and retained runs are ingested
+into the content-addressed external archive; prompt, report, and audit sidecars
+remain tracked:
 
-- source historic map crop and, when relevant, the source tile/mosaic,
+- canonical source historic map crop from `map-sources/` or an archived source
+  tile/mosaic bundle,
 - crop rationale: why this ground area and playable scale were chosen,
 - clean-context map-reader notes,
 - deterministic or reproducibly generated topology/control artifact,
 - deterministic oblique/perspective cue,
 - prompt-builder handoff note or final prompt sidecar,
-- imagegen output copied into the repo,
+- imagegen output copied into the ignored working directory and then archived,
 - comparison plate: source map -> control/topology -> perspective cue -> render,
 - independent audit report for geometry, perspective, style, doors, and
   historical semantics,
@@ -223,9 +227,11 @@ Contract:
    notebook realism.
 
 6. Render one candidate through the render subagent.
-   Save the output and prompt sidecar. Do not leave the asset only in the
-   generated-image cache. If imagegen had to be called by the coordinator
-   because of tool limitations, write that exception into the report.
+   Save the output under the ignored `pipeline-experiments/` working path,
+   retain its prompt/report sidecars in Git, and ingest any retained run into
+   the external archive. Do not leave the asset only in the generated-image
+   cache. If imagegen had to be called by the coordinator because of tool
+   limitations, write that exception into the report.
 
 7. Audit independently.
    Create a comparison plate and audit against the gates below.
@@ -259,7 +265,7 @@ Perspective:
 
 Style:
 
-- BU E2 / parish-notebook family: warm worn paper, rough ink, watercolor grain,
+- BU E2 / rundale-notebook family: warm worn paper, rough ink, watercolor grain,
   stained limewash, rough roof texture, moss, weeds, ochre mud, handmade
   irregularity,
 - neutral daylight base plate, readable and not over-dark,

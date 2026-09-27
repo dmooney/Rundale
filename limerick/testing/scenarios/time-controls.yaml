@@ -1,0 +1,29 @@
+version: 1
+name: time-controls
+description: Shared system-command handlers pause, resume, and advance the canonical clock.
+steps:
+  - input: /pause
+    expect:
+      location: Kilteevan Village
+      clock: "08:00"
+      paused: true
+      events:
+        - name: text-log
+          contains: still
+  - input: /wait 15
+    expect:
+      location: Kilteevan Village
+      clock: "08:15"
+      paused: true
+      events:
+        - name: world-update
+        - name: text-log
+          contains: 15 minutes
+  - input: /resume
+    expect:
+      location: Kilteevan Village
+      clock: "08:15"
+      paused: false
+      events:
+        - name: text-log
+          contains: stirs

@@ -1,4 +1,5 @@
 id = "xai"
+recommended_preset = "recommended"
 display_name = "xAI (Grok)"
 aliases = ["x-ai", "grok"]
 kind = "openai-compat"

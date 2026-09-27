@@ -13,7 +13,7 @@ Give NPCs persistent long-term memory with keyword-based retrieval, and implemen
 
 ## Tasks
 
-### 1. Long-Term Memory (`crates/parish-core/src/npc/memory.rs` — extend existing file)
+### 1. Long-Term Memory (`crates/limerick-core/src/npc/memory.rs` — extend existing file)
 
 Extend the existing `memory.rs` which already contains `ShortTermMemory`:
 
@@ -97,13 +97,13 @@ Modify Tier 1 context construction in `npc/ticks.rs`:
 
 ```rust
 pub struct Npc {
-    // ... existing fields ...
+    // Unrelated fields are omitted from this design sketch.
     /// Long-term memory for keyword-based recall.
     pub long_term_memory: LongTermMemory,
 }
 ```
 
-### 5. Gossip Network (`crates/parish-core/src/npc/gossip.rs` — new file)
+### 5. Gossip Network (`crates/limerick-core/src/npc/gossip.rs` — new file)
 
 ```rust
 use std::collections::HashSet;

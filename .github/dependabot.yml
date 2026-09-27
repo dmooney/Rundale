@@ -1,29 +1,45 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/parish"
+    directory: "/limerick"
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
     labels: ["dependencies", "infra"]
     groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns: ["*"]
       cargo-minor-patch:
+        applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      cargo-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message: { prefix: "chore(deps)" }
     labels: ["dependencies", "infra"]
     groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
       actions-minor-patch:
+        applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      actions-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
     ignore:
       # The Rust compiler version is managed via rust-toolchain.toml (the
       # rust-toolchain ecosystem below), NOT by bumping this action's ref.
@@ -38,43 +54,97 @@ updates:
     directory: "/"
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 1
     commit-message: { prefix: "chore(deps)" }
     labels: ["dependencies", "infra"]
 
+  # Root tooling + UI + promptfoo bench-site. Promptfoo's own package is a
+  # separate entry below so transitive lockfile-only bumps cannot break it.
   - package-ecosystem: "npm"
-    directories: ["/", "/parish/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
+    directories: ["/", "/limerick/apps/ui", "/promptfoo/bench-site"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
     labels: ["dependencies", "infra"]
     groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
       npm-minor-patch:
+        applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      npm-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
+
+  # promptfoo is the only direct dependency; Dependabot transitive bumps of
+  # nested packages (hono, csv-parse, …) repeatedly left package-lock.json out
+  # of sync so `npm ci` failed CI. Bump promptfoo itself (full lock regenerate)
+  # and let OSV catch transitive advisories until upstream publishes a release.
+  - package-ecosystem: "npm"
+    directory: "/promptfoo"
+    schedule:
+      { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 2
+    commit-message:
+      { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
+    labels: ["dependencies", "infra"]
+    allow:
+      - dependency-name: "promptfoo"
+    groups:
+      promptfoo-security:
+        applies-to: security-updates
+        patterns: ["promptfoo"]
+      promptfoo-minor-patch:
+        applies-to: version-updates
+        patterns: ["promptfoo"]
+        update-types: ["minor", "patch"]
+      promptfoo-major:
+        applies-to: version-updates
+        patterns: ["promptfoo"]
+        update-types: ["major"]
 
   - package-ecosystem: "pip"
     directories: ["/", "/rundale-bench"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
     commit-message:
       { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
     labels: ["dependencies", "infra"]
     groups:
+      pip-security:
+        applies-to: security-updates
+        patterns: ["*"]
       pip-minor-patch:
+        applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      pip-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
 
   - package-ecosystem: "docker"
     directories: ["/.devcontainer", "/deploy"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
     commit-message: { prefix: "chore(deps)" }
     labels: ["dependencies", "infra"]
     groups:
+      docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
       docker-minor-patch:
+        applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      docker-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]

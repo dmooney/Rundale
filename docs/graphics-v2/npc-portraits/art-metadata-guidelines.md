@@ -9,11 +9,11 @@ person-art pipeline calls an image provider.
    age, pronouns, occupation, personality, mood, home/workplace, relationships,
    knowledge, and schedule.
 2. `mods/rundale/world.json` supplies setting and location context.
-3. `parish/apps/ui/art/notebook-person-art/npc-art-direction-v1.json` supplies
+3. `limerick/apps/ui/art/notebook-person-art/npc-art-direction-v1.json` supplies
    reviewed authoring-only visual art direction that is not present in the
    runtime NPC schema.
-4. `parish-npc-tool art-inputs` merges those sources into
-   `parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json`.
+4. `limerick-npc-tool art-inputs` merges those sources into
+   `limerick/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json`.
 
 `npcs.json` by itself is not enough for production art. It has useful identity
 and activity data, and some entries have strong brief visual cues, but it does
@@ -80,7 +80,7 @@ approved sources. Do not ask the model for final tiny runtime pixels.
 
 ## Concept Palette
 
-Use the palette from `docs/graphics-v2/illustrated-parish-notebook.png` as a
+Use the palette from `docs/graphics-v2/illustrated-rundale-notebook.png` as a
 hard anchor, not generic "earth tones":
 
 - parchment anchors: `#deccae`, `#d7c6a7`, `#c7b393`

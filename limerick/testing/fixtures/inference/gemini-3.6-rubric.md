@@ -1,0 +1,5 @@
+# Gemini 3.6 Flash calibration rubric v1
+
+Each response is scored 0 or 100 on seven equally weighted axes: wire/schema validity, requested semantic outcome, canonical-identity grounding, authored-format completeness, brevity/cap compliance, period/style compliance, and absence of thought/signature leakage. A candidate passes only with zero structural failures, no axis below 95, and a weighted mean no more than three points below the High reference. Interactive latency gates are intent total p95 <=1.5s, dialogue TTFT p95 <=1.5s, and reaction total p95 <=3s. Background responses must complete within their configured timeout without delaying an interactive gate. A cap passes when observed provider output plus thought tokens has at least 25% p95 headroom.
+
+`inf_bench` owns the production prompts, response formats, transport modes, semantic invariants, and latency checks. The adjacent JSONL pins the audited cases and caps. Any change to either file invalidates the retained calibration report until the four native thinking levels are rerun three times each.

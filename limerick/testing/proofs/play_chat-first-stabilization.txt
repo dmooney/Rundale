@@ -1,0 +1,8 @@
+# Companion live-game fixture for the chat-first UI stabilization proof.
+# Browser proof drives the UI; these commands establish a real transcript,
+# location state, and addressed-NPC turn for the browser to render.
+look
+who is here
+talk to Brigid
+What has happened nearby?
+look

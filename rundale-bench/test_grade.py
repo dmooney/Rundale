@@ -533,7 +533,7 @@ def test_extract_dialogue_dash_at_very_start_no_newline():
 
 def test_extract_dialogue_markdown_json_fence():
     # Codex review #PRRT_kwDORqdnvs6CzukS: Anthropic-style fence wrap.
-    # Runtime strips fences in `parish_npc::strip_json_fence`; bench
+    # Runtime strips fences in `limerick_npc::strip_json_fence`; bench
     # must match.
     reply = '```json\n{"dialogue": "Aye, fine day.", "action": "nods"}\n```'
     assert extract_dialogue_for_judging(reply) == "Aye, fine day."

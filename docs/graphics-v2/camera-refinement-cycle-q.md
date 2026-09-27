@@ -16,7 +16,7 @@ Both Grove and Beechwood used the same generic procedure:
 1. Cycle P output for the same site as the primary style/topology target.
 2. Cycle M cleaned top-down control plate as the topology authority.
 3. Original historic map crop as source evidence.
-4. `illustrated-parish-notebook.png` as style and low-camera-feel reference.
+4. `illustrated-rundale-notebook.png` as style and low-camera-feel reference.
 5. A deterministic oblique warp of the Cycle M cleaned control, used only as a
    camera-pitch cue.
 

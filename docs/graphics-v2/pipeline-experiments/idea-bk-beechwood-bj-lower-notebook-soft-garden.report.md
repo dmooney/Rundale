@@ -13,7 +13,7 @@ The intended next render is a bounded edit of:
 with these reference inputs:
 
 - `idea-m-beechwood-admin-topdown-cleaned.png` as topology veto,
-- `../illustrated-parish-notebook.png` as style-only reference,
+- `../illustrated-rundale-notebook.png` as style-only reference,
 - cleaned low-camera slate and thatch single-building style crops,
 - cleaned field/wall and roof/wall material crops.
 

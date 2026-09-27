@@ -20,7 +20,7 @@ map fidelity is.
 
 ## Current Recommendation
 
-1. Generate the parish/county base locally from source map tiles.
+1. Generate the limerick/county base locally from source map tiles.
 2. Keep the base map north-up and overhead.
 3. Split runtime tiles mechanically from continuous parent mosaics/supertiles.
 4. Validate seam continuity and lossless reassembly.
@@ -107,7 +107,7 @@ Those ranges include practical cushion for input images, retries, rejects, and
 repairs. Output-only estimates are lower, but output-only is not a realistic
 production workflow.
 
-The important conclusion is not "API is impossible." Parish-scale API runs are
+The important conclusion is not "API is impossible." Limerick-scale API runs are
 financially plausible. The problem is that current image-to-image tests are not
 geometrically faithful enough to scale.
 

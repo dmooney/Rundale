@@ -1,0 +1,38 @@
+# npc-location-context play-test
+# ================================
+# Proves NPCs receive full current-location context in their Tier 1 dialogue
+# prompt: connected neighbours (name + path + on-foot time + weather hazard),
+# indoor/outdoor + public/private framing, and mythological significance.
+#
+# Location context only matters once it reaches the LLM, so run this against a
+# REAL model on a live server:
+#   bash parish/scripts/parish-mcp-backend.sh start
+#   parish --script parish/testing/proofs/play_npc-location-context.txt
+# Then capture the NPC turn's `prompt_text` via the debug snapshot to see the
+# "Paths from here:" block, setting line, and local-note line verbatim.
+
+/status
+
+# 1. Pub (indoor, public; single connection back to The Crossroads).
+#    Padraig + Niamh Darcy are here. Ask for directions: with the new context
+#    the NPC can name a real connected place and describe the path.
+go to Darcy's Pub
+look
+/npcs
+say Good day. Which way to The Crossroads from here, and what's the road like?
+/wait 1
+say And what other places can a body reach from the parish around here?
+/wait 1
+
+# 2. The Crossroads — a hub with many connections and a mythological note.
+#    Richest paths block; confirm an NPC passing through can list neighbours.
+go to The Crossroads
+look
+/npcs
+say If I'm headed to the church, which path do I take from here?
+/wait 1
+
+# 3. Surface NPC state (reaction/memory) after the exchanges.
+/debug npcs
+
+/status

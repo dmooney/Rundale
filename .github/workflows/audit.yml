@@ -10,18 +10,18 @@ on:
   # advisory can leave main red while the fast/full CI workflows remain green.
   pull_request:
     paths:
-      - "parish/Cargo.lock"
-      - "parish/Cargo.toml"
-      - "parish/crates/**/Cargo.toml"
+      - "limerick/Cargo.lock"
+      - "limerick/Cargo.toml"
+      - "limerick/crates/**/Cargo.toml"
       - ".github/workflows/audit.yml"
   # Re-audit immediately when the dependency tree changes on main, so we
   # don't wait up to 24h to notice a bad lockfile bump.
   push:
     branches: [main]
     paths:
-      - "parish/Cargo.lock"
-      - "parish/Cargo.toml"
-      - "parish/crates/**/Cargo.toml"
+      - "limerick/Cargo.lock"
+      - "limerick/Cargo.toml"
+      - "limerick/crates/**/Cargo.toml"
       - ".github/workflows/audit.yml"
 
 concurrency:
@@ -33,7 +33,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 jobs:
   cargo-audit:
@@ -41,12 +41,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Channel from rust-toolchain.toml (same as ci.yml). Caching stays in the
       # Swatinem step below.
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
@@ -65,7 +65,7 @@ jobs:
         run: cargo audit
 
       # Cargo.lock retains xcap's Linux-only transitive dependencies even
-      # though Parish enables xcap only on macOS and Windows. The exact git
+      # though Limerick enables xcap only on macOS and Windows. The exact git
       # pins in Cargo.toml therefore clear RustSec without changing a compiled
       # target. Fail before merge if that target-reachability invariant changes:
       # wayland-scanner's pinned tree contains unreleased breaking codegen.

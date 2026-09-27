@@ -1,0 +1,72 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 15348
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "enable_thinking": true,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "max",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 10407
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "enable_thinking": true,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "max",
+        "temperature": 0.7
+      },
+      "response": null
+    }
+  ],
+  "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-08-08/deepseek-v4-flash-0731-max-reasoning",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-preflight.partial.jsonl",
+      "sha256": "4aa848ed336de905669b57fb7cdcf73fc5ff57b4c77f53af933121278b9641e7"
+    }
+  ],
+  "version": 1
+}

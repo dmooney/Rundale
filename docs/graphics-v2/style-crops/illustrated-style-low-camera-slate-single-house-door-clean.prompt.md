@@ -2,7 +2,7 @@ Use case: historical-scene
 Asset type: cleaned reusable style-reference crop for map-to-background-plate generation, no UI
 
 Input image:
-Image 1 is a low-camera illustrated parish-notebook building crop. It has the desired rough ink-and-watercolor style, limewashed stone, slate roof, muddy yard texture, low 3/4 orthographic camera, and a readable dark doorway on the main centered building. However, it is not safe as a reusable reference because it still includes partial foreground/background building fragments, including a bottom-left foreground house/roof mass with no readable doorway.
+Image 1 is a low-camera illustrated rundale-notebook building crop. It has the desired rough ink-and-watercolor style, limewashed stone, slate roof, muddy yard texture, low 3/4 orthographic camera, and a readable dark doorway on the main centered building. However, it is not safe as a reusable reference because it still includes partial foreground/background building fragments, including a bottom-left foreground house/roof mass with no readable doorway.
 
 Primary request:
 Edit Image 1 into a clean single-building slate-roof style reference. Preserve the same low 3/4 orthographic/isomorphic game camera, same rough hand-drawn ink and watercolor notebook style, same main centered slate-roof limewashed house, same dark plain doorway and threshold on the visible front/lower facade, same uneven roof texture, stained limewash, damp stone base, weeds, muddy ground, rough stone walls, and paper-grain texture.

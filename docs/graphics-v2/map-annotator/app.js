@@ -7,11 +7,11 @@ const PRESETS = {
   },
   murphy: {
     label: "Murphy Farm",
-    src: "../pipeline-experiments/idea-bx-murphy-farm-z17-map-crop.png",
+    src: "../map-sources/murphy-farm-z17-map-crop.png",
   },
   kilteevan: {
     label: "Kilteevan",
-    src: "../pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png",
+    src: "../map-sources/kilteevan-z17-map-crop.png",
   },
 };
 

@@ -18,12 +18,31 @@ import json
 import math
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rb_common as rb  # noqa: E402
 
+
+class PerfCacheBucket(TypedDict):
+    latencies: list[float]
+    ttfts: list[float]
+    ok: int
+    errors: int
+
+
 AXES = {
-    "dialogue": ["character", "authenticity", "language", "responsiveness", "craft"],
+    "dialogue": [
+        "character",
+        "authenticity",
+        "language",
+        "responsiveness",
+        "craft",
+        "brevity",
+        "repetition",
+        "mood_fidelity",
+        "grounding",
+    ],
     "reaction": ["in_character"],
     "tier2-sim": ["plausibility"],
     "tier3-sim": ["plausibility"],
@@ -34,6 +53,7 @@ AXES = {
         "no_premature_farewell",
         "persona_consistency",
         "memory_retention",
+        "freshness",
     ],
 }
 
@@ -153,32 +173,68 @@ def _is_warmup(res: dict) -> bool:
 
 def aggregate_perf(results: list[dict]) -> dict:
     latencies, ttfts, tps = [], [], []
+    by_cache_state: dict[str, PerfCacheBucket] = {
+        "cold": {"latencies": [], "ttfts": [], "ok": 0, "errors": 0},
+        "warm": {"latencies": [], "ttfts": [], "ok": 0, "errors": 0},
+    }
     total_in = total_out = errors = ok = 0
+    observed_cost = 0.0
+    observed_cost_seen = False
     model = None
     for res in results:
         if _is_warmup(res):  # discard cold-start warmup measurements
             continue
         meta = _meta(res)
-        if meta.get("error"):
+        cache_state = meta.get("perf_cache_state") or (res.get("vars") or {}).get(
+            "perf_cache_state"
+        )
+        cache_bucket = by_cache_state.get(str(cache_state)) if cache_state is not None else None
+        response = res.get("response") or {}
+        output = response.get("output")
+        # A gateway may deliver the entire completion in the first content
+        # chunk. With millisecond timing that makes total_ms == ttft_ms, so
+        # throughput is not measurable even though the request and its latency
+        # measurement are valid. Keep such rows in latency/error accounting and
+        # conservatively omit them only from the throughput distribution.
+        measurement_complete = (
+            isinstance(output, str) and bool(output.strip()) and meta.get("ttft_ms") is not None
+        )
+        if meta.get("error") or not measurement_complete:
             errors += 1
+            if cache_bucket is not None:
+                cache_bucket["errors"] += 1
             continue
         ok += 1
+        if cache_bucket is not None:
+            cache_bucket["ok"] += 1
         model = model or meta.get("model")
         lat = res.get("latencyMs")
         if lat is not None:
             latencies.append(float(lat))
+            if cache_bucket is not None:
+                cache_bucket["latencies"].append(float(lat))
         if meta.get("ttft_ms") is not None:
             ttfts.append(float(meta["ttft_ms"]))
+            if cache_bucket is not None:
+                cache_bucket["ttfts"].append(float(meta["ttft_ms"]))
         if meta.get("tokens_per_second"):
             tps.append(float(meta["tokens_per_second"]))
-        usage = (res.get("response") or {}).get("tokenUsage") or {}
+        usage = response.get("tokenUsage") or {}
         total_in += int(usage.get("prompt", 0) or 0)
         total_out += int(usage.get("completion", 0) or 0)
+        if response.get("cost") is not None:
+            observed_cost += float(response["cost"])
+            observed_cost_seen = True
     latencies.sort()
     ttfts.sort()
     total_tokens = total_in + total_out
+    gameplay_cost_priced = (model or "") in rb.pricing.COSTS
     price_in, price_out = rb.pricing.COSTS.get(model or "", (0.0, 0.0))
-    total_cost = total_in / 1e6 * price_in + total_out / 1e6 * price_out
+    static_cost = total_in / 1e6 * price_in + total_out / 1e6 * price_out
+    total_cost = observed_cost if observed_cost_seen else static_cost
+    for values in by_cache_state.values():
+        values["latencies"].sort()
+        values["ttfts"].sort()
     return {
         "slice": "perf",
         "n_ok": ok,
@@ -187,10 +243,21 @@ def aggregate_perf(results: list[dict]) -> dict:
         "latency_p50_ms": _nearest_rank(latencies, 0.50),
         "latency_p95_ms": _nearest_rank(latencies, 0.95),
         "ttft_p50_ms": _nearest_rank(ttfts, 0.50),
+        "ttft_p95_ms": _nearest_rank(ttfts, 0.95),
+        "cold_n_ok": by_cache_state["cold"]["ok"],
+        "cold_n_error": by_cache_state["cold"]["errors"],
+        "cold_latency_p95_ms": _nearest_rank(by_cache_state["cold"]["latencies"], 0.95),
+        "cold_ttft_p95_ms": _nearest_rank(by_cache_state["cold"]["ttfts"], 0.95),
+        "warm_n_ok": by_cache_state["warm"]["ok"],
+        "warm_n_error": by_cache_state["warm"]["errors"],
+        "warm_latency_p95_ms": _nearest_rank(by_cache_state["warm"]["latencies"], 0.95),
+        "warm_ttft_p95_ms": _nearest_rank(by_cache_state["warm"]["ttfts"], 0.95),
+        "tokens_per_sec_p50": _nearest_rank(sorted(tps), 0.50),
         "tokens_per_sec_mean": (sum(tps) / len(tps)) if tps else 0.0,
         "usd_per_mtok_observed": round(
             (total_cost * 1e6 / total_tokens) if total_tokens else 0.0, 4
         ),
+        "gameplay_cost_priced": gameplay_cost_priced,
     }
 
 
@@ -300,15 +367,23 @@ def _write_markdown(report: dict, path: Path) -> None:
         if sp:
             lines.append(
                 f"- **perf**: p50={_fmt(sp['latency_p50_ms'], 0)}ms p95={_fmt(sp['latency_p95_ms'], 0)}ms "
-                f"ttft_p50={_fmt(sp['ttft_p50_ms'], 0)}ms tok/s={_fmt(sp['tokens_per_sec_mean'], 1)} "
+                f"ttft_p50={_fmt(sp['ttft_p50_ms'], 0)}ms "
+                f"ttft_p95={_fmt(sp['ttft_p95_ms'], 0)}ms "
+                f"tok/s_p50={_fmt(sp['tokens_per_sec_p50'], 1)} "
                 f"err={_fmt(sp['error_rate'])} $/Mtok={_fmt(sp['usd_per_mtok_observed'], 4)}"
             )
-            lines.append(
-                f"- **cost/game-time** (model `{sp.get('model')}`, "
-                f"${_fmt(sp.get('price_in_per_mtok'), 2)}/{_fmt(sp.get('price_out_per_mtok'), 2)} per Mtok): "
-                f"**${_fmt(sp.get('gameplay_cost_usd_per_minute'), 5)}/min** · "
-                f"${_fmt(sp.get('gameplay_cost_usd_per_hour'), 3)}/hr"
-            )
+            if sp.get("gameplay_cost_priced"):
+                lines.append(
+                    f"- **cost/game-time** (model `{sp.get('model')}`, "
+                    f"${_fmt(sp.get('price_in_per_mtok'), 2)}/{_fmt(sp.get('price_out_per_mtok'), 2)} per Mtok): "
+                    f"**${_fmt(sp.get('gameplay_cost_usd_per_minute'), 5)}/min** · "
+                    f"${_fmt(sp.get('gameplay_cost_usd_per_hour'), 3)}/hr"
+                )
+            else:
+                lines.append(
+                    f"- **cost/game-time**: unavailable for unpriced routed model "
+                    f"`{sp.get('model')}`; use observed run spend"
+                )
         lines.append(f"- run spend: ${_fmt(c['run_cost']['usd'], 4)}\n")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

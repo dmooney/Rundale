@@ -48,14 +48,14 @@ Best current recipe:
 
 - `grove-cleanroom-subagent-style-ref-a.png`
 
-  - Inputs: Grove map crop + full `illustrated-parish-notebook.png`.
+  - Inputs: Grove map crop + full `illustrated-rundale-notebook.png`.
   - Strengths: stronger style and facade readability.
   - Weaknesses: copied some composition habits from the full reference; church
     became too prominent.
 
 - `grove-cleanroom-subagent-style-ref-b.png`
 
-  - Inputs: Grove map crop + full `illustrated-parish-notebook.png`, after
+  - Inputs: Grove map crop + full `illustrated-rundale-notebook.png`, after
     stronger "style not composition" wording.
   - Strengths: good illustrated style and no artifact regressions.
   - Weaknesses: still too high/zoomed-out; church remains too prominent.
@@ -94,14 +94,14 @@ Best current recipe:
 
 - `grove-cleanroom-subagent-full-style-ref-c.png`
 
-  - Inputs: Grove map crop + full `illustrated-parish-notebook.png`.
+  - Inputs: Grove map crop + full `illustrated-rundale-notebook.png`.
   - Strengths: good illustrated style, Grove readable, route continuity mostly
     coherent.
   - Weaknesses: camera too aerial; church became a major focal element.
 
 - `grove-cleanroom-subagent-full-style-ref-d.png`
 
-  - Inputs: Grove map crop + full `illustrated-parish-notebook.png`, with
+  - Inputs: Grove map crop + full `illustrated-rundale-notebook.png`, with
     stronger target-site framing.
   - Strengths: Grove central, church edge-biased, no major artifact regressions.
   - Weaknesses: still higher than ideal.
@@ -146,7 +146,7 @@ Best current recipe:
 - `grove-cleanroom-subagent-target-map-crop-a.png`
 
   - Inputs: `grove-map-target-site-crop.png` + full
-    `illustrated-parish-notebook.png`.
+    `illustrated-rundale-notebook.png`.
   - Strengths: practical pass on camera, sprite-scale doors, Grove dominance,
     map context, artifact control, and roads/gates.
   - Weaknesses: still a little high; small cart/barrel props echo the reference.

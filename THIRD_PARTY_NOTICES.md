@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Rundale on the Parish engine includes, uses, or redistributes the third-party
+Rundale on the Limerick engine includes, uses, or redistributes the third-party
 software and data components listed below. Each component is used under its
 own licence, and the full licence text for each distinct licence is reproduced
 at the bottom of this file.
@@ -48,13 +48,23 @@ for the frontend. The generated output is written alongside this file as
 
 ## Fonts
 
+### Open Sans Regular (MapLibre map-label glyphs)
+
+- Source: <https://github.com/googlefonts/opensans> (pinned source commit and
+  generated-file hashes are recorded in
+  `limerick/apps/ui/static/map-glyphs/README.md`)
+- Copyright: Copyright 2020 The Open Sans Project Authors
+- Licence: **SIL Open Font License 1.1**
+- Distribution: bundled as MapLibre PBF glyph ranges; the complete licence is
+  distributed at `limerick/apps/ui/static/map-glyphs/OFL.txt`
+
 ---
 
 ## Frontend runtime dependencies (`apps/ui/package.json`)
 
 | Package | Version (minimum) | Licence | Copyright |
 |---|---|---|---|
-| [maplibre-gl](https://github.com/maplibre/maplibre-gl-js) | ^5.22 | **BSD-3-Clause** (plus MPL-2.0 components inherited from the Mapbox fork point) | © 2020 MapLibre contributors; © 2014–2020 Mapbox, Inc. |
+| [maplibre-gl](https://github.com/maplibre/maplibre-gl-js) | ^6.4.1 | **BSD-3-Clause** (plus MPL-2.0 components inherited from the Mapbox fork point) | © 2020 MapLibre contributors; © 2014–2020 Mapbox, Inc. |
 | [phosphor-svelte](https://github.com/haruaki07/phosphor-svelte) | ^3.1 | **MIT** | © 2020 Phosphor Icons; © Haruaki Tanaka |
 | [@tauri-apps/api](https://github.com/tauri-apps/tauri) | ^2.10 | **MIT OR Apache-2.0** | © Tauri Programme within The Commons Conservancy |
 
@@ -122,7 +132,7 @@ versions, copyright holders, and licence texts: run `just notices` →
 associated Rust `-sys` bindings are used under **MIT**. The underlying
 system libraries (GTK, WebKitGTK, glib) are LGPL and are linked
 dynamically at runtime — they are not redistributed as part of the
-Parish binaries.
+Limerick binaries.
 
 ### Dev/test-only
 
@@ -229,7 +239,7 @@ binary on request.
 Full text: <https://opendatacommons.org/licenses/odbl/1-0/>.
 
 Applies to OpenStreetMap data consumed via Nominatim and raster tile
-servers. The Parish engine is a **produced work** under ODbL §4.5, not a
+servers. The Limerick engine is a **produced work** under ODbL §4.5, not a
 derivative database, so the share-alike clause (§4.4) does not extend to
 the engine source. Attribution (§4.3) is provided visibly in the map UI
 and in this file.

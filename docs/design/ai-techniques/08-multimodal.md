@@ -1,7 +1,7 @@
 # Multimodal — Voice, Portraits, Ambient Art
 
-**Target crate:** new `crates/parish-audio/` (TTS/ASR), integration in
-`apps/ui/` for playback, optional `crates/parish-imagen/` for portraits.
+**Target crate:** new `crates/limerick-audio/` (TTS/ASR), integration in
+`apps/ui/` for playback, optional `crates/limerick-imagen/` for portraits.
 
 ## Problem
 
@@ -88,7 +88,7 @@ semantic cues ("tense, rain") to a short playlist of pre-recorded loops.
 
 Let authors drop a sketched map into the Designer Editor; a VLM (Qwen2-VL,
 LLaVA-Next) extracts nodes and edges into `world.json` skeleton. Huge time
-saver for `parish-geo-tool` workflows — see `docs/design/geo-tool.md`.
+saver for `limerick-geo-tool` workflows — see `docs/design/geo-tool.md`.
 
 ### 8. Expression & gesture metadata
 
@@ -98,7 +98,7 @@ Svelte UI. Emit through the grammar-constrained JSON (doc 02).
 
 ## Minimal first cut
 
-1. Add `crates/parish-audio` with Piper wrapped as a subprocess; streaming
+1. Add `crates/limerick-audio` with Piper wrapped as a subprocess; streaming
    chunk playback through a new WS channel.
 2. Per-NPC voice mapping file; fallback voice per role.
 3. Write a one-shot `just generate-portraits` that runs SDXL-Turbo against

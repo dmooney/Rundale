@@ -56,9 +56,9 @@ Demo loop (demo-player.ts):
 
 ## Phase 1 — Backend
 
-### `parish/crates/parish-tauri/src/lib.rs`
+### `limerick/crates/limerick-tauri/src/lib.rs`
 
-**`DemoConfig` struct** (add in lib.rs, not in parish-config, to stay Tauri-scoped):
+**`DemoConfig` struct** (add in lib.rs, not in limerick-config, to stay Tauri-scoped):
 
 ```rust
 pub struct DemoConfig {
@@ -104,7 +104,7 @@ commands::get_llm_player_action,
 commands::get_demo_config,
 ```
 
-### `parish/crates/parish-tauri/src/commands.rs`
+### `limerick/crates/limerick-tauri/src/commands.rs`
 
 **`DemoContextSnapshot`** struct (serde Serialize + Deserialize):
 
@@ -186,7 +186,7 @@ User prompt assembled from `DemoContextSnapshot` fields: location, time, season,
 
 ## Phase 2 — Frontend
 
-### New file: `parish/apps/ui/src/stores/demo.ts`
+### New file: `limerick/apps/ui/src/stores/demo.ts`
 
 ```typescript
 import { writable } from 'svelte/store';
@@ -210,7 +210,7 @@ export const demoConfig = writable<DemoConfig>({
 });
 ```
 
-### New file: `parish/apps/ui/src/lib/demo-player.ts`
+### New file: `limerick/apps/ui/src/lib/demo-player.ts`
 
 Turn-complete detection: subscribe to `streamingActive` before submitting. Track whether it ever went `true`. After `submitInput` resolves: if it went `true`, wait until `streamingActive` is `false` (covers dialog + movement-with-reactions). If never went `true`, yield 50ms.
 
@@ -308,11 +308,11 @@ export function stopDemo(): void {
 }
 ```
 
-### New file: `parish/apps/ui/src/components/DemoBanner.svelte`
+### New file: `limerick/apps/ui/src/components/DemoBanner.svelte`
 
 Fixed overlay bar (top-center) shown when `demoEnabled`. Shows turn count, status, Pause/Resume + Stop buttons. Uses `demoEnabled`, `demoPaused`, `demoTurnCount`, `demoStatus` stores.
 
-### New file: `parish/apps/ui/src/components/DemoPanel.svelte`
+### New file: `limerick/apps/ui/src/components/DemoPanel.svelte`
 
 F11 config panel (same structural pattern as `DebugPanel.svelte`):
 
@@ -324,7 +324,7 @@ F11 config panel (same structural pattern as `DebugPanel.svelte`):
 - Turn counter and status display
   On "Apply & Start": updates `demoConfig` store, calls `startDemoLoop()`.
 
-### Modifications to `parish/apps/ui/src/routes/+page.svelte`
+### Modifications to `limerick/apps/ui/src/routes/+page.svelte`
 
 1. Import `DemoBanner`, `DemoPanel`, `demoVisible` (new store), `startDemoLoop`, `stopDemo`, `demoEnabled`
 2. Add `demoVisible = writable(false)` store (or add to `demo.ts`)
@@ -333,7 +333,7 @@ F11 config panel (same structural pattern as `DebugPanel.svelte`):
 5. In `setupMount` (after initial fetches): call `getDemoConfig()`, if `auto_start === true` call `startDemoLoop()`
 6. Template: add `<DemoBanner />` and `{#if $demoVisible}<DemoPanel />{/if}` alongside `<DebugPanel />`
 
-### Modifications to `parish/apps/ui/src/lib/ipc.ts`
+### Modifications to `limerick/apps/ui/src/lib/ipc.ts`
 
 ```typescript
 export const getDemoContext = () =>
@@ -350,19 +350,19 @@ Add `DemoContextSnapshot` and `DemoConfigPayload` types to `lib/types.ts`.
 
 ## Critical Files
 
-| File                                              | Change                                                                                                             |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `parish/crates/parish-tauri/src/lib.rs`           | `DemoConfig` struct, `AppState.demo_config`, CLI arg parsing, register 3 commands                                  |
-| `parish/crates/parish-tauri/src/commands.rs`      | 3 new commands, `DemoContextSnapshot`, `DemoNpcInfo`, `DemoAdjacentLocation`, `DemoConfigPayload`, prompt assembly |
-| `parish/apps/ui/src/lib/ipc.ts`                   | 3 new command wrappers                                                                                             |
-| `parish/apps/ui/src/lib/types.ts`                 | `DemoContextSnapshot`, `DemoConfigPayload` types                                                                   |
-| `parish/apps/ui/src/routes/+page.svelte`          | F11 handler, Esc stop, auto-start on mount, mount components                                                       |
-| `parish/apps/ui/src/stores/demo.ts`               | **new** — demo state stores                                                                                        |
-| `parish/apps/ui/src/lib/demo-player.ts`           | **new** — demo turn loop                                                                                           |
-| `parish/apps/ui/src/components/DemoBanner.svelte` | **new** — always-on overlay banner                                                                                 |
-| `parish/apps/ui/src/components/DemoPanel.svelte`  | **new** — F11 config panel                                                                                         |
+| File                                                | Change                                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `limerick/crates/limerick-tauri/src/lib.rs`         | `DemoConfig` struct, `AppState.demo_config`, CLI arg parsing, register 3 commands                                  |
+| `limerick/crates/limerick-tauri/src/commands.rs`    | 3 new commands, `DemoContextSnapshot`, `DemoNpcInfo`, `DemoAdjacentLocation`, `DemoConfigPayload`, prompt assembly |
+| `limerick/apps/ui/src/lib/ipc.ts`                   | 3 new command wrappers                                                                                             |
+| `limerick/apps/ui/src/lib/types.ts`                 | `DemoContextSnapshot`, `DemoConfigPayload` types                                                                   |
+| `limerick/apps/ui/src/routes/+page.svelte`          | F11 handler, Esc stop, auto-start on mount, mount components                                                       |
+| `limerick/apps/ui/src/stores/demo.ts`               | **new** — demo state stores                                                                                        |
+| `limerick/apps/ui/src/lib/demo-player.ts`           | **new** — demo turn loop                                                                                           |
+| `limerick/apps/ui/src/components/DemoBanner.svelte` | **new** — always-on overlay banner                                                                                 |
+| `limerick/apps/ui/src/components/DemoPanel.svelte`  | **new** — F11 config panel                                                                                         |
 
-Existing NPC struct field to check: `parish/crates/parish-npc/src/lib.rs` — confirm `brief_description` or equivalent field name before writing `get_demo_context`.
+Existing NPC struct field to check: `limerick/crates/limerick-npc/src/lib.rs` — confirm `brief_description` or equivalent field name before writing `get_demo_context`.
 
 ---
 

@@ -13,7 +13,7 @@ Local paths:
 
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-e1-e2-concept-art-comparison.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 
 Experiment focus:
 Sparse lived-in clutter plus weathering. Add only small inert rural objects that make sense in an 1820 Irish farmyard, without changing topology:

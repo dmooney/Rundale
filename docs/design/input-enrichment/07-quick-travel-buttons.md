@@ -129,7 +129,7 @@ interface MapData {
 }
 ```
 
-The `adjacent` flag is computed server-side in `build_map_data()` (`crates/parish-core/src/ipc/handlers.rs:72-76`) — locations connected to the player's current position are marked `adjacent: true`. No backend changes needed.
+The `adjacent` flag is computed server-side in `build_map_data()` (`crates/limerick-core/src/ipc/handlers.rs:72-76`) — locations connected to the player's current position are marked `adjacent: true`. No backend changes needed.
 
 ### Store Reactivity
 
@@ -142,7 +142,7 @@ onEvent('world-update', async () => {
   worldState.set(await getWorldSnapshot());
   mapData.set(await getMap()); // ← triggers QuickTravel re-derive
   npcsHere.set(await getNpcsHere());
-  // ...
+  // Refresh the remaining world-derived stores.
 });
 ```
 

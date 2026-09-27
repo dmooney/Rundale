@@ -1,4 +1,5 @@
 id = "nvidia-nim"
+recommended_preset = "recommended"
 display_name = "NVIDIA NIM"
 aliases = ["nvidia_nim", "nvidianim", "nim", "nvidia"]
 kind = "openai-compat"

@@ -2,13 +2,17 @@
   "name": "rundale-bench-v2",
   "version": "2.0.0",
   "private": true,
+  "engines": {
+    "node": "^24.0.0"
+  },
   "description": "rundale-bench v2 — promptfoo suite for 1820-Irish NPC inference (dialogue, t2/t3 sim, intent, irish, perf, cost/game-time) with a configurable API judge.",
   "scripts": {
     "manifest": "python3 scripts/pin_manifest.py",
     "report": "python3 scripts/report.py output",
-    "test": "python3 scripts/test_v2.py"
+    "test": "python3 scripts/test_v2.py",
+    "test:keyless": "python3 scripts/test_keyless_e2e.py"
   },
   "devDependencies": {
-    "promptfoo": "^0.121.19"
+    "promptfoo": "^0.123.1"
   }
 }

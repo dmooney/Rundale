@@ -1,4 +1,5 @@
 id = "together"
+recommended_preset = "recommended"
 display_name = "Together AI"
 aliases = ["togetherai", "together-ai", "together_ai"]
 kind = "openai-compat"

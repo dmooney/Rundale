@@ -1,0 +1,70 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 26282
+      },
+      "npc": "a well-fed man dusted in flour",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "enable_thinking": null,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "moonshotai/kimi-k2.5:nitro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 36346
+      },
+      "npc": "a well-fed man dusted in flour",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "enable_thinking": null,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "moonshotai/kimi-k2.5:nitro",
+        "temperature": 0.7
+      },
+      "response": null
+    }
+  ],
+  "candidate": "moonshotai/kimi-k2.5:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-08-08/kimi-k2.5-nitro",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/kimi-k2.5-nitro-preflight.partial.jsonl",
+      "sha256": "70f21dff7ba52c7c3fc0b61b55c52b74c8fa44996ad6bbc89416699594abb2df"
+    }
+  ],
+  "version": 1
+}

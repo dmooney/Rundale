@@ -1,0 +1,15 @@
+# Controlled local-dialogue experiment for Qwen3.5-9B on vllm-mlx.
+# The backend's server-level chat-template default does not reliably suppress
+# reasoning on the multimodal path, so the measured request profile carries
+# the explicit per-request extension.
+[provider]
+name = "custom"
+base_url = "http://127.0.0.1:8010/v1"
+model = "mlx-community/Qwen3.5-9B-MLX-4bit"
+
+[engine.inference.dialogue_generation]
+max_tokens = 768
+temperature = 0.7
+frequency_penalty = 0.5
+json_mode = true
+enable_thinking = false

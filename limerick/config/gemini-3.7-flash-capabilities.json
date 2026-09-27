@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "model": "gemini-3.7-flash",
+  "api": "google-interactions-v1",
+  "checked_at": "2026-08-14",
+  "source_urls": [
+    "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://ai.google.dev/gemini-api/docs/caching"
+  ],
+  "thinking_levels": ["low", "medium", "high"],
+  "max_output_tokens": 65536,
+  "implicit_cache_probe_floor_tokens": 8192,
+  "pricing_usd_per_million_tokens": {
+    "standard": {
+      "input": 0.75,
+      "cached_input": 0.075,
+      "output_and_thought": 3.75
+    },
+    "priority": {
+      "input": 1.35,
+      "cached_input": 0.135,
+      "output_and_thought": 6.75
+    }
+  }
+}
