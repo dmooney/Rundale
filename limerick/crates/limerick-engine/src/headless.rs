@@ -450,13 +450,13 @@ pub async fn run_headless(
     // A save this build cannot read is never opened for play or written
     // to: the player is told, and a new game starts in a new save file
     // beside it, leaving the refused file byte-identical.
-    let (db_path, save_lock, refused) = checked_resume_target(
+    let (db_path, save_lock, inspection) = checked_resume_target(
         &saves_dir,
         db_path,
         save_lock,
         headless_content(&app).as_ref(),
     )?;
-    if refused {
+    if inspection.is_none() {
         println!(
             "{}",
             limerick_core::save_compat::INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE
@@ -467,7 +467,10 @@ pub async fn run_headless(
     app.save_file_path = Some(db_path.clone());
     app.save_lock = Some(save_lock);
 
-    let db = crate::persistence::Database::open(&db_path)?;
+    let db = match &inspection {
+        Some(inspection) => crate::persistence::Database::open_inspected(&db_path, inspection)?,
+        None => crate::persistence::Database::open(&db_path)?,
+    };
     let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
     restore_from_db(&mut app, &async_db, &db_path, preferred_branch).await?;
     app.db = Some(async_db);
@@ -543,17 +546,21 @@ fn print_transcript_fallback_lines(save_path: &std::path::Path, branch_id: i64) 
     }
 }
 
-/// The save to resume at launch: `db_path` when this build can open it;
-/// otherwise a new save path beside it, locked, with `true` for refused.
-/// The refused file is never opened for play or written to.
+/// The save to resume at launch: `db_path` and its inspection when this
+/// build can open it; otherwise a new save path beside it, locked, and no
+/// inspection. The refused file is never opened for play or written to.
 fn checked_resume_target(
     saves_dir: &std::path::Path,
     db_path: std::path::PathBuf,
     save_lock: crate::persistence::SaveFileLock,
     content: Option<&limerick_core::ContentIdentity>,
-) -> Result<(std::path::PathBuf, crate::persistence::SaveFileLock, bool)> {
+) -> Result<(
+    std::path::PathBuf,
+    crate::persistence::SaveFileLock,
+    Option<crate::persistence::SaveInspection>,
+)> {
     match limerick_core::save_compat::check_save(&db_path, content) {
-        Ok(_) => Ok((db_path, save_lock, false)),
+        Ok(inspection) => Ok((db_path, save_lock, Some(inspection))),
         Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
             limerick_core::save_compat::refusal_message(&db_path, &error);
             drop(save_lock);
@@ -562,7 +569,7 @@ fn checked_resume_target(
                 crate::persistence::SaveFileLock::try_acquire(&new_path).ok_or_else(|| {
                     anyhow::anyhow!("could not lock new save file {}", new_path.display())
                 })?;
-            Ok((new_path, lock, true))
+            Ok((new_path, lock, None))
         }
         Err(error) => Err(error.into()),
     }
@@ -933,19 +940,20 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
             // Picker metadata was read only while every candidate was locked.
             // Keep the old live guard until the selected candidate recovers.
             let candidate_lock = take_or_acquire_save_lock(&mut picker_locks, &new_path)?;
-            if let Err(error) =
-                limerick_core::save_compat::check_save(&new_path, headless_content(app).as_ref())
-            {
-                if limerick_core::save_compat::is_incompatible(&error) {
+            let new_db = match limerick_core::save_compat::open_checked(
+                &new_path,
+                headless_content(app).as_ref(),
+            ) {
+                Ok(db) => db,
+                Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
                     println!(
                         "{}",
                         limerick_core::save_compat::refusal_message(&new_path, &error)
                     );
                     return Ok(());
                 }
-                return Err(error.into());
-            }
-            let new_db = crate::persistence::Database::open(&new_path)?;
+                Err(error) => return Err(error.into()),
+            };
             let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
             restore_from_db(app, &async_db, &new_path, None).await?;
             app.save_lock = Some(candidate_lock);
@@ -2877,10 +2885,10 @@ mod tests {
         let before = std::fs::read(&refused).unwrap();
         let lock = crate::persistence::SaveFileLock::try_acquire(&refused).unwrap();
 
-        let (path, _lock, was_refused) =
+        let (path, _lock, inspection) =
             checked_resume_target(temp.path(), refused.clone(), lock, None).unwrap();
 
-        assert!(was_refused);
+        assert!(inspection.is_none(), "refused");
         assert_eq!(
             path,
             temp.path().join("limerick_002.db"),
@@ -2901,9 +2909,9 @@ mod tests {
         )
         .unwrap();
         let lock = crate::persistence::SaveFileLock::try_acquire(&readable).unwrap();
-        let (path, _lock, was_refused) =
+        let (path, _lock, inspection) =
             checked_resume_target(temp.path(), readable.clone(), lock, None).unwrap();
-        assert!(!was_refused);
+        assert_eq!(inspection.map(|i| i.format_version), Some(2));
         assert_eq!(path, readable);
     }
 

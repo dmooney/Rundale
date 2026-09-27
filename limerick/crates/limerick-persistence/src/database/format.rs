@@ -127,8 +127,14 @@ pub struct InspectedBranch {
 }
 
 /// Reads `path` without writing to it and refuses it when its authoritative
-/// state cannot be read. Request records are checked to be JSON; see
-/// [`inspect_with`] to check their type.
+/// state cannot be read. Request records are only checked to be JSON: their
+/// type lives in `limerick-core`, whose `save_compat::check_save` passes a
+/// typed check to [`inspect_with`], and every runtime calls it before it
+/// opens a save for play. This check is enough for the other opens, because
+/// [`crate::Database::open`] writes to a save only to migrate one stamped
+/// below [`SAVE_FORMAT_VERSION`], and a request of a shape this build cannot
+/// read can only come from a newer build, which (by the shape test) stamps a
+/// newer format and so is never migrated.
 pub fn inspect(path: &Path) -> Result<SaveInspection, LimerickError> {
     inspect_with(path, &|record| {
         serde_json::from_str::<serde_json::Value>(record)
@@ -167,7 +173,7 @@ pub fn inspect_with(
 /// can write, and with the checkpoint on close disabled so closing never
 /// copies WAL frames into the file. Only the `-wal`/`-shm` sidecars may be
 /// created.
-fn read_only_connection(path: &Path) -> Result<Connection, LimerickError> {
+pub(super) fn read_only_connection(path: &Path) -> Result<Connection, LimerickError> {
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,

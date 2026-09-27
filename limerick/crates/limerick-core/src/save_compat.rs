@@ -130,7 +130,7 @@ pub fn transcript_fallback_lines_at(
     path: &Path,
     branch_id: i64,
 ) -> Result<Vec<String>, LimerickError> {
-    transcript_fallback_lines(&Database::open(path)?, branch_id)
+    transcript_fallback_lines(&Database::open_read_only(path)?, branch_id)
 }
 
 /// The fallback lines of the save and branch a runtime just bound, or none

@@ -134,18 +134,19 @@ async fn prepare_branch_load(
     })
     .await
     .map_err(|e| e.to_string())?;
-    if let Err(error) = checked {
-        if limerick_core::save_compat::is_incompatible(&error) {
+    let inspection = match checked {
+        Ok(inspection) => inspection,
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
             return Err(BranchLoadError::Refused(
                 limerick_core::save_compat::refusal_message(&path, &error),
             ));
         }
-        return Err(error.to_string().into());
-    }
+        Err(error) => return Err(error.to_string().into()),
+    };
 
     let path_clone = path.clone();
     let branch_name = tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let db = Database::open_inspected(&path_clone, &inspection).map_err(|e| e.to_string())?;
         db.list_branches()
             .map_err(|e| e.to_string())?
             .into_iter()

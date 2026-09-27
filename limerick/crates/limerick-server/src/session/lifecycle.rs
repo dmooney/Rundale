@@ -388,21 +388,23 @@ async fn restore_session(
     })
     .await
     .map_err(|e| e.to_string())?;
-    if let Err(error) = checked {
-        if !limerick_core::save_compat::is_incompatible(&error) {
-            return Err(error.to_string());
+    let inspection = match checked {
+        Ok(inspection) => inspection,
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
+            limerick_core::save_compat::refusal_message(&db_path, &error);
+            drop(candidate_lock);
+            tracing::warn!(session_id, "starting a new game beside the refused save");
+            return create_session(global, session_id).await;
         }
-        limerick_core::save_compat::refusal_message(&db_path, &error);
-        drop(candidate_lock);
-        tracing::warn!(session_id, "starting a new game beside the refused save");
-        return create_session(global, session_id).await;
-    }
+        Err(error) => return Err(error.to_string()),
+    };
     let branch_path = db_path.clone();
     let remembered_branch = candidate.remembered_branch.clone();
     let (branch_id, branch_name) =
         tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
-            let db = limerick_core::persistence::Database::open(&branch_path)
-                .map_err(|e| e.to_string())?;
+            let db =
+                limerick_core::persistence::Database::open_inspected(&branch_path, &inspection)
+                    .map_err(|e| e.to_string())?;
             let branches = db.list_branches().map_err(|e| e.to_string())?;
             let branch = if let Some((remembered_id, remembered_name)) = remembered_branch {
                 branches
