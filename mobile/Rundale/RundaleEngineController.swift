@@ -37,7 +37,15 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     private var engineTimeOfDay = "Morning"
     private var engineWeather = "Clear"
 
-    var statePublisher: AnyPublisher<SessionState, Never> { $state.eraseToAnyPublisher() }
+    /// Publishes on every state change and on every new persistence error.
+    /// An error can arrive without a state change (opening the engine fails,
+    /// for example), and the presentation model only reads
+    /// `persistenceError` when this publisher fires.
+    var statePublisher: AnyPublisher<SessionState, Never> {
+        $state
+            .merge(with: $persistenceError.dropFirst().compactMap { [weak self] _ in self?.state })
+            .eraseToAnyPublisher()
+    }
 
     var currentHeader: PresentedHeader {
         PresentedHeader(
