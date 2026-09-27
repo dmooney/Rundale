@@ -145,6 +145,9 @@ Issues: #2037, #2038, #2039.
   - a test fails if saved data changes without a format version bump.
 - Keep one save lock. Check the existing lock under the iOS sandbox and adopt the
   kernel lock only if the directory/PID lock is shown to be inadequate there.
+  Done in #2039: the directory/PID lock locked a relaunch out after a force-quit
+  when its recorded PID was reused, so `SaveFileLock` is now a kernel lock
+  ([ADR-026](../adr/026-kernel-save-lock.md)).
 
 Exit:
 

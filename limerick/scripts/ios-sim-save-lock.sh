@@ -15,7 +15,7 @@
 # booted it.
 #
 # What the Simulator cannot show: real suspension by the OS, jetsam, and the
-# device sandbox's signal policy. See docs/adr/026-ios-save-lock.md.
+# device sandbox's signal policy. See docs/adr/026-kernel-save-lock.md.
 #
 # Usage: bash limerick/scripts/ios-sim-save-lock.sh   (or: just ios-sim-save-lock)
 
@@ -119,13 +119,13 @@ run_on_simulator() {
         SIMCTL_CHILD_TMPDIR="$container/tmp" \
         xcrun simctl spawn "$device" "$binary" "$@" &
     local pid=$!
-    (sleep "$PER_BINARY_TIMEOUT" && kill -9 "$pid" 2>/dev/null) &
+    (sleep "$PER_BINARY_TIMEOUT" && kill -9 "$pid") >/dev/null 2>&1 &
     local watchdog=$!
     disown "$watchdog"
     local status=0
     wait "$pid" || status=$?
-    pkill -P "$watchdog" 2>/dev/null || true
-    kill "$watchdog" 2>/dev/null || true
+    pkill -P "$watchdog" >/dev/null 2>&1 || true
+    kill "$watchdog" >/dev/null 2>&1 || true
     return "$status"
 }
 
