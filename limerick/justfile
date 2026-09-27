@@ -266,6 +266,10 @@ test-one NAME:
 test-verbose:
     cargo test -- --nocapture
 
+# Run the save-lock tests on the iOS Simulator in an app sandbox container (macOS + Xcode)
+ios-sim-save-lock:
+    bash scripts/ios-sim-save-lock.sh
+
 # Run tests and generate coverage report (requires cargo-tarpaulin)
 coverage:
     #!/usr/bin/env bash

@@ -100,6 +100,10 @@ train-rundale-dialect:
 test:
     cd limerick && just test
 
+# Run the save-lock tests on the iOS Simulator (macOS + Xcode)
+ios-sim-save-lock:
+    cd limerick && just ios-sim-save-lock
+
 # Run tests and generate coverage report
 coverage:
     cd limerick && just coverage
