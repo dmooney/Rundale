@@ -98,6 +98,10 @@ pub struct WorldState {
     pub dialogue_anachronism_alert_suffix: String,
     /// Last canonical `/session` beat, date/location scoped when consumed.
     pub active_session: Option<session::ActiveSessionFact>,
+    /// The content (mod id and version) this world was loaded from, or
+    /// `None` for a world built without a mod. Saves record it so a save
+    /// only opens against the content it was played with (ADR-025 §4).
+    pub content: Option<limerick_types::ContentIdentity>,
 }
 
 impl WorldState {
@@ -166,6 +170,7 @@ impl WorldState {
             dialogue_anachronism_alert_prefix: String::new(),
             dialogue_anachronism_alert_suffix: String::new(),
             active_session: None,
+            content: None,
         }
     }
 

@@ -3,6 +3,7 @@
 //! This is the leaf crate — it has zero internal dependencies.
 //! All other limerick-* crates depend on this one.
 
+pub mod content;
 pub mod conversation;
 pub mod dice;
 pub mod error;
@@ -13,6 +14,7 @@ pub mod player_progress;
 pub mod theme;
 pub mod time;
 
+pub use content::ContentIdentity;
 pub use conversation::{
     ConversationCursor, ConversationExchange, ConversationLog, RememberedObjectAttribute,
     RememberedObjectAttributeKind, RememberedObjectFact,

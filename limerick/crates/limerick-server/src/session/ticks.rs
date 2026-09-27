@@ -1443,7 +1443,8 @@ mod tests {
                 player_progress: Default::default(),
                 npcs_who_know_player_name: Default::default(),
                 active_session: None,
-            }
+                        content: None,
+}
         }
 
         // Simulate three autosave ticks using the same handle.
