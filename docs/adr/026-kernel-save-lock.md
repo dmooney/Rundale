@@ -72,9 +72,12 @@ ownership.
 - The file records the owner's PID only for diagnostics. It also keeps older builds,
   which read that PID, treating a held save as locked.
 - Acquisitions in the same process share one open file through a registry, because a
-  second open file's lock would conflict with the first. The last guard removes
-  the file only if the path still names its file. A contender that locked a file
-  just removed notices and retries on the new file.
+  second open file's lock would conflict with the first.
+- On Unix (including iOS) the last guard removes the file, but only if the path
+  still names its file (same device and inode). A contender that locked a file
+  just removed notices and retries on the new file. std has no stable file
+  identity on Windows, so there the file is never removed and the lock on that
+  one file is the whole protocol.
 - `is_locked` probes with a shared lock that it drops at once. A contender acquiring
   at that same instant can be refused once; it is never granted a held lock.
 - A lock directory left by an earlier build is removed when its recorded owner is
