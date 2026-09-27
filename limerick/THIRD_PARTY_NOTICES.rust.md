@@ -3151,7 +3151,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.24.1](https://github.com/uuid-rs/uuid)
+- [uuid 1.26.1](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -5966,7 +5966,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [tower-http 0.6.11](https://github.com/tower-rs/tower-http)
-- [tower-http 0.7.0](https://github.com/tower-rs/tower-http)
+- [tower-http 0.7.1](https://github.com/tower-rs/tower-http)
 
 ```
 Copyright (c) 2019-2021 Tower Contributors
@@ -7079,9 +7079,9 @@ DEALINGS IN THE SOFTWARE.
 - [anstyle-query 1.1.5](https://github.com/rust-cli/anstyle.git)
 - [anstyle-wincon 3.0.11](https://github.com/rust-cli/anstyle.git)
 - [anstyle 1.0.14](https://github.com/rust-cli/anstyle.git)
-- [clap 4.6.6](https://github.com/clap-rs/clap)
-- [clap_builder 4.6.6](https://github.com/clap-rs/clap)
-- [clap_derive 4.6.4](https://github.com/clap-rs/clap)
+- [clap 4.6.7](https://github.com/clap-rs/clap)
+- [clap_builder 4.6.7](https://github.com/clap-rs/clap)
+- [clap_derive 4.6.7](https://github.com/clap-rs/clap)
 - [clap_lex 1.1.0](https://github.com/clap-rs/clap)
 - [colorchoice 1.0.5](https://github.com/rust-cli/anstyle.git)
 - [is_terminal_polyfill 1.70.2](https://github.com/polyfill-rs/is_terminal_polyfill)
@@ -7283,7 +7283,7 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 
 **Used by:**
 
-- [rand 0.10.2](https://github.com/rust-random/rand)
+- [rand 0.10.3](https://github.com/rust-random/rand)
 - [rand 0.8.6](https://github.com/rust-random/rand)
 - [rand 0.9.4](https://github.com/rust-random/rand)
 - [rand_chacha 0.3.1](https://github.com/rust-random/rand)
@@ -7455,7 +7455,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [lru 0.18.2](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.18.5](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
@@ -8715,7 +8715,7 @@ SOFTWARE.
 - [tauri-runtime-wry 2.11.4](https://github.com/tauri-apps/tauri)
 - [tauri-runtime 2.11.3](https://github.com/tauri-apps/tauri)
 - [tauri-utils 2.9.3](https://github.com/tauri-apps/tauri)
-- [tauri 2.11.5](https://github.com/tauri-apps/tauri)
+- [tauri 2.11.6](https://github.com/tauri-apps/tauri)
 - [tower-sessions-core 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [tower-sessions-memory-store 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [unic-char-property 0.9.0](https://github.com/open-i18n/rust-unic/)
@@ -9059,9 +9059,9 @@ DEALINGS IN THE SOFTWARE.
 - [rustversion 1.0.22](https://github.com/dtolnay/rustversion)
 - [semver 1.0.28](https://github.com/dtolnay/semver)
 - [serde-untagged 0.1.9](https://github.com/dtolnay/serde-untagged)
-- [serde 1.0.228](https://github.com/serde-rs/serde)
-- [serde_core 1.0.228](https://github.com/serde-rs/serde)
-- [serde_derive 1.0.228](https://github.com/serde-rs/serde)
+- [serde 1.0.229](https://github.com/serde-rs/serde)
+- [serde_core 1.0.229](https://github.com/serde-rs/serde)
+- [serde_derive 1.0.229](https://github.com/serde-rs/serde)
 - [serde_derive_internals 0.29.1](https://github.com/serde-rs/serde)
 - [serde_derive_internals 0.30.0](https://github.com/serde-rs/serde)
 - [serde_json 1.0.151](https://github.com/serde-rs/json)
@@ -9075,9 +9075,9 @@ DEALINGS IN THE SOFTWARE.
 - [system-deps 6.2.2](https://github.com/gdesmott/system-deps)
 - [system-deps 7.0.8](https://github.com/gdesmott/system-deps)
 - [thiserror-impl 1.0.69](https://github.com/dtolnay/thiserror)
-- [thiserror-impl 2.0.20](https://github.com/dtolnay/thiserror)
+- [thiserror-impl 2.0.21](https://github.com/dtolnay/thiserror)
 - [thiserror 1.0.69](https://github.com/dtolnay/thiserror)
-- [thiserror 2.0.20](https://github.com/dtolnay/thiserror)
+- [thiserror 2.0.21](https://github.com/dtolnay/thiserror)
 - [typeid 1.0.3](https://github.com/dtolnay/typeid)
 - [unicode-ident 1.0.24](https://github.com/dtolnay/unicode-ident)
 - [unsafe-libyaml 0.2.11](https://github.com/dtolnay/unsafe-libyaml)
@@ -9229,7 +9229,7 @@ SOFTWARE
 - [glib-sys 0.18.1](https://github.com/gtk-rs/gtk-rs-core)
 - [glib-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [glib 0.18.5](https://github.com/gtk-rs/gtk-rs-core)
-- [glib 0.22.8](https://github.com/gtk-rs/gtk-rs-core)
+- [glib 0.22.10](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.18.0](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [gtk-sys 0.18.2](https://github.com/gtk-rs/gtk3-rs)
@@ -9710,7 +9710,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [jsonwebtoken 11.0.0](https://github.com/Keats/jsonwebtoken)
+- [jsonwebtoken 11.1.0](https://github.com/Keats/jsonwebtoken)
 
 ```
 The MIT License (MIT)
