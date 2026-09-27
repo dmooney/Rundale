@@ -1,6 +1,6 @@
 # Design: portable turn API (Mobile Phase 1)
 
-> Status: Accepted · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md), Mobile Phase 1 ·
+> Status: Implemented · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md), Mobile Phase 1 ·
 > Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md) §1, §2
 
 This document is the inventory and design gate for Mobile Phase 1: the API types, the
@@ -166,8 +166,12 @@ spec already requires such an attempt to become `Interrupted`, not to resume.
 
 ## 4. API
 
-Module `limerick_core::turn` (portable; builds under `mobile`). Sketches below
-omit derives and docs; all public types are `Serialize + Deserialize`.
+Two modules, both portable and building under `mobile`: `limerick_core::turn`
+(`turn/`: identities, the state machine, transcript events, the durability seam,
+and the engine that drives them) and `limerick_core::turn_inference`
+(`turn_inference.rs`: the inference-call and outcome types the pipeline calls
+through, and the in-process fulfillers). Sketches below omit derives and docs;
+lifecycle and transcript types are `Serialize + Deserialize`.
 
 ### 4.1 Identities
 
@@ -189,12 +193,20 @@ with an identical payload is a no-op and with a different payload is an error.
 
 ```rust
 impl TurnEngine {
+    pub fn new(journal: Arc<dyn TurnJournal>, rules: TurnRules) -> Self;
+    pub async fn restore(journal: Arc<dyn TurnJournal>, rules: TurnRules) -> Result<Self, TurnError>;
     pub async fn submit(&mut self, live: &GameLoopContext<'_>, input: TurnInput) -> Result<TurnStep, TurnError>;
     pub async fn resume(&mut self, live: &GameLoopContext<'_>, resolution: InferenceResolution) -> Result<TurnStep, TurnError>;
     pub async fn stop(&mut self, live: &GameLoopContext<'_>, attempt: &ExecutionAttemptId) -> Result<TurnStep, TurnError>;
     pub async fn retry(&mut self, live: &GameLoopContext<'_>, request: &LogicalRequestId) -> Result<TurnStep, TurnError>;
     pub async fn answer_clarification(&mut self, live: &GameLoopContext<'_>, request: &LogicalRequestId, choice: &str) -> Result<TurnStep, TurnError>;
     pub async fn recover(&mut self) -> Result<Vec<TranscriptEvent>, TurnError>; // after restart
+    pub fn set_routes(&mut self, routes: InferenceRoutes);
+    pub fn set_rules(&mut self, rules: TurnRules);
+    pub fn set_loading(&mut self, loading: Option<LoadingHook>);
+    pub fn revision(&self) -> StateRevision;
+    pub fn request(&self, id: &LogicalRequestId) -> Option<&RequestRecord>;
+    pub fn open_request(&self) -> Option<&LogicalRequestId>;
 }
 
 pub struct TurnInput {
@@ -205,18 +217,36 @@ pub struct TurnInput {
 }
 
 pub struct TurnStep {
-    pub request_id: LogicalRequestId,
+    pub request_id: Option<LogicalRequestId>, // absent only for an ignored callback naming no known attempt
     pub attempt_id: Option<ExecutionAttemptId>,
     pub events: Vec<TranscriptEvent>,           // durable, committed or terminal
-    pub emissions: Vec<(String, serde_json::Value)>, // wire events (current names), released now
+    pub emissions: Vec<(String, serde_json::Value)>, // wire events (current names), already flushed to the live emitter
     pub status: TurnStatus,
 }
 
+impl TurnStep {
+    /// The player-facing message of an attempt this step ended `Failed` or
+    /// `Interrupted`, read back from the step's own `Error` event.
+    pub fn failure_message(&self) -> Option<String>;
+}
+
 pub enum TurnStatus {
-    AwaitingInference(InferenceCall),
+    AwaitingInference(PendingInference),
     AwaitingClarification(ClarificationPrompt),
     Completed { outcome: TerminalOutcome, revision: Option<StateRevision> },
     Ignored(IgnoredReason), // stale, late, or duplicate callback: no effects
+}
+
+/// A model call the engine is waiting for. Everything a resolution must echo
+/// back (identity, owning request/attempt, base revision) lives here, not on
+/// the call itself.
+pub struct PendingInference {
+    pub id: InferenceCallId,
+    pub request_id: LogicalRequestId,
+    pub attempt_id: ExecutionAttemptId,
+    pub base_revision: StateRevision,
+    pub call: InferenceCall,   // turn_inference::InferenceCall; see §4.3
+    pub streaming: bool,       // whether the pipeline wants the reply forwarded token-by-token
 }
 
 pub enum TerminalOutcome { Succeeded, Cancelled, Failed, Interrupted }
@@ -224,21 +254,42 @@ pub enum TerminalOutcome { Succeeded, Cancelled, Failed, Interrupted }
 
 `live` is the runtime's existing `GameLoopContext`, borrowed per call, so the
 engine never needs `'static` access to runtime state. Commit installs into it.
+`TurnRules { transport: TransportMode, reaction_templates: ReactionTemplates }`
+is what a runtime supplies per turn (travel mode, arrival-reaction templates).
+`LoadingHook` is `Arc<dyn Fn() -> Option<CancellationToken> + Send + Sync>`,
+the runtime's loading-indicator starter; `set_loading` sets the hook every
+attempt started from then on uses, and the tokens an attempt starts are held
+by the attempt itself, so they stop when it ends for any reason — commit,
+failure, clarification, or `stop` — with no separate cleanup call.
+`InferenceRoutes` reports per-`InferenceSubrole` route availability
+(`RouteStatus::Unavailable | Simulated | Live`) so the pipeline can fall back
+before making a call it knows has nowhere to go. `INTERRUPTED_MESSAGE` is the
+line `recover` records against a request an earlier process left open.
 
 ### 4.3 Inference seam
 
 ```rust
+// limerick_core::turn_inference
+
 pub struct InferenceCall {
-    pub id: InferenceCallId,
-    pub request_id: LogicalRequestId,
-    pub attempt_id: ExecutionAttemptId,
-    pub base_revision: StateRevision,
-    pub subrole: InferenceSubrole,        // Intent | Dialogue | TravelEncounter | ArrivalReaction
-    pub model: String,
+    pub subrole: InferenceSubrole,   // existing limerick-config type; Intent | Dialogue | TravelEncounter | ArrivalReaction here
     pub system: Option<String>,
     pub prompt: String,
-    pub generation: GenerationSettings,   // max tokens, temperature, penalties, thinking, profile
-    pub response_format: ResponseShape,   // Text | JsonObject | JsonSchema(..)
+    pub response: ResponseShape,     // Text | IntentJson | NpcDialogue
+    pub correlation_id: Option<u64>, // dialogue turn id, for queue and audit correlation
+}
+
+pub enum ResponseShape { Text, IntentJson, NpcDialogue }
+
+/// What the host resolved and observed for one call, reported back for
+/// telemetry — the model/generation choice the design first put on
+/// `InferenceCall` itself is host-owned and travels this way instead.
+pub struct CallReport {
+    pub model: String,
+    pub max_tokens: Option<u32>,
+    pub generation: Option<GenerationSettings>, // dialogue only: temperature, penalties, thinking, reasoning effort
+    pub metadata: Option<ProviderMetadata>,
+    pub partial_output_len: usize,
 }
 
 pub struct InferenceResolution {
@@ -249,38 +300,56 @@ pub struct InferenceResolution {
 }
 
 pub enum InferenceOutcome {
-    Completed { text: String, metadata: ProviderMetadata },
-    Failed { kind: InferenceFailureKind, message: String },
+    Completed { text: String, report: CallReport },
+    Failed { kind: InferenceFailureKind, message: String, report: CallReport },
 }
 
-pub enum InferenceFailureKind { Transport, Protocol, Truncated, TimedOut, Interrupted }
+pub enum InferenceFailureKind { Transport, Protocol, TimedOut, Interrupted }
+
+pub enum RouteStatus { Unavailable, Simulated, Live }
+
+pub trait TurnInference: Send + Sync {
+    fn route(&self, subrole: InferenceSubrole) -> BoxFuture<'_, RouteStatus>;
+    fn complete_streaming(&self, call: InferenceCall, tokens: Option<mpsc::Sender<String>>) -> BoxFuture<'_, InferenceOutcome>;
+    fn complete(&self, call: InferenceCall) -> BoxFuture<'_, InferenceOutcome>; // default: complete_streaming(call, None)
+}
 ```
+
+As built there is no `Truncated` kind and no `response_format`/`generation` on
+the call itself. The host, not the engine, decides model and generation
+settings and reports what it used in `CallReport`; a non-success finish reason
+is `Failed { Protocol, .. }` when the reply also fails structural validation
+(malformed intent JSON) and `Failed { Transport, .. }` otherwise — decided
+before the engine ever sees the reply.
 
 Responsibility split, per Rules 33 and 37:
 
-- The host validates transport and termination: a non-success finish reason
-  (for example `length`) is `Failed { Truncated }`, never `Completed`.
+- The host validates transport and termination.
 - The engine validates meaning: intent output through
   `intent_from_structured_output` / `validated_intent`, dialogue through
   `parse_npc_stream_response_with_disposition` and
   `apply_npc_dialogue_turn_with_validation`. The host never applies semantic
   guards and never publishes candidate text.
 
-Inside the pipeline, call sites use `ctx.inference.complete(call).await`, where
-`ctx.inference: Arc<dyn TurnInference>` is a new `GameLoopContext` field. Two
-implementations:
+Inside the pipeline, call sites use `ctx.inference().complete(call).await`.
+`GameLoopContext::inference()` resolves the seam: its `inference_override:
+Option<Arc<dyn TurnInference>>` field fulfils it when set, otherwise it builds
+`InProcessInference::from_ctx(self)` on the spot. Two implementations:
 
-- `HostYield` (portable): used by `TurnEngine`. `complete` sends the call to the
-  engine and awaits a oneshot; the engine returns `AwaitingInference` to the
-  host.
-- `InProcessInference` (desktop, lives next to `InferenceQueue`): performs
-  today's exact calls. Dialogue goes through the queue at interactive priority
-  with the token channel drained and discarded, and the
-  `inference-response-timeout` flag moves here unchanged. Intent, encounter, and
-  reaction calls use `generate_detailed_with_format` with today's parameters and
-  `DirectInferenceAudit` records. Desktop hosts drive the engine with a helper,
-  `drive_in_process(engine, live, input, &InProcessInference)`, that loops
-  `AwaitingInference` → `resume`.
+- `HostYield` (`turn::engine`, portable): what `TurnEngine` sets as the
+  override. `complete_streaming` sends the call to the engine and awaits a
+  oneshot; the engine returns `AwaitingInference(PendingInference)` to the
+  host. A host without streaming still delivers the whole reply once a
+  resolution arrives.
+- `InProcessInference` (`game_loop::inference`, desktop, no override set):
+  dispatches by subrole. Dialogue goes through the existing `InferenceQueue` at
+  interactive priority with the token channel drained and discarded, and the
+  `inference-response-timeout` flag unchanged. Intent, travel-encounter, and
+  arrival-reaction calls go through `DirectClientInference`
+  (`turn_inference.rs`) — one provider call with a `DirectInferenceAudit`
+  record and, for encounters and reactions, a per-call timeout. Desktop hosts
+  drive the engine with `drive_in_process(engine, live, input,
+&InProcessInference)`, which loops `AwaitingInference` → `resume`.
 
 Mobile Phase 3 adds an Endpoint reference (#2041) (role name and version) and structured inputs
 to `InferenceCall`, so an Endpoint host can execute the published definition.
@@ -395,10 +464,20 @@ the auto-player inference pause.
 
 - Acceptance releases the player's echo immediately (the existing prelude
   emission and `PlayerCommand` event), after the acceptance is journaled.
-- Progress is live: the runtime's loading animation (`spawn_loading`) and the
-  before-turn `world-update` still fire during inference.
+- Progress is live: the loading indicator the runtime installs with
+  `TurnEngine::set_loading` and the before-turn `world-update` still fire
+  during inference. An attempt's loading tokens are held by the attempt
+  itself, so they stop the instant it ends for any reason — commit, failure,
+  clarification, or `stop` — with no separate cleanup call.
 - Everything else is released at commit, in the order produced. Today's
   task-bearing turns already behave this way on both desktop UIs.
+- A failed player-initiated dialogue attempt commits nothing, but still
+  releases its own failure presentation, taken from the discarded candidate:
+  the empty placeholder `text-log` line, the failed `stream-turn-end`
+  (carrying only `DIALOGUE_RETRY_MESSAGE`), and a `stream-end` with no
+  language hints. Nothing else the candidate produced before the failure —
+  in particular an earlier speaker's uncommitted line in a multi-addressee
+  turn — is shown.
 
 ## 6. Durability seam
 
@@ -456,8 +535,9 @@ What Mobile Phase 2 must supply (#2037, #2038):
 4. Forward compatibility per ADR-025 §4: unknown `TranscriptEventKind` values
    are preserved verbatim and rendered as a fallback line (the Mobile Phase 1 enum
    gets an `Unknown { raw }` arm and a round-trip test so Mobile Phase 2 does not have
-   to change the type).
-5. The save format version bump and prior-format fixtures.
+   to change the type). **Done in #2038; see §6.2.**
+5. The save format version bump and prior-format fixtures. **Done in #2038;
+   see §6.2.**
 
 ### 6.1 The SQLite journal (#2037)
 
@@ -467,7 +547,7 @@ so saves written before #2037 open unchanged and gain empty tables
 `requests` holds one row per logical request (the serialized `RequestRecord`,
 its phase, an open flag, and the committed revision); `transcript_events` holds
 one row per event (the serialized `PendingEvent`, its kind and request). The
-schema has no version marker yet; the format version is #2038.
+format version is described in §6.2.
 
 Sequence counter. `transcript_events.sequence` is an `AUTOINCREMENT` key, so
 SQLite's durable counter assigns it: strictly increasing across the whole save,
@@ -512,6 +592,63 @@ open is retried by the next submission and reported as its error. With no save
 bound the engine uses an in-memory journal that refuses task batches, as
 before.
 
+### 6.2 Save format and forward compatibility (#2038)
+
+Format version. A save records its format in SQLite's `PRAGMA user_version`
+(`SAVE_FORMAT_VERSION`, `limerick-persistence` `database/format.rs`). Format 1
+is a save from before #2037, format 2 adds the turn-journal tables (#2037),
+format 3 stamps the version and records content identity in snapshots. Unmarked
+saves are detected as 1 or 2 by their tables. Opening an older save migrates it
+and stamps the current format; a current save is not migrated again, so opening
+it writes nothing. A save stamped newer than the build opens unchanged when its
+authoritative state reads, and its stamp is never lowered.
+
+One gate, before any write. `Database::open` first inspects the file through a
+connection that cannot write to it (`query_only`, no checkpoint on close; a
+read-only open cannot open a closed WAL save). It refuses the save with
+`LimerickError::SaveIncompatible` only when authoritative state cannot be read:
+not a save database, a column this build reads is missing, a branch's latest
+snapshot or the world events replayed over it do not parse, or a turn request is
+not JSON. The runtimes call `limerick_core::save_compat::check_save` before they
+open a save for play, which adds the typed `RequestRecord` check and the content
+check, and open it with the inspection that check returned. Nothing has written
+to a refused file, so it stays byte-identical. Transcript fallback lines are
+read through `Database::open_read_only`.
+
+Refusal. On a load (server `/api/load-branch` and `/load`, Tauri and its MCP
+bridge, headless `/load`) the player sees `INCOMPATIBLE_SAVE_MESSAGE`, the current
+game carries on, and `/new` is offered. At launch the server session, the
+Tauri app, and the headless REPL leave the refused file untouched and start a
+new game in a new save file beside it. The headless REPL prints
+`INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE`; the server and Tauri log the refusal,
+because their UIs have no channel for a message sent before they connect.
+
+Content identity. Snapshots record the content they were captured against:
+the mod's `[mod] id` and `version` (`ContentIdentity`, carried on `WorldState`
+from `world_state_from_mod`). A save opens against any version of the same
+content and is refused against other content, whose places and people reuse
+the same numeric ids. Snapshots written before format 3 record none and open as
+before. No file path or content hash takes part.
+
+Unknown transcript events. A transcript event is presentation, never
+authoritative state, so an event of a kind this build does not know never blocks
+opening. The journal reads it as `TranscriptEventKind::Unknown`, keeps the row
+verbatim (unknown fields included), and journals around it. When a save is
+loaded, each event this build cannot present (unknown kind, or a payload that
+does not read) is shown as one `FALLBACK_LINE`, at most the ten most recent.
+Desktop has no transcript rehydration otherwise, so these are the only journal
+events it shows on load; a mobile client renders the same line in place.
+
+Shape test. `limerick-core` `save_compat::tests::save_format_shape` compares the
+schema of a new save and the JSON field paths of a snapshot, every world event,
+a request record, and a transcript event with the recorded shape of the current
+format (`limerick-persistence/tests/fixtures/save_format_vN.shape`). Changing
+what a save stores fails it until the version is bumped, a fixture of the
+previous format is checked in, and the new shape is recorded. Fixtures:
+`pre_turn_journal_save.db` (format 1), `turn_journal_v2_save.db` (format 2),
+`future_format_unknown_event_save.db` (a newer format with an unknown event
+kind), and `unreadable_state_save.db`.
+
 ## 7. Desktop invariance
 
 Unchanged by design:
@@ -555,6 +692,11 @@ changes; each PR records before/after evidence:
    already use. It gains full travel, encounters, arrival reactions, guards,
    and the shared resolver, which it lacks today.
 
+Status: changes 1-3 landed with the runtime switch, PR #2073 (issue #2035).
+Change 4 landed earlier with clarification, PR #2067 (issue #2034). Change 5
+is deferred to issue #2023 — the headless REPL still runs its own pipeline
+(`limerick-engine/src/headless.rs::handle_headless_game_input`) until then.
+
 ## 8. PR sequence
 
 Each PR starts from current `origin/main` in its own worktree and carries
@@ -564,18 +706,18 @@ fixture, and a proof bundle per [agent-check](../agent/agent-check.md). Live run
 on the inference path use a local scripted OpenAI-compatible server (real HTTP,
 canned replies, disclosed in the evidence).
 
-| PR / issue | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                    |
-| ---------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| #2021      | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                         |
-| #2026      | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                  |
-| #2027      | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                      |
-| #2028      | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                   | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run    |
-| #2029      | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                        |
-| #2032      | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                  |
-| #2034      | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`. A leading name or role vocative in free text ("Widow, any news?") is passed to the resolver (today it is answered by whoever is first).                                     | ported clarification tests; real-loop test                                                               |
-| #2035      | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server and Tauri bridge live runs against the scripted server, before/after transcripts; real-loop tests |
-| #2023      | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                     |
-| #2036      | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                              |
+| PR / issue       | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                    | Status                    |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------- |
+| #2021            | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                         | Landed (self-numbered PR) |
+| #2026            | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                  | Landed (self-numbered PR) |
+| #2027            | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                      | Landed (self-numbered PR) |
+| #2028            | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference()`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                 | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run    | Landed (self-numbered PR) |
+| #2029            | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                        | Landed (self-numbered PR) |
+| #2032            | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                  | Landed (self-numbered PR) |
+| #2034 (PR #2067) | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`. A leading name or role vocative in free text ("Widow, any news?") is passed to the resolver (today it is answered by whoever is first).                                     | ported clarification tests; real-loop test                                                               | Landed                    |
+| #2035 (PR #2073) | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server and Tauri bridge live runs against the scripted server, before/after transcripts; real-loop tests | Landed                    |
+| #2023            | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                     | Deferred (open)           |
+| #2036            | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                              | This PR                   |
 
 Order. The remaining order is also recorded as "blocked by" links on the
 issues.

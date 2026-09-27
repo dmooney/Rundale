@@ -1,0 +1,150 @@
+# Shape of save format 3. Recorded by limerick-core save_compat::tests::save_format_shape; never edit by hand.
+[sqlite]
+index idx_journal_branch_snap_seq: CREATE UNIQUE INDEX idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_id, sequence)
+index idx_requests_branch_open: CREATE INDEX idx_requests_branch_open ON requests(branch_id, is_open)
+index idx_transcript_events_branch_sequence: CREATE INDEX idx_transcript_events_branch_sequence ON transcript_events(branch_id, sequence)
+index idx_transcript_events_event_id: CREATE UNIQUE INDEX idx_transcript_events_event_id ON transcript_events(event_id)
+table branches: CREATE TABLE branches ( id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL, parent_branch_id INTEGER REFERENCES branches(id) )
+table journal_events: CREATE TABLE journal_events ( id INTEGER PRIMARY KEY, branch_id INTEGER NOT NULL, sequence INTEGER NOT NULL, after_snapshot_id INTEGER NOT NULL REFERENCES snapshots(id), event_type TEXT NOT NULL, event_data TEXT NOT NULL, game_time TEXT NOT NULL )
+table requests: CREATE TABLE requests ( request_id TEXT PRIMARY KEY, branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE, phase TEXT NOT NULL, is_open INTEGER NOT NULL, committed_revision INTEGER, record TEXT NOT NULL )
+table snapshots: CREATE TABLE snapshots ( id INTEGER PRIMARY KEY, branch_id INTEGER NOT NULL REFERENCES branches(id), game_time TEXT NOT NULL, real_time TEXT NOT NULL, world_state TEXT NOT NULL )
+table transcript_events: CREATE TABLE transcript_events ( sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL, branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE, request_id TEXT, kind TEXT NOT NULL, event TEXT NOT NULL )
+user_version: 3
+[snapshot]
+$.active_session: null
+$.clock.game_time: string
+$.clock.paused: bool
+$.clock.speed_factor: number
+$.content.id: string
+$.content.version: string
+$.conversation_log.contacted_speakers: []
+$.conversation_log.exchanges: []
+$.conversation_log.remembered_objects: []
+$.conversation_log.total_exchanges: number
+$.edge_traversals[][]: number
+$.gossip_network.items: []
+$.gossip_network.next_id: number
+$.introduced_npcs[]: number
+$.last_tier2_game_time: string
+$.last_tier3_game_time: string
+$.last_tier4_game_time: string
+$.npcs[].age: number
+$.npcs[].banshee_heralded: bool
+$.npcs[].brief_description: string
+$.npcs[].deflated_summary: null
+$.npcs[].doom: null
+$.npcs[].home: null
+$.npcs[].id: number
+$.npcs[].intelligence.analytical: number
+$.npcs[].intelligence.creative: number
+$.npcs[].intelligence.emotional: number
+$.npcs[].intelligence.practical: number
+$.npcs[].intelligence.verbal: number
+$.npcs[].intelligence.wisdom: number
+$.npcs[].is_ill: bool
+$.npcs[].knowledge: []
+$.npcs[].last_activity: null
+$.npcs[].location: number
+$.npcs[].long_term_memory.entries: []
+$.npcs[].long_term_memory.max_entries: number
+$.npcs[].memory.entries: []
+$.npcs[].memory.max_capacity: number
+$.npcs[].mood: string
+$.npcs[].name: string
+$.npcs[].occupation: string
+$.npcs[].personality: string
+$.npcs[].pronouns: string
+$.npcs[].reaction_log.entries: []
+$.npcs[].relationships: {}
+$.npcs[].schedule: null
+$.npcs[].state: string
+$.npcs[].workplace: null
+$.npcs_who_know_player_name[]: number
+$.player_location: number
+$.player_name: string
+$.player_progress.next_task_id: number
+$.player_progress.tasks[].assigned_at: string
+$.player_progress.tasks[].assigned_by: number
+$.player_progress.tasks[].completed_at: null
+$.player_progress.tasks[].description: string
+$.player_progress.tasks[].id: number
+$.player_progress.tasks[].last_matching_action: null
+$.player_progress.tasks[].location: number
+$.player_progress.tasks[].started_at: null
+$.player_progress.tasks[].status: string
+$.text_log: []
+$.visited_locations[]: number
+$.visited_order[]: number
+$.weather: string
+[world_events]
+$[].content: string
+$[].context: string
+$[].delta: number
+$[].direction: string
+$[].emoji: string
+$[].from: number
+$[].minutes: number
+$[].mood: string
+$[].new_weather: string
+$[].npc_a: number
+$[].npc_b: number
+$[].npc_id: number
+$[].npc_said: string
+$[].player_said: string
+$[].task.assigned_at: string
+$[].task.assigned_by: number
+$[].task.completed_at: null
+$[].task.description: string
+$[].task.id: number
+$[].task.last_matching_action: null
+$[].task.location: number
+$[].task.started_at: null
+$[].task.status: string
+$[].timestamp: string
+$[].to: number
+$[].type: string
+[request]
+$.addressed_to[]: string
+$.attempts[].base_revision: number
+$.attempts[].calls_issued: number
+$.attempts[].committed_revision: number
+$.attempts[].id: string
+$.attempts[].next_event_ordinal: number
+$.attempts[].phase: string
+$.attempts[].terminal_outcome: string
+$.committed_revision: number
+$.draft_id: string
+$.id: string
+$.original_text: string
+$.pending_clarification.choices[].entity_id: string
+$.pending_clarification.choices[].id: string
+$.pending_clarification.choices[].label: string
+$.pending_clarification.question: string
+$.pending_clarification.reference: string
+$.phase: string
+$.resolved_intent.atmosphere: null
+$.resolved_intent.dialogue: string
+$.resolved_intent.intent: string
+$.resolved_intent.raw: string
+$.resolved_intent.target: string
+$.selected_addressees[].choice.entity_id: string
+$.selected_addressees[].choice.id: string
+$.selected_addressees[].choice.label: string
+$.selected_addressees[].reference: string
+$.terminal_outcome: string
+[transcript_event]
+$.attempt_id: string
+$.clarification.choices[].entity_id: string
+$.clarification.choices[].id: string
+$.clarification.choices[].label: string
+$.clarification.question: string
+$.clarification.reference: string
+$.content: string
+$.id: string
+$.item_id: string
+$.kind: string
+$.metadata.retry: string
+$.request_id: string
+$.speaker: string
+$.state_revision: number
+$.terminal_outcome: string

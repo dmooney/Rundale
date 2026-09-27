@@ -191,6 +191,12 @@ fn install_persistent_log_workers(
         .insert(session_saves.to_path_buf());
 }
 
+/// The identity of the content this server runs, which saves record and
+/// are checked against.
+fn content_identity(global: &GlobalState) -> Option<limerick_core::ContentIdentity> {
+    global.game_mod.as_ref().map(GameMod::content_identity)
+}
+
 async fn create_session(
     global: &Arc<GlobalState>,
     session_id: &str,
@@ -200,12 +206,14 @@ async fn create_session(
 
     let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
+    let content = content_identity(global);
     let (world, npc_manager) = tokio::task::spawn_blocking(move || {
-        let world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
+        let mut world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
             .unwrap_or_else(|e| {
                 tracing::warn!("Session init: failed to load world: {}. Using default.", e);
                 WorldState::new()
             });
+        world.content = content;
         let mut npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|e| {
                 tracing::warn!("Session init: failed to load npcs.json: {}. No NPCs.", e);
@@ -370,12 +378,33 @@ async fn restore_session(
                 db_path.display()
             )
         })?;
+    // A save this build cannot read is never opened for play or written
+    // to: the session starts a new game in a new save file beside it, and
+    // the refused file is left byte-identical.
+    let check_path = db_path.clone();
+    let content = content_identity(global);
+    let checked = tokio::task::spawn_blocking(move || {
+        limerick_core::save_compat::check_save(&check_path, content.as_ref())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let inspection = match checked {
+        Ok(inspection) => inspection,
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
+            limerick_core::save_compat::refusal_message(&db_path, &error);
+            drop(candidate_lock);
+            tracing::warn!(session_id, "starting a new game beside the refused save");
+            return create_session(global, session_id).await;
+        }
+        Err(error) => return Err(error.to_string()),
+    };
     let branch_path = db_path.clone();
     let remembered_branch = candidate.remembered_branch.clone();
     let (branch_id, branch_name) =
         tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
-            let db = limerick_core::persistence::Database::open(&branch_path)
-                .map_err(|e| e.to_string())?;
+            let db =
+                limerick_core::persistence::Database::open_inspected(&branch_path, &inspection)
+                    .map_err(|e| e.to_string())?;
             let branches = db.list_branches().map_err(|e| e.to_string())?;
             let branch = if let Some((remembered_id, remembered_name)) = remembered_branch {
                 branches
@@ -405,9 +434,11 @@ async fn restore_session(
     // Load fresh static world data, then apply the saved snapshot.
     let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
+    let content = content_identity(global);
     let (mut world, mut npc_manager) = tokio::task::spawn_blocking(move || {
-        let world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
+        let mut world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
             .unwrap_or_else(|_| WorldState::new());
+        world.content = content;
         let npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|_| NpcManager::new());
         (world, npc_manager)
@@ -660,31 +691,29 @@ mod resume_identity_tests {
         save_path
     }
 
+    /// Holds the save's kernel lock through its own open file, as another
+    /// process would; this process's `SaveFileLock` registry does not know it.
     #[cfg(unix)]
     struct ExternalSaveLock {
-        child: std::process::Child,
+        file: std::fs::File,
         lock_path: std::path::PathBuf,
     }
 
     #[cfg(unix)]
     impl ExternalSaveLock {
         fn acquire(save_path: &std::path::Path) -> Self {
-            let child = std::process::Command::new("sleep")
-                .arg("60")
-                .spawn()
-                .expect("spawn external lock owner");
             let lock_path = limerick_core::persistence::SaveFileLock::lock_path_for(save_path);
-            std::fs::write(&lock_path, child.id().to_string()).unwrap();
-            Self { child, lock_path }
+            let file = std::fs::File::create(&lock_path).expect("create external lock file");
+            file.try_lock().expect("take external save lock");
+            Self { file, lock_path }
         }
     }
 
     #[cfg(unix)]
     impl Drop for ExternalSaveLock {
         fn drop(&mut self) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
             let _ = std::fs::remove_file(&self.lock_path);
+            let _ = self.file.unlock();
         }
     }
 
@@ -728,6 +757,55 @@ mod resume_identity_tests {
         assert_eq!(std::fs::read(&remembered_path).unwrap(), remembered_before);
         assert_eq!(std::fs::read(&fallback_path).unwrap(), fallback_before);
         assert_eq!(std::fs::read(&marker_path).unwrap(), marker_before);
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_remembered_save_is_left_untouched_and_a_new_game_starts() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "cccccccc-cccc-4ccc-cccc-cccccccccccc";
+        let remembered_path = seed_restorable_session(&global, session_id);
+        std::fs::copy(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures/unreadable_state_save.db"),
+            &remembered_path,
+        )
+        .unwrap();
+        let before = std::fs::read(&remembered_path).unwrap();
+
+        let (_, entry, _) = get_or_create_session(&global, Some(session_id))
+            .await
+            .expect("a new game starts instead of failing the session");
+
+        assert_eq!(
+            std::fs::read(&remembered_path).unwrap(),
+            before,
+            "byte-identical"
+        );
+        let bound = entry
+            .app_state
+            .save_identity
+            .save_path
+            .lock()
+            .await
+            .clone()
+            .expect("the new game is saved");
+        assert_eq!(
+            bound,
+            global.saves_dir.join(session_id).join("limerick_002.db")
+        );
+        let marker = limerick_core::persistence::read_active_save_identity_candidate(
+            &global.saves_dir.join(session_id),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            marker.save_path, bound,
+            "the new save is the one resumed next"
+        );
+
+        entry._shutdown_token.cancel();
+        global.sessions.sessions.remove(session_id);
     }
 
     #[tokio::test]

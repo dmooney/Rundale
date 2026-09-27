@@ -12,16 +12,22 @@
 //! | `branches`        | Branch CRUD, `BranchInfo`, row mapping                  |
 //! | `journal`         | Snapshot + journal ops, `SnapshotInfo`                  |
 //! | `turn_journal`    | Request and transcript tables of the turn journal       |
+//! | `format`          | Save format version and the read-only open check        |
 //! | `async_adapter`   | `AsyncDatabase` — Tokio `spawn_blocking` wrapper        |
 
 mod async_adapter;
 mod branches;
+mod format;
 mod journal;
 mod schema;
 mod turn_journal;
 
 pub use async_adapter::AsyncDatabase;
 pub use branches::BranchInfo;
+pub use format::{
+    InspectedBranch, SAVE_FORMAT_VERSION, SaveInspection, inspect as inspect_save,
+    inspect_with as inspect_save_with,
+};
 pub use journal::{RecoveryData, SnapshotInfo};
 pub use turn_journal::{NewTranscriptEvent, TranscriptEventRow, TurnJournalWriter, TurnRequestRow};
 
@@ -50,10 +56,38 @@ pub struct Database {
 impl Database {
     /// Opens or creates a SQLite database at the given path.
     ///
-    /// Configures WAL journal mode and NORMAL synchronous mode for
-    /// performance, enables foreign key enforcement, then runs migrations
-    /// to ensure the schema is current.
+    /// First reads the file without writing to it ([`inspect_save`]) and
+    /// refuses it with [`LimerickError::SaveIncompatible`] when its
+    /// authoritative state cannot be read, so a refused save is left
+    /// byte-identical. Then configures WAL journal mode and NORMAL
+    /// synchronous mode for performance, enables foreign key enforcement,
+    /// and migrates a save of an older format to [`SAVE_FORMAT_VERSION`].
+    /// A save that is already current (or newer) is not migrated.
     pub fn open(path: &Path) -> Result<Self, LimerickError> {
+        let inspection = format::inspect(path)?;
+        Self::open_inspected(path, &inspection)
+    }
+
+    /// Opens a save for reading only: it is inspected like [`Self::open`],
+    /// never migrated, and the connection cannot write to the file (see
+    /// `format::read_only_connection`).
+    pub fn open_read_only(path: &Path) -> Result<Self, LimerickError> {
+        if !path.is_file() {
+            return Err(LimerickError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("no save at {}", path.display()),
+            )));
+        }
+        format::inspect(path)?;
+        Ok(Self {
+            conn: format::read_only_connection(path)?,
+            fixed_timestamp: None,
+        })
+    }
+
+    /// Opens a save that `inspection` (from [`inspect_save`] or
+    /// [`inspect_save_with`] on the same path) found readable.
+    pub fn open_inspected(path: &Path, inspection: &SaveInspection) -> Result<Self, LimerickError> {
         let conn = Connection::open(path).db_err()?;
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
@@ -65,7 +99,12 @@ impl Database {
             conn,
             fixed_timestamp: None,
         };
-        schema::migrate(&db.conn, &db.timestamp())?;
+        if inspection.needs_migration() {
+            schema::migrate(&db.conn, &db.timestamp())?;
+            format::stamp(&db.conn)?;
+        } else {
+            schema::ensure_main_branch(&db.conn, &db.timestamp())?;
+        }
         Ok(db)
     }
 
@@ -94,6 +133,7 @@ impl Database {
             fixed_timestamp,
         };
         schema::migrate(&db.conn, &db.timestamp())?;
+        format::stamp(&db.conn)?;
         Ok(db)
     }
 

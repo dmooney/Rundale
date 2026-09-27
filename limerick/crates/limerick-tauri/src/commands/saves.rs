@@ -72,11 +72,27 @@ struct PreparedBranchLoad {
     candidate_lock: Option<limerick_core::persistence::SaveFileLock>,
 }
 
+/// Why a branch could not be prepared for loading.
+#[derive(Debug)]
+enum BranchLoadError {
+    /// The save cannot be opened by this build; carries the player-facing
+    /// message. The file was not written to.
+    Refused(&'static str),
+    /// Any other failure.
+    Failed(String),
+}
+
+impl From<String> for BranchLoadError {
+    fn from(error: String) -> Self {
+        Self::Failed(error)
+    }
+}
+
 async fn prepare_branch_load(
     state: &Arc<AppState>,
     file_path: String,
     branch_id: i64,
-) -> Result<PreparedBranchLoad, String> {
+) -> Result<PreparedBranchLoad, BranchLoadError> {
     use limerick_core::persistence::SaveFileLock;
 
     let path = tokio::fs::canonicalize(std::path::PathBuf::from(&file_path))
@@ -89,7 +105,8 @@ async fn prepare_branch_load(
         return Err(format!(
             "Save file {} is outside the configured saves directory",
             path.display()
-        ));
+        )
+        .into());
     }
 
     // Keep a candidate lock local until recovery and store binding succeed.
@@ -105,9 +122,31 @@ async fn prepare_branch_load(
         None
     };
 
+    // Refuse a save this build cannot read before anything opens it for
+    // play or writes to it; the file stays byte-identical.
+    let content = state
+        .game_mod
+        .as_ref()
+        .map(limerick_core::game_mod::GameMod::content_identity);
+    let check_path = path.clone();
+    let checked = tokio::task::spawn_blocking(move || {
+        limerick_core::save_compat::check_save(&check_path, content.as_ref())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let inspection = match checked {
+        Ok(inspection) => inspection,
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
+            return Err(BranchLoadError::Refused(
+                limerick_core::save_compat::refusal_message(&path, &error),
+            ));
+        }
+        Err(error) => return Err(error.to_string().into()),
+    };
+
     let path_clone = path.clone();
     let branch_name = tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let db = Database::open_inspected(&path_clone, &inspection).map_err(|e| e.to_string())?;
         db.list_branches()
             .map_err(|e| e.to_string())?
             .into_iter()
@@ -174,7 +213,14 @@ pub async fn do_load_branch(
         branch_name,
         recovery,
         candidate_lock,
-    } = prepare_branch_load(state, file_path, branch_id).await?;
+    } = match prepare_branch_load(state, file_path, branch_id).await {
+        Ok(prepared) => prepared,
+        Err(BranchLoadError::Refused(message)) => {
+            emit_system_line(app, message.to_string());
+            return Err(message.to_string());
+        }
+        Err(BranchLoadError::Failed(error)) => return Err(error),
+    };
     let prepared_binding = state
         .session_store
         .prepare_active_save("", &path)
@@ -229,8 +275,28 @@ pub async fn do_load_branch(
         *state.save_lock.lock().await = Some(lock);
     }
     open_turns(state).await;
+    // Transcript events this build cannot present (a kind written by a
+    // newer build) are shown as one neutral fallback line each.
+    let target = super::input::task_journal_target(state).await;
+    for line in limerick_core::save_compat::fallback_lines_for(target.as_ref()).await {
+        emit_system_line(app, line);
+    }
 
     Ok(())
+}
+
+/// Shows one system line in the transcript.
+fn emit_system_line(app: &tauri::AppHandle, content: String) {
+    let _ = app.emit(
+        EVENT_TEXT_LOG,
+        TextLogPayload {
+            id: String::new(),
+            stream_turn_id: None,
+            source: "system".into(),
+            content,
+            subtype: None,
+        },
+    );
 }
 
 /// Loads a named branch from the currently active save file. The caller owns
@@ -772,5 +838,49 @@ mod tests {
                 .load(std::sync::atomic::Ordering::Relaxed),
             41
         );
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_save_is_refused_before_it_is_opened() {
+        let temp = tempfile::tempdir().unwrap();
+        let candidate_path = temp.path().join("limerick_002.db");
+        std::fs::copy(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures/unreadable_state_save.db"),
+            &candidate_path,
+        )
+        .unwrap();
+        let before = std::fs::read(&candidate_path).unwrap();
+
+        let mut state = test_app_state();
+        let state_parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+        state_parts.saves_dir = temp.path().to_path_buf();
+        state_parts.session_store = Arc::new(limerick_core::session_store::DbSessionStore::new(
+            temp.path().to_path_buf(),
+        ));
+        seed_stale_branch_runtime(&state).await;
+
+        let result =
+            prepare_branch_load(&state, candidate_path.to_string_lossy().to_string(), 1).await;
+
+        assert!(
+            matches!(
+                result,
+                Err(BranchLoadError::Refused(message))
+                    if message == limerick_core::save_compat::INCOMPATIBLE_SAVE_MESSAGE
+            ),
+            "refused with the compatibility message"
+        );
+        assert_eq!(
+            std::fs::read(&candidate_path).unwrap(),
+            before,
+            "byte-identical"
+        );
+        assert_eq!(
+            state.conversation.lock().await.last_player_input.as_deref(),
+            Some("old branch input"),
+            "the current game carries on"
+        );
+        assert!(state.save_path.lock().await.is_none());
     }
 }

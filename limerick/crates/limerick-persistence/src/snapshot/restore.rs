@@ -40,6 +40,7 @@ impl GameSnapshot {
             player_progress: world.player_progress.clone(),
             npcs_who_know_player_name: npc_manager.player_name_known_set(),
             active_session: world.active_session.clone(),
+            content: world.content.clone(),
         }
     }
 
@@ -223,6 +224,10 @@ impl GameSnapshot {
         world.player_name = self.player_name;
         world.player_progress = self.player_progress;
         world.active_session = self.active_session;
+        // `content` is not restored: the world keeps the identity of the
+        // content it was loaded from, and the next capture records that.
+        // Whether a save may open against it is decided before restore
+        // (`limerick_core::save_compat::check_save`).
 
         // `restore_npcs` rebuilds the manager from scratch, which wipes
         // the in-memory `tier_assignments` map. Silently re-seed it

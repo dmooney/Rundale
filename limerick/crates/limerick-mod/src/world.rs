@@ -18,6 +18,7 @@ pub fn world_state_from_mod(
     world.dialogue_anachronisms = game_mod.anachronisms.terms.clone();
     world.dialogue_anachronism_alert_prefix = game_mod.anachronisms.context_alert_prefix.clone();
     world.dialogue_anachronism_alert_suffix = game_mod.anachronisms.context_alert_suffix.clone();
+    world.content = Some(game_mod.content_identity());
     Ok(world)
 }
 
@@ -31,6 +32,14 @@ mod tests {
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let game_mod = GameMod::load(&mod_path).expect("load Rundale mod");
         let world = world_state_from_mod(&game_mod).expect("build Rundale world");
+        assert_eq!(
+            world.content,
+            Some(limerick_types::ContentIdentity {
+                id: "rundale".to_string(),
+                version: game_mod.manifest.meta.version.clone(),
+            }),
+            "the world carries the content identity saves record"
+        );
 
         assert!(
             world

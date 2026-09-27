@@ -32,6 +32,14 @@ product spec Milestone N, not Mobile Phase N.
 
 - `main` has the engine and the reset specs, but no `mobile/` or `endpoints/`
   directories.
+- Mobile Phase 1 (portable turn API) and Mobile Phase 2 (one save system) are
+  built on `main`: the `TurnEngine` and `InProcessTurns` drive server, Tauri,
+  and the MCP bridge; the save database journals requests and transcript
+  events in one transactional commit; saves carry a format version and open
+  forward-compatibly; and `SaveFileLock` is a kernel lock (ADR-026). Phase 1
+  still has two open issues (#2023, headless REPL on the shared pipeline;
+  #2025, a background-inference host seam). See
+  [the design doc](../design/portable-turn-api.md) for the as-built API.
 - `ios-port` has a working SwiftUI app, the Swift/Rust boundary (FFI), the
   Endpoints service, and verification and release tooling. These sit on a
   mobile-only runtime:
@@ -86,7 +94,10 @@ walkthrough pass unchanged.
 
 ## Mobile Phase 1: portable turn API (L)
 
-Issues: #2033, #2034, #2035, #2023, #2036, #2025. Done: #2026–#2029, #2032.
+Open: #2023, #2025. This document is #2036.
+Done: #2026, #2027, #2028, #2029, #2032, #2033, #2034 (PR #2067), #2035 (PR #2073).
+See [the design doc](../design/portable-turn-api.md) for the as-built API and §8
+for the full PR sequence.
 
 - Add one turn entry point to the shared game loop:
   - submitting input returns committed events, an inference request, or a
@@ -130,9 +141,9 @@ in-process, so mobile runs without them until this lands (#2025).
 Exit: lifecycle tests pass with a scripted host, and mobile runs reactions,
 banter, and background simulation through its host.
 
-## Mobile Phase 2: one save system (L)
+## Mobile Phase 2: one save system (L) (done)
 
-Issues: #2037, #2038, #2039.
+Issues: #2037, #2038, #2039. All closed; PRs #2074, #2076, #2077.
 
 - Extend the existing `limerick-persistence` database with request and transcript
   tables and one transactional turn commit. Existing desktop saves keep opening
@@ -145,6 +156,9 @@ Issues: #2037, #2038, #2039.
   - a test fails if saved data changes without a format version bump.
 - Keep one save lock. Check the existing lock under the iOS sandbox and adopt the
   kernel lock only if the directory/PID lock is shown to be inadequate there.
+  Done in #2039: the directory/PID lock locked a relaunch out after a force-quit
+  when its recorded PID was reused, so `SaveFileLock` is now a kernel lock
+  ([ADR-026](../adr/026-kernel-save-lock.md)).
 
 Exit:
 

@@ -94,3 +94,4 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 - [`snapshot/`](../../limerick/crates/limerick-persistence/src/snapshot/) — GameSnapshot, ClockSnapshot, and NpcSnapshot
 - [`database/journal.rs`](../../limerick/crates/limerick-persistence/src/database/journal.rs) — WorldEvent enum and replay logic
 - [`picker.rs`](../../limerick/crates/limerick-persistence/src/picker.rs) — Save-file discovery, picker display, and startup/load selection
+- [`lock/`](../../limerick/crates/limerick-persistence/src/lock/) — `SaveFileLock`, the kernel save lock ([ADR-026](../adr/026-kernel-save-lock.md))

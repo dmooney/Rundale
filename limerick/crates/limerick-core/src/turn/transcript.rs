@@ -48,7 +48,19 @@ pub enum TranscriptEventKind {
     Unknown(String),
 }
 
+/// The neutral line a client shows in place of a transcript event it cannot
+/// present: one of a kind this build does not know (written by a newer
+/// build), or one whose payload it cannot read. The event itself stays in
+/// the save verbatim (ADR-025 §4).
+pub const FALLBACK_LINE: &str =
+    "(Something happened here that this version of the game cannot show.)";
+
 impl TranscriptEventKind {
+    /// Whether this build knows the kind (it is not [`Self::Unknown`]).
+    pub fn is_known(&self) -> bool {
+        !matches!(self, Self::Unknown(_))
+    }
+
     /// The stable wire name.
     pub fn as_str(&self) -> &str {
         match self {

@@ -6,6 +6,8 @@ SQLite save/load with WAL journal and branching saves for the Limerick engine. B
 
 ```sh
 cargo test -p limerick-persistence                    # unit tests (database, journal, snapshot, lock, paths, picker)
+cargo test -p limerick-persistence --test save_lock_processes  # cross-process lock lifecycle
+just ios-sim-save-lock                                # same lock tests on the iOS Simulator (macOS + Xcode)
 cargo test -p limerick-persistence -- --nocapture     # with stdout for debugging
 ```
 
@@ -20,9 +22,9 @@ cargo test -p limerick-persistence -- --nocapture     # with stdout for debuggin
 - **Atomic sequence assignment.** `append_event` uses a single `INSERT ... SELECT COALESCE(MAX(sequence),0)+1` with a UNIQUE index on `(branch_id, after_snapshot_id, sequence)` to prevent duplicate journal sequences under concurrent appends.
 - **Turn journal tables are opaque storage.** `requests` and `transcript_events` hold JSON written and validated by `limerick-core`'s `SqliteTurnJournal`; this crate owns only the schema, `Database::turn_journal_transaction` (one immediate transaction per journal call, rolled back on any error), and ordered reads. Rows are per branch; `transcript_events.sequence` is `AUTOINCREMENT` (save-wide, never reused). `migrate` adds the tables to older saves on open.
 - **Compaction scoped to `(branch_id, snapshot_id)`.** `clear_journal()` deletes only events for the exact pair. Lifecycle: save snapshot A → append events → save snapshot B → `clear_journal(A)` → `load_latest_snapshot` returns B.
-- **Lock sidecar files are reference-counted.** `SaveFileLock` writes a PID to `<save_path>.lock`; removed on `Drop` only when the last `Arc` reference drops.
-- **Unix-only `libc` dependency.** `lock/` uses `libc::getpid()` on Unix; Windows uses `std::process::id()` — keep conditional compilation correct.
+- **The save lock is a kernel lock (ADR-026).** `SaveFileLock` holds `File::try_lock` (`flock`/`LockFileEx`) on `<save_path>.lock`; the kernel frees it when the owner dies (force-quit, jetsam), so never decide ownership from the PID the file records (diagnostic only). Same-process acquisitions share one open file through a registry, because a second open file's lock conflicts with our own. On Unix the last guard removes the file only if the path still names its file (device + inode); on Windows the file is never removed (no stable file identity in std). Old owner directories at the same path are removed only when their recorded owner is dead. Re-run on the iOS Simulator with `just ios-sim-save-lock`.
+- **Unix-only `libc` dependency.** `lock/` uses `libc::kill(pid, 0)` on Unix only to judge old lock directories' owners; keep conditional compilation correct.
 
 ## Module map
 
-`lib.rs` crate root + re-exports + `IntoLimerickDbError` + `format_timestamp`, `database/` SQLite schema + `Database` + `AsyncDatabase` + CRUD + turn-journal tables (`turn_journal.rs`), `journal.rs` `WorldEvent` enum + event types + replay, `journal_bridge.rs` `GameEvent`→`WorldEvent` conversion, `snapshot/` `GameSnapshot` + `ClockSnapshot` + `NpcSnapshot` serialization, `paths.rs` `resolve_user_data_dir(app_name)`, `picker.rs` `resolve_project_saves_dir(app_name)` + save slot grid, `lock/` cross-platform `SaveFileLock` with sidecar PID files.
+`lib.rs` crate root + re-exports + `IntoLimerickDbError` + `format_timestamp`, `database/` SQLite schema + `Database` + `AsyncDatabase` + CRUD + turn-journal tables (`turn_journal.rs`), `journal.rs` `WorldEvent` enum + event types + replay, `journal_bridge.rs` `GameEvent`→`WorldEvent` conversion, `snapshot/` `GameSnapshot` + `ClockSnapshot` + `NpcSnapshot` serialization, `paths.rs` `resolve_user_data_dir(app_name)`, `picker.rs` `resolve_project_saves_dir(app_name)` + save slot grid, `lock/` cross-platform `SaveFileLock` (kernel lock on a `.lock` sidecar).
