@@ -31,7 +31,7 @@ The one caveat is the small upper-compound building on the left side: its doorwa
 
 ## Style Match
 
-Good pass. The plate has the intended illustrated parish-notebook feeling: hand-inked texture, desaturated watercolor greens and ochres, scumbled muddy roads, limewashed stone, rough slate and thatch, irregular vegetation, and paper-tooth surface texture. It reads as a playable 3/4 orthographic background, with roofs and facades both visible.
+Good pass. The plate has the intended illustrated rundale-notebook feeling: hand-inked texture, desaturated watercolor greens and ochres, scumbled muddy roads, limewashed stone, rough slate and thatch, irregular vegetation, and paper-tooth surface texture. It reads as a playable 3/4 orthographic background, with roofs and facades both visible.
 
 Style weaknesses are mostly tied to topology: the stone walls are too continuous and bead-like in places, the planted enclosure is a little too formal, and the roads/walls are cleaner than the rough notebook target. There is no UI, border, label, sign, person, livestock, cart, shop, church, graveyard, bridge, water, smoke, or fog visible.
 

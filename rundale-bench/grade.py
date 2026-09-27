@@ -26,7 +26,7 @@ from typing import Any
 _WORD_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
 
 
-# Mirrors `parish_npc::strip_json_fence`. Some providers (notably
+# Mirrors `limerick_npc::strip_json_fence`. Some providers (notably
 # Anthropic) wrap JSON in a Markdown code fence; strip it before
 # envelope detection. Case-sensitive lowercase ```json (matching the
 # runtime parser): uppercase variants fall through as legacy text so
@@ -45,7 +45,7 @@ def _strip_json_fence(text: str) -> str:
     return inner.strip()
 
 
-# Mirrors `parish_npc::extract_dialogue_field_heuristic`. Recovers
+# Mirrors `limerick_npc::extract_dialogue_field_heuristic`. Recovers
 # the `"dialogue"` field from a truncated / malformed JSON envelope
 # (max_tokens cutoff, network blip). Anchored to the start of input
 # after optional `{` + whitespace so we only recover when `dialogue`
@@ -88,7 +88,7 @@ def extract_dialogue_for_judging(reply: str) -> str:
     """Strip the runtime metadata envelope so the judge scores what the
     player sees.
 
-    Mirrors `parish_npc::parse_npc_stream_response` — the runtime path
+    Mirrors `limerick_npc::parse_npc_stream_response` — the runtime path
     that decides what reaches the player UI. The bench must apply the
     same transformations to its judge input, otherwise the judge scores
     scaffolding the player never sees and bench/runtime drift.
@@ -131,7 +131,7 @@ def extract_dialogue_for_judging(reply: str) -> str:
     stripped = _strip_json_fence(reply)
 
     # Envelope 1 (tried first, mirrors runtime order in
-    # `parish_npc::parse_npc_stream_response`): JSON-first. Try the
+    # `limerick_npc::parse_npc_stream_response`): JSON-first. Try the
     # full parse before the ``---`` split — otherwise a JSON dialogue
     # string containing the literal text ``---`` (e.g. an em-dash
     # spelled out by the model) is mangled into a partial envelope.
@@ -162,8 +162,8 @@ def extract_dialogue_for_judging(reply: str) -> str:
 
     # Envelope 2: ``---`` delimiter for the mod-template format
     # (``<dialogue>\n---\n{...}``). Runtime splits on bare ``---``
-    # anywhere in the reply (`parish-core::game_session` and
-    # `parish-npc::reactions::arrival_reactions`), so we match the same
+    # anywhere in the reply (`limerick-core::game_session` and
+    # `limerick-npc::reactions::arrival_reactions`), so we match the same
     # — no newline required before/after. Only reached when the reply
     # isn't a JSON envelope, so we won't mangle JSON dialogue strings
     # that happen to contain ``---``.
@@ -321,7 +321,7 @@ def verify_judge_rubric(judge: dict) -> None:
 
 
 # Lazy-import the script-side flaw scanner so grade.py stays importable
-# without the parish/scripts/local-eval path in sys.path.
+# without the limerick/scripts/local-eval path in sys.path.
 def _non_latin(text: str) -> dict:
     bad: dict[str, list[str]] = {}
     for c in text:

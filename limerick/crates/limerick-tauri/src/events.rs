@@ -1,0 +1,173 @@
+//! IPC event names and streaming bridge between Rust inference and Svelte frontend.
+
+use tauri::Emitter;
+
+// ── Event name constants ─────────────────────────────────────────────────────
+
+/// Event emitted with each streamed NPC response token (batched).
+pub const EVENT_STREAM_TOKEN: &str = "stream-token";
+/// Event emitted when an individual NPC turn has finished streaming tokens.
+pub const EVENT_STREAM_TURN_END: &str = "stream-turn-end";
+/// Event emitted when an NPC response stream ends.
+pub const EVENT_STREAM_END: &str = "stream-end";
+/// Event emitted to add a line to the chat log.
+pub const EVENT_TEXT_LOG: &str = "text-log";
+/// Event emitted when world state changes (movement, time tick).
+pub const EVENT_WORLD_UPDATE: &str = "world-update";
+/// Event emitted to show/hide the loading indicator.
+pub const EVENT_LOADING: &str = "loading";
+/// Event emitted when the UI theme palette changes.
+pub const EVENT_THEME_UPDATE: &str = "theme-update";
+/// Event emitted every 2 s with a debug snapshot (only when debug panel is open).
+pub const EVENT_DEBUG_UPDATE: &str = "debug-update";
+/// Event emitted to tell the frontend to open the save picker modal.
+pub const EVENT_SAVE_PICKER: &str = "save-picker";
+/// Event emitted to toggle the full map overlay.
+pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
+/// Event emitted to open the Limerick Designer mod editor.
+pub const EVENT_OPEN_DESIGNER: &str = "open-designer";
+/// Event emitted when the player begins traveling between locations.
+pub const EVENT_TRAVEL_START: &str = "travel-start";
+/// Event emitted when a `/theme` command selects a new UI theme.
+pub const EVENT_THEME_SWITCH: &str = "theme-switch";
+/// Event emitted when a `/map` command selects a new map tile source.
+pub const EVENT_TILES_SWITCH: &str = "tiles-switch";
+/// Event emitted during inference provider bootstrap with a status message.
+pub const EVENT_SETUP_STATUS: &str = "setup-status";
+/// Event emitted during model download with byte-level progress.
+pub const EVENT_SETUP_PROGRESS: &str = "setup-progress";
+/// Event emitted when bootstrap finishes (success or failure).
+pub const EVENT_SETUP_DONE: &str = "setup-done";
+/// Event emitted on first launch when no provider is configured. The frontend
+/// renders the BYOK fork screen instead of the Ollama download spinner.
+pub const EVENT_SETUP_NEEDS_ONBOARDING: &str = "setup-needs-onboarding";
+/// Event emitted by the MCP bridge to ask the live frontend to capture a
+/// screenshot. Payload: `{"request_id": String}`. The frontend responds by
+/// calling the `notify_screenshot_captured` Tauri command with the same
+/// `request_id` and the resulting `ScreenshotInfo`.
+pub const EVENT_REQUEST_SCREENSHOT: &str = "request-screenshot";
+
+/// How many milliseconds to batch streaming tokens before emitting.
+pub const BATCH_MS: u64 = 16;
+
+// ── Payload types ────────────────────────────────────────────────────────────
+
+// StreamTokenPayload, StreamTurnEndPayload, StreamEndPayload, TextLogPayload,
+// and LoadingPayload are all defined in limerick-core and re-exported here
+// (part of #696 — IPC struct deduplication).
+pub use limerick_core::ipc::{
+    LoadingPayload, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextLogPayload,
+};
+
+/// Payload for `setup-status` and `setup-progress` / `setup-done` events.
+#[derive(serde::Serialize, Clone)]
+pub struct SetupStatusPayload {
+    /// Human-readable status message.
+    pub message: String,
+}
+
+/// Payload for `setup-progress` events (model download progress).
+#[derive(serde::Serialize, Clone)]
+pub struct SetupProgressPayload {
+    /// Bytes downloaded so far.
+    pub completed: u64,
+    /// Total bytes expected (0 if unknown).
+    pub total: u64,
+}
+
+/// Payload for `setup-done` events.
+#[derive(serde::Serialize, Clone)]
+pub struct SetupDonePayload {
+    /// True if bootstrap succeeded.
+    pub success: bool,
+    /// Error message if `success` is false; empty string otherwise.
+    pub error: String,
+}
+
+// ── Loading animation bridge ─────────────────────────────────────────────
+
+/// Spawns a background task that emits [`LoadingPayload`] events with cycling
+/// fun Irish phrases while the player waits for NPC inference.
+///
+/// Returns a [`tokio_util::sync::CancellationToken`] — drop or cancel it to
+/// stop the animation loop and emit a final `active: false` event.
+pub fn spawn_loading_animation(app: tauri::AppHandle, cancel: tokio_util::sync::CancellationToken) {
+    tokio::spawn(async move {
+        use limerick_core::loading::LoadingAnimation;
+
+        let mut anim = LoadingAnimation::new();
+
+        // Emit an initial frame immediately
+        anim.tick();
+        let (r, g, b) = anim.current_color_rgb();
+        let _ = app.emit(
+            EVENT_LOADING,
+            LoadingPayload {
+                active: true,
+                spinner: Some(anim.spinner_char().to_string()),
+                phrase: Some(anim.phrase().to_string()),
+                color: Some([r, g, b]),
+            },
+        );
+
+        loop {
+            tokio::select! {
+                _ = cancel.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(300)) => {
+                    anim.tick();
+                    let (r, g, b) = anim.current_color_rgb();
+                    let _ = app.emit(
+                        EVENT_LOADING,
+                        LoadingPayload {
+                            active: true,
+                            spinner: Some(anim.spinner_char().to_string()),
+                            phrase: Some(anim.phrase().to_string()),
+                            color: Some([r, g, b]),
+                        },
+                    );
+                }
+            }
+        }
+
+        // Final "off" event
+        let _ = app.emit(
+            EVENT_LOADING,
+            LoadingPayload {
+                active: false,
+                spinner: None,
+                phrase: None,
+                color: None,
+            },
+        );
+    });
+}
+
+// ── TauriEmitter ─────────────────────────────────────────────────────────────
+
+/// [`EventEmitter`] implementation for the Tauri desktop backend.
+///
+/// Wraps a [`tauri::AppHandle`] and delegates each `emit_event(name, payload)`
+/// call to `app.emit(name, payload)`.
+///
+/// Serialisation is already complete when `emit_event` is called (the payload
+/// is a `serde_json::Value`), so Tauri receives a pre-serialised JSON blob.
+/// Frontend listeners must parse it as the appropriate IPC type.
+#[derive(Clone)]
+pub struct TauriEmitter {
+    pub app: tauri::AppHandle,
+}
+
+impl TauriEmitter {
+    /// Creates a new emitter wrapping the given app handle.
+    pub fn new(app: tauri::AppHandle) -> Self {
+        Self { app }
+    }
+}
+
+impl limerick_core::ipc::EventEmitter for TauriEmitter {
+    fn emit_event(&self, name: &str, payload: serde_json::Value) {
+        // Tauri's `emit` serialises the payload again; we pass a pre-serialised
+        // Value so the wire format is a JSON object (not a double-serialised string).
+        let _ = self.app.emit(name, payload);
+    }
+}

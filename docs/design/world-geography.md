@@ -16,7 +16,7 @@ The world is built on real Irish geography. All places are real. All people and 
 - License: ODbL (attribution required)
 - Download: https://download.geofabrik.de/europe/ireland-and-northern-ireland.html
 
-### Townlands.ie (Parish/Townland Boundaries)
+### Townlands.ie (Limerick/Townland Boundaries)
 
 - Format: GeoJSON/Shapefile/CSV downloads
 - Roscommon: 7 baronies, 62 civil parishes, 110 electoral divisions, 2,082 townlands
@@ -130,4 +130,4 @@ The map is a **static authored data file** (JSON or SQLite). Geography never cha
 
 ## Source Modules
 
-- [`parish-world`](../../parish/crates/parish-world/src/) — World state, location graph, and time system
+- [`limerick-world`](../../limerick/crates/limerick-world/src/) — World state, location graph, and time system

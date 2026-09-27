@@ -1,0 +1,22 @@
+[package]
+name = "limerick-chronicle"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "On-disk chronicle writers for Limerick: per-character / per-location markdown logs and the JSONL chat transcript"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-world = { workspace = true }
+limerick-npc = { workspace = true }
+limerick-persistence = { workspace = true }
+limerick-inference = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

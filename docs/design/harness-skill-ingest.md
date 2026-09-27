@@ -2,9 +2,9 @@
 
 ## Feature in one paragraph
 
-Two "harnesses" produce game-quality runs: the `parish-harness` **binary** (`run` subcommand —
+Two "harnesses" produce game-quality runs: the `limerick-harness` **binary** (`run` subcommand —
 LLM player + LLM judge, persists to `harness.db`) and the `quality-harness` **skill** (an agent
-drives the live game over the parish MCP, judges by hand, files bugs). Only the binary's runs
+drives the live game over the limerick MCP, judges by hand, files bugs). Only the binary's runs
 reach the `serve` dashboard. This change lets skill runs land in the same DB by adding a thin
 `ingest` path to the binary and a final persist step to the skill — so the dashboard's Runs /
 Trends / A/B Compare views cover both producers with identical fidelity (quality score, 7-axis
@@ -12,7 +12,7 @@ breakdown, findings, per-turn frames, cost).
 
 ## Affected subsystems (by crate)
 
-- `parish-harness` (the only crate that changes):
+- `limerick-harness` (the only crate that changes):
   - `src/persist/sink.rs` — new `Db::ingest_complete_run()` orchestration helper + new
     `Db::update_run_cost()` writer. Reuses the existing `upsert_config`, `start_run`,
     `record_turn`, `insert_finding`, `finish_run_scored`, `finish_run_gated`.
@@ -20,7 +20,7 @@ breakdown, findings, per-turn frames, cost).
     payload into the sink types and copies artifacts into place.
   - `src/main.rs` — new `Ingest(IngestArgs)` clap subcommand wired to `load_and_ingest()`.
   - `src/lib.rs` — `pub mod ingest;`.
-- No game-runtime crates change. No `parish-core` / `parish-server` / `parish-tauri` touch
+- No game-runtime crates change. No `limerick-core` / `limerick-server` / `limerick-tauri` touch
   (the harness CLAUDE.md forbids depending on them anyway).
 
 ## Data model
@@ -79,7 +79,7 @@ Reused `ActionResult`-equivalents are the `RunSummaryDto` / `RunDetail` / `CostS
 
 Per AGENTS.md §6, runtime gameplay features are flagged. This change ships **no game-runtime
 behavior** — it is a CLI subcommand on a tool binary plus a skill-doc edit. There is no
-`config.flags` seam in `parish-harness` and nothing in the game loop changes, so no flag
+`config.flags` seam in `limerick-harness` and nothing in the game loop changes, so no flag
 applies. The `ingest` subcommand is itself the opt-in surface (nothing calls it unless the
 skill or a user does). This deviation is intentional and noted here for the judge.
 

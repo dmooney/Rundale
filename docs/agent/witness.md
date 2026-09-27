@@ -1,6 +1,6 @@
-# Witness-style Completion Gates for Parish
+# Witness-style Completion Gates for Limerick
 
-This document describes the Parish witness workflow — a lightweight, repo-native guard against AI partial completions.
+This document describes the Limerick witness workflow — a lightweight, repo-native guard against AI partial completions.
 
 ## Why we need this
 
@@ -22,13 +22,13 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 ## Scope
 
-- parish/crates/parish-core/src/...
-- parish/crates/parish-server/src/...
+- limerick/crates/limerick-core/src/...
+- limerick/crates/limerick-server/src/...
 
 ## Postconditions (Tier 0)
 
 - [ ] `just check` (includes `just witness-scan`)
-- [ ] `cargo test -p parish-core <targeted-test>`
+- [ ] `cargo test -p limerick-core <targeted-test>`
 - [ ] `rg -n "<new_symbol>" <expected_callsite_file>` returns >= 1 match
 
 ## Postconditions (Tier 1)
@@ -43,7 +43,7 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 ## What witness-scan checks
 
-`just witness-scan` inspects every file under `parish/crates/`, `parish/apps/`, `docs/`, `parish/testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
+`just witness-scan` inspects every file under `limerick/crates/`, `limerick/apps/`, `docs/`, `limerick/testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
 
 <!-- markdownlint-disable MD060 -->
 <!-- Cells embed U+200B zero-width spaces so witness-scan does not flag its own

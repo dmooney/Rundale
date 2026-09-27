@@ -12,7 +12,7 @@ After the engine/game-data separation (ADR/PR #119), game content lives in the m
 
 ## Decision
 
-Extract engine tuning parameters into an `[engine]` section of `parish.toml` via an `EngineConfig` struct hierarchy. All fields use `#[serde(default)]` so existing deployments are unaffected.
+Extract engine tuning parameters into an `[engine]` section of `limerick.toml` via an `EngineConfig` struct hierarchy. All fields use `#[serde(default)]` so existing deployments are unaffected.
 
 ### What was extracted
 
@@ -40,5 +40,5 @@ Each module adds a `_with_config()` function variant. The original function beco
 
 - Runtime tuning of engine parameters without recompilation
 - Full backward compatibility — no config file needed
-- Clear separation: mod system = content, `parish.toml` = engine tuning
-- `parish.example.toml` documents all available settings
+- Clear separation: mod system = content, `limerick.toml` = engine tuning
+- `limerick.example.toml` documents all available settings

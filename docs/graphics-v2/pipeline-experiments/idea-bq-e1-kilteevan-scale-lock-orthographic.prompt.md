@@ -15,7 +15,7 @@ Local paths:
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bq-bp-e2-scale-audit-overlay.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bq-isomorphic-scale-lock-reference.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 
 Hard correction:
 Make the plate truly orthographic/isomorphic, not perspective. The camera may stay low and oblique, but there must be no distance-based scaling.

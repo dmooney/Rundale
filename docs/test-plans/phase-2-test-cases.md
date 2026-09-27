@@ -6,7 +6,7 @@
 >
 > Note: This test plan is source-derived planning material and is not execution evidence.
 
-These cases validate Phase 2: the embedded Rust vertical slice. They focus on proving that Parish runs locally on iPhone, that the SwiftUI client communicates through a narrow presentation-oriented boundary, that one real NPC conversation works through remote inference, and that state, errors, cancellation, retry, and local persistence behave correctly.
+These cases validate Phase 2: the embedded Rust vertical slice. They focus on proving that Limerick runs locally on iPhone, that the SwiftUI client communicates through a narrow presentation-oriented boundary, that one real NPC conversation works through remote inference, and that state, errors, cancellation, retry, and local persistence behave correctly.
 
 ## 1. Create a new local game
 
@@ -20,11 +20,11 @@ These cases validate Phase 2: the embedded Rust vertical slice. They focus on pr
 - Create a game and perform at least one completed action.
 - Terminate and relaunch the app.
 - Resume the game.
-- Verify the same authoritative game state is restored without requiring a remote Parish server.
+- Verify the same authoritative game state is restored without requiring a remote Limerick server.
 
-## 3. Parish runtime is on-device
+## 3. Limerick runtime is on-device
 
-- Disable access to any remote Parish game server while leaving the app otherwise functional.
+- Disable access to any remote Limerick game server while leaving the app otherwise functional.
 - Launch or resume the game.
 - Run a deterministic action such as /look.
 - Verify it succeeds locally.
@@ -52,7 +52,7 @@ These cases validate Phase 2: the embedded Rust vertical slice. They focus on pr
 
 - Submit a free-text request whose meaning is clear enough to interpret.
 - Verify the game displays an understandable interpretation receipt when useful.
-- Verify the receipt corresponds to the action Parish actually executes.
+- Verify the receipt corresponds to the action Limerick actually executes.
 
 ## 8. Real streaming response
 
@@ -144,6 +144,6 @@ These cases validate Phase 2: the embedded Rust vertical slice. They focus on pr
 ## 20. Phase 2 scope regression
 
 - Play through the entire Phase 2 vertical slice.
-- Verify the experience remains limited to one location and one NPC.
+- Verify the world is the canonical tiny world (or a subset of it) loaded as ordinary mod content; the one-location/one-NPC limit was retired on 2026-09-16 (#1992).
 - Verify no map, portrait system, provider-configuration screen, debug surface, save DAG, legacy sidebar, or other nonessential player UI has been introduced.
 - Verify the result already feels like a small playable text game rather than a technology demo.

@@ -38,7 +38,7 @@ A modal overlay or dedicated panel showing the complete parish, triggered by:
 Options for the full map view:
 
 - **a) OSM tile background**: Fetch and cache OSM raster tiles for the Kiltoom/Kilteevan area. Overlay game locations on top of real cartography. Gives instant geographic grounding — players see the actual lough, roads, boreens.
-- **b) Stylized hand-drawn map**: A pre-rendered artistic map image (think Tolkien or old Ordnance Survey style) with locations pinned on top. Could generate with the parish-geo-tool data as a base.
+- **b) Stylized hand-drawn map**: A pre-rendered artistic map image (think Tolkien or old Ordnance Survey style) with locations pinned on top. Could generate with the limerick-geo-tool data as a base.
 - **c) Zoomable node graph**: The current geo-projected graph but with mouse-wheel zoom and click-drag pan. At high zoom the labels spread out naturally.
 - **d) egui `ScrollArea` with virtual canvas**: Render the graph onto a large virtual canvas (e.g., 2000x2000 logical pixels) inside a scrollable/zoomable area. The sidebar shows a viewport onto this canvas.
 
@@ -100,7 +100,7 @@ Not just GUI — bring a map to the terminal too:
 
 If we go the OSM tile route for the full map:
 
-- **Offline tile cache**: Bundle a small tileset (zoom 14–17 for the parish area, ~5MB) so it works without network. The `parish-geo-tool` binary could generate this.
+- **Offline tile cache**: Bundle a small tileset (zoom 14–17 for the parish area, ~5MB) so it works without network. The `limerick-geo-tool` binary could generate this.
 - **Custom tile style**: Use a muted, sepia, or hand-drawn tile style (e.g., Stamen Watercolor or a custom Mapbox style) to match the game's aesthetic rather than standard OSM tiles.
 - **Clickable real features**: Show real geographic features from OSM (the lough, roads, townland boundaries) as non-interactive background, with game locations as interactive foreground.
 - **Coordinate query**: Clicking anywhere on the real map could generate a description ("You see a field of grazing sheep and a stone wall running east-west…") using the LLM with geographic context.
@@ -141,7 +141,7 @@ The map could be more than navigation:
 The OSM background shipped in Phase D is anachronistic for Rundale's 1820
 setting — it renders modern motorways, housing estates, wind farms, etc.
 Phase D.1 adds a **registry of named tile sources** data-driven from
-`parish.toml`'s `[engine.map]` section and a `/tiles <id>` slash command
+`limerick.toml`'s `[engine.map]` section and a `/tiles <id>` slash command
 to switch between them at runtime.
 
 Two sources ship baked-in:
@@ -151,7 +151,7 @@ Two sources ship baked-in:
   (surveyed 1829–1842), the most period-accurate cartography for
   Kiltoom. Ships wired to the [National Library of Scotland's free public
   S3-hosted tile service][nls-ireland] — no signup, CORS-open. Operators
-  who want higher-fidelity tiles can override the URL in `parish.toml`
+  who want higher-fidelity tiles can override the URL in `limerick.toml`
   with a Tailte Éireann MapGenie endpoint (gated behind the National
   Mapping Agreement) or a captured GeoHive tile URL.
 
@@ -180,7 +180,7 @@ The feature is gated behind the **`period-map-tiles`** flag
 
 ## Phase D.2 — Offline tile bundling (partial: infra wired, data pipeline deferred)
 
-`TileCache` (in `parish-core`) now does a three-tier lookup on each request:
+`TileCache` (in `limerick-core`) now does a three-tier lookup on each request:
 
 1. `cache_dir` — mutable per-user cache, written on upstream hit (Phase D.1).
 2. `bundled_dir` — read-only pre-seeded bundle; hit returns immediately
@@ -190,8 +190,8 @@ The feature is gated behind the **`period-map-tiles`** flag
 `MapConfig` exposes `bundled_tiles_dir: Option<PathBuf>`. At server startup
 `init_tile_cache` resolves it in this order:
 
-- `PARISH_BUNDLED_TILES_DIR` env var
-- `[engine.map] bundled_tiles_dir` in `parish.toml`
+- `LIMERICK_BUNDLED_TILES_DIR` env var
+- `[engine.map] bundled_tiles_dir` in `limerick.toml`
 - Conventional default `{data_dir}/tiles` (used only if the directory exists)
 
 When set, the cache uses it as the read-only second tier. When unset, the
@@ -249,6 +249,6 @@ at multiple sites — those have been corrected.
 
 - [GUI Design](../gui-design.md) — Current map panel implementation
 - [World Geography](../world-geography.md) — Location data model with lat/lon
-- [parish-geo-tool](../geo-tool.md) — OSM data extraction tool
+- [limerick-geo-tool](../geo-tool.md) — OSM data extraction tool
 - [Time System](../time-system.md) — Day/night cycle for map atmosphere
 - [NPC System](../npc-system.md) — Daily schedules for NPC trail visualization

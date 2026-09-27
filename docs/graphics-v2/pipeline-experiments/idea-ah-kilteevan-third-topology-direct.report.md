@@ -41,4 +41,4 @@ Pass on the major scene negatives: no UI, labels, visible text, people, livestoc
 
 ## Overall
 
-Useful but imperfect. It is a strong parish-notebook-style background plate and preserves the core Kilteevan map arrangement well enough for comparison, but it should not be treated as a clean pass for administrative-boundary suppression because at least one likely dotted/survey boundary appears to have become in-world walling.
+Useful but imperfect. It is a strong rundale-notebook-style background plate and preserves the core Kilteevan map arrangement well enough for comparison, but it should not be treated as a clean pass for administrative-boundary suppression because at least one likely dotted/survey boundary appears to have become in-world walling.

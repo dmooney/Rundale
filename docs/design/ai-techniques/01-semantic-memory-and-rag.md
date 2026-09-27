@@ -1,11 +1,11 @@
 # Semantic Memory & Retrieval-Augmented NPCs
 
-**Target crate:** `crates/parish-npc/` (extend `memory.rs`), optional new
-`crates/parish-embeddings/`.
+**Target crate:** `crates/limerick-npc/` (extend `memory.rs`), optional new
+`crates/limerick-embeddings/`.
 
 ## Problem
 
-`LongTermMemory::recall` (`crates/parish-npc/src/memory.rs`) scores entries by
+`LongTermMemory::recall` (`crates/limerick-npc/src/memory.rs`) scores entries by
 keyword overlap. A memory stored as _"Máire's cow took sick at the fair"_ is
 invisible to a query about _"cattle illness in Tuam"_ — the words don't match
 even though the meaning does. NPCs feel amnesiac.
@@ -83,8 +83,8 @@ Retrieval can then weight by kind depending on the query
 
 ## Minimal first cut
 
-1. Add `crates/parish-embeddings` with an `Embedder` trait
-   (Ollama + OpenAI implementations, mirroring `parish-inference`).
+1. Add `crates/limerick-embeddings` with an `Embedder` trait
+   (Ollama + OpenAI implementations, mirroring `limerick-inference`).
 2. Extend `LongTermEntry` with an optional `embedding: Vec<f32>`.
 3. Persist vectors in a new `long_term_vec` SQLite table.
 4. Replace `recall` with hybrid retrieval; gate behind flag

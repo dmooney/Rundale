@@ -4,7 +4,7 @@
 
 > Back to [Documentation Index](../../index.md) | [Game Ideas Brainstorm](game-ideas-brainstorm.md)
 
-Classic game mechanics that could enrich the Parish / Rundale experience. Each entry notes the design intent, how it fits the Irish rural setting, and what already exists to build on.
+Classic game mechanics that could enrich the Limerick / Rundale experience. Each entry notes the design intent, how it fits the Irish rural setting, and what already exists to build on.
 
 See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and social system ideas.
 
@@ -12,17 +12,17 @@ See [game-ideas-brainstorm.md](game-ideas-brainstorm.md) for narrative and socia
 
 ## What Already Exists (do not re-implement)
 
-| Mechanic                     | Location                           |
-| ---------------------------- | ---------------------------------- |
-| Time / seasons / festivals   | `parish-types/src/time.rs`         |
-| Weather (7-state machine)    | `parish-world/src/weather.rs`      |
-| Movement / pathfinding       | `parish-world/src/movement.rs`     |
-| NPC schedules, memory, moods | `parish-npc/src/`                  |
-| NPC relationships            | `parish-npc/src/types.rs`          |
-| Conversation history         | `parish-types/src/conversation.rs` |
-| Event bus                    | `parish-types/src/events.rs`       |
-| NPC illness flag (`is_ill`)  | `parish-npc/src/data.rs`           |
-| Save / load / branch         | `parish-core/src/ipc/commands.rs`  |
+| Mechanic                     | Location                             |
+| ---------------------------- | ------------------------------------ |
+| Time / seasons / festivals   | `limerick-types/src/time.rs`         |
+| Weather (7-state machine)    | `limerick-world/src/weather.rs`      |
+| Movement / pathfinding       | `limerick-world/src/movement.rs`     |
+| NPC schedules, memory, moods | `limerick-npc/src/`                  |
+| NPC relationships            | `limerick-npc/src/types.rs`          |
+| Conversation history         | `limerick-types/src/conversation.rs` |
+| Event bus                    | `limerick-types/src/events.rs`       |
+| NPC illness flag (`is_ill`)  | `limerick-npc/src/data.rs`           |
+| Save / load / branch         | `limerick-core/src/ipc/commands.rs`  |
 
 ---
 
@@ -152,7 +152,7 @@ Skills are `u8` (0–100) stored in `PlayerState`. Thresholds (25, 50, 75, 100) 
 
 ## 7. Reputation / Standing System
 
-- **Parish Reputation:** A single `i16` (-500 → +500) representing how the community views the player.
+- **Limerick Reputation:** A single `i16` (-500 → +500) representing how the community views the player.
   - Starts at 0 (stranger).
   - Rises by: helping NPCs, keeping promises, attending Mass/festivals.
   - Falls by: theft, breaking social norms, gossip spreads bad deeds (existing gossip network!).

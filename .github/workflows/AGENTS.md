@@ -29,6 +29,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
 - **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
+- **Rust cache workspace paths are repository-root relative.** Every `Swatinem/rust-cache` step that builds the nested Cargo workspace must set `workspaces: limerick -> target`; a job or workflow `working-directory` applies only to `run`, not `uses`.
 - **Rust toolchain is pinned by root `rust-toolchain.toml`.** Keep that file in
   `ci.yml`'s runtime path filter, and bump it in a dedicated PR alongside any
   compiler or lint fixes.
@@ -45,13 +46,13 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
 - **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
-- **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
+- **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `full-ci.yml` — Preserved full-suite pipeline
 
 - **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
-- **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
+- **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + limerick-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
@@ -59,6 +60,13 @@ just act-pr         # simulate the pull_request fast lane
 - **Status:** disabled on 2026-08-09 after the provider rejected reviews because prepaid credits were depleted. The non-YAML extension keeps both workflows out of GitHub Actions entirely, so PRs receive neither a Gemini check nor failure comments.
 - The former dispatcher handled PR opens and authorized `@gemini-cli /review` requests; the reusable workflow ran `google-github-actions/run-gemini-cli` with the GitHub MCP integration.
 - To re-enable it, restore both `.yml` filenames together, confirm provider billing, and run `actionlint` on both files before merging.
+
+### `ai-issue-triage.yml.disabled` — AI issue triage (retired)
+
+- **Status:** disabled 2026-09-26 after GitHub Models retirement (2026-07-30). Non-YAML extension keeps it out of Actions.
+- Former triggers were `issues` opened/reopened + `workflow_dispatch`. Classification called `actions/ai-inference` against Models and failed permanently with 410 / non-JSON responses.
+- Manual priority/theme labels from `.github/triage-labels.json` still apply; `triage-audit.yml` continues to audit coverage.
+- To re-enable: restore the `.yml` suffix and rewire classification to another provider.
 
 ### `audit.yml` — Security audit (cargo-audit)
 
@@ -70,7 +78,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `osv-scanner.yml` — OSV vulnerability scanner
 
 - **Triggers:** `pull_request`/`push`/`merge_group` to `main`, `schedule` (weekly 22:42 UTC Saturday).
-- Uses Google's reusable `osv-scanner-reusable.yml`/`osv-scanner-reusable-pr.yml` v2.3.5. Scan args: `-r --skip-git ./`.
+- Uses Google's reusable `osv-scanner-reusable.yml`/`osv-scanner-reusable-pr.yml` v2.6.0. Scan args: `-r ./` (`--skip-git` was removed upstream; do not pass it).
 - **Permissions:** `security-events: write` (uploads SARIF to Security tab).
 
 ### `build-vllm-mlx-bundle.yml` — Build vllm-mlx distribution bundle
@@ -79,11 +87,11 @@ just act-pr         # simulate the pull_request fast lane
 - Runs on `macos-14` (Apple Silicon); calls `just build-vllm-mlx-bundle`. Produces a `.tar.zst` consumed by the Tauri `.dmg` build. Re-run when vllm-mlx, python-build-standalone, or HfModelDownloader cache layout changes.
 - **Retention:** 90 days, compression-level 0 (already zstd-compressed).
 
-### `eval-inference.yml` — Inference evaluation
+### `eval-inference.yml.disabled` — Inference evaluation (retired)
 
-- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection. The player shares one cookie jar across all Parish HTTP requests so the run stays in one server session.
-- Builds `parish-server`, spawns it with `PARISH_PROVIDER=github_models` and `PLAYER_MODEL=microsoft/Phi-4`, runs a Python player agent across scenarios (smoke=10t, intent=25t, reactions=15t, tier2=12t, dialogue=20t, full_session=50t). Judges with gpt-4o via `actions/ai-inference@v1`. Aggregates into a CI summary table.
-- **Concurrency:** `eval-inference-${{ github.ref }}`, cancel-in-progress.
+- **Status:** disabled 2026-09-26 after GitHub Models retirement (2026-07-30). Non-YAML extension keeps it out of Actions.
+- Former triggers were nightly schedule + `workflow_dispatch`. Player and judge both called Models (`github_models` / `actions/ai-inference`) and failed permanently with 410 / non-JSON responses.
+- To re-enable: restore the `.yml` suffix and rewire player + judge to another provider.
 
 ### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
 
@@ -94,7 +102,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `release.yml` — Tag-driven release pipeline
 
 - **Triggers:** `push` tags matching `v[0-9]+.[0-9]+.[0-9]+*`; `workflow_dispatch` with `dry_run: true` (default).
-- Validates tag matches `parish-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
+- Validates tag matches `limerick-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
 - **Permissions:** `contents: write`.
 - **Concurrency:** `release-${{ github.ref }}`, cancel-in-progress: **false**.
 

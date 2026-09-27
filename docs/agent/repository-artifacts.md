@@ -13,7 +13,7 @@ files. The same gate runs in CI.
 | Artifact family                                        | Canonical destination                                                                    | Tracking rule                                                                                                                                                                                            |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Graphify indexes, HTML, reports, caches, and snapshots | Local `graphify-out/` beside the scanned corpus                                          | Ignored at every depth; regenerate locally. Publish a content-addressed release archive only when a frozen graph must be shared.                                                                         |
-| Playwright visual baselines                            | `parish/apps/ui/e2e/screenshots/baseline/`                                               | Keep in Git because tests consume them. `just screenshots` exercises this path.                                                                                                                          |
+| Playwright visual baselines                            | `limerick/apps/ui/e2e/screenshots/baseline/`                                             | Keep in Git because tests consume them. `just screenshots` exercises this path.                                                                                                                          |
 | Documentation images                                   | `docs/screenshots/`                                                                      | Keep only current images referenced by tracked docs or their generation contract. Promote deliberately; do not mirror every Playwright capture.                                                          |
 | Bug evidence                                           | Stable `bug-evidence` GitHub Release plus a hash-keyed external archive                  | Reporter screenshots are Release assets linked from their issues. Never track `bug-reports/`; dry-run bundles stay under the resolved user-data path.                                                    |
 | Promptfoo output and local proof bundles               | `promptfoo/output/`, `docs/proofs/`, and `.proofs/`                                      | Ignored local output. Keep only canonical datasets, rubrics, manifests, promotion receipts, and published leaderboard data in Git.                                                                       |
@@ -23,7 +23,7 @@ files. The same gate runs in CI.
 
 ## Mechanical limits
 
-`parish/scripts/check-repository-artifacts.sh` enforces these rules over the
+`limerick/scripts/check-repository-artifacts.sh` enforces these rules over the
 Git index:
 
 - no tracked path may contain a `graphify-out` component;
@@ -31,7 +31,7 @@ Git index:
 - retired screenshot, every `bug-reports/` path, and rejected scene-plate paths cannot
   be reintroduced;
 - files larger than 8 MiB fail unless
-  `parish/scripts/repository-artifact-exceptions.txt` records the exact path,
+  `limerick/scripts/repository-artifact-exceptions.txt` records the exact path,
   byte count, SHA-256, owner, and purpose;
 - tracked files larger than 2 MiB produce an advisory summary so reviewers can
   catch growth before it reaches the hard ceiling; and
@@ -60,7 +60,7 @@ documented operator backup location.
 | `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-grid-overlay.png`                          |        9406614 | `9bc16003c3da3a75e0f588fb8ac2ca2e37cd088deaa10211059156568210f9f9` |
 | `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/runtime-reassembled.png`                               |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
 | `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-supertile.png`                             |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
-| `parish/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png`                                           |        8492224 | `becdeaec87bebf0063d7611cec764254948b0fcad6820235a4da3173f3828331` |
+| `limerick/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png`                                         |        8492224 | `becdeaec87bebf0063d7611cec764254948b0fcad6820235a4da3173f3828331` |
 
 ### Wave 3: Graphics V2 pipeline experiments
 
@@ -105,5 +105,5 @@ Release tag during cutover; leaving `refs/tags/bug-evidence` on this base commit
 would keep its old object graph reachable even after branch refs were rewritten.
 
 Forward Markdown links remain covered by
-`parish/scripts/check-doc-paths.sh`; the screenshot rule is the reverse check
+`limerick/scripts/check-doc-paths.sh`; the screenshot rule is the reverse check
 that catches files no document or generator contract consumes.

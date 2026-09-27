@@ -54,4 +54,4 @@ These are potential moments where the mythological layer surfaces. Not scripted 
 
 ## Source Modules
 
-- [`parish-world`](../../parish/crates/parish-world/src/) — World state and time system
+- [`limerick-world`](../../limerick/crates/limerick-world/src/) — World state and time system

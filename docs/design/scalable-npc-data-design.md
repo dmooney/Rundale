@@ -75,11 +75,11 @@ The absence of detail must be invisible. The player never sees a stub NPC. Promo
 
 ## 4. Database Schema
 
-Replace `mods/rundale/npcs.json` with SQLite tables. The JSON format remains as import/export. The game ships with (or downloads) a pre-built `parish-world.db`.
+Replace `mods/rundale/npcs.json` with SQLite tables. The JSON format remains as import/export. The game ships with (or downloads) a pre-built `limerick-world.db`.
 
 ### Key Tables
 
-- **Geographic hierarchy:** `provinces`, `counties`, `baronies`, `parishes`, `townlands`, `locations`, `location_connections`, `parish_connections`
+- **Geographic hierarchy:** `provinces`, `counties`, `baronies`, `parishes`, `townlands`, `locations`, `location_connections`, `limerick_connections`
 - **NPC core:** `npcs` table with `data_tier` column (0/1/2), demographic fields, nullable rich fields (personality, mood), runtime state (current_location, state)
 - **Households:** `households` table (townland, head, dwelling_type, land_acres). The fundamental unit of social organization.
 - **Occupations:** Template table with frequency weights for generation
@@ -110,12 +110,12 @@ Only ~2,000 NPCs in memory at once:
 
 ## 6. Build-Time Generation Pipeline
 
-All Sketched NPCs are pre-generated at build time, not at runtime. The generation pipeline is a build tool (like `parish-geo-tool`), not part of the game binary. It produces a `parish-world.db` that ships with the game.
+All Sketched NPCs are pre-generated at build time, not at runtime. The generation pipeline is a build tool (like `limerick-geo-tool`), not part of the game binary. It produces a `limerick-world.db` that ships with the game.
 
 ### Pipeline Overview
 
 ```text
-parish-geo-tool extracts parishes/townlands/locations from OSM (geographic blocks)
+limerick-geo-tool extracts parishes/townlands/locations from OSM (geographic blocks)
     │
     ▼
 demographic seeder runs per-parish: households → NPCs → implicit relationships
@@ -124,7 +124,7 @@ demographic seeder runs per-parish: households → NPCs → implicit relationshi
 cross-parish pass: long-distance family ties, trade connections, clergy networks
     │
     ▼
-single parish-world.db file (~200MB for 1M, ~1.4GB for all-Ireland 6.8M)
+single limerick-world.db file (~200MB for 1M, ~1.4GB for all-Ireland 6.8M)
     │
     ▼
 ships with game (or downloaded as a "world pack")
@@ -144,7 +144,7 @@ generate_household(townland, rng):
   6. Assign to townland, create household record
 ```
 
-**Parish seeding:** Distribute target population across townlands proportional to area, generate households until population reached, then generate cross-household social network (meitheal groups, godparent bonds, friendships biased by age/townland/occupation).
+**Limerick seeding:** Distribute target population across townlands proportional to area, generate households until population reached, then generate cross-household social network (meitheal groups, godparent bonds, friendships biased by age/townland/occupation).
 
 **Name generation:** Period-appropriate Irish names frequency-weighted by region. Male: Pádraig, Seán, Michael, Thomas, James... Female: Mary, Bridget, Margaret, Catherine... Surnames frequency-weighted for Roscommon: Kelly, Murphy, Brennan, O'Brien, Flanagan... Eldest son named after paternal grandfather (convention).
 
@@ -156,26 +156,26 @@ generate_household(townland, rng):
 - Deterministic and reproducible (seeded RNG)
 - The game binary stays simple — it only does promotion (Sketched → Elaborated), never skeleton generation
 
-## 7. Tooling: `parish-npc-tool` CLI
+## 7. Tooling: `limerick-npc-tool` CLI
 
-New binary in `crates/parish-npc-tool/`:
+New binary in `crates/limerick-npc-tool/`:
 
 ```sh
-parish-npc-tool generate-world --counties roscommon,galway  # build the world DB
-parish-npc-tool generate-parish Kiltoom --pop 2000          # seed one parish
-parish-npc-tool list --parish Kiltoom --occupation Farmer
-parish-npc-tool show 12345
-parish-npc-tool search "Darcy"
-parish-npc-tool edit 12345 --mood cheerful
-parish-npc-tool promote 12345                               # Sketched -> Elaborated
-parish-npc-tool elaborate --parish Kiltoom --batch 50        # batch LLM elaboration
-parish-npc-tool validate --parish Kiltoom
-parish-npc-tool validate --all                               # full world consistency check
-parish-npc-tool stats                                        # population counts, tier distributions
-parish-npc-tool export --parish Kiltoom > kiltoom.json
-parish-npc-tool import < kiltoom.json
-parish-npc-tool family-tree 12345
-parish-npc-tool relationships 12345
+limerick-npc-tool generate-world --counties roscommon,galway  # build the world DB
+limerick-npc-tool generate-parish Kiltoom --pop 2000          # seed one parish
+limerick-npc-tool list --parish Kiltoom --occupation Farmer
+limerick-npc-tool show 12345
+limerick-npc-tool search "Darcy"
+limerick-npc-tool edit 12345 --mood cheerful
+limerick-npc-tool promote 12345                               # Sketched -> Elaborated
+limerick-npc-tool elaborate --parish Kiltoom --batch 50        # batch LLM elaboration
+limerick-npc-tool validate --parish Kiltoom
+limerick-npc-tool validate --all                               # full world consistency check
+limerick-npc-tool stats                                        # population counts, tier distributions
+limerick-npc-tool export --parish Kiltoom > kiltoom.json
+limerick-npc-tool import < kiltoom.json
+limerick-npc-tool family-tree 12345
+limerick-npc-tool relationships 12345
 ```
 
 **Consistency validator checks:** referential integrity, household structure, age consistency, occupation distribution, naming conventions, schedule template resolution, all Elaborated+ have personality.
@@ -190,13 +190,13 @@ Hierarchical world graph: townland → parish → barony → county → province
 - **Between adjacent parishes:** boundary edges with travel times
 - **Long-distance:** abstracted multi-day journeys with encounter opportunities
 
-Locations are also pre-generated via `parish-geo-tool` OSM pipeline, stored in the same `parish-world.db`. The geographic and demographic data are generated together, block by block.
+Locations are also pre-generated via `limerick-geo-tool` OSM pipeline, stored in the same `limerick-world.db`. The geographic and demographic data are generated together, block by block.
 
 **Scale:** Starting parish fully detailed (30–50 locations, ~2,000 NPCs pre-elaborated). All other parishes have locations + Sketched NPCs ready. The player can go anywhere — the world is already there.
 
 ## 9. Data Lifecycle
 
-**Creation (build time):** `parish-geo-tool` geographic blocks → demographic seeder → Sketched NPCs → `parish-world.db`. Optionally: batch LLM elaboration for the starting parish to pre-promote key NPCs.
+**Creation (build time):** `limerick-geo-tool` geographic blocks → demographic seeder → Sketched NPCs → `limerick-world.db`. Optionally: batch LLM elaboration for the starting parish to pre-promote key NPCs.
 
 **Promotion (runtime):** Sketched → Elaborated via LLM on first encounter. Elaborated → Authored via human review.
 
@@ -206,7 +206,7 @@ Locations are also pre-generated via `parish-geo-tool` OSM pipeline, stored in t
 
 ### Two-Database Model
 
-`parish-world.db` is read-only (the pre-generated world). `parish-save.db` is the player's save file (promotions, mutations, memories, events). On load, the game overlays save data onto world data.
+`limerick-world.db` is read-only (the pre-generated world). `limerick-save.db` is the player's save file (promotions, mutations, memories, events). On load, the game overlays save data onto world data.
 
 **Schema migration:** `schema_version` table + numbered migration files in both databases, applied on startup.
 

@@ -4,16 +4,16 @@
 
 ## Current testing contract
 
-Parish uses distinct sensors for distinct claims:
+Limerick uses distinct sensors for distinct claims:
 
-| Claim                      | Canonical sensor                                               | Failure oracle                                       |
-| -------------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
-| Shared gameplay behavior   | `parish-scenario` + `testing/scenarios/*.yaml`                 | Event/state assertions over `parish_core::game_loop` |
-| Legacy CLI compatibility   | `testing/fixtures/test_*.txt`                                  | Rust assertions/baselines; process exit              |
-| One-off gameplay evidence  | `testing/proofs/*.txt`                                         | Human/agent review; not swept as regressions         |
-| Browser/server integration | Playwright `browser-fullstack` project                         | UI state equals same-session server state            |
-| Deterministic UI contracts | Playwright `ui-contract` project                               | Mocked IPC interaction and screenshot assertions     |
-| Multi-turn quality         | `parish-harness` (headless) or `quality-harness` skill (Tauri) | Hard gates + rubric/findings                         |
+| Claim                      | Canonical sensor                                                 | Failure oracle                                         |
+| -------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
+| Shared gameplay behavior   | `limerick-scenario` + `testing/scenarios/*.yaml`                 | Event/state assertions over `limerick_core::game_loop` |
+| Legacy CLI compatibility   | `testing/fixtures/test_*.txt`                                    | Rust assertions/baselines; process exit                |
+| One-off gameplay evidence  | `testing/proofs/*.txt`                                           | Human/agent review; not swept as regressions           |
+| Browser/server integration | Playwright `browser-fullstack` project                           | UI state equals same-session server state              |
+| Deterministic UI contracts | Playwright `ui-contract` project                                 | Mocked IPC interaction and screenshot assertions       |
+| Multi-turn quality         | `limerick-harness` (headless) or `quality-harness` skill (Tauri) | Hard gates + rubric/findings                           |
 
 New gameplay regressions belong in the YAML scenario schema. The plaintext
 fixture runner remains while its asserted corpus is migrated, but it is not the
@@ -32,7 +32,7 @@ rewrite:
    UI contract tests when they provide a more deterministic oracle.
 2. Runtime-changing pull requests cannot merge on the fast lane alone. The
    existing required `CI gate` requires the called Full CI workflow to succeed.
-3. `bash parish/scripts/harness-audit.sh` inventories coverage without
+3. `bash limerick/scripts/harness-audit.sh` inventories coverage without
    pretending proof scripts are tests. Its current real-loop gaps—weather,
    banshee/death, sparse-tier behavior, and memory/overhear—are the next
    migration order when those subsystems change.
@@ -46,7 +46,7 @@ rewrite:
 
 ## Legacy `GameTestHarness` compatibility layer
 
-The `GameTestHarness` (`crates/parish-engine/src/testing.rs`) provides a programmatic, synchronous
+The `GameTestHarness` (`crates/limerick-engine/src/testing.rs`) provides a programmatic, synchronous
 API for driving the game without a TUI or LLM. It enables:
 
 - **Automated regression testing** via `cargo test`
@@ -85,7 +85,7 @@ API for driving the game without a TUI or LLM. It enables:
 
 3. **Shared primitives, separate router** — `execute()` reuses low-level movement,
    rendering, input, and clock helpers but keeps a legacy parallel router. Do not
-   use it to claim shipping-loop coverage; `parish-scenario` calls
+   use it to claim shipping-loop coverage; `limerick-scenario` calls
    `execute_via_real_loop()` instead.
 
 4. **Structured output** — `ActionResult` enum captures every outcome as a
@@ -123,7 +123,7 @@ Lines starting with `#` are comments. Empty lines are skipped.
 
 ## CLI-GUI Parity Commands
 
-The headless CLI (`crates/parish-engine/src/headless.rs`) and test harness (`crates/parish-engine/src/testing.rs`) support
+The headless CLI (`crates/limerick-engine/src/headless.rs`) and test harness (`crates/limerick-engine/src/testing.rs`) support
 commands that mirror GUI-only features, enabling full play-testing without Tauri:
 
 | Command     | Description                                                                    | Handler Source                                         |
@@ -169,7 +169,7 @@ Tick,          // /tick
 
 ## Agent Play-Testing Skill
 
-The `/parish-engine play` skill (`.agents/skills/parish-engine/SKILL.md`) enables an AI coding assistant to
+The `/limerick-engine play` skill (`.agents/skills/limerick-engine/SKILL.md`) enables an AI coding assistant to
 autonomously play-test the game via `--script` mode:
 
 1. Build the project with `cargo build`
@@ -215,7 +215,7 @@ For tests that need to assert on script output (not just "no crash"),
 use `run_script_captured()` which returns a `Vec<ScriptResult>`:
 
 ```rust
-use parish::testing::{run_script_captured, ActionResult, ScriptResult};
+use limerick_engine::testing::{run_script_captured, ActionResult, ScriptResult};
 use std::path::Path;
 
 #[test]
@@ -255,7 +255,7 @@ pub struct ScriptResult {
 ## Usage in Tests
 
 ```rust
-use parish::testing::{GameTestHarness, ActionResult};
+use limerick_engine::testing::{GameTestHarness, ActionResult};
 
 #[test]
 fn test_example() {
@@ -285,7 +285,7 @@ compatibility while equivalent behaviors move to real-loop YAML scenarios.
 
 ## Eval baselines
 
-`crates/parish-engine/tests/eval_baselines.rs` is an inferential sensor for
+`crates/limerick-engine/tests/eval_baselines.rs` is an inferential sensor for
 gameplay behavior — it runs each baselined fixture through `run_script_captured`,
 serializes the captured `Vec<ScriptResult>` to JSON, and diffs against a stored
 baseline at `testing/evals/baselines/<fixture>.json`. Any drift fails the
@@ -306,7 +306,7 @@ their structured output has been verified deterministic across runs.
 To regenerate after an intentional gameplay change:
 
 ```sh
-just baselines    # = UPDATE_BASELINES=1 cargo test -p parish --test eval_baselines
+just baselines    # = UPDATE_BASELINES=1 cargo test -p limerick-engine --test eval_baselines
 git diff testing/evals/baselines/   # review the diff before committing
 ```
 

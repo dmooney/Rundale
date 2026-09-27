@@ -77,7 +77,7 @@ When a whisper is detected, send a modified payload to the backend:
 
 ```typescript
 async function handleSubmit(e: Event) {
-  // ... existing validation ...
+  // Apply the command validation described above.
   const trimmed = getPlainText().trim();
   if (!trimmed || $streamingActive) return;
 
@@ -175,7 +175,7 @@ interface TextLogPayload {
 
 ## Backend Changes
 
-### Request Type — `crates/parish-server/src/routes.rs`
+### Request Type — `crates/limerick-server/src/routes.rs`
 
 ```rust
 #[derive(Deserialize)]
@@ -187,7 +187,7 @@ struct SubmitInputRequest {
 }
 ```
 
-### IPC Payload — `crates/parish-core/src/ipc/types.rs`
+### IPC Payload — `crates/limerick-core/src/ipc/types.rs`
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,7 +201,7 @@ pub struct TextLogPayload {
 }
 ```
 
-### Route Handler — `crates/parish-server/src/routes.rs`
+### Route Handler — `crates/limerick-server/src/routes.rs`
 
 Modify `submit_input` handler to pass whisper info through:
 
@@ -298,7 +298,7 @@ async fn handle_whisper_conversation(
     drop(world);
 
     // Submit inference (same as normal conversation)
-    // ... (identical streaming logic) ...
+    // Stream the reply through the dialogue stream handler.
 
     // KEY: When recording this interaction in memory, tag it as whispered
     // so Tier 2 background ticks don't leak it to other NPCs
@@ -314,7 +314,7 @@ async fn handle_whisper_conversation(
 }
 ```
 
-### Memory Tagging — `crates/parish-core/src/npc/memory.rs`
+### Memory Tagging — `crates/limerick-core/src/npc/memory.rs`
 
 Extend `MemoryEntry` to support a `private` flag:
 
@@ -430,16 +430,16 @@ Later, Tier 2 tick runs:
 
 ## Files to Modify
 
-| File                                   | Change                                                                                       |
-| -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ui/src/components/InputField.svelte`  | Add `detectWhisper()`, modify submit to pass whisper metadata                                |
-| `ui/src/components/ChatPanel.svelte`   | Whisper-specific rendering (dashed border, italic, label)                                    |
-| `ui/src/lib/types.ts`                  | Add `whisper` and `whisper_target` to `TextLogEntry`, `TextLogPayload`, `SubmitInputRequest` |
-| `ui/src/lib/ipc.ts`                    | Extend `submitInput()` to accept whisper options                                             |
-| `crates/parish-server/src/routes.rs`   | Add `handle_whisper_conversation()`, modify `submit_input` handler                           |
-| `crates/parish-core/src/ipc/types.rs`  | Add whisper fields to `TextLogPayload`                                                       |
-| `crates/parish-core/src/npc/memory.rs` | Add `private` field to `MemoryEntry`, add `context_string_public()`                          |
-| `crates/parish-core/src/npc/ticks.rs`  | Use `context_string_public()` for Tier 2 context building                                    |
+| File                                     | Change                                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ui/src/components/InputField.svelte`    | Add `detectWhisper()`, modify submit to pass whisper metadata                                |
+| `ui/src/components/ChatPanel.svelte`     | Whisper-specific rendering (dashed border, italic, label)                                    |
+| `ui/src/lib/types.ts`                    | Add `whisper` and `whisper_target` to `TextLogEntry`, `TextLogPayload`, `SubmitInputRequest` |
+| `ui/src/lib/ipc.ts`                      | Extend `submitInput()` to accept whisper options                                             |
+| `crates/limerick-server/src/routes.rs`   | Add `handle_whisper_conversation()`, modify `submit_input` handler                           |
+| `crates/limerick-core/src/ipc/types.rs`  | Add whisper fields to `TextLogPayload`                                                       |
+| `crates/limerick-core/src/npc/memory.rs` | Add `private` field to `MemoryEntry`, add `context_string_public()`                          |
+| `crates/limerick-core/src/npc/ticks.rs`  | Use `context_string_public()` for Tier 2 context building                                    |
 
 ## Effort Estimate
 

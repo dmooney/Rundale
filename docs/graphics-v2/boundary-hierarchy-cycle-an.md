@@ -17,7 +17,7 @@ while making ordinary field and parcel lines softer, broken, or invisible.
 - Oblique camera cue:
   `pipeline-experiments/idea-aj2-kilteevan-dot-suppressed-no-admin-oblique-raw-warp.png`
 - Full illustrated notebook sample, style only:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 - Clean single-building slate and thatch style references:
   `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`
   and

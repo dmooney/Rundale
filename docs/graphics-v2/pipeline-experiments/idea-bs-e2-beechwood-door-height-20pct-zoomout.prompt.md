@@ -14,7 +14,7 @@ Image 5: fixed slate single-house door crop. Secondary door/facade material auth
 Local paths:
 
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-door-height-calibration-comparison.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-thatched-single-house-door-fixed.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-slate-single-house-door-fixed.png

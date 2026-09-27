@@ -107,19 +107,19 @@ Confirm the tree is clean and tests pass before touching anything. If `cargo tes
 
 ```sh
 git status                          # must be clean
-cd parish && cargo build --workspace
-cd parish && cargo test --workspace --lib
+cd limerick && cargo build --workspace
+cd limerick && cargo test --workspace --lib
 ```
 
-The Cargo workspace lives in `parish/` — run cargo from there (or via `just`). If there's a Tauri crate,
-exclude it from local verification (`--exclude parish-tauri`) — it needs system libs CI handles. Note this in
+The Cargo workspace lives in `limerick/` — run cargo from there (or via `just`). If there's a Tauri crate,
+exclude it from local verification (`--exclude limerick-tauri`) — it needs system libs CI handles. Note this in
 the PR description.
 
 ### Step 2 — Phase 1: naming hygiene
 
 Enumerate `crates/*` and look for:
 
-1. **Missing workspace prefix.** If the convention is `parish-*`, every dir under `crates/` should match.
+1. **Missing workspace prefix.** If the convention is `limerick-*`, every dir under `crates/` should match.
    Flag stragglers (`geo-tool/`, `npc-cli/`).
 2. **Binary name vs. crate name drift.** Inside each `Cargo.toml`, check `[package].name` and `[[bin]].name`
    against the directory. Rename the laggard.
@@ -134,7 +134,7 @@ binary name, justfile recipes, docs, deploy artifacts).
 
 For every `crates/*/Cargo.toml`:
 
-- `description = "..."` — required, one line, mentions "Parish" or the engine for searchability.
+- `description = "..."` — required, one line, mentions "Limerick" or the engine for searchability.
 - `edition = "2021"` (or the workspace standard) — must match across crates.
 - `[lib]` block — present if `src/lib.rs` exists, with `name = "<crate_name_with_underscores>"` and an
   explicit `path = "src/lib.rs"` if any are inconsistent (consistency > brevity here).
@@ -181,7 +181,7 @@ and what each contains. If a split exposes a real bug (Gemini will find them), s
 
 Look for **self-contained leaf modules** that could become their own crate. All four must hold:
 
-- **Leaf in the dep graph.** Imports only `parish-types` / external crates — no calls into siblings.
+- **Leaf in the dep graph.** Imports only `limerick-types` / external crates — no calls into siblings.
 - **Distinct concern.** Used by multiple crates, or the parent's identity would be tighter without it.
 - **Stable surface.** Public API is small and not in flux.
 - **Worth the manifest tax.** A new crate adds Cargo.toml, README, CI surface — if < 200 LOC, the tax
@@ -221,8 +221,8 @@ In order:
 
 ```sh
 cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings  # exclude parish-tauri locally
-cargo test --workspace --lib --exclude parish-tauri
+cargo clippy --workspace --all-targets -- -D warnings  # exclude limerick-tauri locally
+cargo test --workspace --lib --exclude limerick-tauri
 git grep -F "<every-renamed-thing>"                    # zero hits
 ```
 

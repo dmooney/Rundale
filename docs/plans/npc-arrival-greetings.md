@@ -5,7 +5,7 @@ behind npc-arrival-greetings flag (default off)`.
 
 ## Steps
 
-1. **Gate `apply_arrival_reactions`** (`parish-core/src/game_session.rs:689`).
+1. **Gate `apply_arrival_reactions`** (`limerick-core/src/game_session.rs:689`).
 
    - Add a flag check at the top: if
      `!config.flags.is_enabled("npc-arrival-greetings")`, return `Vec::new()`
@@ -25,7 +25,7 @@ behind npc-arrival-greetings flag (default off)`.
    caller; keep the public signature change minimal and update both call sites +
    any tests.
 
-3. **Tests** (`parish-core/src/game_session.rs` test module — there are already
+3. **Tests** (`limerick-core/src/game_session.rs` test module — there are already
    `apply_arrival_reactions_*` unit tests):
 
    - Add `arrival_reactions_muted_when_flag_off`: default flags → returns empty,
@@ -43,9 +43,9 @@ behind npc-arrival-greetings flag (default off)`.
 
 ## Verification
 
-- `just check` (fmt + clippy + `cargo test -p parish-core`) green.
+- `just check` (fmt + clippy + `cargo test -p limerick-core`) green.
 - Headless live transcript:
-  `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script parish/testing/proofs/play_npc-arrival-greetings.txt`
+  `cargo run --manifest-path limerick/Cargo.toml -p limerick-engine -- --script limerick/testing/proofs/play_npc-arrival-greetings.txt`
   → capture to `.proofs/npc-arrival-greetings/transcript.txt`, map AC1–AC5.
 - Tauri spot-check over `:3030`: new-game, move into The Crossroads → no greeting
   at default; `/flag enable npc-arrival-greetings`, move again → greetings return.

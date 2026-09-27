@@ -16,7 +16,7 @@ A handler returning a produced artifact (screenshot, export, render, generated
 file) must verify real content before reporting success — a blank/degenerate
 result is an `Err`, never "nonzero bytes = success". Pattern:
 `reject_blank_capture` in
-`parish/crates/parish-tauri/src/commands/screenshot.rs` (#1301).
+`limerick/crates/limerick-tauri/src/commands/screenshot.rs` (#1301).
 
 <a id="rule-20"></a>
 

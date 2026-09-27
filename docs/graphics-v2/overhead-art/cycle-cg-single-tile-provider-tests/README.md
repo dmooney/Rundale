@@ -37,7 +37,7 @@ surface where the historical map is supposed to be the authority.
 Do not scale this prompt/model setup to parish generation. The safer path is
 still:
 
-- deterministic local base map for the parish/county;
+- deterministic local base map for the limerick/county;
 - API only for small local override plates;
 - stronger semantic controls before any model-generated tile is accepted.
 

@@ -11,7 +11,7 @@ Replace the single test location with a graph of real-world-inspired locations f
 ## Prerequisites
 
 - Phase 1 complete: working TUI, GameClock, input parsing, Ollama integration
-- Parish location selected (see [Open Questions](./open-questions.md) #1)
+- Rundale location selected (see [Open Questions](./open-questions.md) #1)
 
 ## Tasks
 
@@ -28,7 +28,7 @@ Replace the single test location with a graph of real-world-inspired locations f
    - `fn find_by_name(&self, name: &str) -> Option<LocationId>` — case-insensitive fuzzy match (contains)
    - `fn shortest_path(&self, from: LocationId, to: LocationId) -> Option<Vec<LocationId>>` — BFS on unweighted graph for basic pathfinding
 
-3. **Create hand-authored parish data file: `data/parish.json`**
+3. **Create hand-authored parish data file: `data/world.json`**
 
    - 12-15 locations: The Crossroads (hub), Darcy's Pub, St. Brigid's Church, Post Office, National School, GAA Pitch, Lough Shore, Bridge over the Hind River, Murphy's Farm, O'Brien's Farm, The Fairy Fort, Bog Road, Connolly's Shop, The Creamery
    - Each with 2-4 connections to neighbors, realistic traversal times (2-15 minutes)
@@ -36,7 +36,7 @@ Replace the single test location with a graph of real-world-inspired locations f
 
 4. **Implement JSON deserialization for `WorldGraph`**
 
-   - `impl WorldGraph { fn load_from_file(path: &Path) -> Result<Self> }` — read and deserialize `data/parish.json`
+   - `impl WorldGraph { fn load_from_file(path: &Path) -> Result<Self> }` — read and deserialize `data/world.json`
    - Derive `Serialize, Deserialize` on `Location`, `Connection`, `WorldGraph`
    - Validate on load: all connection targets exist, no orphan nodes
 
@@ -44,7 +44,7 @@ Replace the single test location with a graph of real-world-inspired locations f
 
    - Reads Geofabrik `.pbf` file for Ireland, filters to bounding box around target parish
    - Extracts: named places, roads, buildings, waterways
-   - Outputs `parish.json` in the WorldGraph format
+   - Outputs `world.json` in the WorldGraph format
    - Depends on `osmpbf` crate (add to `[dev-dependencies]` or as optional feature)
    - This is a tooling task, not required for the game to run
 
@@ -76,7 +76,7 @@ Replace the single test location with a graph of real-world-inspired locations f
    - Cache enriched descriptions for 10 game-minutes to avoid redundant inference calls
 
 10. **Write tests**
-    - `test_world_graph_load`: load `data/parish.json`, assert location count, verify all connections are bidirectional
+    - `test_world_graph_load`: load `data/world.json`, assert location count, verify all connections are bidirectional
     - `test_find_by_name`: fuzzy match "pub" -> "Darcy's Pub", "church" -> "St. Brigid's Church"
     - `test_shortest_path`: verify BFS finds path between non-adjacent nodes
     - `test_movement_time_advancement`: move between nodes, assert clock advanced by correct minutes
@@ -94,7 +94,7 @@ Replace the single test location with a graph of real-world-inspired locations f
 
 ## Acceptance Criteria
 
-- `data/parish.json` contains 12-15 locations with valid connections
+- `data/world.json` contains 12-15 locations with valid connections
 - Player can type "go to the pub" and arrive at Darcy's Pub after the correct traversal time
 - Game clock advances during travel; time-of-day and palette shift accordingly
 - Location descriptions display on arrival with time/weather context
@@ -103,6 +103,6 @@ Replace the single test location with a graph of real-world-inspired locations f
 
 ## Resolved Issues
 
-- **Parish selection**: Resolved as **Kiltoom** (see [open-questions.md](./open-questions.md) #1). Location data in `data/parish.json` uses Kiltoom townlands and geography (Lough Ree, Shannon, Hodson Bay).
+- **Limerick selection**: Resolved as **Kiltoom** (see [open-questions.md](./open-questions.md) #1). Location data in `data/world.json` uses Kiltoom townlands and geography (Lough Ree, Shannon, Hodson Bay).
 - **Pathfinding algorithm**: Use **simple BFS** on the unweighted graph. The parish is small enough (~15-25 nodes) that weighted pathfinding provides negligible benefit. BFS finds shortest-hop paths, and traversal time is summed from edge weights along the path for clock advancement. Revisit only if the graph exceeds 50 nodes.
 - **Travel narration verbosity**: Use a **single line** for movement narration in Phase 2 (e.g., "You walk along the narrow boreen to the crossroads. (8 minutes)"). LLM-enriched multi-paragraph narration is deferred to Phase 6 polish — it requires inference calls for non-NPC text, which competes with NPC cognition for Ollama throughput.

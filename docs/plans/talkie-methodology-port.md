@@ -105,7 +105,7 @@ New mining stage alongside `instruction_pairs.py`. Sources:
 - **Period almanacs / _Old Moore's Almanack_** — situated knowledge across classes.
 - **Period dictionaries** filtered to the game's domain.
 
-Implementation: `training/src/parish_train/build/reference_pairs.py`. Rows tagged `meta.source = "reference-work"`. Target: 3-5k pairs.
+Implementation: `training/src/limerick_train/build/reference_pairs.py`. Rows tagged `meta.source = "reference-work"`. Target: 3-5k pairs.
 
 ### Port 2 (moderate cost, high impact): DPO with local dual judges on the same pod
 
@@ -126,18 +126,18 @@ No frontier-API spend at any stage. Marginal cost: ~$5 of additional GPU time ov
 - **axolotl + bitsandbytes NF4 QLoRA** training stack (the plan's existing choice — runs unchanged on RunPod).
 - LoRA → fp16 merge → GGUF q4_K_M → Ollama packaging path.
 - Ollama serving via the `gemma4-rundale:9b` artifact.
-- Tier 1 JSON schema + streaming dialogue extraction (`crates/parish-npc/src/lib.rs`, `crates/parish-types/src/ids.rs::extract_dialogue_from_partial_json`).
+- Tier 1 JSON schema + streaming dialogue extraction (`crates/limerick-npc/src/lib.rs`, `crates/limerick-types/src/ids.rs::extract_dialogue_from_partial_json`).
 - The `/prove rundale-dialect` gate.
 
 ## Files to create / modify
 
 **Create:**
 
-- `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py`
-- `training/src/parish_train/build/reference_pairs.py` — reference-work pair miner
-- `training/src/parish_train/eval/judge_talkie.py` — log-likelihood scorer (local Talkie via Ollama)
-- `training/src/parish_train/eval/judge_qwen.py` — coherence judge (local Qwen 3.5 9B via Ollama)
-- `training/src/parish_train/eval/build_dpo_dataset.py` — combines both judges → DPO pairs
+- `training/src/limerick_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py`
+- `training/src/limerick_train/build/reference_pairs.py` — reference-work pair miner
+- `training/src/limerick_train/eval/judge_talkie.py` — log-likelihood scorer (local Talkie via Ollama)
+- `training/src/limerick_train/eval/judge_qwen.py` — coherence judge (local Qwen 3.5 9B via Ollama)
+- `training/src/limerick_train/eval/build_dpo_dataset.py` — combines both judges → DPO pairs
 - `training/configs/dpo_gemma4_rundale.yaml` — axolotl DPO config
 - `training/scripts/runpod_setup.sh` — pod bootstrap (CUDA, bitsandbytes, axolotl, ollama, model pulls)
 - `training/scripts/run_runpod_full.sh` — orchestrates SFT → judge calibration → DPO → eval
@@ -167,20 +167,20 @@ No Rust code changes. No runtime serving changes.
 # === LOCAL (laptop) — build the data, no GPU needed ===
 cd training
 uv sync
-uv run python -m parish_train.ingest.gutenberg_joyce
-uv run python -m parish_train.ingest.ia_griffin
-uv run python -m parish_train.ingest.gutenberg_carleton
-uv run python -m parish_train.ingest.ia_croker
-uv run python -m parish_train.ingest.gutenberg_kickham
-uv run python -m parish_train.ingest.ia_etiquette
-uv run python -m parish_train.ingest.ia_letter_writing
-uv run python -m parish_train.ingest.ia_almanac
-uv run python -m parish_train.curate.dialogue_extractor
-uv run python -m parish_train.curate.feature_tagger     # now a gate
-uv run python -m parish_train.curate.dedupe
-uv run python -m parish_train.build.instruction_pairs
-uv run python -m parish_train.build.reference_pairs     # new
-uv run python -m parish_train.build.split
+uv run python -m limerick_train.ingest.gutenberg_joyce
+uv run python -m limerick_train.ingest.ia_griffin
+uv run python -m limerick_train.ingest.gutenberg_carleton
+uv run python -m limerick_train.ingest.ia_croker
+uv run python -m limerick_train.ingest.gutenberg_kickham
+uv run python -m limerick_train.ingest.ia_etiquette
+uv run python -m limerick_train.ingest.ia_letter_writing
+uv run python -m limerick_train.ingest.ia_almanac
+uv run python -m limerick_train.curate.dialogue_extractor
+uv run python -m limerick_train.curate.feature_tagger     # now a gate
+uv run python -m limerick_train.curate.dedupe
+uv run python -m limerick_train.build.instruction_pairs
+uv run python -m limerick_train.build.reference_pairs     # new
+uv run python -m limerick_train.build.split
 tar czf payload.tgz data/processed configs eval/calibration_pairs.jsonl
 runpodctl send payload.tgz                              # or scp to the pod
 
@@ -190,23 +190,23 @@ ssh root@<pod>
 bash scripts/runpod_setup.sh                            # CUDA, axolotl, ollama, model pulls
 ollama pull qwen3.5:9b
 huggingface-cli download radford-et-al/talkie-1930-13b-it --local-dir models/talkie-it
-bash src/parish_train/package/to_gguf.sh models/talkie-it talkie-1930-13b-it
+bash src/limerick_train/package/to_gguf.sh models/talkie-it talkie-1930-13b-it
 ollama create talkie-1930-13b-it -f - <<< "FROM ./models/talkie-1930-13b-it-q4_K_M.gguf"
 
 # Calibrate judges on the 50-pair set (~10 min). Green bar: ≥80% direction-correct per axis.
-python -m parish_train.eval.judge_talkie --calibration eval/calibration_pairs.jsonl
-python -m parish_train.eval.judge_qwen   --calibration eval/calibration_pairs.jsonl
+python -m limerick_train.eval.judge_talkie --calibration eval/calibration_pairs.jsonl
+python -m limerick_train.eval.judge_qwen   --calibration eval/calibration_pairs.jsonl
 
 axolotl train configs/qlora_gemma4_9b.yaml              # SFT (~6 h)
 
-python -m parish_train.eval.build_dpo_dataset --sft-model models/sft-out --n-candidates 4
+python -m limerick_train.eval.build_dpo_dataset --sft-model models/sft-out --n-candidates 4
 axolotl train configs/dpo_gemma4_rundale.yaml           # DPO (~2-3 h)
 
-python -m parish_train.eval.ab_compare \
+python -m limerick_train.eval.ab_compare \
     --base models/sft-out --candidate models/dpo-out --judge talkie+qwen
 
-python -m parish_train.package.merge_lora
-bash src/parish_train/package/to_gguf.sh models/merged-fp16 gemma4-rundale
+python -m limerick_train.package.merge_lora
+bash src/limerick_train/package/to_gguf.sh models/merged-fp16 gemma4-rundale
 runpodctl receive models/gemma4-rundale-q4_K_M.gguf     # back to laptop
 # Stop the pod (storage persists at ~$0.10/GB/mo if iterating)
 

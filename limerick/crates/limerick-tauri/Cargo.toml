@@ -1,0 +1,70 @@
+[package]
+name = "limerick-tauri"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Tauri 2 desktop backend bridge for the Limerick engine"
+
+[lib]
+name = "limerick_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+chrono = { workspace = true }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+png = "0.18"
+base64 = "0.23"
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+limerick-core = { workspace = true }
+limerick-palette = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true }
+keyring = { workspace = true }
+rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
+
+# MCP bridge — embedded HTTP listener that mirrors the limerick-server IPC routes
+# against this process's live AppState, so an MCP client (limerick-mcp) can drive
+# the desktop session it can see in the window. Only spawned when the user
+# passes `--mcp-port <N>`; otherwise inert. Matches limerick-server's axum
+# version + defaults so the workspace shares one resolved version.
+axum = "0.8"
+tower = "0.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gdk = "0.18"
+glib = "0.22"
+
+# Native window capture for agent/MCP screenshots. macOS + Windows only: the
+# Linux xcap backend pulls libspa-sys/libpipewire-0.3 (a heavy system dep that
+# CI runners lack), and Linux desktop falls back to the html-to-image path.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+xcap = "0.9.6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+    "NSApplication",
+    "NSImage",
+    "NSResponder",
+] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSData"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

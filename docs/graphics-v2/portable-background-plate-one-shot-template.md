@@ -419,7 +419,7 @@ Priority order:
 1. fixed walkable orthographic isometric perspective
 2. map-derived navigation clarity
 3. correct map topology
-4. illustrated parish-notebook style
+4. illustrated rundale-notebook style
 5. plausible 1820 rural Irish architecture
 6. beauty and detail
 ```

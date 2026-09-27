@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "^24.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "check": "astro check",
@@ -11,13 +14,14 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^9.0.1",
-    "astro": "^7.2.4",
-    "simple-icons": "^16.28.0",
-    "svelte": "^5.56.10"
+    "astro": "^7.3.4",
+    "cookie": "^2.0.1",
+    "simple-icons": "^16.32.0",
+    "svelte": "^5.57.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@types/node": "^26.2.0",
+    "@types/node": "^24.19.0",
     "typescript": "^5.9.3"
   }
 }

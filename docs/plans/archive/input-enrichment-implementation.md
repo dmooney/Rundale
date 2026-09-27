@@ -47,10 +47,10 @@ Agent A: Idea 07 — Quick-Travel Buttons
   Commit: "feat: add location quick-travel chip buttons above input"
 
 Agent B: Idea 09 — Smart Replies (Phase 1: rule-based only)
-  Files: crates/parish-core/src/npc/suggestions.rs (new)
-         crates/parish-core/src/npc/mod.rs (re-export)
-         crates/parish-core/src/ipc/types.rs (SuggestionsPayload)
-         crates/parish-server/src/routes.rs (emit after look + conversation)
+  Files: crates/limerick-core/src/npc/suggestions.rs (new)
+         crates/limerick-core/src/npc/mod.rs (re-export)
+         crates/limerick-core/src/ipc/types.rs (SuggestionsPayload)
+         crates/limerick-server/src/routes.rs (emit after look + conversation)
          ui/src/components/Suggestions.svelte (new)
          ui/src/stores/game.ts (suggestions store)
          ui/src/lib/types.ts (SuggestionsPayload)
@@ -59,11 +59,11 @@ Agent B: Idea 09 — Smart Replies (Phase 1: rule-based only)
   Commit: "feat: add rule-based contextual action suggestions"
 
 Agent C: Idea 06 — Emoji Reactions (Phase 1: player→NPC only)
-  Files: crates/parish-core/src/npc/reactions.rs (new)
-         crates/parish-core/src/npc/mod.rs (re-export, ReactionLog on Npc)
-         crates/parish-core/src/npc/ticks.rs (inject reaction context)
-         crates/parish-core/src/ipc/types.rs (NpcReactionPayload, id on TextLogPayload)
-         crates/parish-server/src/routes.rs (react_to_message handler)
+  Files: crates/limerick-core/src/npc/reactions.rs (new)
+         crates/limerick-core/src/npc/mod.rs (re-export, ReactionLog on Npc)
+         crates/limerick-core/src/npc/ticks.rs (inject reaction context)
+         crates/limerick-core/src/ipc/types.rs (NpcReactionPayload, id on TextLogPayload)
+         crates/limerick-server/src/routes.rs (react_to_message handler)
          ui/src/lib/reactions.ts (new)
          ui/src/lib/types.ts (Reaction, id, reactions on TextLogEntry)
          ui/src/lib/ipc.ts (reactToMessage)
@@ -109,9 +109,9 @@ Agent D: Ideas 01 → 03 → 15 (slash autocomplete, input history, tab-complete
 ```text
 Agent E: Idea 02 — Emote/Action Prefix
   Depends on: Wave 1 merged (routes.rs stable)
-  Files: crates/parish-core/src/input/mod.rs (EnrichedInput, extract_actions)
-         crates/parish-server/src/routes.rs (use EnrichedInput in handle_game_input)
-         crates/parish-core/src/npc/ticks.rs (format_player_input)
+  Files: crates/limerick-core/src/input/mod.rs (EnrichedInput, extract_actions)
+         crates/limerick-server/src/routes.rs (use EnrichedInput in handle_game_input)
+         crates/limerick-core/src/npc/ticks.rs (format_player_input)
          ui/src/components/ChatPanel.svelte (parseSegments, italic rendering)
   Test:  cargo test && cd ui && npx vitest run
   Commit: "feat: support *action* emote prefix with italic rendering"
@@ -122,10 +122,10 @@ Agent F: Idea 05 — Whisper Syntax
          ui/src/components/ChatPanel.svelte (whisper styling)
          ui/src/lib/types.ts (whisper fields on TextLogEntry, SubmitInputRequest)
          ui/src/lib/ipc.ts (extend submitInput)
-         crates/parish-server/src/routes.rs (handle_whisper_conversation)
-         crates/parish-core/src/ipc/types.rs (whisper fields on TextLogPayload)
-         crates/parish-core/src/npc/memory.rs (private flag, context_string_public)
-         crates/parish-core/src/npc/ticks.rs (use context_string_public for Tier 2)
+         crates/limerick-server/src/routes.rs (handle_whisper_conversation)
+         crates/limerick-core/src/ipc/types.rs (whisper fields on TextLogPayload)
+         crates/limerick-core/src/npc/memory.rs (private flag, context_string_public)
+         crates/limerick-core/src/npc/ticks.rs (use context_string_public for Tier 2)
   Test:  cargo test && cd ui && npx vitest run
   Commit: "feat: add whisper/private message syntax with context exclusion"
 ```

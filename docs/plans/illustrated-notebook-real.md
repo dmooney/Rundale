@@ -7,7 +7,7 @@ chat-first stabilization migration. Approved scene and portrait assets were
 retained for responsive DOM use.
 
 This implementation plan follows the canonical
-[`illustrated-parish-notebook.png`](../graphics-v2/illustrated-parish-notebook.png)
+[`illustrated-rundale-notebook.png`](../graphics-v2/illustrated-rundale-notebook.png)
 concept and the active
 [`illustrated-notebook-roadmap.md`](illustrated-notebook-roadmap.md). The first
 implementation attempt is rejected as a visual source: its renderer, layout,
@@ -16,9 +16,9 @@ asset kit, and proof artifacts are not inputs to this rebuild.
 ## Clean Boundary
 
 - The active visual implementation lives in
-  `parish/apps/ui/src/lib/illustrated-parish/`.
+  `limerick/apps/ui/src/lib/illustrated-limerick/`.
 - Runtime art lives in
-  `parish/apps/ui/static/rundale/illustrated-notebook-v2/`.
+  `limerick/apps/ui/static/rundale/illustrated-notebook-v2/`.
 - The approved `sewn-notebook-page.png` is the sole retained visual exception.
   Its 440×620 shape is preserved without stretching.
 - The rejected `src/lib/illustrated-notebook/` visual modules and

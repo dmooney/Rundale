@@ -6,7 +6,7 @@
 
 **Rundale** is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in Kilteevan Village, in the parish of Kiltoom near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
 
-Rundale is built on the **Parish engine** — a generic Rust simulation framework. The engine knows nothing about any specific setting; all game-specific content lives in the `mods/rundale/` content package.
+Rundale is built on the **Limerick engine** — a generic Rust simulation framework. The engine knows nothing about any specific setting; all game-specific content lives in the `mods/rundale/` content package.
 
 The game is committed to representing Irish people and culture with accuracy, respect, and sensitivity. Characters are portrayed with dignity and complexity. The historical setting reflects the real political and social landscape of early 19th-century Ireland.
 
@@ -57,7 +57,7 @@ Player Input → Command Detection → [System Command OR Game Input]
 
 ## Engine / Game Data Separation (Mod System)
 
-The Parish engine is generic and knows nothing about any specific setting. All Rundale game content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
+The Limerick engine is generic and knows nothing about any specific setting. All Rundale game content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
 
 A mod is a directory with a `mod.toml` manifest and data files:
 
@@ -98,7 +98,7 @@ src/
 ├── main.rs              # Entry point, CLI args (clap), mode routing (--game-mod flag)
 ├── lib.rs               # Module declarations
 ├── app.rs               # Core application state (App, ScrollState, GameMod)
-├── error.rs             # ParishError (thiserror)
+├── error.rs             # LimerickError (thiserror)
 ├── config.rs            # Provider configuration (TOML + env + CLI) + engine tuning
 ├── headless.rs          # Headless stdin/stdout REPL (default mode)
 ├── testing.rs           # GameTestHarness for automated script-based testing
@@ -138,7 +138,7 @@ src/
 │   ├── snapshot.rs      # GameSnapshot, ClockSnapshot, NpcSnapshot
 │   └── journal.rs       # WorldEvent enum, replay logic
 ├── gui/
-│   ├── mod.rs           # ParishGui, eframe integration
+│   ├── mod.rs           # LimerickGui, eframe integration
 │   ├── theme.rs         # Time-of-day color theming (smooth interpolation)
 │   ├── chat_panel.rs    # Chat/dialogue display
 │   ├── map_panel.rs     # Interactive parish map
@@ -146,7 +146,7 @@ src/
 │   ├── status_bar.rs    # Time, location, weather status
 │   ├── input_field.rs   # Text input widget
 │   └── screenshot.rs    # Automated screenshot capture
-└── ../parish-geo-tool/  # OSM geographic data extraction tool (separate workspace crate)
+└── ../limerick-geo-tool/  # OSM geographic data extraction tool (separate workspace crate)
     └── src/
         ├── main.rs      # CLI entry point
         ├── pipeline.rs  # End-to-end extraction pipeline
@@ -175,7 +175,7 @@ src/
 - [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
 - [Debug UI](debug-ui.md) — Tabbed debug panel for Tauri GUI (full game state inspector)
 - [Mythology Hooks](ideas/mythology-hooks.md) — Future mythology layer data model hooks
-- [parish-geo-tool](geo-tool.md) — OSM geographic data conversion pipeline
+- [limerick-geo-tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
 
 ## Related
@@ -186,7 +186,7 @@ src/
 
 ## Multi-Provider LLM Support
 
-The Parish engine supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
+The Limerick engine supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
 
 | Provider             | Type  | Notes                                                  |
 | -------------------- | ----- | ------------------------------------------------------ |
@@ -197,7 +197,7 @@ The Parish engine supports any OpenAI-compatible LLM provider via the `/v1/chat/
 
 ### Configuration
 
-Provider is configured via `parish.toml`, env vars, or CLI flags (later overrides earlier):
+Provider is configured via `limerick.toml`, env vars, or CLI flags (later overrides earlier):
 
 ```toml
 [provider]
@@ -207,7 +207,7 @@ model = "anthropic/claude-sonnet-4-20250514"
 ```
 
 CLI: `--provider`, `--base-url`, `--api-key`, `--model`
-Env: `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`
+Env: `LIMERICK_PROVIDER`, `LIMERICK_BASE_URL`, `LIMERICK_API_KEY`, `LIMERICK_MODEL`
 
 ### Per-Category Provider Routing
 
@@ -240,9 +240,9 @@ model = "gemma4:e2b"
 ```
 
 Per-category CLI flags: `--dialogue-provider`, `--dialogue-model`, `--simulation-model`, `--intent-model`, etc.
-Per-category env vars: `PARISH_DIALOGUE_PROVIDER`, `PARISH_DIALOGUE_MODEL`, `PARISH_SIMULATION_MODEL`, `PARISH_INTENT_MODEL`, etc.
+Per-category env vars: `LIMERICK_DIALOGUE_PROVIDER`, `LIMERICK_DIALOGUE_MODEL`, `LIMERICK_SIMULATION_MODEL`, `LIMERICK_INTENT_MODEL`, etc.
 
-**Legacy support**: The `[cloud]` TOML section, `--cloud-*` CLI flags, and `PARISH_CLOUD_*` env vars still work and map to the dialogue category. Explicit `[provider.dialogue]` overrides take precedence over `[cloud]`.
+**Legacy support**: The `[cloud]` TOML section, `--cloud-*` CLI flags, and `LIMERICK_CLOUD_*` env vars still work and map to the dialogue category. Explicit `[provider.dialogue]` overrides take precedence over `[cloud]`.
 
 Runtime commands: `/cloud`, `/cloud model <name>`, `/cloud key <key>`, `/cloud provider <name>`
 
@@ -250,7 +250,7 @@ The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests via `d
 
 ### Engine Configuration
 
-Beyond provider settings, `parish.toml` supports an `[engine]` section for runtime tuning of engine parameters. All fields use `#[serde(default)]` so existing deployments work unchanged. See `parish.example.toml` for all available settings.
+Beyond provider settings, `limerick.toml` supports an `[engine]` section for runtime tuning of engine parameters. All fields use `#[serde(default)]` so existing deployments work unchanged. See `limerick.example.toml` for all available settings.
 
 | Section                            | What it configures                                             |
 | ---------------------------------- | -------------------------------------------------------------- |
@@ -262,11 +262,11 @@ Beyond provider settings, `parish.toml` supports an `[engine]` section for runti
 | `[engine.npc.relationship_labels]` | Relationship strength label thresholds                         |
 | `[engine.palette]`                 | Contrast thresholds                                            |
 
-Config structs live in `crates/parish-core/src/config/engine.rs`.
+Config structs live in `crates/limerick-core/src/config/engine.rs`.
 
 ### Ollama Bootstrap & GPU Detection (Default Path)
 
-When using the Ollama provider (the default), the Parish engine runs a self-contained setup sequence (see `src/inference/setup.rs`):
+When using the Ollama provider (the default), the Limerick engine runs a self-contained setup sequence (see `src/inference/setup.rs`):
 
 1. **Detect Ollama** — checks if the `ollama` binary is on PATH
 2. **Auto-install** — if missing, runs the official install script
@@ -277,9 +277,9 @@ When using the Ollama provider (the default), the Parish engine runs a self-cont
    - ≥17 GB → `gemma4:26b` (Tier 2, MoE — 4B active)
    - ≥11 GB → `gemma4:e4b` (Tier 3, edge 4.5B)
    - <11 GB or CPU-only → `gemma4:e2b` (Tier 4, edge 2.3B)
-6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local. For setup-screen testing, set `PARISH_OLLAMA_FORCE_REDOWNLOAD=1` or `[engine.inference] force_model_redownload = true` to delete the selected local model before pulling it again.
+6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local. For setup-screen testing, set `LIMERICK_OLLAMA_FORCE_REDOWNLOAD=1` or `[engine.inference] force_model_redownload = true` to delete the selected local model before pulling it again.
 
-The `PARISH_MODEL` env var or `--model` CLI flag overrides auto-selection.
+The `LIMERICK_MODEL` env var or `--model` CLI flag overrides auto-selection.
 
 For non-Ollama providers, none of these steps run — the user provides the endpoint and model name directly.
 
@@ -289,21 +289,21 @@ Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses id
 
 ## Source Modules
 
-- [`parish-engine/src/main.rs`](../../parish/crates/parish-engine/src/main.rs) — Entry point, CLI parsing, and mode routing
-- [`parish-core/src/lib.rs`](../../parish/crates/parish-core/src/lib.rs) — shared composition and orchestration surface
-- [`parish-types/src/error.rs`](../../parish/crates/parish-types/src/error.rs) — shared engine errors
-- [`parish-engine/src/app.rs`](../../parish/crates/parish-engine/src/app.rs) — Core application state (App, ScrollState)
-- [`parish-engine/src/headless.rs`](../../parish/crates/parish-engine/src/headless.rs) — Headless REPL mode (default)
-- [`parish-world`](../../parish/crates/parish-world/src/)
-- [`parish-npc`](../../parish/crates/parish-npc/src/)
-- [`parish-inference`](../../parish/crates/parish-inference/src/) — Client, queue, setup/bootstrap
-- [`parish-persistence`](../../parish/crates/parish-persistence/src/)
-- [`parish-input`](../../parish/crates/parish-input/src/)
+- [`limerick-engine/src/main.rs`](../../limerick/crates/limerick-engine/src/main.rs) — Entry point, CLI parsing, and mode routing
+- [`limerick-core/src/lib.rs`](../../limerick/crates/limerick-core/src/lib.rs) — shared composition and orchestration surface
+- [`limerick-types/src/error.rs`](../../limerick/crates/limerick-types/src/error.rs) — shared engine errors
+- [`limerick-engine/src/app.rs`](../../limerick/crates/limerick-engine/src/app.rs) — Core application state (App, ScrollState)
+- [`limerick-engine/src/headless.rs`](../../limerick/crates/limerick-engine/src/headless.rs) — Headless REPL mode (default)
+- [`limerick-world`](../../limerick/crates/limerick-world/src/)
+- [`limerick-npc`](../../limerick/crates/limerick-npc/src/)
+- [`limerick-inference`](../../limerick/crates/limerick-inference/src/) — Client, queue, setup/bootstrap
+- [`limerick-persistence`](../../limerick/crates/limerick-persistence/src/)
+- [`limerick-input`](../../limerick/crates/limerick-input/src/)
 
-### Shared IPC Layer (`crates/parish-core/src/ipc/`)
+### Shared IPC Layer (`crates/limerick-core/src/ipc/`)
 
 All four backends (Tauri, web server, headless CLI, test harness) delegate shared
-logic to the `parish_core::ipc` module. This avoids duplicating command handling,
+logic to the `limerick_core::ipc` module. This avoids duplicating command handling,
 streaming, and NPC conversation setup across backends.
 
 - **`commands.rs`** — `handle_command()` processes ~30 system command variants,

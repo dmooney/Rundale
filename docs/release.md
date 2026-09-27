@@ -7,13 +7,13 @@ auto-generated notes.
 
 ## Files that get bumped
 
-`parish/scripts/release.sh` rewrites three user-visible version fields:
+`limerick/scripts/release.sh` rewrites three user-visible version fields:
 
-| File                                         | Field               |
-| -------------------------------------------- | ------------------- |
-| `parish/crates/parish-cli/Cargo.toml`        | `[package].version` |
-| `parish/crates/parish-tauri/tauri.conf.json` | `.version`          |
-| `parish/apps/ui/package.json`                | `.version`          |
+| File                                             | Field               |
+| ------------------------------------------------ | ------------------- |
+| `limerick/crates/limerick-engine/Cargo.toml`     | `[package].version` |
+| `limerick/crates/limerick-tauri/tauri.conf.json` | `.version`          |
+| `limerick/apps/ui/package.json`                  | `.version`          |
 
 `Cargo.lock` is refreshed as a side effect. Internal leaf crates keep their
 `0.1.0` baseline — they are unpublished workspace members and don't carry an
@@ -34,7 +34,7 @@ git push origin v0.2.0         # triggers .github/workflows/release.yml
 ```
 
 The workflow runs `validate-tag` first and fails fast if `v0.2.0` and
-`parish-cli` Cargo.toml disagree, so a stray `git tag` without `release.sh`
+`limerick-engine` Cargo.toml disagree, so a stray `git tag` without `release.sh`
 won't slip a half-bumped release into production.
 
 ## Dry-running without an actual release showing up
@@ -59,7 +59,9 @@ verify the **bump** or the **build/publish pipeline**:
      against real tag pushes), so dispatch-mode dry-runs work even if the
      bump hasn't landed.
    - The build job runs end-to-end and uploads
-     `parish-v0.2.0-x86_64-linux-gnu.tar.gz` as a workflow artifact.
+     `limerick-v0.2.0-x86_64-linux-gnu.tar.gz` as a workflow artifact.
+     The archive contains the headless `limerick-engine` executable plus the
+     repository license and README files.
    - The `publish` job is hard-gated on `github.event_name == 'push'`, so
      **`workflow_dispatch` can never publish a Release**, even with
      `dry_run=false`. No tag is created either way.
@@ -105,7 +107,7 @@ release lands, or `mcp__github__get_release_by_tag` with `v0.2.0`.
   Fix: commit or stash first.
 - **Tag already exists locally.** `release.sh` refuses to overwrite. Either
   bump to the next version or `git tag -d v0.2.0` first.
-- **Cargo.lock update fails for `parish`.** `release.sh` warns but continues;
+- **Cargo.lock update fails for `limerick`.** `release.sh` warns but continues;
   inspect and recommit if needed before pushing the tag.
 - **`softprops/action-gh-release` upload fails.** The build artifact is still
   attached to the workflow run; download and upload manually via the GitHub

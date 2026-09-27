@@ -1,0 +1,481 @@
+name: Inference Eval
+
+# Disabled 2026-09-26. GitHub Models was retired on 2026-07-30
+# (https://github.blog/changelog/2026-07-30-github-models-is-now-retired/).
+# This workflow called models.github.ai for both the player
+# (LIMERICK_PROVIDER=github_models) and the judge (actions/ai-inference),
+# so nightly runs failed permanently with 410 / non-JSON responses.
+# GitHub Actions ignores files without a .yml/.yaml extension. Restore the
+# .yml suffix and rewire to another provider before re-enabling.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # nightly at 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Scenario to run (all = smoke+intent+reactions+tier2+dialogue)"
+        type: choice
+        default: all
+        options: [all, smoke, intent, reactions, tier2, dialogue, full_session]
+
+permissions:
+  models: read
+  contents: read
+
+concurrency:
+  group: eval-inference-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build limerick binary ───────────────────────────────────────────────────
+  build:
+    name: Build limerick
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # rust-toolchain.toml would pin this to the repo channel; this job tracks
+    # @stable on purpose, so override the file.
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            limerick/target
+          key: eval-cargo-${{ hashFiles('limerick/Cargo.lock') }}
+          restore-keys: eval-cargo-
+
+      - name: Build
+        working-directory: limerick
+        # Build limerick-server (HTTP/WS server binary)
+
+        run: cargo build -p limerick-server --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: limerick-bin
+          path: limerick/target/release/limerick-server
+          retention-days: 1
+
+  # ── Select scenarios ──────────────────────────────────────────────────────
+  # `matrix` is not a valid context in a job-level `if:`, so the per-scenario
+  # filtering for workflow_dispatch is computed here and consumed by `eval`
+  # via `needs`/`fromJson` (both legal in a job `if`).
+  setup:
+    name: Select scenarios
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      has_jobs: ${{ steps.select.outputs.has_jobs }}
+    steps:
+      - id: select
+        shell: python3 {0}
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCENARIO: ${{ github.event.inputs.scenario }}
+        run: |
+          import json, os
+
+          all_scenarios = [
+              {"scenario": "smoke", "turns": 10},
+              {"scenario": "intent", "turns": 25},
+              {"scenario": "reactions", "turns": 15},
+              {"scenario": "tier2", "turns": 12},
+              {"scenario": "dialogue", "turns": 20},
+          ]
+          event = os.environ.get("EVENT_NAME", "")
+          selected = os.environ.get("SCENARIO") or "all"
+          if event == "schedule" or selected == "all":
+              include = all_scenarios
+          else:
+              include = [s for s in all_scenarios if s["scenario"] == selected]
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("matrix=" + json.dumps({"include": include}) + "\n")
+              out.write("has_jobs=" + ("true" if include else "false") + "\n")
+
+  # ── Per-scenario eval matrix ──────────────────────────────────────────────
+  eval:
+    name: Eval / ${{ matrix.scenario }}
+    needs: [build, setup]
+    # Run only when at least one scenario was selected (e.g. skipped entirely
+    # when `full_session` is dispatched — that has its own job below).
+    if: ${{ needs.setup.outputs.has_jobs == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    env:
+      # Provider config read at server startup via resolve_config env vars.
+      # No separate setup-byok call needed — the server picks these up directly.
+      LIMERICK_PROVIDER: github_models
+      GITHUB_TOKEN: ${{ github.token }}
+      PLAYER_MODEL: microsoft/Phi-4
+      JUDGE_MODEL: openai/gpt-4o
+      LIMERICK_PORT: 3030
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download limerick binary
+        uses: actions/download-artifact@v8
+        with:
+          name: limerick-bin
+          path: limerick/target/release/
+
+      - name: Make binary executable
+        run: chmod +x limerick/target/release/limerick-server
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Start limerick web server
+        working-directory: limerick
+        run: |
+          set -euo pipefail
+          ./target/release/limerick-server --port "$LIMERICK_PORT" &
+          echo $! > .limerick-pid
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:$LIMERICK_PORT/api/health" >/dev/null 2>&1; then
+              echo "limerick ready"
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::limerick-server did not become ready"
+            exit 1
+          fi
+
+      - name: Run player agent
+        working-directory: limerick
+        run: |
+          mkdir -p testing/eval/logs
+          python testing/eval/player_agent.py \
+            --scenario ${{ matrix.scenario }} \
+            --turns ${{ matrix.turns }} \
+            --output testing/eval/logs/${{ matrix.scenario }}-latest.json
+
+      - name: Read session log for judge
+        id: read_log
+        run: |
+          # Truncate to 6000 chars to stay within the model's context limit.
+          LOG=$(python3 -c "
+          import pathlib
+          raw = pathlib.Path('limerick/testing/eval/logs/${{ matrix.scenario }}-latest.json').read_text()
+          print(raw[:6000] + ('...(truncated)' if len(raw) > 6000 else ''))
+          ")
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Read rubric
+        id: read_rubric
+        run: |
+          {
+            echo "rubric<<EOF"
+            cat limerick/testing/eval/rubrics/${{ matrix.scenario }}.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Judge session
+        id: judge
+        uses: actions/ai-inference@v2
+        with:
+          model: openai/gpt-4o
+          system-prompt: |
+            You are an expert evaluator for Rundale, a text adventure game set
+            in rural Ireland in 1820. You will receive a gameplay session log
+            and a scoring rubric. Respond ONLY with a single JSON object —
+            no prose, no markdown fences.
+          prompt: |
+            ${{ steps.read_rubric.outputs.rubric }}
+
+            ---
+
+            Session log:
+            ${{ steps.read_log.outputs.log }}
+          max-tokens: "600"
+
+      - name: Parse verdict and write summary
+        shell: python3 {0}
+        env:
+          JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          import json, os, sys, pathlib
+
+          raw = os.environ["JUDGE_RESPONSE"]
+          scenario = os.environ["SCENARIO"]
+
+          try:
+              data = json.loads(raw)
+          except json.JSONDecodeError:
+              print(f"::error::Judge returned non-JSON:\n{raw}")
+              sys.exit(2)
+
+          verdict = data.get("verdict", "fail")
+          notes = data.get("notes", "")
+          scores = {k: v for k, v in data.items()
+                    if isinstance(v, (int, float)) and k not in ("verdict",)}
+          mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          # Write judge result so the report job can aggregate it.
+          result = {
+              "scenario": scenario,
+              "judge_model": os.environ.get("JUDGE_MODEL", "unknown"),
+              "verdict": verdict,
+              "mean_score": round(mean, 2),
+              "scores": scores,
+              "notes": notes,
+          }
+          pathlib.Path(f"limerick/testing/eval/logs/{scenario}-judge.json").write_text(
+              json.dumps(result, indent=2)
+          )
+
+          # Write to GitHub step summary
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          with open(summary_path, "a") as f:
+              status = "✅" if verdict == "pass" else "❌"
+              f.write(f"## {status} Scenario: {scenario}\n\n")
+              f.write(f"**Verdict:** {verdict}  **Mean score:** {mean:.2f}\n\n")
+              if scores:
+                  f.write("| Axis | Score |\n|---|---|\n")
+                  for axis, score in sorted(scores.items()):
+                      f.write(f"| {axis} | {score}/5 |\n")
+              f.write(f"\n**Notes:** {notes}\n\n")
+
+          print(f"{'PASS' if verdict == 'pass' else 'FAIL'} — {scenario} — mean {mean:.2f} — {notes}")
+
+          if verdict != "pass":
+              sys.exit(1)
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-${{ matrix.scenario }}
+          path: limerick/testing/eval/logs/
+          retention-days: 30
+
+      - name: Stop limerick web server
+        if: always()
+        working-directory: limerick
+        run: kill "$(cat .limerick-pid)" 2>/dev/null || true; rm -f .limerick-pid
+
+  # ── Full session (nightly only, 50 turns) ─────────────────────────────────
+  full-session:
+    name: Eval / full_session (nightly)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    if: >
+      github.event_name == 'schedule' ||
+      github.event.inputs.scenario == 'full_session'
+
+    env:
+      LIMERICK_PROVIDER: github_models
+      GITHUB_TOKEN: ${{ github.token }}
+      PLAYER_MODEL: microsoft/Phi-4
+      JUDGE_MODEL: openai/gpt-4o
+      LIMERICK_PORT: 3030
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download limerick binary
+        uses: actions/download-artifact@v8
+        with:
+          name: limerick-bin
+          path: limerick/target/release/
+
+      - name: Make binary executable
+        run: chmod +x limerick/target/release/limerick-server
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Start limerick web server
+        working-directory: limerick
+        run: |
+          set -euo pipefail
+          ./target/release/limerick-server --port "$LIMERICK_PORT" &
+          echo $! > .limerick-pid
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:$LIMERICK_PORT/api/health" >/dev/null 2>&1; then
+              echo "limerick ready"
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::limerick-server did not become ready"
+            exit 1
+          fi
+
+      - name: Run player agent (50 turns, scripted+llm mix)
+        working-directory: limerick
+        run: |
+          mkdir -p testing/eval/logs
+          python testing/eval/player_agent.py \
+            --scenario full_session \
+            --turns 50 \
+            --output testing/eval/logs/full_session-latest.json
+
+      - name: Read session log for judge
+        id: read_log
+        run: |
+          LOG=$(python3 -c "
+          import pathlib
+          raw = pathlib.Path('limerick/testing/eval/logs/full_session-latest.json').read_text()
+          print(raw[:8000] + ('...(truncated)' if len(raw) > 8000 else ''))
+          ")
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Read rubric
+        id: read_rubric
+        run: |
+          {
+            echo "rubric<<EOF"
+            cat limerick/testing/eval/rubrics/full_session.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Judge session
+        id: judge
+        uses: actions/ai-inference@v2
+        with:
+          model: openai/gpt-4o
+          system-prompt: |
+            You are an expert evaluator for Rundale, a text adventure game set
+            in rural Ireland in 1820. Respond ONLY with a single JSON object.
+          prompt: |
+            ${{ steps.read_rubric.outputs.rubric }}
+
+            ---
+
+            Session log:
+            ${{ steps.read_log.outputs.log }}
+          max-tokens: "800"
+
+      - name: Parse verdict
+        shell: python3 {0}
+        env:
+          JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
+        run: |
+          import json, os, sys, pathlib
+          data = json.loads(os.environ["JUDGE_RESPONSE"])
+          verdict = data.get("verdict", "fail")
+          notes = data.get("notes", "")
+          scores = {k: v for k, v in data.items()
+                    if isinstance(v, (int, float)) and k not in ("verdict",)}
+          mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          result = {
+              "scenario": "full_session",
+              "judge_model": os.environ.get("JUDGE_MODEL", "unknown"),
+              "verdict": verdict,
+              "mean_score": round(mean, 2),
+              "scores": scores,
+              "notes": notes,
+          }
+          pathlib.Path("limerick/testing/eval/logs/full_session-judge.json").write_text(
+              json.dumps(result, indent=2)
+          )
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          with open(summary_path, "a") as f:
+              status = "✅" if verdict == "pass" else "❌"
+              f.write(f"## {status} Scenario: full_session (50 turns)\n\n")
+              f.write(f"**Verdict:** {verdict}  **Mean score:** {mean:.2f}\n\n")
+              if scores:
+                  f.write("| Axis | Score |\n|---|---|\n")
+                  for axis, score in sorted(scores.items()):
+                      f.write(f"| {axis} | {score}/5 |\n")
+              f.write(f"\n**Notes:** {notes}\n\n")
+
+          print(f"{'PASS' if verdict == 'pass' else 'FAIL'} — full_session — mean {mean:.2f} — {notes}")
+          if verdict != "pass":
+              sys.exit(1)
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-full_session
+          path: limerick/testing/eval/logs/
+          retention-days: 30
+
+      - name: Stop limerick web server
+        if: always()
+        working-directory: limerick
+        run: kill "$(cat .limerick-pid)" 2>/dev/null || true; rm -f .limerick-pid
+
+  # ── Aggregate report ──────────────────────────────────────────────────────
+  report:
+    name: Eval report
+    needs: [eval, full-session]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download all eval artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: eval-*
+          merge-multiple: true
+          path: eval-logs/
+
+      - name: Print summary
+        shell: python3 {0}
+        run: |
+          import json, pathlib, os
+
+          logs = sorted(pathlib.Path("eval-logs").glob("*-judge.json"))
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+
+          results = []
+          for path in logs:
+              try:
+                  data = json.loads(path.read_text())
+                  results.append(data)
+              except Exception:
+                  pass
+
+          if not results:
+              print("No judge results found.")
+          else:
+              with open(summary_path, "a") as f:
+                  f.write("## Inference Eval — Summary\n\n")
+                  f.write("| Scenario | Verdict | Mean score |\n|---|---|---|\n")
+                  for r in results:
+                      icon = "✅" if r.get("verdict") == "pass" else "❌"
+                      f.write(f"| {r.get('scenario')} | {icon} {r.get('verdict')} "
+                              f"| {r.get('mean_score', 0):.2f} |\n")

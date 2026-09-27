@@ -17,7 +17,7 @@ Implement Tier 3 cognitive simulation: a single LLM call that bulk-simulates man
 
 ## Tasks
 
-### 1. `Tier3Update` struct (`crates/parish-core/src/npc/types.rs`)
+### 1. `Tier3Update` struct (`crates/limerick-core/src/npc/types.rs`)
 
 Add to the existing types file:
 
@@ -48,7 +48,7 @@ pub struct Tier3Response {
 }
 ```
 
-### 2. Tier 3 tick function (`crates/parish-core/src/npc/ticks.rs`)
+### 2. Tier 3 tick function (`crates/limerick-core/src/npc/ticks.rs`)
 
 ```rust
 /// Runs a Tier 3 batch simulation for distant NPCs.
@@ -61,7 +61,7 @@ pub async fn tick_tier3(
     world: &WorldState,
     client: &OpenAiClient,
     model: &str,
-) -> Result<Vec<Tier3Update>, ParishError>
+) -> Result<Vec<Tier3Update>, LimerickError>
 ```
 
 **Prompt template:**
@@ -152,7 +152,7 @@ pub enum InferencePriority {
 
 ```rust
 pub struct Npc {
-    // ... existing fields ...
+    // Unrelated fields are omitted from this design sketch.
     /// Last activity summary from Tier 3 simulation (used in deflated context).
     pub last_activity: Option<String>,
 }

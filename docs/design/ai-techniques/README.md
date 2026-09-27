@@ -3,20 +3,20 @@
 A menu of state-of-the-art AI/ML techniques we could incorporate into Rundale.
 Each entry is a short design note pitched against what the engine already has
 (see `docs/adr/002-cognitive-lod-tiers.md`, `docs/adr/005-ollama-local-inference.md`,
-`crates/parish-npc/`, `crates/parish-inference/`).
+`crates/limerick-npc/`, `crates/limerick-inference/`).
 
 These are brainstorm notes, not committed plans. Each technique should graduate
-to an ADR + feature flag (`crates/parish-config/src/flags.rs`) before shipping.
+to an ADR + feature flag (`crates/limerick-config/src/flags.rs`) before shipping.
 
 ## Baseline (what we already have)
 
 - 4-tier cognitive LOD (Tier 1 player dialogue → Tier 4 rules).
 - Local Ollama + optional cloud routing per category (ADR-005, ADR-013, ADR-017).
-- Priority-lane inference queue (`crates/parish-inference/src/lib.rs`).
+- Priority-lane inference queue (`crates/limerick-inference/src/lib.rs`).
 - Keyword-based memory: 20-entry short-term ring + 50-entry long-term
-  (`crates/parish-npc/src/memory.rs`).
+  (`crates/limerick-npc/src/memory.rs`).
 - Structured JSON output with `---` separator (ADR-008).
-- Anachronism / prompt-injection defense (`crates/parish-npc/src/anachronism.rs`,
+- Anachronism / prompt-injection defense (`crates/limerick-npc/src/anachronism.rs`,
   ADR-010).
 - Hand-authored NPCs / world / schedules (`mods/rundale/`).
 
@@ -95,7 +95,7 @@ to an ADR + feature flag (`crates/parish-config/src/flags.rs`) before shipping.
 Rank each technique by:
 
 - **Player-visible impact** (does it change the feel of a conversation?).
-- **Implementation cost in Parish** (does it fit the crate boundary?).
+- **Implementation cost in Limerick** (does it fit the crate boundary?).
 - **Local-first compatibility** (can it run under Ollama, or does it need cloud?).
 - **Mode parity** (ADR rule: CLI / web / Tauri must agree).
 

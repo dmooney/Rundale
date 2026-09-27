@@ -18,7 +18,7 @@ Issues: many thin lines are promoted into strong, continuous, high stone walls. 
 
 ## Administrative-Boundary No-Trace
 
-Fail. The render appears to preserve at least some likely dotted/pecked administrative courses as continuous stone-wall or stone-row traces, especially across the west/center-left field network and along diagonal/right-side courses. Even if some of those alignments also resemble source linework, the output makes them traceable as physical terrain. The requested rule was stricter: ambiguous dotted, pecked, dashed, dot-chain, parish/townland/survey/estate/parcel boundaries should leave no continuous physical trace at all.
+Fail. The render appears to preserve at least some likely dotted/pecked administrative courses as continuous stone-wall or stone-row traces, especially across the west/center-left field network and along diagonal/right-side courses. Even if some of those alignments also resemble source linework, the output makes them traceable as physical terrain. The requested rule was stricter: ambiguous dotted, pecked, dashed, dot-chain, limerick/townland/survey/estate/parcel boundaries should leave no continuous physical trace at all.
 
 ## Chimneys And Roof Protrusions
 
@@ -30,7 +30,7 @@ Pass. The visible playable buildings have readable dark doorways or thresholds f
 
 ## Style
 
-Pass with caveats. The image lands in the intended hand-inked parish-notebook style: sepia/brown linework, desaturated greens and ochres, watercolor texture, rough limewash, slate/thatch roofs, muddy lanes, patchy grass, and readable human-scale facades. The main caveat is over-tidiness: continuous stone walls and the regular garden beds push it toward a clean game-board plate rather than a looser historic-map-to-scene translation.
+Pass with caveats. The image lands in the intended hand-inked rundale-notebook style: sepia/brown linework, desaturated greens and ochres, watercolor texture, rough limewash, slate/thatch roofs, muddy lanes, patchy grass, and readable human-scale facades. The main caveat is over-tidiness: continuous stone walls and the regular garden beds push it toward a clean game-board plate rather than a looser historic-map-to-scene translation.
 
 ## Other Hard Negatives
 

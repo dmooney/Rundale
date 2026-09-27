@@ -1,6 +1,6 @@
 # Inference Performance
 
-**Target crate:** `crates/parish-inference/` (scheduler, provider clients),
+**Target crate:** `crates/limerick-inference/` (scheduler, provider clients),
 optional native llama.cpp backend.
 
 ## Problem
@@ -23,7 +23,7 @@ the shared prefix, pay only for the changed tail.
   so the dynamic suffix is genuinely last.
 - **Cloud:** Anthropic offers explicit `cache_control` breakpoints; OpenAI
   caches automatically on ≥1024-token prefixes. Audit our prompt builder
-  (`crates/parish-npc/src/lib.rs` system/context builders) so the static block
+  (`crates/limerick-npc/src/lib.rs` system/context builders) so the static block
   comes first and ends on a stable boundary.
 
 Expected: 30–70% latency reduction on Tier 1 continuations.
@@ -47,7 +47,7 @@ they're serialised. With a vLLM backend or llama.cpp `--parallel N`, tokens
 from all requests interleave in the same forward pass.
 
 Trade-off: extra complexity of running vLLM alongside Ollama. Viable path is
-a dedicated "batch" provider (`parish-inference::provider::Vllm`) used only
+a dedicated "batch" provider (`limerick-inference::provider::Vllm`) used only
 for Tier 3.
 
 ### 4. Quantisation ladder
@@ -125,7 +125,7 @@ it.
 
 ## Minimal first cut
 
-1. Audit `parish-npc::prompt_*` builders: move all static blocks to the top,
+1. Audit `limerick-npc::prompt_*` builders: move all static blocks to the top,
    end static content on a known token boundary.
 2. Enable `cache_prompt`/`cache_control` everywhere; add a prompt-hash debug
    field in `/debug` UI to verify cache hit rate.

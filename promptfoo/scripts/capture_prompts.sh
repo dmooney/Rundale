@@ -21,7 +21,7 @@ WORKTREE_KEY="$(printf '%s' "$ROOT" | shasum -a 256 | cut -c1-16)"
 # Cargo's normal shared target can be replaced by another worktree between
 # build and launch. Prompt capture must execute the binary built from this
 # source tree, so key a reusable target directory by the canonical worktree.
-CAPTURE_TARGET_DIR="${PARISH_CAPTURE_TARGET_DIR:-${TMPDIR:-/tmp}/rundale-prompt-capture-target-${WORKTREE_KEY}}"
+CAPTURE_TARGET_DIR="${LIMERICK_CAPTURE_TARGET_DIR:-${TMPDIR:-/tmp}/rundale-prompt-capture-target-${WORKTREE_KEY}}"
 
 cleanup() {
     if [[ -n "${SRV:-}" ]]; then
@@ -50,10 +50,10 @@ run_drive() { # $1=capture-out  $2=drive-script
         sed -n '1,160p' /tmp/rb_capsrv.log >&2 || true
         return 1
     fi
-    CARGO_TARGET_DIR="$CAPTURE_TARGET_DIR" PARISH_SAVES_DIR="$SAVES" \
-        PARISH_PROVIDER=custom PARISH_MODEL=capture \
-        PARISH_BASE_URL="http://127.0.0.1:$PORT/v1" PARISH_API_KEY=dummy \
-        cargo run -q --manifest-path "$ROOT/parish/Cargo.toml" -p parish-engine -- --headless \
+    CARGO_TARGET_DIR="$CAPTURE_TARGET_DIR" LIMERICK_SAVES_DIR="$SAVES" \
+        LIMERICK_PROVIDER=custom LIMERICK_MODEL=capture \
+        LIMERICK_BASE_URL="http://127.0.0.1:$PORT/v1" LIMERICK_API_KEY=dummy \
+        cargo run -q --manifest-path "$ROOT/limerick/Cargo.toml" -p limerick-engine -- --headless \
         <"$2" >"$engine_log" 2>&1 || {
         echo "[capture] engine drive failed; tail of $engine_log:" >&2
         tail -160 "$engine_log" >&2

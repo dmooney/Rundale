@@ -4,13 +4,13 @@
 
 ## Context
 
-**Rundale** is a living-world text adventure set in 1820 rural Ireland, built on the **Parish engine**. The engine (world graph, NPC cognition tiers, time system, LLM inference, persistence) is largely generic and reusable, but game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) is hardcoded throughout the Rust source. The goal is to separate these cleanly — like Factorio's engine vs. base-game mod — so the Parish engine knows nothing about Ireland or 1820, and all Rundale setting-specific content lives in a loadable data package ("mod").
+**Rundale** is a living-world text adventure set in 1820 rural Ireland, built on the **Limerick engine**. The engine (world graph, NPC cognition tiers, time system, LLM inference, persistence) is largely generic and reusable, but game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) is hardcoded throughout the Rust source. The goal is to separate these cleanly — like Factorio's engine vs. base-game mod — so the Limerick engine knows nothing about Ireland or 1820, and all Rundale setting-specific content lives in a loadable data package ("mod").
 
 ## Current State Assessment
 
 ### Already well-separated (engine-quality):
 
-- World graph data structure + BFS pathfinding (`crates/parish-core/src/world/graph.rs`)
+- World graph data structure + BFS pathfinding (`crates/limerick-core/src/world/graph.rs`)
 - Time system mechanics: GameClock, TimeOfDay, Season, GameSpeed (`world/time.rs` — except festivals)
 - Movement resolution (`world/movement.rs`)
 - Description template rendering (`world/description.rs`)
@@ -24,27 +24,27 @@
 
 ### Already externalized as data files:
 
-- `data/parish.json` — 15 locations with names, description templates, connections, mythological significance
+- `data/world.json` — 15 locations with names, description templates, connections, mythological significance
 - `data/npcs.json` — 8 NPCs with names, personalities, schedules, relationships, knowledge
 
 ### Hardcoded game content that needs extraction:
 
-| Content                                                                                                                               | Location                                    | Lines    |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
-| Tier 1 system prompt (1820, County Roscommon, Acts of Union, Catholic Emancipation, cultural guidelines, Irish language instructions) | `crates/parish-core/src/npc/mod.rs`         | 336-391  |
-| Tier 2 system prompt ("Irish parish in 1820")                                                                                         | `crates/parish-core/src/npc/ticks.rs`       | 159-186  |
-| Anachronism dictionary (~60+ terms with origin years)                                                                                 | `src/npc/anachronism.rs`                    | 69-441   |
-| Irish festival definitions (Imbolc, Bealtaine, Lughnasa, Samhain)                                                                     | `crates/parish-core/src/world/time.rs`      | 89-127   |
-| Loading phrases (24 Irish-themed strings)                                                                                             | `crates/parish-core/src/loading.rs`         | 19-44    |
-| Spinner frames (Celtic crosses)                                                                                                       | `crates/parish-core/src/loading.rs`         | 10       |
-| Spinner colors (Irish palette)                                                                                                        | `crates/parish-core/src/loading.rs`         | 47-54    |
-| Encounter flavor text (rural Irish encounters)                                                                                        | `crates/parish-core/src/world/encounter.rs` | 40-52    |
-| Start date (1820-03-20 08:00)                                                                                                         | `crates/parish-core/src/world/mod.rs`       | 120, 159 |
-| Default location ("The Crossroads" with Irish description)                                                                            | `crates/parish-core/src/world/mod.rs`       | 104-115  |
-| Test NPC ("Padraig O'Brien")                                                                                                          | `crates/parish-core/src/npc/mod.rs`         | 142-168  |
-| `IrishWordHint` struct name                                                                                                           | `crates/parish-core/src/npc/mod.rs`         | 22-35    |
-| "Focail (Irish Words)" UI label                                                                                                       | `ui/src/components/Sidebar.svelte`          |          |
-| parish-geo-tool (entire binary is Ireland-specific)                                                                                   | `crates/parish-geo-tool/src/`               |          |
+| Content                                                                                                                               | Location                                      | Lines    |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- |
+| Tier 1 system prompt (1820, County Roscommon, Acts of Union, Catholic Emancipation, cultural guidelines, Irish language instructions) | `crates/limerick-core/src/npc/mod.rs`         | 336-391  |
+| Tier 2 system prompt ("Irish parish in 1820")                                                                                         | `crates/limerick-core/src/npc/ticks.rs`       | 159-186  |
+| Anachronism dictionary (~60+ terms with origin years)                                                                                 | `src/npc/anachronism.rs`                      | 69-441   |
+| Irish festival definitions (Imbolc, Bealtaine, Lughnasa, Samhain)                                                                     | `crates/limerick-core/src/world/time.rs`      | 89-127   |
+| Loading phrases (24 Irish-themed strings)                                                                                             | `crates/limerick-core/src/loading.rs`         | 19-44    |
+| Spinner frames (Celtic crosses)                                                                                                       | `crates/limerick-core/src/loading.rs`         | 10       |
+| Spinner colors (Irish palette)                                                                                                        | `crates/limerick-core/src/loading.rs`         | 47-54    |
+| Encounter flavor text (rural Irish encounters)                                                                                        | `crates/limerick-core/src/world/encounter.rs` | 40-52    |
+| Start date (1820-03-20 08:00)                                                                                                         | `crates/limerick-core/src/world/mod.rs`       | 120, 159 |
+| Default location ("The Crossroads" with Irish description)                                                                            | `crates/limerick-core/src/world/mod.rs`       | 104-115  |
+| Test NPC ("Padraig O'Brien")                                                                                                          | `crates/limerick-core/src/npc/mod.rs`         | 142-168  |
+| `IrishWordHint` struct name                                                                                                           | `crates/limerick-core/src/npc/mod.rs`         | 22-35    |
+| "Focail (Irish Words)" UI label                                                                                                       | `ui/src/components/Sidebar.svelte`            |          |
+| limerick-geo-tool (entire binary is Ireland-specific)                                                                                 | `crates/limerick-geo-tool/src/`               |          |
 
 ## Recommended Approach
 
@@ -56,7 +56,7 @@ A mod is a directory with a `mod.toml` manifest and data files:
 mods/
 └── rundale/
     ├── mod.toml                # Manifest: name, version, start_date, start_location, etc.
-    ├── world.json              # Locations, connections (currently data/parish.json)
+    ├── world.json              # Locations, connections (currently data/world.json)
     ├── npcs.json               # NPC definitions (currently data/npcs.json)
     ├── prompts/
     │   ├── tier1_system.txt    # Tier 1 system prompt template with {name}, {age}, etc.
@@ -100,12 +100,12 @@ tier2_system = "prompts/tier2_system.txt"
 
 ### Engine-Side Changes
 
-#### 1. New `GameMod` struct in parish-core
+#### 1. New `GameMod` struct in limerick-core
 
 A `GameMod` struct that loads and holds all mod data. This replaces scattered hardcoded content with a single loaded data source.
 
 ```rust
-// crates/parish-core/src/game_mod.rs
+// crates/limerick-core/src/game_mod.rs
 pub struct GameMod {
     pub manifest: ModManifest,
     pub prompt_templates: PromptTemplates,
@@ -175,7 +175,7 @@ The `IrishWordHint` struct becomes `LanguageHint` — the concept of "NPCs use a
 
 #### 6. WorldState initialization takes mod config
 
-`WorldState::from_mod()` replaces both `WorldState::new()` and `WorldState::from_parish_file()`:
+`WorldState::from_mod()` replaces both `WorldState::new()` and `WorldState::from_world_file()`:
 
 - Start date from `mod.toml`
 - World graph from `world.json`
@@ -216,7 +216,7 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 
 ### What Moves to the Mod
 
-- `data/parish.json` → `mods/rundale/world.json`
+- `data/world.json` → `mods/rundale/world.json`
 - `data/npcs.json` → `mods/rundale/npcs.json`
 - System prompt text → `mods/rundale/prompts/`
 - Anachronism dictionary → `mods/rundale/anachronisms.json`
@@ -224,14 +224,14 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 - Encounter flavor text → `mods/rundale/encounters.json`
 - Loading phrases/colors/spinners → `mods/rundale/loading.toml`
 - UI labels → `mods/rundale/ui.toml`
-- `parish-geo-tool` stays as a separate binary (it's a development tool for generating mod content, not part of the engine or mod runtime)
+- `limerick-geo-tool` stays as a separate binary (it's a development tool for generating mod content, not part of the engine or mod runtime)
 
 ### Migration Path
 
 **Phase 1: Define mod structure + GameMod loader**
 
 - Create `mods/rundale/` directory with `mod.toml`
-- Add `GameMod` struct and loader to `parish-core`
+- Add `GameMod` struct and loader to `limerick-core`
 - Move `data/*.json` to the mod directory
 - No behavior changes yet — just loading from new paths
 
@@ -275,22 +275,22 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 - `mods/rundale/encounters.json`
 - `mods/rundale/loading.toml`
 - `mods/rundale/ui.toml`
-- `crates/parish-core/src/game_mod.rs` — GameMod struct + loader
+- `crates/limerick-core/src/game_mod.rs` — GameMod struct + loader
 
 ### Move:
 
-- `data/parish.json` → `mods/rundale/world.json`
+- `data/world.json` → `mods/rundale/world.json`
 - `data/npcs.json` → `mods/rundale/npcs.json`
 
 ### Modify:
 
-- `crates/parish-core/src/lib.rs` — add `game_mod` module
-- `crates/parish-core/src/npc/mod.rs` — `build_tier1_system_prompt()` uses template, rename `IrishWordHint` → `LanguageHint`
-- `crates/parish-core/src/npc/ticks.rs` — `build_tier2_prompt()` uses template
-- `crates/parish-core/src/world/time.rs` — `Festival` enum → data-driven `FestivalDef`
-- `crates/parish-core/src/world/encounter.rs` — parameterize encounter text
-- `crates/parish-core/src/world/mod.rs` — `WorldState` constructor takes mod config
-- `crates/parish-core/src/loading.rs` — `LoadingAnimation` takes `LoadingConfig`
+- `crates/limerick-core/src/lib.rs` — add `game_mod` module
+- `crates/limerick-core/src/npc/mod.rs` — `build_tier1_system_prompt()` uses template, rename `IrishWordHint` → `LanguageHint`
+- `crates/limerick-core/src/npc/ticks.rs` — `build_tier2_prompt()` uses template
+- `crates/limerick-core/src/world/time.rs` — `Festival` enum → data-driven `FestivalDef`
+- `crates/limerick-core/src/world/encounter.rs` — parameterize encounter text
+- `crates/limerick-core/src/world/mod.rs` — `WorldState` constructor takes mod config
+- `crates/limerick-core/src/loading.rs` — `LoadingAnimation` takes `LoadingConfig`
 - `src/npc/anachronism.rs` — load dictionary from file, cutoff year from config
 - `src/app.rs` — `App` holds `GameMod`
 - `src/main.rs` — `--mod` CLI flag to select mod directory
@@ -304,5 +304,5 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 2. `cargo test` — all existing tests pass (may need test mod fixture)
 3. `cargo clippy -- -D warnings` — no warnings
 4. `cargo run -- --mod mods/rundale --script tests/fixtures/test_walkthrough.txt` — game runs identically to before
-5. Confirm no Ireland/1820-specific strings remain in `crates/parish-core/src/` (grep test)
+5. Confirm no Ireland/1820-specific strings remain in `crates/limerick-core/src/` (grep test)
 6. Confirm a hypothetical empty mod with minimal `mod.toml` loads without panic (engine doesn't assume Irish content)

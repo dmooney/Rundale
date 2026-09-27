@@ -22,7 +22,7 @@ just verify    # check + harness walkthrough
 
 ## Play-test verification
 
-After implementing any gameplay feature, run `/parish-engine prove <feature description>` to verify it works at runtime. Unit tests passing is **not** sufficient — you must see the feature working in actual game output.
+After implementing any gameplay feature, run `/limerick-engine prove <feature description>` to verify it works at runtime. Unit tests passing is **not** sufficient — you must see the feature working in actual game output.
 
 ## Pull requests
 
@@ -53,7 +53,7 @@ ready if repository ownership changes.
 
 The fast `ci.yml` workflow uses path filtering so a doc/chore/CI-agent-only PR
 pays only the relevant proof, documentation, and format checks. A pull request
-that changes `parish/apps/ui/**` runs the complete Playwright contract before
+that changes `limerick/apps/ui/**` runs the complete Playwright contract before
 `CI gate` can pass. Expensive Rust, coverage, harness, and the remaining UI jobs
 live in `full-ci.yml`; it runs on pushes to `main`/`develop`, `merge_group`,
 nightly schedule, and manual dispatch. Until a merge queue is available,

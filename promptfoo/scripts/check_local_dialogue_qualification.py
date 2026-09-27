@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REGISTRY = ROOT / "parish/crates/parish-config/src/local_dialogue.rs"
+REGISTRY = ROOT / "limerick/crates/limerick-config/src/local_dialogue.rs"
 QUALIFIED = ROOT / "promptfoo/qualified"
 MANIFEST = ROOT / "promptfoo/v2/MANIFEST.json"
 LOCAL_PRESETS = (
-    ROOT / "parish/crates/parish-config/src/builtin_providers/vllm_mlx.toml",
-    ROOT / "parish/crates/parish-config/src/builtin_providers/vllm.toml",
-    ROOT / "parish/crates/parish-config/src/builtin_providers/ollama.toml",
+    ROOT / "limerick/crates/limerick-config/src/builtin_providers/vllm_mlx.toml",
+    ROOT / "limerick/crates/limerick-config/src/builtin_providers/vllm.toml",
+    ROOT / "limerick/crates/limerick-config/src/builtin_providers/ollama.toml",
 )
 
 

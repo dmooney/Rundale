@@ -1,5 +1,5 @@
 Use case: historical-scene
-Asset type: third-topology direct retry, illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: third-topology direct retry, illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: target historic map crop. Primary layout/content authority. North-up source ground plan, not style.

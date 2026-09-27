@@ -18,7 +18,7 @@ The useful reference stack is:
    for slate-roof facade, door, threshold, limewash, and low-camera cues.
 5. `style-crops/illustrated-style-low-camera-thatched-single-house-door-clean.png`
    for thatch, no-chimney, door, threshold, and low-camera cues.
-6. `illustrated-parish-notebook.png` only as broad style/mood reference.
+6. `illustrated-rundale-notebook.png` only as broad style/mood reference.
 7. The existing oblique warp as pitch cue.
 8. Cleaned material swatches.
 

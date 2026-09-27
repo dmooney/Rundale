@@ -1,0 +1,27 @@
+[package]
+name = "limerick-npc-tool"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "NPC world builder and inspection utility for Limerick/Rundale (#433)"
+
+[[bin]]
+name = "limerick-npc-tool"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+rand = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Typed NPC catalogue schema (NpcFile / NpcFileEntry) for the split/join/
+# validate JSON tooling (TD-001). The typed model gives deterministic,
+# byte-identical field ordering that serde_json::Value (no preserve_order)
+# cannot.
+limerick-npc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

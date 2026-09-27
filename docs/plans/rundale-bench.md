@@ -6,7 +6,7 @@
 
 ## Goal
 
-Promote the ad-hoc `parish/scripts/local-eval/` probes into a **public, frozen, reproducible benchmark** for in-character 1820 Irish gameplay inference — `rundale-bench-v1` — so model and provider choices in `parish-config::presets::preset_models()` (and downstream `InferenceCategory` swaps) can be defended with data instead of guesses.
+Promote the ad-hoc `limerick/scripts/local-eval/` probes into a **public, frozen, reproducible benchmark** for in-character 1820 Irish gameplay inference — `rundale-bench-v1` — so model and provider choices in `limerick-config::presets::preset_models()` (and downstream `InferenceCategory` swaps) can be defended with data instead of guesses.
 
 Modelled on the contract that makes SWE-bench and HLE useful: fixed dataset, held-out split, deterministic-where-possible grader, pinned judge, append-only leaderboard, SemVer-frozen task spec.
 

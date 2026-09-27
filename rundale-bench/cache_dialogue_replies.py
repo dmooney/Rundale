@@ -34,7 +34,7 @@ from typing import Any
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
-sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
+sys.path.insert(0, str(_REPO_ROOT / "limerick" / "scripts" / "local-eval"))
 
 from eval_lib import (  # noqa: E402
     CostTracker,
@@ -46,7 +46,7 @@ from eval_lib import (  # noqa: E402
 
 _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
 
-# Mirrors `parish_npc::build_tier1_system_prompt` for the Brigid persona so
+# Mirrors `limerick_npc::build_tier1_system_prompt` for the Brigid persona so
 # bench scores track the runtime tier-1 grounding (issue #994).
 DIALOGUE_SYS = build_dialogue_system_prompt()
 
