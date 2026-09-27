@@ -204,4 +204,9 @@ pub struct GameSnapshot {
     /// Last canonical music session beat, if any.
     #[serde(default)]
     pub active_session: Option<limerick_world::session::ActiveSessionFact>,
+    /// The content (mod id and version) the snapshot was captured against.
+    /// `None` for snapshots written before save format 3 and for worlds
+    /// built without a mod; such snapshots open against any content.
+    #[serde(default)]
+    pub content: Option<limerick_types::ContentIdentity>,
 }
