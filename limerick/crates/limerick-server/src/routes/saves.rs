@@ -122,7 +122,7 @@ pub async fn do_fork_branch_inner(
         ws
     };
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
-    state.turns.reset().await;
+    open_turns(state).await;
     state.game_events.lock().await.clear();
     let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
     limerick_core::ipc::emit_game_context_reset_then_world_update(
@@ -211,8 +211,22 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         game_events: &state.game_events,
     })
     .await?;
-    state.turns.reset().await;
+    open_turns(state).await;
     Ok(())
+}
+
+/// Opens the session's turn engine on the save and branch just bound (new
+/// game, load, fork): restores that branch's journaled requests and
+/// revision and interrupts requests a stopped process left open. A failure
+/// is logged; the next turn retries the open and reports it.
+pub(crate) async fn open_turns(state: &Arc<AppState>) {
+    let target = state
+        .save_identity
+        .task_journal_target(&state.session_id)
+        .await;
+    if let Err(error) = state.turns.open(target).await {
+        tracing::warn!(%error, "could not open the turn journal; the next turn retries");
+    }
 }
 
 // ── Persistence endpoints ────────────────────────────────────────────────────
@@ -443,7 +457,6 @@ pub async fn restore_snapshot_and_emit(
         drop(npc_manager);
         drop(world);
         *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
-        state.turns.reset().await;
         state.game_events.lock().await.clear();
         let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
         limerick_core::ipc::emit_game_context_reset_then_world_update(
@@ -470,6 +483,7 @@ pub async fn restore_snapshot_and_emit(
         .save_identity
         .replace(path.to_path_buf(), branch_id, branch_name.to_string())
         .await;
+    open_turns(state).await;
 }
 
 /// Request body for `POST /api/create-branch`.

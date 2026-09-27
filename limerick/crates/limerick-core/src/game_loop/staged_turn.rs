@@ -288,6 +288,12 @@ impl FinishedCandidate {
         &self.emissions
     }
 
+    /// The authoritative state the candidate would install, as a save
+    /// snapshot.
+    pub fn snapshot(&self) -> crate::persistence::GameSnapshot {
+        crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager)
+    }
+
     /// Replaces live state with the candidate under canonical lock order,
     /// transplanting the process-lifetime event bus so subscribers and the
     /// context epoch survive. Call only after the turn is durably journaled.

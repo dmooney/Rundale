@@ -52,6 +52,7 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+rusqlite = { workspace = true }
 wiremock = { workspace = true }
 regex = { workspace = true }
 serial_test = { workspace = true }

@@ -476,6 +476,20 @@ async fn restore_session(
         .save_identity
         .replace(db_path.clone(), branch_id, branch_name.clone())
         .await;
+    // Reopen the turn journal of the resumed branch: its revision and
+    // requests come back, and a request the previous process left open ends
+    // interrupted instead of running again.
+    if let Err(error) = app_state
+        .turns
+        .open(Some(limerick_core::session_store::TaskJournalTarget {
+            session_id: session_id.to_string(),
+            save_path: db_path.clone(),
+            branch_id,
+        }))
+        .await
+    {
+        tracing::warn!(%error, "could not open the turn journal; the next turn retries");
+    }
 
     install_persistent_log_workers(&mut app_state, &session_saves, log_to_disk, &log_base_url);
     Ok(finalize_session_entry(app_state, clients).await)

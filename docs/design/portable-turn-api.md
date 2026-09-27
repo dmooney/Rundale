@@ -412,12 +412,15 @@ pub trait TurnJournal: Send + Sync {
     /// A committed turn, atomically.
     fn commit(&self, commit: TurnCommit) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
+    /// Every record, in the order first accepted (restores an engine).
+    fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
 }
 
 pub struct TurnCommit {
     pub record: RequestRecord,            // terminal Succeeded, committed revision
     pub events: Vec<PendingEvent>,
-    pub task_mutations: Vec<PlayerTask>,  // today's durable per-turn state
+    pub task_mutations: Vec<PlayerTask>,
+    pub state: Option<GameSnapshot>,      // authoritative state the turn installs
 }
 ```
 
@@ -426,32 +429,88 @@ already present with an identical payload is a no-op, with a different payload
 is an error; a failed call leaves no partial write; sequences are strictly
 increasing.
 
-Mobile Phase 1 implementations:
+Implementations:
 
 - `MemoryTurnJournal`: complete contract in memory, with fault injection for
   tests.
-- `SessionStoreTurnJournal` (desktop): `commit` appends the task batch through
-  the existing `append_task_mutations` in the same way the staged path does
-  today; request records and transcript events are held in memory. Desktop
-  acceptance is therefore **not** durable across a crash in Mobile Phase 1, which is
-  no worse than today (desktop has no request records at all).
+- `SqliteTurnJournal` (#2037): the contract in the save database, described
+  below. The server, the Tauri app, and its MCP bridge use it. It replaced the
+  Mobile Phase 1 `SessionStoreTurnJournal`, which appended the task batch to
+  the save but kept requests and events in memory.
+
+Both run one contract suite (`turn::journal_contract`), which includes fault
+injection that fails a write after all of its statements have run.
 
 What Mobile Phase 2 must supply (#2037, #2038):
 
 1. `requests` and `transcript_events` tables in the existing
    `limerick-persistence` database (with a migration), keyed by the ids above,
-   with a unique event id index and a durable sequence counter.
+   with a unique event id index and a durable sequence counter. **Done in
+   #2037.**
 2. One SQLite transaction for `commit` covering the request terminal, the
    transcript events, the task batch, and the authoritative state delta
    (journal entry or snapshot), so desktop autosave and turn commit cannot
-   disagree.
+   disagree. **Done in #2037.**
 3. Durable `accept` and `update`, so `recover` sees open requests after a
-   crash.
+   crash. **Done in #2037.**
 4. Forward compatibility per ADR-025 §4: unknown `TranscriptEventKind` values
    are preserved verbatim and rendered as a fallback line (the Mobile Phase 1 enum
    gets an `Unknown { raw }` arm and a round-trip test so Mobile Phase 2 does not have
    to change the type).
 5. The save format version bump and prior-format fixtures.
+
+### 6.1 The SQLite journal (#2037)
+
+Storage. `Database::open` creates the two tables in any save that lacks them,
+so saves written before #2037 open unchanged and gain empty tables
+(`limerick-persistence` fixture test `pre_turn_journal_save_opens_and_migrates`).
+`requests` holds one row per logical request (the serialized `RequestRecord`,
+its phase, an open flag, and the committed revision); `transcript_events` holds
+one row per event (the serialized `PendingEvent`, its kind and request). The
+schema has no version marker yet; the format version is #2038.
+
+Sequence counter. `transcript_events.sequence` is an `AUTOINCREMENT` key, so
+SQLite's durable counter assigns it: strictly increasing across the whole save,
+never reused, and rolled back with a failed write. `event_id` has a unique
+index across the save.
+
+Transactions. Every journal call is one immediate SQLite transaction on its
+own connection to the save. Validation (duplicate or unknown request,
+conflicting event payload) reads inside the same transaction, so a rejected
+call writes nothing. A commit writes, in one transaction: the transcript
+events, the authoritative state, the task batch, and the request terminal.
+
+Authoritative state: a snapshot. A commit saves a `GameSnapshot` of the
+candidate world and NPCs the turn is about to install, as the branch's newest
+snapshot, and journals the task batch as `PlayerTaskStateChanged` events
+against that snapshot. A journal entry was rejected: a turn changes NPC
+memory, relationships, conversation logs, the clock, and location, which no
+`WorldEvent` expresses, so only a snapshot records the whole change. It is the
+same capture autosave writes (autosave already writes a full snapshot every 60
+seconds), so after any commit the save's latest snapshot includes every
+committed turn, and autosave and the turn journal cannot disagree. Replaying
+the task batch over the snapshot is a no-op, because each task event is an
+idempotent post-state. A commit that changes no state (a clarification
+answered for someone who has left) carries no snapshot.
+
+Branches. Requests and events belong to the branch they were played on; every
+query filters by branch. A fork copies neither table: the new branch starts an
+empty turn history at revision 0, as the runtimes already reset their
+conversation context on fork. Copying was rejected because event ids are unique
+per save and a request played on one branch is not a request of another.
+Deleting a branch deletes its rows (`ON DELETE CASCADE`).
+
+Open instead of reset. `InProcessTurns::open(save)` replaces the Mobile Phase 1
+`reset()`. The runtime calls it wherever it binds a save: server session
+resume and Tauri startup restore (relaunch), new game, load, and fork. It opens
+the branch's journal, restores the engine with `TurnEngine::restore` (every
+record, and the revision of the latest committed turn), then runs `recover`,
+which ends requests left `Accepted` or `Executing` as `Interrupted` without
+re-running them. A submission for a different save or branch than the open one
+reopens first, so a missed call site cannot write to the wrong branch; a failed
+open is retried by the next submission and reported as its error. With no save
+bound the engine uses an in-memory journal that refuses task batches, as
+before.
 
 ## 7. Desktop invariance
 

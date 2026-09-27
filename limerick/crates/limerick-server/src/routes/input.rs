@@ -259,7 +259,6 @@ pub async fn handle_game_input(
                     ..Default::default()
                 },
                 rules,
-                session_store: Arc::clone(&state.session_store),
                 task_target,
                 loading: Some(loading),
             },

@@ -8,8 +8,9 @@
 //!
 //! This module holds the pure pieces: identities ([`ids`]), the state
 //! machine ([`lifecycle`]), transcript events ([`transcript`]), the
-//! durability seam ([`journal`]), and the projection of committed wire
-//! emissions onto transcript events ([`projection`]). The turn engine
+//! durability seam ([`journal`]) and its implementation in the save database
+//! ([`sqlite_journal`]), and the projection of committed wire emissions onto
+//! transcript events ([`projection`]). The turn engine
 //! ([`engine`]) drives them over the shared game-loop pipeline, and
 //! [`host`] is how in-process runtimes submit input through it. Design:
 //! `docs/design/portable-turn-api.md`.
@@ -21,8 +22,11 @@ pub mod engine;
 pub mod host;
 pub mod ids;
 pub mod journal;
+#[cfg(test)]
+mod journal_contract;
 pub mod lifecycle;
 pub mod projection;
+pub mod sqlite_journal;
 pub mod transcript;
 
 /// Boxed future returned by lifecycle traits.
@@ -38,12 +42,11 @@ pub use ids::{
     EventSequence, ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision,
     TranscriptEventId, TranscriptItemId,
 };
-pub use journal::{
-    JournalError, MemoryTurnJournal, SessionStoreTurnJournal, TurnCommit, TurnJournal,
-};
+pub use journal::{JournalError, MemoryTurnJournal, TurnCommit, TurnJournal};
 pub use lifecycle::{
     AddresseeSelection, ClarificationChoice, ClarificationPrompt, IgnoredReason, LifecycleError,
     RequestAttempt, RequestPhase, RequestRecord, TerminalOutcome,
 };
 pub use projection::{PRESENTATION_EMISSIONS, TRANSCRIPT_EMISSIONS, project_emissions};
+pub use sqlite_journal::SqliteTurnJournal;
 pub use transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
