@@ -170,17 +170,24 @@ pub fn inspect_with(
 /// `SQLITE_OPEN_READ_ONLY` cannot open a WAL-mode save whose `-shm` file
 /// does not exist yet (the normal state of a closed save), so the file is
 /// opened read-write without `CREATE`, with `query_only` set so no statement
-/// can write, and with the checkpoint on close disabled so closing never
-/// copies WAL frames into the file. Only the `-wal`/`-shm` sidecars may be
-/// created.
+/// can write. Closing a WAL connection checkpoints: with no WAL frames that
+/// copies nothing and removes the sidecars, but a WAL left with frames by a
+/// crashed writer would be copied into the file, so the checkpoint on close
+/// is disabled when one is present. Only the `-wal`/`-shm` sidecars may be
+/// created or removed.
 pub(super) fn read_only_connection(path: &Path) -> Result<Connection, LimerickError> {
+    let mut wal = path.as_os_str().to_owned();
+    wal.push("-wal");
+    let wal_has_frames = std::fs::metadata(&wal).is_ok_and(|metadata| metadata.len() > 0);
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(unreadable_or_db)?;
-    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
-        .db_err()?;
+    if wal_has_frames {
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+            .db_err()?;
+    }
     conn.pragma_update(None, "query_only", true).db_err()?;
     Ok(conn)
 }
