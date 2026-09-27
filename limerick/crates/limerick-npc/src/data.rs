@@ -3,7 +3,7 @@
 //! Loads NPC definitions from a JSON file and hydrates them into
 //! fully initialized [`Npc`] instances with bidirectional relationships.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -219,7 +219,7 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, LimerickError> {
         .map(|entry| {
             let schedule = build_seasonal_schedule(entry);
 
-            let relationships: HashMap<NpcId, Relationship> = entry
+            let relationships: BTreeMap<NpcId, Relationship> = entry
                 .relationships
                 .iter()
                 .map(|r| (NpcId(r.target_id), Relationship::new(r.kind, r.strength)))

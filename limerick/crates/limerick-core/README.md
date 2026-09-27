@@ -11,11 +11,27 @@ by CLI, web server, and Tauri backends.
 ## Key modules
 
 - `game_session` — runtime session state and orchestration.
+- `dialogue_apply` — portable NPC dialogue grounding and the canonical
+  validated apply boundary (re-exported from `game_session`).
+- `portable_look` — portable `/look` rendering (re-exported from
+  `ipc::commands::look`).
 - `loading` / `game_mod` — mod and data loading.
 - `ipc` — shared request/response/event types used by frontends.
 - `editor` — Limerick Designer mod-editing support.
 - `prompts` — prompt templates/assembly helpers.
 - `debug_snapshot` — debug data structures for inspection tooling.
+
+## Features
+
+- `desktop` (default): the full desktop composition, including the
+  local-inference bootstrap, the Designer backend, chronicle writers, and
+  diagnostics.
+- `mobile`: the portable configuration
+  (`cargo check -p limerick-core --no-default-features --features mobile`).
+  It excludes those desktop-only dependencies and the pieces that use them:
+  `ipc::editor`, `ipc::bug_report`, the local vLLM slot helpers on
+  `GameConfig`, and the debug-panel diagnostics view. `game_loop`,
+  `game_session`, and the rest of `ipc` build in both configurations.
 
 ## Re-exports
 

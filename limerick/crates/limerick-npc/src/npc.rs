@@ -55,7 +55,7 @@ pub struct NpcPersistedFields {
     /// Authored seasonal schedule.
     pub schedule: Option<SeasonalSchedule>,
     /// Relationships to other NPCs.
-    pub relationships: HashMap<NpcId, Relationship>,
+    pub relationships: BTreeMap<NpcId, Relationship>,
     /// Short-term memory ring.
     pub memory: ShortTermMemory,
     /// Persistent long-term memories.
@@ -116,7 +116,7 @@ pub struct Npc {
     /// Season- and day-aware schedule defining where the NPC goes.
     pub(crate) schedule: Option<SeasonalSchedule>,
     /// Relationships to other NPCs, keyed by their id.
-    pub relationships: HashMap<NpcId, Relationship>,
+    pub relationships: BTreeMap<NpcId, Relationship>,
     /// Ring buffer of recent memories.
     pub memory: ShortTermMemory,
     /// Persistent long-term memory with keyword-based retrieval.
@@ -310,7 +310,7 @@ impl Npc {
             home: None,
             workplace: None,
             schedule: None,
-            relationships: HashMap::new(),
+            relationships: BTreeMap::new(),
             memory: ShortTermMemory::new(),
             long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),

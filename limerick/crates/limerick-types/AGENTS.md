@@ -20,4 +20,4 @@ cargo doc  -p limerick-types --no-deps --open       # type docs
 
 ## Module map
 
-`ids.rs` entity/location/NPC identifier types, `time.rs` in-game clock (`GameTime`, `GameClock`, `GameSpeed`, `Season`, `TimeOfDay`), `events.rs` game event types + `EventBus`, `conversation.rs` dialogue/conversation state (`ConversationExchange`, `ConversationLog`), `gossip.rs` gossip/rumor types (`GossipItem`, `GossipNetwork`), `dice.rs` dice + RNG utilities (`DiceRoll`, `roll_n`, `fixed_n`), `error.rs` thiserror-based error types (`LimerickError`).
+`ids.rs` entity/location/NPC identifier types, `time.rs` in-game clock (`GameTime`, `GameClock`, `GameSpeed`, `Season`, `TimeOfDay`), `events.rs` game event types + `EventBus`, `conversation.rs` dialogue/conversation state (`ConversationExchange`, `ConversationLog`), `gossip.rs` gossip/rumor types (`GossipItem`, `GossipNetwork`), `dice.rs` dice utilities (`DiceRoll`, seeded rolls via `seed`/`DiceRoll::seeded`/`seeded_n`, `fixed_n` for tests), `error.rs` thiserror-based error types (`LimerickError`).

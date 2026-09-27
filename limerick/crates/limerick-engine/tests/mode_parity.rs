@@ -446,19 +446,28 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
     let (real_id, real_speaker) = isolate_one_speaker(&mut real_harness);
     assert_eq!(legacy_speaker, real_speaker);
 
+    // A failed real-loop turn commits nothing, the player's words included,
+    // so the follow-up's antecedent comes from the committed denial.
     let turns = [
         (
             "Have you seen my cousin Cormac Finn?",
             "Aye, I've seen yer cousin. He was here earlier.",
+            true,
+        ),
+        (
+            "Have you seen my cousin Cormac Finn?",
+            "I've not laid eyes on any Cormac Finn.",
+            false,
         ),
         (
             "Where did he go?",
             "He made for the crossroads, as if in a hurry.",
+            true,
         ),
     ];
     let mut legacy_events = BTreeSet::new();
     let mut real_events = BTreeSet::new();
-    for (input, reply) in turns {
+    for (input, reply, rejected) in turns {
         let legacy_location = legacy_harness.app.world.player_location;
         legacy_harness
             .app
@@ -473,18 +482,27 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
             .get_mut(real_id)
             .expect("real speaker exists")
             .set_location_and_state(real_location, NpcState::Present);
-        let response = serde_json::json!({
-            "dialogue": reply,
-            "action": "points away",
-            "mood": "certain",
-            "assigned_task": "Follow Cormac"
-        })
+        let response = if rejected {
+            serde_json::json!({
+                "dialogue": reply,
+                "action": "points away",
+                "mood": "certain",
+                "assigned_task": "Follow Cormac"
+            })
+        } else {
+            serde_json::json!({
+                "dialogue": reply,
+                "action": "",
+                "mood": "certain",
+                "assigned_task": null
+            })
+        }
         .to_string();
 
         legacy_harness.add_canned_response(&legacy_speaker, &response);
         let mut legacy_rx = legacy_harness.app.world.event_bus.subscribe();
         let _ = legacy_harness.execute(&format!("talk to {legacy_speaker} about {input}"));
-        legacy_events.extend(dialogue_events(&drain(&mut legacy_rx)));
+        let legacy_turn = dialogue_events(&drain(&mut legacy_rx));
 
         real_harness
             .mock()
@@ -492,8 +510,16 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
         let mut real_rx = real_harness.app.world.event_bus.subscribe();
         let ui_events =
             real_harness.execute_via_real_loop(&format!("talk to {real_speaker} about {input}"));
-        assert!(!serde_json::to_string(&ui_events).unwrap().contains(reply));
-        real_events.extend(dialogue_events(&drain(&mut real_rx)));
+        let real_turn = dialogue_events(&drain(&mut real_rx));
+        if rejected {
+            assert!(!serde_json::to_string(&ui_events).unwrap().contains(reply));
+            legacy_events.extend(legacy_turn);
+            real_events.extend(real_turn);
+        } else {
+            assert!(serde_json::to_string(&ui_events).unwrap().contains(reply));
+            assert_eq!(legacy_turn.len(), 1);
+            assert_eq!(real_turn.len(), 1);
+        }
     }
 
     assert_eq!(legacy_events, real_events);

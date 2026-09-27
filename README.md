@@ -240,7 +240,7 @@ Character dialogue, mood, and behaviour are generated **in real time** by whiche
 
 The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `limerick.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) 24 LTS (see [`.nvmrc`](.nvmrc)), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `limerick.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
 
 ```sh
 # One-time: install system deps, Rust, Node, and frontend packages

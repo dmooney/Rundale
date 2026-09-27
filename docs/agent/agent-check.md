@@ -75,6 +75,98 @@ Accepted live signals: `mcp__limerick__*`, `mcp__claude-in-chrome__*`, the `/lim
 
 The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with the same matrix.
 
+## Differential Proof
+
+`just prove-diff [SCENARIO] [--intended FILE]` runs the same scenarios on
+`main` and on your change and reports every difference. Use it for any change
+that could alter runtime behaviour, and paste its report into `evidence.md`.
+It proves two things a transcript alone does not: the change did what you
+declared, and nothing else changed.
+
+What it does (`limerick/scripts/proof/prove_diff.py`):
+
+1. Builds `limerick-server` and `limerick-engine` from the merge-base with
+   `origin/main` (a detached worktree under
+   `~/.cache/limerick/prove-diff/<repo>/base-tree`) and from your working tree,
+   uncommitted changes included. Changed files are touched before each build so
+   the shared cargo target cannot reuse the other tree's fingerprint, and each
+   side's binaries are copied out before the next build.
+2. On each side, twice (`--runs`, default 2):
+   - drives the live scenario (`limerick/scripts/proof/scenarios/<name>.txt`,
+     one player line per line) through `limerick-server` over
+     `POST /api/submit-input`, against the scripted model server. The server
+     runs with `LIMERICK_PROVIDER=lmstudio`, `LIMERICK_MODEL=scripted`, the
+     tree's own `mods/rundale`, isolated user data and config, no cloud keys,
+     and a working directory without `.env`;
+   - runs every `limerick/testing/fixtures/test_*.txt` through
+     `limerick-engine --script ... --game-mod <tree>/mods/rundale`
+     (`--fixtures ''` skips them).
+3. Compares four surfaces: `responses` (each turn's submit-input reply),
+   `state` (`/api/engine-state` after the last turn), `requests` (every provider
+   request body, grouped by turn), and `script` (each fixture command's fields
+   and log lines). Each difference is one line, for example
+   `requests/talk-and-task turn 4 request (dialogue) + system| WORLD FACTS ...`.
+4. Checks the differences against your intended-differences file and writes
+   `report.md` in the output directory. Any undeclared difference fails; so does
+   a declaration that matches nothing.
+
+Intended-differences file (TOML; keep it in the bundle, e.g.
+`.proofs/<id>/intended-diffs.toml`):
+
+```toml
+[[intended]]
+surface = "requests"          # optional: responses | state | requests | script
+name = "talk-and-task"        # optional: fnmatch on the scenario or fixture name
+match = 'WORLD FACTS .* County Roscommon'  # regex searched in the difference line
+reason = "tier-1 prompt names the county"
+# required = false            # optional: only when the base side is random and
+                              # can match the head by chance (reported, not failed)
+```
+
+With no file, the run passes only if nothing differs, which is the proof for a
+refactor.
+
+Nondeterminism: runs are deterministic at the source (#2033): NPC lists come
+out in id order, rolls are seeded from game state, the script clock and save
+stamps ignore wall time, and background simulation requests are grouped per
+turn. Head runs that disagree with each other fail the check, because the
+change made a run nondeterministic; a base side that disagrees (an older
+`main`) is compared as a range and listed under "Nondeterminism". The one
+remaining normaliser (`limerick/scripts/proof/noise.py`) masks the seconds the
+live server's real-time clock adds before the scenario's `/pause`.
+
+Writing a scenario: start with `/pause`, since the live clock otherwise runs in
+wall-clock time. Lines starting with a movement verb go to the local parser;
+`Let us be off, walking on toward <Place>` reaches the intent model, which the
+scripted server answers with a move. The scripted NPC offers a task when the
+player mentions work. `scripted_openai.py` lists the canned reply per workload.
+
+Pieces usable alone: `scripted_openai.py --port P --log F` (point a Tauri app
+at it with `LIMERICK_BASE_URL=http://127.0.0.1:P/v1`), `drive_session.py`
+(launch `limerick-server`, or `--attach URL` to drive a running server or the
+Tauri bridge), `body_diff.py` (request logs), and `script_compare.py`
+(`--script` output directories).
+
+### In CI
+
+The `Differential proof` job in `.github/workflows/ci.yml` runs the same check
+on every pull request that changes code compiled into `limerick-server` or
+`limerick-engine`, `mods/`, the `--script` fixtures, or the proof tooling.
+Docs-only and UI-only pull requests skip it. It builds `main` and the pull
+request's merge commit, runs the `talk-and-task` scenario and every fixture
+on both, and reads the intended differences from the pull request body: every
+fenced block opened with ` ```toml intended-diffs `. When the bundle has
+`.proofs/<id>/intended-diffs.toml`, `compose-proof-body.sh` and
+`just attach-proof` put that block in the body for you. The report goes to
+the job summary, a sticky pull request comment, and a `prove-diff` artifact
+with every run. The job is part of the `CI gate` aggregate, so an undeclared
+difference, an unobserved required declaration, or a nondeterministic head
+run blocks the merge.
+
+To change the declaration, edit the body (`just attach-proof <id>` after
+editing the bundle file) and re-run the job; a body edit alone does not
+trigger a run.
+
 ## Belt-and-suspenders Lints
 
 - Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.

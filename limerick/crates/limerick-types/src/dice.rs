@@ -2,9 +2,13 @@
 //!
 //! Provides a [`DiceRoll`] wrapper around a `0.0..1.0` float that supports
 //! threshold checks, index selection, and deterministic testing via fixed
-//! values.  Higher-level helpers ([`roll_n`], [`fixed_n`]) create batches.
+//! values. Game rolls are seeded from the game state they depend on
+//! ([`seed`], [`DiceRoll::seeded`], [`seeded_n`]): the odds are unchanged,
+//! and the same state always rolls the same way, so a replayed session is
+//! byte-identical. [`fixed_n`] creates batches for tests.
 
-use rand::RngExt;
+use rand::rngs::StdRng;
+use rand::{RngExt, SeedableRng};
 
 /// A single probability roll in `0.0..1.0`.
 ///
@@ -25,10 +29,11 @@ impl DiceRoll {
         }
     }
 
-    /// Rolls using the thread-local RNG.
-    pub fn roll() -> Self {
+    /// Rolls from `seed` (see [`seed`]): uniform in `0.0..1.0`, and the
+    /// same seed always gives the same roll.
+    pub fn seeded(seed: u64) -> Self {
         Self {
-            value: rand::rng().random::<f64>(),
+            value: StdRng::seed_from_u64(seed).random::<f64>(),
         }
     }
 
@@ -61,14 +66,39 @@ impl DiceRoll {
     }
 }
 
-/// Rolls `n` dice using the thread-local RNG.
-pub fn roll_n(n: usize) -> Vec<DiceRoll> {
-    let mut rng = rand::rng();
+/// Rolls `n` independent dice from `seed` (see [`seed`]).
+pub fn seeded_n(seed: u64, n: usize) -> Vec<DiceRoll> {
+    let mut rng = StdRng::seed_from_u64(seed);
     (0..n)
         .map(|_| DiceRoll {
             value: rng.random(),
         })
         .collect()
+}
+
+/// Builds a roll seed from a purpose label and the game state the roll
+/// depends on, such as game minutes and a location id.
+///
+/// The label keeps different rolls made from the same state independent
+/// (an encounter and an arrival reaction at the same place and minute).
+pub fn seed(purpose: &str, parts: &[u64]) -> u64 {
+    // FNV-1a over the label, then a splitmix64 step per part.
+    let mut state = purpose
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        });
+    for &part in parts {
+        state = splitmix64(state ^ part);
+    }
+    splitmix64(state)
+}
+
+fn splitmix64(value: u64) -> u64 {
+    let mut z = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
 }
 
 /// Creates `n` dice with predetermined values (for deterministic tests).
@@ -152,11 +182,46 @@ mod tests {
     }
 
     #[test]
-    fn test_roll_n_count() {
-        let dice = roll_n(5);
+    fn seeded_n_count_and_range() {
+        let dice = seeded_n(seed("test", &[1]), 5);
         assert_eq!(dice.len(), 5);
         for d in &dice {
             assert!((0.0..1.0).contains(&d.value()));
+        }
+    }
+
+    #[test]
+    fn same_seed_same_rolls() {
+        let a = seeded_n(seed("arrival", &[600, 15]), 4);
+        let b = seeded_n(seed("arrival", &[600, 15]), 4);
+        let values = |dice: &[DiceRoll]| dice.iter().map(DiceRoll::value).collect::<Vec<_>>();
+        assert_eq!(values(&a), values(&b));
+        assert_eq!(
+            DiceRoll::seeded(seed("x", &[1])).value(),
+            DiceRoll::seeded(seed("x", &[1])).value()
+        );
+    }
+
+    #[test]
+    fn seed_depends_on_label_parts_and_their_order() {
+        let base = seed("encounter", &[600, 1, 2]);
+        assert_ne!(base, seed("arrival", &[600, 1, 2]));
+        assert_ne!(base, seed("encounter", &[601, 1, 2]));
+        assert_ne!(base, seed("encounter", &[600, 2, 1]));
+        assert_ne!(base, seed("encounter", &[600, 1]));
+    }
+
+    #[test]
+    fn seeded_rolls_keep_uniform_odds() {
+        // Seeds from consecutive game minutes, as the game makes them: the
+        // share of rolls under a threshold matches the threshold.
+        let n = 20_000;
+        for threshold in [0.1, 0.3, 0.6] {
+            let hits = (0..n)
+                .filter(|&minute| DiceRoll::seeded(seed("odds", &[minute, 15])).check(threshold))
+                .count();
+            let share = hits as f64 / n as f64;
+            assert!((share - threshold).abs() < 0.015, "{threshold}: {share}");
         }
     }
 
@@ -170,10 +235,9 @@ mod tests {
     }
 
     #[test]
-    fn test_roll_produces_valid_range() {
-        // Statistical test: 100 rolls should all be in [0, 1)
-        for _ in 0..100 {
-            let d = DiceRoll::roll();
+    fn test_seeded_produces_valid_range() {
+        for minute in 0..100 {
+            let d = DiceRoll::seeded(seed("range", &[minute]));
             assert!((0.0..1.0).contains(&d.value()));
         }
     }

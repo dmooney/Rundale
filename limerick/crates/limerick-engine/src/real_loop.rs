@@ -19,17 +19,67 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use limerick_core::game_loop::{
-    GameLoopContext, handle_game_input, handle_staged_game_input_with_journal,
-    handle_system_command, input_may_mutate_tasks,
-};
+use limerick_core::game_loop::inference::InProcessInference;
+use limerick_core::game_loop::{GameLoopContext, handle_system_command};
 use limerick_core::ipc::{CapturingEmitter, EventEmitter};
 use limerick_core::npc::reactions::ReactionTemplates;
+use limerick_core::turn::{
+    BoxFuture, JournalError, MemoryTurnJournal, PendingEvent, RequestRecord, TranscriptEvent,
+    TurnCommit, TurnEngine, TurnInput, TurnJournal, TurnRules, drive_in_process,
+};
 
 use crate::command_host::CliCommandHost;
 use crate::inference::{AnyClient, InferenceWorkerConfig, MockClient};
 use crate::input::{self, InputResult};
 use crate::testing::GameTestHarness;
+
+/// The harness's save, lent to a real-loop turn's journal for one call.
+type LentDatabase = Arc<std::sync::Mutex<Option<crate::persistence::Database>>>;
+
+/// The real-loop turn journal: a committed task batch goes to the harness's
+/// save the way the runtimes' session store appends it; request records and
+/// transcript events are held in memory.
+struct HarnessTurnJournal {
+    memory: MemoryTurnJournal,
+    db: LentDatabase,
+    branch_id: i64,
+}
+
+impl TurnJournal for HarnessTurnJournal {
+    fn accept(
+        &self,
+        record: RequestRecord,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        self.memory.accept(record, events)
+    }
+
+    fn update(
+        &self,
+        record: RequestRecord,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        self.memory.update(record, events)
+    }
+
+    fn commit(
+        &self,
+        commit: TurnCommit,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        Box::pin(self.memory.commit_with(commit, move |tasks| async move {
+            let db = self
+                .db
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            crate::testing::persist_task_mutation_batch(db.as_ref(), self.branch_id, &tasks)
+                .map_err(JournalError::Storage)
+        }))
+    }
+
+    fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
+        self.memory.open_requests()
+    }
+}
 
 impl GameTestHarness {
     /// Returns the scriptable mock client backing the real-loop path. Enqueue
@@ -114,9 +164,9 @@ impl GameTestHarness {
     ///
     /// System commands are dispatched through
     /// [`limerick_core::game_loop::handle_system_command`] (via a capturing
-    /// [`CliCommandHost`]); free-form text goes through
-    /// [`limerick_core::game_loop::handle_game_input`] with the mock client and a
-    /// [`CapturingEmitter`] injected. State is moved out of `self.app` for the
+    /// [`CliCommandHost`]); free-form text is a turn request run by a
+    /// [`TurnEngine`] with [`drive_in_process`], as the runtimes run it, with
+    /// the mock client and a [`CapturingEmitter`] injected. State is moved out of `self.app` for the
     /// duration of the call and moved back afterwards, so the harness's own
     /// world/NPC state advances exactly as the real engine would advance it.
     pub fn execute_via_real_loop(&mut self, line: &str) -> Vec<(String, serde_json::Value)> {
@@ -165,12 +215,14 @@ impl GameTestHarness {
         emitter.drain()
     }
 
-    /// Drives [`handle_game_input`] over the harness's state with the mock
-    /// client and the capturing emitter wired in.
+    /// Runs one turn request through a [`TurnEngine`] over the harness's state,
+    /// with the mock client and the capturing emitter wired in. The turn runs on
+    /// a candidate that is committed (task batch to the harness save first) or
+    /// discarded whole.
     ///
-    /// The world / NPC state is moved out of `self.app` for the call and moved
-    /// back afterwards — including on panic — so the harness is never left with
-    /// default state. The panic is re-raised after restoration so standalone
+    /// The world / NPC state and the save are moved out of `self.app` for the
+    /// call and moved back afterwards — including on panic — so the harness is
+    /// never left with default state. The panic is re-raised after restoration so standalone
     /// callers still observe it (the shadow wrapper swallows it).
     fn run_game_input_real(
         &mut self,
@@ -194,7 +246,7 @@ impl GameTestHarness {
         };
         let config_snapshot = self.app.snapshot_config();
         let active_branch_id = self.app.active_branch_id;
-        let db_sync = self.db_sync.as_ref();
+        let db: LentDatabase = Arc::new(std::sync::Mutex::new(self.db_sync.take()));
 
         // Move the live world / NPC state into Mutex containers for the borrow
         // struct.
@@ -257,49 +309,34 @@ impl GameTestHarness {
                     language,
                     inference_failure_messages: &failure_messages,
                     idle_messages: &idle_messages,
+                    inference_override: None,
                 };
-                let must_stage = {
-                    let world = world.lock().await;
-                    input_may_mutate_tasks(&world, text)
+                let journal = Arc::new(HarnessTurnJournal {
+                    memory: MemoryTurnJournal::new(),
+                    db: Arc::clone(&db),
+                    branch_id: active_branch_id,
+                });
+                let mut engine = TurnEngine::new(
+                    journal,
+                    TurnRules {
+                        transport: transport.clone(),
+                        reaction_templates: templates.clone(),
+                    },
+                );
+                let inference = InProcessInference::from_ctx(&ctx);
+                let input = TurnInput {
+                    text: text.to_string(),
+                    ..TurnInput::default()
                 };
-                if must_stage {
-                    let result = handle_staged_game_input_with_journal(
-                        &ctx,
-                        Vec::new(),
-                        text.to_string(),
-                        Vec::new(),
-                        &transport,
-                        &templates,
-                        move |tasks| async move {
-                            crate::testing::persist_task_mutation_batch(
-                                db_sync,
-                                active_branch_id,
-                                &tasks,
-                            )
-                            .map_err(limerick_core::error::LimerickError::Database)
-                        },
-                    )
-                    .await;
-                    if let Err(error) = result {
-                        dyn_emitter.emit_event(
-                            "text-log",
-                            serde_json::to_value(limerick_core::ipc::text_log(
-                                "system",
-                                format!("Failed to persist player task changes: {error}"),
-                            ))
-                            .unwrap_or(serde_json::Value::Null),
-                        );
-                    }
-                } else {
-                    handle_game_input(
-                        &ctx,
-                        text.to_string(),
-                        Vec::new(),
-                        &transport,
-                        &templates,
-                        || None,
-                    )
-                    .await;
+                if let Err(error) = drive_in_process(&mut engine, &ctx, input, &inference).await {
+                    dyn_emitter.emit_event(
+                        "text-log",
+                        serde_json::to_value(limerick_core::ipc::text_log(
+                            "system",
+                            format!("Failed to commit the turn: {error}"),
+                        ))
+                        .unwrap_or(serde_json::Value::Null),
+                    );
                 }
 
                 // Tear down the worker: drop the queue (closing the sender side)
@@ -314,6 +351,10 @@ impl GameTestHarness {
         self.app.world = world.into_inner();
         self.app.npc_manager = npc_manager.into_inner();
         self.app.apply_config(&new_config);
+        self.db_sync = db
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
 
         if let Err(payload) = outcome {
             std::panic::resume_unwind(payload);

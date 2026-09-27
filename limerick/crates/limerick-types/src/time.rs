@@ -328,6 +328,10 @@ pub struct GameClock {
     speed_factor: f64,
     /// Game time when the clock was frozen (valid when paused or inference_paused).
     paused_game_time: DateTime<Utc>,
+    /// Whether game time flows with real time while running. `false` for
+    /// hosts that must replay exactly (the `--script` harness): game time
+    /// then moves only through [`GameClock::advance`].
+    follows_wall_clock: bool,
 }
 
 impl GameClock {
@@ -342,6 +346,7 @@ impl GameClock {
             inference_paused: false,
             speed_factor: SpeedConfig::default().normal,
             paused_game_time: start_game,
+            follows_wall_clock: true,
         }
     }
 
@@ -354,6 +359,7 @@ impl GameClock {
             inference_paused: false,
             speed_factor,
             paused_game_time: start_game,
+            follows_wall_clock: true,
         }
     }
 
@@ -371,9 +377,18 @@ impl GameClock {
         if self.is_frozen() {
             return self.paused_game_time;
         }
+        if !self.follows_wall_clock {
+            return self.start_game;
+        }
         let elapsed_real = self.start_real.elapsed().as_secs_f64();
         let elapsed_game_secs = (elapsed_real * self.speed_factor) as i64;
         self.start_game + Duration::seconds(elapsed_game_secs)
+    }
+
+    /// Returns the current game time in whole minutes since the Unix epoch,
+    /// the game-state part of a [`crate::dice::seed`].
+    pub fn game_minutes(&self) -> u64 {
+        self.now().timestamp().div_euclid(60) as u64
     }
 
     /// Returns the current time of day.
@@ -439,6 +454,21 @@ impl GameClock {
                 self.start_real = Instant::now();
             }
         }
+    }
+
+    /// Stops game time from flowing with real time. Pause, resume, speed, and
+    /// [`GameClock::advance`] keep working; only the wall-clock drift stops,
+    /// so the same commands always reach the same game time.
+    pub fn detach_from_wall_clock(&mut self) {
+        if self.follows_wall_clock && !self.is_frozen() {
+            self.start_game = self.now();
+        }
+        self.follows_wall_clock = false;
+    }
+
+    /// Returns whether game time flows with real time while running.
+    pub fn follows_wall_clock(&self) -> bool {
+        self.follows_wall_clock
     }
 
     /// Returns whether the clock is player-paused.
@@ -1021,6 +1051,53 @@ mod tests {
         assert!(clock.is_paused());
         assert_eq!(clock.now(), frozen);
         assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
+    }
+
+    // ── GameClock detached from the wall clock ───────────────────────────────
+
+    #[test]
+    fn detached_clock_moves_only_when_advanced() {
+        // 36,000 game seconds per real second: 20 ms of real time is 12 game
+        // minutes on an attached clock.
+        let start = game_time(1820, 3, 20, 10);
+        let mut attached = GameClock::with_speed(start, 36_000.0);
+        let mut detached = GameClock::with_speed(start, 36_000.0);
+        detached.detach_from_wall_clock();
+        assert!(attached.follows_wall_clock());
+        assert!(!detached.follows_wall_clock());
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert!(attached.now() > start);
+        assert_eq!(detached.now(), start);
+
+        detached.advance(15);
+        assert_eq!(detached.now(), start + Duration::minutes(15));
+        detached.pause();
+        detached.advance(5);
+        detached.resume();
+        detached.set_speed(GameSpeed::Fast);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert_eq!(detached.now(), start + Duration::minutes(20));
+        assert!(!detached.follows_wall_clock());
+
+        attached.pause();
+        let frozen = attached.now();
+        attached.detach_from_wall_clock();
+        attached.resume();
+        assert_eq!(attached.now(), frozen);
+    }
+
+    #[test]
+    fn game_minutes_floor_pre_1970_times() {
+        // 1820 timestamps are negative; seconds must not reach the next minute.
+        let at = |seconds: i64| {
+            let mut clock = GameClock::new(game_time(1820, 3, 20, 8) + Duration::seconds(seconds));
+            clock.pause();
+            clock.game_minutes()
+        };
+        assert_eq!(at(1), at(0));
+        assert_eq!(at(59), at(0));
+        assert_eq!(at(60), at(0).wrapping_add(1));
+        assert_eq!(at(-1), at(0).wrapping_sub(1));
     }
 
     // ── weekday_name (shared with limerick-diagnostics + ipc handlers) ────────

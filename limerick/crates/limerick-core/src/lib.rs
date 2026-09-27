@@ -16,8 +16,11 @@
 // the extraction stays behaviour-preserving with zero import changes. The
 // branch-switch subscriber-rebind call sites stay in their entry-point crates
 // and reach the managers through these re-exports.
+#[cfg(feature = "desktop")]
 pub use limerick_chronicle::character_log;
+#[cfg(feature = "desktop")]
 pub use limerick_chronicle::chat_transcript;
+#[cfg(feature = "desktop")]
 pub use limerick_chronicle::location_log;
 // The debug-snapshot builders and bug-report orchestration were extracted into
 // their own crate (`limerick-diagnostics`). This re-export preserves the
@@ -25,13 +28,20 @@ pub use limerick_chronicle::location_log;
 // (`limerick-tauri`, `limerick-server`, `limerick-engine`, tests) so the extraction
 // stays behaviour-preserving with zero import changes. The `bug_report` shim
 // lives in `crate::ipc` to preserve `limerick_core::ipc::bug_report::...`.
+#[cfg(feature = "desktop")]
 pub use limerick_diagnostics::debug_snapshot;
 // The Limerick Designer backend was extracted into its own crate
 // (`limerick-editor`). This re-export preserves the historical
 // `limerick_core::editor::...` path for every consumer (`limerick-tauri`,
 // `limerick-server`, `crate::ipc::editor`) so the extraction stays
 // behaviour-preserving with zero import changes.
+#[cfg(feature = "desktop")]
 pub use limerick_editor as editor;
+// Portable state seams: canonical dialogue grounding/application and `/look`
+// rendering. They avoid the IPC and inference orchestration tree so embedded
+// runtimes can share them; `game_session` and `ipc::commands::look` re-export
+// them at their historical paths.
+pub mod dialogue_apply;
 pub mod event_bus;
 pub mod game_loop;
 pub mod game_session;
@@ -41,10 +51,13 @@ pub mod inference_runtime_v2;
 pub mod ipc;
 pub mod loading;
 pub mod mod_source;
+pub mod portable_look;
 pub mod prompts;
 pub mod secret_store;
 pub mod session_store;
 pub mod tile_cache;
+pub mod turn;
+pub mod turn_inference;
 
 /// How often autosave tasks should snapshot active sessions (seconds).
 /// Used by both the Axum web server and the Tauri desktop backend.

@@ -597,6 +597,10 @@ pub(crate) async fn read_player_pause_state(state: &Arc<AppState>) -> PlayerPaus
 /// touched; inference-pause is independent and left alone.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) async fn restore_player_pause_state(state: &Arc<AppState>, prior: PlayerPauseState) {
+    // The clock is live world state: wait for any in-flight turn so the
+    // restore is neither lost when the turn installs its candidate world nor
+    // applied halfway through it.
+    let _persistence_guard = state.persistence_gate.lock().await;
     let mut world = state.world.lock().await;
     match prior {
         PlayerPauseState::Paused => world.clock.pause(),
@@ -1352,6 +1356,26 @@ mod tests {
             !state.world.lock().await.clock.is_paused(),
             "clock should be running again after restore"
         );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[tokio::test]
+    async fn restore_player_pause_state_waits_for_the_persistence_gate() {
+        let state = state_with_clock_paused(false);
+        let held = state.persistence_gate.lock().await;
+        let restoring = tokio::spawn({
+            let state = std::sync::Arc::clone(&state);
+            async move { restore_player_pause_state(&state, PlayerPauseState::Paused).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(
+            !restoring.is_finished(),
+            "the pause restore must wait while a turn owns persistence_gate"
+        );
+        assert!(!state.world.lock().await.clock.is_paused());
+        drop(held);
+        restoring.await.unwrap();
+        assert!(state.world.lock().await.clock.is_paused());
     }
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]

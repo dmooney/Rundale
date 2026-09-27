@@ -38,7 +38,7 @@ pub(crate) enum SseResult {
 }
 
 /// Strips Markdown JSON code fences (`` ```json `` or `` ``` ``) from a string.
-pub(crate) fn strip_json_fence(raw: &str) -> &str {
+pub fn strip_json_fence(raw: &str) -> &str {
     let t = raw.trim();
     if let Some(inner) = t.strip_prefix("```json") {
         return inner

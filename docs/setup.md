@@ -22,11 +22,11 @@ source "$HOME/.cargo/env"
 
 ### Install Node.js
 
-Required for the Tauri GUI frontend. Node.js v20+ recommended.
+Required for the Tauri GUI frontend and repository tooling. Use Node.js 24 LTS, matching [`.nvmrc`](../.nvmrc) and the package engine constraints.
 
-- **macOS:** `brew install node` or download from [nodejs.org](https://nodejs.org/)
+- **macOS:** Use a Node version manager to install/select the version in [`.nvmrc`](../.nvmrc), or download Node.js 24 LTS from [nodejs.org](https://nodejs.org/)
 - **Linux:** Use your package manager or [nvm](https://github.com/nvm-sh/nvm) for version management
-- **Windows:** Download from [nodejs.org](https://nodejs.org/) (v20+ LTS recommended)
+- **Windows:** Download Node.js 24 LTS from [nodejs.org](https://nodejs.org/)
 
 ### Install Tauri CLI
 

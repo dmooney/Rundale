@@ -2,7 +2,7 @@
 # Build:  docker build -f deploy/Dockerfile -t limerick .
 #
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
-FROM node:26-slim AS frontend
+FROM node:24-slim AS frontend
 WORKDIR /build/limerick/apps/ui
 COPY limerick/apps/ui/package*.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ COPY limerick/apps/ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
-FROM rust:1.98.0-slim-bookworm AS builder
+FROM rust:1.98.1-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*

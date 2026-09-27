@@ -118,6 +118,22 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
         ),
         REJECTED_DISPLAY
     );
+    // A failed turn commits nothing, the player's words included, so the
+    // follow-up's antecedent comes from a committed exchange.
+    harness.mock().push_json_for(
+        &speaker,
+        serde_json::json!({
+            "dialogue": "I've not laid eyes on any Cormac Finn.",
+            "action": "",
+            "mood": original_mood.clone(),
+            "assigned_task": null
+        })
+        .to_string(),
+    );
+    let asked = harness.execute_via_real_loop(&format!(
+        "talk to {speaker} about Have you seen my cousin Cormac Finn?"
+    ));
+    assert!(streamed_text(&asked).contains("any Cormac Finn"));
     assert_eq!(
         force_turn(
             &mut harness,

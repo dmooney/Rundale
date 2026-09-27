@@ -402,7 +402,7 @@ pub struct DialogueQualityPayload {
 }
 
 /// Wire-safe copy of the Tier-1 generation settings used for one turn.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct DialogueGenerationTelemetry {
     pub max_tokens: u32,
     pub temperature: f32,

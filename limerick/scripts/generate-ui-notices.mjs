@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SCANNER_PACKAGE = 'license-checker-rseidelsohn';
-const SCANNER_VERSION = '4.4.2';
+const SCANNER_VERSION = '5.0.1';
 const REQUIRED_MANIFESTS = [
 	'package.json',
 	'package-lock.json',

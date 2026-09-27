@@ -9,8 +9,12 @@
 //! its former `limerick_inference::*` path so downstream consumers need no
 //! import changes.
 
+// The Ollama/vllm process handles and model download are desktop setup
+// infrastructure, kept at their historical paths behind `desktop`.
+#[cfg(feature = "desktop")]
 pub mod client;
 pub mod file_log;
+#[cfg(feature = "desktop")]
 pub mod hf_downloader;
 pub mod logs;
 pub mod queue;
@@ -27,11 +31,11 @@ pub mod worker;
 // etc. Re-exporting the whole module keeps those paths valid without a single
 // import change, and lets the staying modules (queue/worker/timeout) keep
 // their internal `crate::any_client::…` / `crate::openai_client::…` references.
-pub use limerick_providers::parse_generation_json;
 pub use limerick_providers::{
     anthropic_client, any_client, discovery, fetch_catalog_endpoint, google_client, mock_client,
     openai_client, rate_limit, simulator,
 };
+pub use limerick_providers::{parse_generation_json, strip_json_fence};
 
 // ── Setup/bootstrap module: re-exported from limerick-setup ─────────────────────
 //
@@ -43,6 +47,7 @@ pub use limerick_providers::{
 // crate as `setup` keeps every one of those paths valid without a single
 // import change. The dependency edge is one-directional: limerick-setup depends
 // on limerick-providers (not on this crate), so there is no cycle.
+#[cfg(feature = "desktop")]
 pub use limerick_setup as setup;
 
 // ── Re-exports: public API (unchanged paths for downstream crates) ────────────

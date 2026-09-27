@@ -570,6 +570,20 @@ pub async fn get_llm_player_action(
 /// from `get_llm_player_action` (#1200 TD-012) — it deduplicates the primary
 /// and retry call sites, which previously inlined identical pause/generate/
 /// resume blocks.
+/// Pauses or resumes the live clock around an auto-player generation.
+///
+/// The clock is live world state, so the change waits for any in-flight turn
+/// (which owns `persistence_gate`) instead of racing its candidate install.
+async fn set_clock_inference_paused(state: &Arc<AppState>, paused: bool) {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let mut world = state.world.lock().await;
+    if paused {
+        world.clock.inference_pause();
+    } else {
+        world.clock.inference_resume();
+    }
+}
+
 async fn generate_player_action_paused(
     client: &AnyClient,
     model: &str,
@@ -578,7 +592,7 @@ async fn generate_player_action_paused(
     temperature: f32,
     state: &Arc<AppState>,
 ) -> Result<String, String> {
-    state.world.lock().await.clock.inference_pause();
+    set_clock_inference_paused(state, true).await;
     let profile = state
         .config
         .lock()
@@ -627,7 +641,7 @@ async fn generate_player_action_paused(
                 .await,
         )
         .await;
-    state.world.lock().await.clock.inference_resume();
+    set_clock_inference_paused(state, false).await;
     gen_result
         .map(|result| result.text)
         .map_err(|e| e.to_string())
@@ -636,9 +650,30 @@ async fn generate_player_action_paused(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_demo_system_prompt, extract_action_from_response, strip_thinking_block,
-        truncate_for_log,
+        build_demo_system_prompt, extract_action_from_response, set_clock_inference_paused,
+        strip_thinking_block, truncate_for_log,
     };
+
+    #[tokio::test]
+    async fn auto_player_clock_pause_waits_for_the_persistence_gate() {
+        let state = crate::commands::cmd_tests::test_app_state();
+        let held = state.persistence_gate.lock().await;
+        let pausing = tokio::spawn({
+            let state = std::sync::Arc::clone(&state);
+            async move { set_clock_inference_paused(&state, true).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(
+            !pausing.is_finished(),
+            "the auto-player pause must wait while a turn owns persistence_gate"
+        );
+        assert!(!state.world.lock().await.clock.is_inference_paused());
+        drop(held);
+        pausing.await.unwrap();
+        assert!(state.world.lock().await.clock.is_inference_paused());
+        set_clock_inference_paused(&state, false).await;
+        assert!(!state.world.lock().await.clock.is_inference_paused());
+    }
 
     /// Regression test (fixed: #18) — pin the failure shapes where the parser returns
     /// empty so the retry path's gate (`action_text.is_empty()`) is

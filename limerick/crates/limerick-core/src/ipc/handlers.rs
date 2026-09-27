@@ -10,7 +10,7 @@ use chrono::{Datelike, Timelike};
 
 use crate::game_mod::PronunciationEntry;
 use crate::npc::anachronism;
-use crate::npc::manager::NpcManager;
+use crate::npc::manager::{NpcManager, NpcReference};
 use crate::npc::mood::mood_emoji;
 use crate::npc::ticks;
 use crate::npc::{LanguageHint, LanguageSettings, Npc, NpcId};
@@ -815,16 +815,15 @@ pub fn resolve_npc_targets(
     let mut targets = Vec::new();
     let mut seen = HashSet::new();
     for name in target_names {
-        // Primary: literal name (exact or first-name prefix).
-        // Fallback: occupation/role vocative ("Father", "Widow") when
-        // exactly one co-located NPC matches that role — issue #998.
-        let resolved = npc_manager
-            .find_by_name(name, world.player_location)
-            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
-        if let Some(npc) = resolved
-            && seen.insert(npc.id)
+        // The shared resolver tries the literal name (exact or first-name
+        // prefix), then a unique occupation/role vocative ("Father",
+        // "Widow"; issue #998). Ambiguous references resolve to no one.
+        if let Some(id) = npc_manager
+            .resolve_reference_at(name, world.player_location)
+            .unique()
+            && seen.insert(id)
         {
-            targets.push(npc.id);
+            targets.push(id);
         }
     }
 
@@ -855,6 +854,19 @@ pub struct AddressedTargets {
     /// Display names that did not match any co-located NPC, in order of first
     /// occurrence (deduplicated by case-insensitive comparison).
     pub absent: Vec<String>,
+    /// References that matched several co-located NPCs equally well, in
+    /// order of first occurrence. Only [`resolve_clarifiable_targets`]
+    /// reports these; [`resolve_addressed_targets`] counts them as absent.
+    pub ambiguous: Vec<AmbiguousAddressee>,
+}
+
+/// An explicit addressee that matches several people present.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AmbiguousAddressee {
+    /// What the player wrote.
+    pub reference: String,
+    /// The NPCs present it matches, ids ascending.
+    pub candidates: Vec<NpcId>,
 }
 
 /// Resolves explicitly-addressed conversation targets without a fallback.
@@ -871,29 +883,73 @@ pub fn resolve_addressed_targets(
     npc_manager: &NpcManager,
     target_names: &[String],
 ) -> AddressedTargets {
-    let mut resolved = Vec::new();
+    resolve_targets(world, npc_manager, target_names, &[], false)
+}
+
+/// Resolves explicitly-addressed targets like [`resolve_addressed_targets`],
+/// but reports a reference that matches several people present in
+/// [`AddressedTargets::ambiguous`] instead of as absent, so the caller can
+/// ask the player which one they meant.
+///
+/// `choices` are the player's earlier answers: a name equal to a choice's
+/// reference (case-insensitively) resolves to that NPC when present, and is
+/// absent otherwise.
+pub fn resolve_clarifiable_targets(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    target_names: &[String],
+    choices: &[(String, NpcId)],
+) -> AddressedTargets {
+    resolve_targets(world, npc_manager, target_names, choices, true)
+}
+
+fn resolve_targets(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    target_names: &[String],
+    choices: &[(String, NpcId)],
+    report_ambiguity: bool,
+) -> AddressedTargets {
+    let mut targets = AddressedTargets::default();
     let mut seen_ids = HashSet::new();
-    let mut absent = Vec::new();
     let mut seen_absent = HashSet::new();
+    let mut seen_ambiguous = HashSet::new();
+    let present = npc_manager.npcs_at_ids(world.player_location);
     for name in target_names {
-        // Primary: literal name (exact or first-name prefix).
-        // Fallback: occupation/role vocative ("Father", "Widow") when
-        // exactly one co-located NPC matches that role — mirrors the same
-        // fallback in `resolve_npc_targets` so explicit `addressed_to`
-        // names resolve identically regardless of which resolver is used
-        // (#1221).
-        let npc = npc_manager
-            .find_by_name(name, world.player_location)
-            .or_else(|| npc_manager.find_by_role_at(name, world.player_location));
-        if let Some(npc) = npc {
-            if seen_ids.insert(npc.id) {
-                resolved.push(npc.id);
+        let lower = name.to_lowercase();
+        let chosen = choices
+            .iter()
+            .find(|(reference, _)| reference.to_lowercase() == lower)
+            .map(|(_, id)| *id);
+        // Same shared resolver as `resolve_npc_targets`, so explicit
+        // `addressed_to` names resolve identically on every path (#1221).
+        let reference = match chosen {
+            Some(id) if present.contains(&id) => NpcReference::Unique(id),
+            Some(_) => NpcReference::NotFound,
+            None => npc_manager.resolve_reference_at(name, world.player_location),
+        };
+        match reference {
+            NpcReference::Unique(id) => {
+                if seen_ids.insert(id) {
+                    targets.resolved.push(id);
+                }
             }
-        } else if seen_absent.insert(name.to_lowercase()) {
-            absent.push(name.clone());
+            NpcReference::Ambiguous(candidates) if report_ambiguity => {
+                if seen_ambiguous.insert(lower) {
+                    targets.ambiguous.push(AmbiguousAddressee {
+                        reference: name.clone(),
+                        candidates,
+                    });
+                }
+            }
+            _ => {
+                if seen_absent.insert(lower) {
+                    targets.absent.push(name.clone());
+                }
+            }
         }
     }
-    AddressedTargets { resolved, absent }
+    targets
 }
 
 fn append_transcript_context(
@@ -1374,26 +1430,9 @@ pub fn prepare_npc_conversation(
     )
 }
 
-/// Detects if the player is introducing themselves and records the name.
-///
-/// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
-/// use the player's name. If detected, sets `world.player_name` (if not
-/// already set) and teaches the speaking NPC the player's name.
-pub fn detect_and_record_player_name(
-    world: &mut WorldState,
-    npc_manager: &mut NpcManager,
-    player_input: &str,
-    speaker_id: NpcId,
-) {
-    if let Some(name) = crate::npc::detect_player_name(player_input) {
-        // Don't overwrite a previously set player name
-        if world.player_name.is_none() {
-            tracing::info!("Player introduced themselves as: {}", name);
-            world.player_name = Some(name);
-        }
-        npc_manager.teach_player_name(speaker_id);
-    }
-}
+// Name detection is part of the portable dialogue apply seam; keep the
+// historical `crate::ipc::detect_and_record_player_name` path for callers.
+pub use crate::dialogue_apply::detect_and_record_player_name;
 
 /// Checks an NPC response for hallucinated names and returns a corrective
 /// system prompt addendum if any are found.
@@ -2429,6 +2468,51 @@ mod tests {
         );
         // "Father" is absent (ambiguous, treated as unresolvable).
         assert_eq!(result.absent, vec!["Father".to_string()]);
+        assert!(result.ambiguous.is_empty());
+    }
+
+    #[test]
+    fn clarifiable_targets_report_an_ambiguous_role_and_honour_an_answer() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        for id in [12u32, 13] {
+            let mut p = Npc::new_test_npc();
+            p.id = NpcId(id);
+            p.name = format!("Priest {id}");
+            p.occupation = "Parish Priest".to_string();
+            p.set_location(world.player_location);
+            npc_mgr.add_npc(p);
+        }
+        let names = ["Father".to_string(), "Mary".to_string()];
+
+        let result = resolve_clarifiable_targets(&world, &npc_mgr, &names, &[]);
+        assert!(result.resolved.is_empty());
+        assert_eq!(result.absent, vec!["Mary".to_string()]);
+        assert_eq!(
+            result.ambiguous,
+            vec![AmbiguousAddressee {
+                reference: "Father".to_string(),
+                candidates: vec![NpcId(12), NpcId(13)],
+            }]
+        );
+
+        // The player's answer resolves the reference to the chosen priest.
+        let answered = [("father".to_string(), NpcId(13))];
+        let result = resolve_clarifiable_targets(&world, &npc_mgr, &names, &answered);
+        assert_eq!(result.resolved, vec![NpcId(13)]);
+        assert!(result.ambiguous.is_empty());
+
+        // A chosen NPC who is no longer here is absent, never someone else.
+        npc_mgr
+            .get_mut(NpcId(13))
+            .unwrap()
+            .set_location(LocationId(999));
+        let result = resolve_clarifiable_targets(&world, &npc_mgr, &names, &answered);
+        assert!(result.resolved.is_empty());
+        assert_eq!(
+            result.absent,
+            vec!["Father".to_string(), "Mary".to_string()]
+        );
     }
 
     /// AC-1 (#1488): `prepare_npc_conversation_turn` must include ALL parish

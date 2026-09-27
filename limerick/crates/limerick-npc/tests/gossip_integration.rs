@@ -11,7 +11,7 @@
 //! event originating at NPC A materialises in NPC B's `known_by` set after
 //! a co-located propagation pass.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use limerick_config::NpcConfig;
 use limerick_npc::Npc;
@@ -36,7 +36,7 @@ fn apply_grounded_event(
     event_bus: &EventBus,
 ) -> GroundedTier2ApplyOutcome {
     let game_time = game_time();
-    let mut npcs: HashMap<NpcId, Npc> = event
+    let mut npcs: BTreeMap<NpcId, Npc> = event
         .participants
         .iter()
         .copied()

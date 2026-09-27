@@ -29,8 +29,9 @@ pub use arrival_reactions::{
     build_reaction_prompt, generate_arrival_reactions, reaction_threshold, resolve_llm_greeting,
 };
 pub use emoji_reactions::{
-    LlmReactionDecision, build_player_message_reaction_prompt, generate_rule_reaction,
-    infer_player_message_reaction, infer_player_message_reaction_with_profile,
+    LlmReactionDecision, MessageReactionDice, build_player_message_reaction_prompt,
+    generate_rule_reaction, infer_player_message_reaction,
+    infer_player_message_reaction_with_profile,
     infer_player_message_reaction_with_profile_and_audit,
 };
 

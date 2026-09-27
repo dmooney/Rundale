@@ -13,8 +13,12 @@ use limerick_types::{Season, Weather};
 const DEFAULT_MIN_DURATION_HOURS: f64 = 2.0;
 
 /// Internal key used to suppress duplicate evaluations within one game hour.
+///
+/// Floored: game dates precede 1970, so timestamps are negative and `/` would
+/// round toward zero, putting 08:00:01-09:00:00 in one bucket instead of
+/// 08:00:00-08:59:59.
 fn game_hour_key(now: DateTime<Utc>) -> i64 {
-    now.timestamp() / 3600
+    now.timestamp().div_euclid(3600)
 }
 
 /// Maps each weather variant to an ordinal for adjacency calculations.
@@ -422,6 +426,16 @@ mod tests {
     }
 
     #[test]
+    fn game_hour_key_floors_pre_1970_times() {
+        let eight = time_at(8);
+        let key = game_hour_key(eight);
+        assert_eq!(game_hour_key(eight + chrono::Duration::seconds(1)), key);
+        assert_eq!(game_hour_key(eight + chrono::Duration::seconds(3599)), key);
+        assert_eq!(game_hour_key(time_at(9)), key + 1);
+        assert_eq!(game_hour_key(eight - chrono::Duration::seconds(1)), key - 1);
+    }
+
+    #[test]
     fn test_force_changes_state_and_records_last_check_time() {
         let start = time_at(8);
         let mut engine = WeatherEngine::new(Weather::Clear, start);
@@ -434,7 +448,7 @@ mod tests {
         assert_eq!(engine.last_check_at(), Some(forced_time));
         assert_eq!(
             engine.last_check_hour_key(),
-            Some(forced_time.timestamp() / 3600)
+            Some(forced_time.timestamp().div_euclid(3600))
         );
 
         // A tick at the same hour should be skipped

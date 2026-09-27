@@ -1,5 +1,13 @@
 name: Inference Eval
 
+# Disabled 2026-09-26. GitHub Models was retired on 2026-07-30
+# (https://github.blog/changelog/2026-07-30-github-models-is-now-retired/).
+# This workflow called models.github.ai for both the player
+# (LIMERICK_PROVIDER=github_models) and the judge (actions/ai-inference),
+# so nightly runs failed permanently with 410 / non-JSON responses.
+# GitHub Actions ignores files without a .yml/.yaml extension. Restore the
+# .yml suffix and rewire to another provider before re-enabling.
+
 on:
   schedule:
     - cron: "0 2 * * *" # nightly at 02:00 UTC

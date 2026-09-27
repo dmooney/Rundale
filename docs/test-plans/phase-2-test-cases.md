@@ -144,6 +144,6 @@ These cases validate Phase 2: the embedded Rust vertical slice. They focus on pr
 ## 20. Phase 2 scope regression
 
 - Play through the entire Phase 2 vertical slice.
-- Verify the experience remains limited to one location and one NPC.
+- Verify the world is the canonical tiny world (or a subset of it) loaded as ordinary mod content; the one-location/one-NPC limit was retired on 2026-09-16 (#1992).
 - Verify no map, portrait system, provider-configuration screen, debug surface, save DAG, legacy sidebar, or other nonessential player UI has been introduced.
 - Verify the result already feels like a small playable text game rather than a technology demo.

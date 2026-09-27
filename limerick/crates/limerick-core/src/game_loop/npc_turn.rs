@@ -29,14 +29,9 @@
 
 use std::sync::atomic::Ordering;
 
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::game_loop::{GameInputOutcome, GameLoopContext};
-use crate::inference::{
-    INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferencePriority, InferenceQueue,
-    QueueRequest, await_inference_response,
-};
+use crate::game_loop::{AddresseeClarification, GameInputOutcome, GameLoopContext};
 use crate::ipc::{
     ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
     DialogueQualityPayload, IDLE_MESSAGES, REQUEST_ID, StreamEndPayload, StreamTokenPayload,
@@ -45,6 +40,7 @@ use crate::ipc::{
 use crate::npc::NpcId;
 use crate::npc::autonomous;
 use crate::npc::parse_npc_stream_response_with_disposition;
+use crate::turn_inference::{InferenceCall, InferenceOutcome, ResponseShape, RouteStatus};
 
 /// Feature-flag name that gates the autonomous bystander chain in
 /// [`handle_npc_conversation`]. Off by default — `FeatureFlags::is_enabled`
@@ -100,6 +96,15 @@ pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
 /// Kill-switch: disable via `flags.is_disabled(POST_GUARD_UI_REPLACE_FLAG)`.
 pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 
+/// Feature-flag name (default **on**) for addressee clarification. An
+/// explicit addressee (a chip, the `X` of "talk to X", or a leading vocative
+/// such as "Widow, any news?") that matches several people present makes the
+/// turn ask which one the player meant instead of reporting "X is not here."
+/// A leading name or role vocative in free text is also passed to the shared
+/// resolver, rather than the message going to whoever is first. Kill-switch:
+/// disable via `flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG)`.
+pub const ADDRESSEE_CLARIFICATION_FLAG: &str = "addressee-clarification";
+
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
@@ -140,8 +145,7 @@ pub struct TurnOutcome {
 /// # Parameters
 ///
 /// - `ctx`: shared game-loop context (world, NPC manager, config, emitter, …).
-/// - `queue`: inference request queue (obtained by the caller before calling).
-/// - `model`: model name string for this inference call.
+///   The Tier-1 request goes through [`GameLoopContext::inference`].
 /// - `speaker_id`: which NPC speaks this turn.
 /// - `prompt_input`: the triggering player text or autonomous prompt.
 /// - `transcript`: recent conversation history for context.
@@ -152,8 +156,6 @@ pub struct TurnOutcome {
 #[allow(clippy::too_many_arguments)]
 pub async fn run_npc_turn(
     ctx: &GameLoopContext<'_>,
-    queue: &InferenceQueue,
-    model: &str,
     speaker_id: NpcId,
     prompt_input: &str,
     transcript: &[ConversationLine],
@@ -270,14 +272,8 @@ pub async fn run_npc_turn(
 
     let loading_cancel = spawn_loading();
 
-    let (token_tx, token_rx) = mpsc::channel::<String>(crate::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
-    let inference_profile = ctx
-        .config
-        .lock()
-        .await
-        .inference_profile(limerick_config::InferenceSubrole::Dialogue);
 
     // Build the placeholder first so we can capture its message id: a stream
     // that resumes after a WebSocket reconnect carries this id on every
@@ -290,113 +286,23 @@ pub async fn run_npc_turn(
         serde_json::to_value(placeholder).unwrap_or(serde_json::Value::Null),
     );
 
-    // The defaults preserve the measured Qwen2.5-14B-4bit workaround:
-    // frequency_penalty=0.5 suppresses verbatim repetition loops. Keeping the
-    // values in engine config lets each promoted model/backend profile carry
-    // the exact sampling parameters that passed its evidence gate.
-    let generation = ctx.inference_config.dialogue_generation.for_model(model);
-    tracing::debug!(
-        model,
-        max_tokens = generation.max_tokens,
-        temperature = generation.temperature,
-        frequency_penalty = generation.frequency_penalty,
-        json_mode = generation.json_mode,
-        enable_thinking = generation.enable_thinking,
-        reasoning_effort = ?generation.reasoning_effort,
-        "submitting Tier-1 dialogue generation profile"
-    );
-    let send_result = queue
-        .send(QueueRequest {
-            id: req_id,
-            model: model.to_string(),
-            prompt: setup.context,
-            system: Some(setup.system_prompt),
-            token_tx: Some(token_tx),
-            max_tokens: Some(generation.max_tokens),
-            temperature: Some(generation.temperature),
-            frequency_penalty: generation.frequency_penalty,
-            enable_thinking: generation.enable_thinking,
-            reasoning_effort: generation.reasoning_effort,
-            priority: InferencePriority::Interactive,
-            role: limerick_config::InferenceCategory::Dialogue,
+    // Provider tokens are drained and quarantined by the host: candidate text
+    // is untrusted until the completed response crosses the canonical apply
+    // validator; no raw batch is player-renderable (#1834).
+    let outcome = ctx
+        .inference()
+        .complete(InferenceCall {
             subrole: limerick_config::InferenceSubrole::Dialogue,
-            profile: Some(inference_profile),
-            json_mode: generation.json_mode,
-            json_schema: None,
-            cancel: None,
+            system: Some(setup.system_prompt),
+            prompt: setup.context,
+            response: ResponseShape::NpcDialogue,
+            correlation_id: Some(req_id),
         })
         .await;
 
-    let response_rx = match send_result {
-        Ok(rx) => rx,
-        Err(e) => {
-            tracing::error!("Failed to submit inference request: {}", e);
-            ctx.emitter.emit_event(
-                "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload::failed(
-                    req_id,
-                    Some(message_id.clone()),
-                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
-                ))
-                .unwrap_or(serde_json::Value::Null),
-            );
-            if let Some(cancel) = loading_cancel {
-                cancel.cancel();
-            }
-            return None;
-        }
-    };
-
-    // Drain provider tokens for transport backpressure, but quarantine them.
-    // Candidate text is untrusted until the completed response crosses the
-    // canonical apply validator; no raw batch is player-renderable (#1834).
-    let stream_handle = tokio::spawn(async move {
-        let mut token_rx = token_rx;
-        while token_rx.recv().await.is_some() {}
-    });
-
-    let timeout_secs = {
-        let config = ctx.config.lock().await;
-        if config.flags.is_disabled("inference-response-timeout") {
-            None
-        } else {
-            Some(INFERENCE_RESPONSE_TIMEOUT_SECS)
-        }
-    };
-    let outcome = await_inference_response(
-        response_rx,
-        timeout_secs.map(std::time::Duration::from_secs),
-    )
-    .await;
-    if matches!(&outcome, InferenceAwaitOutcome::Response(_)) {
-        let _ = stream_handle.await;
-    } else {
-        stream_handle.abort();
-    }
-
-    let response = match outcome {
-        InferenceAwaitOutcome::Response(r) => r,
-        InferenceAwaitOutcome::Closed => {
-            tracing::warn!(
-                req_id,
-                "NPC inference response channel closed without a reply"
-            );
-            if let Some(cancel) = loading_cancel {
-                cancel.cancel();
-            }
-            ctx.emitter.emit_event(
-                "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload::failed(
-                    req_id,
-                    Some(message_id.clone()),
-                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
-                ))
-                .unwrap_or(serde_json::Value::Null),
-            );
-            return None;
-        }
-        InferenceAwaitOutcome::TimedOut { secs } => {
-            tracing::warn!(req_id, secs, "NPC inference response timed out");
+    let (response_text, report) = match outcome {
+        InferenceOutcome::Completed { text, report } => (text, report),
+        InferenceOutcome::Failed { .. } => {
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
@@ -412,29 +318,12 @@ pub async fn run_npc_turn(
             return None;
         }
     };
-
-    if response.error.is_some() {
-        tracing::warn!("Inference error: {:?}", response.error);
-        if let Some(cancel) = loading_cancel {
-            cancel.cancel();
-        }
-        ctx.emitter.emit_event(
-            "stream-turn-end",
-            serde_json::to_value(StreamTurnEndPayload::failed(
-                req_id,
-                Some(message_id.clone()),
-                player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
-            ))
-            .unwrap_or(serde_json::Value::Null),
-        );
-        return None;
-    }
 
     if let Some(cancel) = loading_cancel {
         cancel.cancel();
     }
 
-    let (parsed, parse_disposition) = parse_npc_stream_response_with_disposition(&response.text);
+    let (parsed, parse_disposition) = parse_npc_stream_response_with_disposition(&response_text);
     let candidate_dialogue = parsed.dialogue.clone();
     let mut guard_reasons = Vec::new();
 
@@ -565,15 +454,19 @@ pub async fn run_npc_turn(
                 && !candidate_dialogue.trim().is_empty(),
             guard_intervened,
             guard_reasons,
-            model: model.to_string(),
-            generation: DialogueGenerationTelemetry {
-                max_tokens: generation.max_tokens,
-                temperature: generation.temperature,
-                frequency_penalty: generation.frequency_penalty,
-                json_mode: generation.json_mode,
-                enable_thinking: generation.enable_thinking,
-                reasoning_effort: generation.reasoning_effort,
-            },
+            model: report.model.clone(),
+            generation: report
+                .generation
+                .as_ref()
+                .map(|generation| DialogueGenerationTelemetry {
+                    max_tokens: generation.max_tokens,
+                    temperature: generation.temperature,
+                    frequency_penalty: generation.frequency_penalty,
+                    json_mode: generation.json_mode,
+                    enable_thinking: generation.enable_thinking,
+                    reasoning_effort: generation.reasoning_effort,
+                })
+                .unwrap_or_default(),
         })
         .unwrap_or(serde_json::Value::Null),
     );
@@ -669,8 +562,6 @@ pub async fn run_npc_turn(
 #[allow(clippy::too_many_arguments)]
 async fn run_autonomous_chain(
     ctx: &GameLoopContext<'_>,
-    queue: &InferenceQueue,
-    model: &str,
     chain_cap: usize,
     transcript: &mut Vec<ConversationLine>,
     combined_hints: &mut Vec<crate::npc::LanguageHint>,
@@ -694,17 +585,8 @@ async fn run_autonomous_chain(
             break;
         };
 
-        let Some(outcome) = run_npc_turn(
-            ctx,
-            queue,
-            model,
-            speaker_id,
-            prompt,
-            transcript,
-            false,
-            &spawn_loading,
-        )
-        .await
+        let Some(outcome) =
+            run_npc_turn(ctx, speaker_id, prompt, transcript, false, &spawn_loading).await
         else {
             break;
         };
@@ -740,6 +622,24 @@ pub async fn handle_npc_conversation(
     ctx: &GameLoopContext<'_>,
     raw: String,
     target_names: Vec<String>,
+    spawn_loading: impl Fn() -> Option<CancellationToken>,
+) -> GameInputOutcome {
+    handle_npc_conversation_settled(ctx, raw, target_names, &[], spawn_loading).await
+}
+
+/// [`handle_npc_conversation`] with the player's answers to earlier
+/// clarifications of the same request: a target name equal to an answered
+/// reference addresses the chosen NPC.
+///
+/// When an explicit target matches several people present (and
+/// [`ADDRESSEE_CLARIFICATION_FLAG`] is on), the turn asks which one the
+/// player meant: it emits the question as a system line and returns it in
+/// [`GameInputOutcome::clarification`] without running any dialogue.
+pub async fn handle_npc_conversation_settled(
+    ctx: &GameLoopContext<'_>,
+    raw: String,
+    target_names: Vec<String>,
+    answered: &[(String, NpcId)],
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) -> GameInputOutcome {
     let trimmed = raw.trim().to_string();
@@ -781,16 +681,14 @@ pub async fn handle_npc_conversation(
     let (
         npc_present,
         player_location,
-        queue,
-        model,
         max_follow_up_turns,
         autonomous_chain_enabled,
         targets,
         absent,
+        clarification,
     ) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
-        let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
         let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
         // When the player explicitly addresses someone (chip selection, @mention,
@@ -798,25 +696,38 @@ pub async fn handle_npc_conversation(
         // player "{name} is not here." instead of letting a different
         // co-located NPC speak for them (#985). For ambient input with no
         // named target, fall back to the first co-located NPC as before.
-        let (targets, absent) = if target_names.is_empty() {
+        let (targets, absent, ambiguous) = if target_names.is_empty() {
             (
                 crate::ipc::resolve_npc_targets(&world, &npc_manager, &target_names),
                 Vec::new(),
+                Vec::new(),
             )
-        } else {
+        } else if config.flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG) {
             let resolved =
                 crate::ipc::resolve_addressed_targets(&world, &npc_manager, &target_names);
-            (resolved.resolved, resolved.absent)
+            (resolved.resolved, resolved.absent, Vec::new())
+        } else {
+            let resolved = crate::ipc::resolve_clarifiable_targets(
+                &world,
+                &npc_manager,
+                &target_names,
+                answered,
+            );
+            (resolved.resolved, resolved.absent, resolved.ambiguous)
         };
+        // Ask about the first ambiguous reference; any other is asked about
+        // when the answer's run reaches it.
+        let clarification = ambiguous
+            .first()
+            .map(|ambiguous| addressee_prompt(&npc_manager, ambiguous));
         (
             npc_present,
             world.player_location,
-            queue.clone(),
-            config.model_name.clone(),
             config.max_follow_up_turns,
             config.flags.is_enabled(AUTONOMOUS_NPC_CHAIN_FLAG),
             targets,
             absent,
+            clarification,
         )
     };
 
@@ -828,6 +739,24 @@ pub async fn handle_npc_conversation(
             ctx.conversation.lock().await.end_turn();
         }
     };
+
+    // An addressee that matches several people present is never guessed:
+    // ask which one the player meant before anyone speaks.
+    if let Some(prompt) = clarification {
+        release_claim().await;
+        ctx.emitter.emit_event(
+            "text-log",
+            serde_json::to_value(text_log("system", prompt.as_line()))
+                .unwrap_or(serde_json::Value::Null),
+        );
+        return GameInputOutcome {
+            clarification: Some(AddresseeClarification {
+                prompt,
+                intent: None,
+            }),
+            ..GameInputOutcome::default()
+        };
+    }
 
     if !npc_present && absent.is_empty() {
         release_claim().await;
@@ -921,7 +850,12 @@ pub async fn handle_npc_conversation(
         return GameInputOutcome::default();
     }
 
-    let Some(queue) = queue else {
+    if ctx
+        .inference()
+        .route(limerick_config::InferenceSubrole::Dialogue)
+        .await
+        == RouteStatus::Unavailable
+    {
         release_claim().await;
         ctx.emitter.emit_event(
             "text-log",
@@ -932,7 +866,7 @@ pub async fn handle_npc_conversation(
             .unwrap_or(serde_json::Value::Null),
         );
         return GameInputOutcome::default();
-    };
+    }
 
     let mut transcript = {
         let mut conversation = ctx.conversation.lock().await;
@@ -970,8 +904,6 @@ pub async fn handle_npc_conversation(
     for speaker_id in &targets {
         let Some(outcome) = run_npc_turn(
             ctx,
-            &queue,
-            &model,
             *speaker_id,
             trimmed.as_str(),
             &transcript,
@@ -1007,8 +939,6 @@ pub async fn handle_npc_conversation(
     };
     run_autonomous_chain(
         ctx,
-        &queue,
-        &model,
         chain_cap,
         &mut transcript,
         &mut combined_hints,
@@ -1042,6 +972,30 @@ pub async fn handle_npc_conversation(
     GameInputOutcome {
         task_mutations: assigned_tasks,
         dialogue_failure,
+        clarification: None,
+    }
+}
+
+/// The question put to the player when `ambiguous` matches several people:
+/// one choice per person, labelled with the name the player knows them by.
+fn addressee_prompt(
+    npc_manager: &crate::npc::manager::NpcManager,
+    ambiguous: &crate::ipc::AmbiguousAddressee,
+) -> crate::turn::ClarificationPrompt {
+    let choices = ambiguous
+        .candidates
+        .iter()
+        .filter_map(|id| npc_manager.get(*id))
+        .map(|npc| crate::turn::ClarificationChoice {
+            id: format!("choose-npc-{}", npc.id.0),
+            label: npc_manager.display_name(npc).to_string(),
+            entity_id: Some(npc.id.0.to_string()),
+        })
+        .collect();
+    crate::turn::ClarificationPrompt {
+        question: format!("Which {} do you mean?", ambiguous.reference.trim()),
+        choices,
+        reference: Some(ambiguous.reference.clone()),
     }
 }
 
@@ -1071,10 +1025,9 @@ pub async fn run_idle_banter(
         return GameInputOutcome::default();
     }
 
-    let (queue, model, player_location, max_follow_up_turns, speakers) = {
+    let (player_location, max_follow_up_turns, speakers) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
-        let queue = ctx.inference_queue.lock().await;
         let config = ctx.config.lock().await;
 
         let mut speakers = npc_manager.npcs_at_ids(world.player_location);
@@ -1082,17 +1035,20 @@ pub async fn run_idle_banter(
         speakers.truncate(2);
 
         (
-            queue.clone(),
-            config.model_name.clone(),
             world.player_location,
             config.max_follow_up_turns.min(2),
             speakers,
         )
     };
 
-    let Some(queue) = queue else {
+    if ctx
+        .inference()
+        .route(limerick_config::InferenceSubrole::Dialogue)
+        .await
+        == RouteStatus::Unavailable
+    {
         return GameInputOutcome::default();
-    };
+    }
     if speakers.is_empty() {
         return GameInputOutcome::default();
     }
@@ -1122,8 +1078,6 @@ pub async fn run_idle_banter(
     if let Some(first_speaker) = speakers.first().copied()
         && let Some(outcome) = run_npc_turn(
             ctx,
-            &queue,
-            &model,
             first_speaker,
             "breaks the silence with a natural nearby remark",
             &transcript,
@@ -1147,8 +1101,6 @@ pub async fn run_idle_banter(
     let chain_cap = max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS);
     run_autonomous_chain(
         ctx,
-        &queue,
-        &model,
         chain_cap,
         &mut transcript,
         &mut combined_hints,
@@ -1182,7 +1134,7 @@ pub async fn run_idle_banter(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
-        dialogue_failure: None,
+        ..GameInputOutcome::default()
     }
 }
 
@@ -1252,6 +1204,7 @@ pub mod tests {
                 language: crate::npc::LanguageSettings::english_only(),
                 inference_failure_messages: &[],
                 idle_messages: &[],
+                inference_override: None,
             }
         };
     }
@@ -1428,6 +1381,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1524,6 +1478,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1599,6 +1554,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1652,6 +1608,7 @@ pub mod tests {
                 language: crate::npc::LanguageSettings::english_only(),
                 inference_failure_messages: &[],
                 idle_messages: &[],
+                inference_override: None,
             };
 
             super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;
@@ -1696,7 +1653,7 @@ pub mod tests {
         let (itx, _) = tokio::sync::mpsc::channel(1);
         let (btx, _) = tokio::sync::mpsc::channel(1);
         let (xtx, _) = tokio::sync::mpsc::channel(1);
-        let queue = super::InferenceQueue::new(itx, btx, xtx);
+        let queue = crate::inference::InferenceQueue::new(itx, btx, xtx);
 
         // GameConfig::default() leaves npc-idle-banter unset → off.
         let world = tokio::sync::Mutex::new(world_state);
@@ -2015,17 +1972,8 @@ pub mod tests {
         );
 
         // Run one NPC turn with the fake queue.
-        let _outcome = super::run_npc_turn(
-            &ctx,
-            &queue,
-            "test-model",
-            npc_id,
-            "Good day to you!",
-            &[],
-            true,
-            || None,
-        )
-        .await;
+        let _outcome =
+            super::run_npc_turn(&ctx, npc_id, "Good day to you!", &[], true, || None).await;
         assert_eq!(
             profile_rx.recv().await,
             Some((Some(768), Some(0.7), Some(0.5), true)),
@@ -2121,17 +2069,8 @@ pub mod tests {
             Arc::clone(&emitter2) as Arc<dyn EventEmitter>
         );
 
-        let _outcome2 = super::run_npc_turn(
-            &ctx2,
-            &queue,
-            "test-model",
-            npc_id2,
-            "Good day to you!",
-            &[],
-            true,
-            || None,
-        )
-        .await;
+        let _outcome2 =
+            super::run_npc_turn(&ctx2, npc_id2, "Good day to you!", &[], true, || None).await;
 
         let events2 = emitter2.events.lock().unwrap();
         assert!(
@@ -2209,8 +2148,6 @@ pub mod tests {
 
         let outcome = super::run_npc_turn(
             &ctx,
-            &queue,
-            "test-model",
             npc_id,
             "Could ye give me one specific job I can begin here now?",
             &[],

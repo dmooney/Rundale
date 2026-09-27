@@ -1,0 +1,11 @@
+# Two intent-model journeys, small talk, and a task offer and acceptance.
+# "Let us be off, walking on toward <Place>" skips the local movement parser
+# and reaches the intent model; the scripted server answers it with a move.
+# /pause first: the game clock otherwise advances with wall-clock time, so
+# turn times and background ticks would depend on how fast the host runs.
+/pause
+Let us be off, walking on toward The Crossroads
+Let us be off, walking on toward Kilteevan Village
+Fine soft day, is it not?
+Do ye have work for me here now?
+I'll take the work. What would you have me do first?

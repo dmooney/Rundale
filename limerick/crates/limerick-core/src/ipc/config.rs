@@ -120,6 +120,7 @@ pub struct GameConfig {
 /// build the inference-debug table, without that crate depending on
 /// `limerick-core` (which would be a dependency cycle). See
 /// [`limerick_diagnostics::debug_snapshot::InferenceCategoryConfig`].
+#[cfg(feature = "desktop")]
 impl limerick_diagnostics::debug_snapshot::InferenceCategoryConfig for GameConfig {
     fn category_provider(&self, cat: InferenceCategory) -> Option<String> {
         self.category_provider.get(&cat).cloned()
@@ -372,6 +373,7 @@ impl GameConfig {
     /// vllm-mlx slots that differ from the base. Deduplication of the
     /// returned slots is handled downstream in
     /// [`crate::inference::client::VllmMlxProcess::ensure_slots`].
+    #[cfg(feature = "desktop")]
     pub fn vllm_mlx_extra_slots(&self) -> Vec<crate::inference::client::VllmMlxSlot> {
         use crate::config::Provider;
         let base_provider_is_vllm_mlx = Provider::from_str_loose(&self.provider_name)
@@ -422,6 +424,7 @@ impl GameConfig {
     /// Parallel to [`Self::vllm_mlx_extra_slots`] for the Linux/Windows
     /// CUDA/ROCm vllm runtime. Used by `setup_provider_client` to auto-spawn
     /// one vllm process per unique slot for the two-slot Linux/Windows loadout.
+    #[cfg(feature = "desktop")]
     pub fn vllm_extra_slots(&self) -> Vec<crate::inference::client::VllmSlot> {
         use crate::config::Provider;
         let base_provider_is_vllm = Provider::from_str_loose(&self.provider_name)
@@ -878,6 +881,7 @@ mod tests {
         assert_eq!(tier3.max_output_tokens, 5_000);
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn debug_profiles_cover_every_concrete_workload() {
         let cfg = GameConfig::default();
@@ -896,6 +900,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn apply_local_qwen_two_slot_routes_categories() {
         let mut c = GameConfig::default();
@@ -1589,6 +1594,7 @@ mod tests {
         assert!(client.has_rate_limiter(), "base limiter is preserved");
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_mlx_extra_slots_empty_when_no_overrides() {
         let cfg = GameConfig {
@@ -1601,6 +1607,7 @@ mod tests {
         assert!(slots.is_empty(), "no overrides → no extra slots");
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_mlx_extra_slots_emits_distinct_per_category_slot() {
         let mut cfg = GameConfig {
@@ -1629,6 +1636,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_mlx_extra_slots_skips_base_slot_when_base_is_vllm_mlx() {
         let mut cfg = GameConfig {
@@ -1652,6 +1660,7 @@ mod tests {
         assert!(slots.is_empty(), "base-equal slots must be skipped");
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_extra_slots_empty_when_no_overrides() {
         let cfg = GameConfig {
@@ -1664,6 +1673,7 @@ mod tests {
         assert!(slots.is_empty(), "no overrides → no extra slots");
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_extra_slots_emits_distinct_per_category_slot() {
         let mut cfg = GameConfig {
@@ -1690,6 +1700,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_extra_slots_skips_base_slot_when_base_is_vllm() {
         let mut cfg = GameConfig {
@@ -1710,6 +1721,7 @@ mod tests {
         assert!(slots.is_empty(), "base-equal slots must be skipped");
     }
 
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_extra_slots_ignores_non_vllm_categories() {
         let mut cfg = GameConfig {
@@ -1741,6 +1753,7 @@ mod tests {
     // category model is auto-picked from the preset (e.g. Qwen3-8B) but the
     // category base URL inherits the user-level base (:8000, where only the
     // 14B is loaded) → 404 storm.
+    #[cfg(feature = "desktop")] // uses desktop-only local-model or diagnostics APIs
     #[test]
     fn vllm_preset_supplies_per_category_base_url() {
         use limerick_config::Provider;

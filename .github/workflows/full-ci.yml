@@ -37,17 +37,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -111,12 +113,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
           components: llvm-tools-preview
@@ -125,6 +127,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: v0-rust-coverage
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -159,7 +162,7 @@ jobs:
         toolchain: [stable, beta]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
@@ -170,6 +173,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -185,23 +190,57 @@ jobs:
       - name: Compile workspace
         run: cargo check --workspace --all-targets
 
+  rust-mobile-build:
+    name: Rust mobile configuration build
+    # Stages 1.3 and 2 of docs/plans/mobile-engine-convergence.md: limerick-core,
+    # including the shared game loop, must lint clean and pass its tests without
+    # the desktop-only dependencies (local-inference bootstrap, editor,
+    # chronicle, diagnostics). No GTK/WebKit packages are
+    # installed on purpose, so a desktop native dependency leaking into the
+    # mobile graph fails this job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          clean: true
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache: false
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+
+      - name: Lint limerick-core mobile configuration
+        run: cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings
+
+      - name: Test limerick-core mobile configuration
+        run: cargo test -p limerick-core --no-default-features --features mobile
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
@@ -264,14 +303,14 @@ jobs:
         working-directory: limerick/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: limerick/apps/ui/package-lock.json
 
@@ -302,26 +341,26 @@ jobs:
         working-directory: limerick/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: limerick/apps/ui/package-lock.json
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           cache: false
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: .
+          workspaces: limerick -> target
 
       - name: Install dependencies
         run: npm ci
@@ -364,6 +403,7 @@ jobs:
         rust-quality-gate,
         rust-coverage-ratchet,
         rust-multi-channel,
+        rust-mobile-build,
         game-harness,
         ui-quality,
         ui-e2e,

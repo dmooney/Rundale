@@ -155,6 +155,7 @@ async fn restore_loaded_branch_state(
     // Runtime-only context is branch-local even when both branches happen to
     // restore at the same location.
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
+    state.turns.reset().await;
     state.game_events.lock().await.clear();
     ws
 }
@@ -355,6 +356,7 @@ pub async fn do_create_branch(
         super::snapshot::get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations)
     };
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
+    state.turns.reset().await;
     state.game_events.lock().await.clear();
     if let Some(emitter) = emitter {
         limerick_core::ipc::emit_game_context_reset_then_world_update(
@@ -464,7 +466,9 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         emitter: &emitter,
         game_events: &state.game_events,
     })
-    .await
+    .await?;
+    state.turns.reset().await;
+    Ok(())
 }
 
 /// Starts a brand new game: reloads world and NPCs from data files,

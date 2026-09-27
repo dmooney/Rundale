@@ -1424,6 +1424,7 @@ async fn handle_headless_staged_game_input(
             language,
             inference_failure_messages: &inference_failure_messages,
             idle_messages: &idle_messages,
+            inference_override: None,
         };
         handle_staged_game_input(
             &ctx,
@@ -1618,7 +1619,8 @@ fn print_location_arrival(app: &App) {
 /// to stdout so the player sees them.
 async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
     use limerick_core::npc::reactions::{
-        generate_rule_reaction, infer_player_message_reaction_with_profile_and_audit,
+        MessageReactionDice, generate_rule_reaction,
+        infer_player_message_reaction_with_profile_and_audit,
     };
     use tokio::task::JoinSet;
 
@@ -1632,6 +1634,7 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
     if npcs_here.is_empty() {
         return;
     }
+    let game_minutes = app.world.clock.game_minutes();
 
     let llm_enabled = !app.flags.is_disabled("npc-llm-reactions");
     let reaction_profile = app
@@ -1658,9 +1661,10 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
             // Acquire a permit before starting the (potentially slow) LLM call.
             let _permit = sem.acquire().await.ok();
 
+            let dice = MessageReactionDice::new(game_minutes, npc.id, &input);
             let emoji = if llm_enabled {
                 if let Some(ref c) = client {
-                    infer_player_message_reaction_with_profile_and_audit(
+                    let inferred = infer_player_message_reaction_with_profile_and_audit(
                         c,
                         &model,
                         &npc,
@@ -1669,13 +1673,14 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
                         reaction_profile,
                         audit_sink,
                     )
-                    .await
-                    .or_else(|| generate_rule_reaction(&input))
+                    .await;
+                    dice.gate_inferred(inferred)
+                        .or_else(|| generate_rule_reaction(&input, dice.rule_seed))
                 } else {
-                    generate_rule_reaction(&input)
+                    generate_rule_reaction(&input, dice.rule_seed)
                 }
             } else {
-                generate_rule_reaction(&input)
+                generate_rule_reaction(&input, dice.rule_seed)
             };
 
             (npc.name.clone(), emoji)
@@ -1781,7 +1786,16 @@ async fn print_arrival_reactions(app: &mut App) {
         .cloned()
         .unwrap_or_default();
     let config = ReactionConfig::default();
-    let roll_dice = dice::roll_n(npcs.len() * 2);
+    let roll_dice = dice::seeded_n(
+        dice::seed(
+            "arrival-reactions",
+            &[
+                app.world.clock.game_minutes(),
+                u64::from(app.world.player_location.0),
+            ],
+        ),
+        npcs.len() * 2,
+    );
 
     let arrival_ctx = ArrivalContext {
         location: &loc_data,
@@ -1857,7 +1871,7 @@ fn print_location_description(app: &App) {
 
 /// Handles movement in headless mode.
 async fn handle_headless_movement(app: &mut App, target: &str) {
-    use limerick_core::dice::DiceRoll;
+    use limerick_core::dice;
     use limerick_core::world::weather_travel::{apply_multiplier, compute_weather_effect};
 
     let transport = default_transport(app);
@@ -1881,11 +1895,22 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
             // pattern as `period-map-tiles`.
             let apply_weather = !app.flags.is_disabled("weather-travel");
             let weather_effect = if apply_weather {
+                let rolls = dice::seeded_n(
+                    dice::seed(
+                        "weather-travel",
+                        &[
+                            app.world.clock.game_minutes(),
+                            u64::from(app.world.player_location.0),
+                            u64::from(destination.0),
+                        ],
+                    ),
+                    2,
+                );
                 compute_weather_effect(
                     app.world.weather,
                     app.world.clock.season(),
-                    DiceRoll::roll(),
-                    DiceRoll::roll(),
+                    rolls[0],
+                    rolls[1],
                 )
             } else {
                 limerick_core::world::weather_travel::WeatherTravelEffect::clear()
@@ -1947,9 +1972,8 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
             // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.
             if !app.flags.is_disabled("travel-encounters") {
                 use crate::world::wayfarers;
-                let clock_minutes = app.world.clock.now().timestamp() / 60;
                 let seed = wayfarers::encounter_seed(
-                    clock_minutes,
+                    app.world.clock.game_minutes(),
                     app.world.player_location,
                     destination,
                 );

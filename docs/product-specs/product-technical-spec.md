@@ -389,7 +389,7 @@ Limerick remains responsible for deciding:
 
 - whether inference is necessary;
 - which inference role is required;
-- prompt construction;
+- prompt construction, with prompt templates and Endpoint definitions authored as source-controlled game data and published to Limerick Endpoints ([ADR-025](../adr/025-mobile-runtime-on-shared-engine.md));
 - structured-output validation;
 - timeout/retry policy;
 - interpretation of the response;
@@ -610,7 +610,7 @@ A tester can spend several minutes reading, typing, submitting, stopping, recall
 
 Milestone 2 — Embedded Rust vertical slice
 
-Establish the Swift/Rust boundary and make the prototype into a tiny real game. This milestone deliberately supports only one location and one NPC.
+Establish the Swift/Rust boundary and make the prototype into a tiny real game. The canonical three-location/three-NPC world is permitted at this milestone; world size is not a Phase 2 acceptance limit (owner scope amendment, 2026-09-16, #1992).
 
 **Requirements checklist**
 
@@ -619,7 +619,7 @@ Establish the Swift/Rust boundary and make the prototype into a tiny real game. 
 - The iOS gameplay runtime does not require Tauri, the web server, desktop process management, local-model launching, or other desktop-only facilities.
 - A new game can be created locally.
 - An existing local game can be resumed.
-- The initial world contains exactly one playable location and one interactive NPC for this milestone.
+- The initial world is the canonical tiny world or a subset of it, authored as ordinary mod content.
 - /look returns authoritative local game information through the same transcript event path used by the UI.
 - The player can address the NPC using ordinary free text.
 - The game makes its interpretation of the player's request visible when doing so helps the player understand what will happen.
@@ -637,7 +637,7 @@ Establish the Swift/Rust boundary and make the prototype into a tiny real game. 
 - Transcript events have durable identities sufficient to prevent duplicate display after restoration.
 - Request-related events can be correlated so the UI can associate a command, its interpretation, streaming response, errors, and completion.
 - The same semantic event fixtures used for UI testing can represent real Limerick output.
-- The one-location/one-NPC game can be played without exposing engine configuration, provider selection, debugging tools, or other developer infrastructure.
+- The Phase 2 game can be played without exposing engine configuration, provider selection, debugging tools, or other developer infrastructure.
 
 **Exit criteria**
 
@@ -645,7 +645,7 @@ On a physical iPhone, a tester can launch or resume the game, inspect the locati
 
 Milestone 3 — Tiny world navigation
 
-Expand to the complete canonical three-location/three-NPC test world. The purpose is to prove spatial state, NPC presence, schedules, and natural-language navigation while the entire world remains understandable by one person.
+Validate spatial state, NPC presence, schedules, and natural-language navigation in the complete canonical three-location/three-NPC test world. This milestone establishes those behaviors; the world may already be present in Phase 2.
 
 **Requirements checklist**
 

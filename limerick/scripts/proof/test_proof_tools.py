@@ -1,0 +1,334 @@
+"""Tests for the differential proof tools."""
+
+from __future__ import annotations
+
+import json
+import sys
+import threading
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import noise  # noqa: E402
+from body_diff import load_requests, request_items  # noqa: E402
+from differences import (  # noqa: E402
+    Intended,
+    Item,
+    check,
+    diff_units,
+    load_intended,
+    load_intended_markdown,
+)
+from drive_session import Session, read_scenario  # noqa: E402
+from script_compare import script_units  # noqa: E402
+from scripted_openai import ScriptedServer, classify  # noqa: E402
+
+
+def units(*lines: str) -> list[tuple[str, list[str]]]:
+    """One unit per argument; a unit's lines are separated by '|'."""
+    return [(f"u{i}", line.split("|")) for i, line in enumerate(lines)]
+
+
+def signs(items: list[Item]) -> list[str]:
+    return [f"{item.sign}{item.text}" for item in items]
+
+
+# differences.diff_units
+
+
+def test_identical_runs_have_no_differences() -> None:
+    run = units("a|b", "c")
+    assert diff_units("script", "f", [run, run], [run, run]) == []
+
+
+def test_stable_units_are_compared_in_order() -> None:
+    base = units("a|b", "c")
+    head = units("b|a", "c")
+    # A reorder shows as one line leaving and re-entering.
+    assert signs(diff_units("script", "f", [base], [head])) == ["+b", "-b"]
+
+
+def test_changed_line_is_reported_with_unit_label() -> None:
+    items = diff_units("script", "f", [units("a|b")], [units("a|B")])
+    assert [str(item) for item in items] == ["script/f u0 - b", "script/f u0 + B"]
+
+
+def test_inserted_and_removed_units_are_reported_whole() -> None:
+    def labelled(*labels: str) -> list[tuple[str, list[str]]]:
+        return [(label, [f"{label} line"]) for label in labels]
+
+    assert signs(diff_units("script", "f", [labelled("a", "c")], [labelled("a", "b", "c")])) == [
+        "+b line"
+    ]
+    assert signs(diff_units("script", "f", [labelled("a", "b", "c")], [labelled("a", "c")])) == [
+        "-b line"
+    ]
+
+
+def test_units_pair_by_label_in_repetitive_runs() -> None:
+    # Round trips repeat identical units; only the labelled unit that changed
+    # is reported, not a shifted alignment of its neighbours.
+    trip = ["go to crossroads", "go to kilteevan"] * 3
+    base = [(f"cmd {i}", [cmd]) for i, cmd in enumerate(trip)]
+    head = [(label, lines + (["encounter"] if label == "cmd 3" else [])) for label, lines in base]
+    items = diff_units("script", "f", [base], [head])
+    assert [(item.unit, item.sign, item.text) for item in items] == [("cmd 3", "+", "encounter")]
+
+
+def test_a_unit_that_varies_on_base_is_compared_as_a_range() -> None:
+    base_runs = [units("x|p"), units("x|q")]
+    # Head shows a combination no single base run had: still inside the range.
+    assert diff_units("script", "f", base_runs, [units("x|p|q")]) == []
+    # A line no base run has, in every head run, is a difference.
+    assert signs(diff_units("script", "f", base_runs, [units("x|p|z"), units("x|z")])) == ["+z"]
+    # A line every base run has, missing from every head run, is a difference.
+    assert signs(diff_units("script", "f", base_runs, [units("p")])) == ["-x"]
+
+
+def test_a_line_only_some_head_runs_have_is_not_a_difference() -> None:
+    base_runs = [units("x"), units("x")]
+    head_runs = [units("x|noise"), units("x")]
+    assert diff_units("script", "f", base_runs, head_runs) == []
+
+
+# differences.check / load_intended
+
+
+def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
+    path = tmp_path / "intended.toml"
+    path.write_text(
+        '[[intended]]\nsurface = "script"\nmatch = "Hold time"\nreason = "help text"\n\n'
+        '[[intended]]\nmatch = "never"\nreason = "not observed"\n\n'
+        '[[intended]]\nmatch = "maybe"\nreason = "optional"\nrequired = false\n'
+    )
+    intended = load_intended(path)
+    items = [
+        Item("script", "test_commands", "cmd 1", "+", "/pause — Hold time quite still"),
+        Item("requests", "talk", "turn 1", "+", "Hold time"),
+    ]
+    undeclared = check(items, intended)
+    assert undeclared == [items[1]]  # surface filter excludes the request line
+    assert [entry.hits for entry in intended] == [1, 0, 0]
+    assert [entry.required for entry in intended] == [True, True, False]
+
+
+def test_intended_differences_are_read_from_a_pr_body(tmp_path: Path) -> None:
+    body = tmp_path / "body.md"
+    body.write_text(
+        'Summary.\n\n```toml\n[[intended]]\nmatch = "not this"\nreason = "plain toml"\n```\n\n'
+        "### Intended differences\n\n```toml intended-diffs\n"
+        '[[intended]]\nsurface = "script"\nmatch = "Tier"\nreason = "id order"\n'
+        "```\n\n```toml intended-diffs\n"
+        '[[intended]]\nmatch = "saved"\nreason = "stamps"\nrequired = false\n'
+        "```\n"
+    )
+    entries = load_intended_markdown(body)
+    assert [(e.match, e.surface, e.required) for e in entries] == [
+        ("Tier", "script", True),
+        ("saved", None, False),
+    ]
+
+
+def test_name_filter_uses_fnmatch() -> None:
+    entry = Intended(match="x", reason="r", name="test_debug*")
+    assert entry.covers(Item("script", "test_debug_all_npcs", "cmd 1", "+", "x"))
+    assert not entry.covers(Item("script", "test_walkthrough", "cmd 1", "+", "x"))
+
+
+# noise
+
+
+def test_live_game_timestamps_lose_their_wall_clock_seconds() -> None:
+    text = '"assigned_at": "1820-03-20T08:26:01Z", "other": "1820-03-20T08:26:59.5Z"'
+    assert noise.game_seconds(text) == (
+        '"assigned_at": "1820-03-20T08:26:<s>Z", "other": "1820-03-20T08:26:<s>Z"'
+    )
+
+
+# script_compare
+
+
+def test_script_units_split_fields_and_include_exit(tmp_path: Path) -> None:
+    out = tmp_path / "test_x.jsonl"
+    record = {
+        "command": "/help",
+        "result": "system_command",
+        "response": "Available:\n  /pause",
+        "new_log_lines": ["b line", "a line\nsecond"],
+    }
+    out.write_text(json.dumps(record) + "\nnot json\n")
+    (tmp_path / "test_x.exit").write_text("0\n")
+    units_ = script_units(out)
+    assert units_[0] == ("exit", ["exit: 0"])
+    assert units_[1][1] == [
+        'command: "/help"',
+        'result: "system_command"',
+        "response| Available:",
+        "response|   /pause",
+        "log: b line",
+        "log: a line",
+        "log: second",
+    ]
+    assert units_[2][1] == ["raw: not json"]
+
+
+# scripted_openai / body_diff
+
+
+def test_classify_routes_each_workload() -> None:
+    def body(system: str, user: str) -> dict:
+        return {
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        }
+
+    workload, reply = classify(body("You are an input parser.", "walking on toward The Mill"))
+    assert workload == "intent"
+    assert json.loads(reply) == {"intent": "move", "target": "The Mill", "dialogue": None}
+    workload, reply = classify(body("Respond in character as Peig.", "Any work here?"))
+    assert (workload, json.loads(reply)["assigned_task"]) == (
+        "dialogue",
+        "Dig over the potato patch.",
+    )
+    assert classify(body("Pick an emoji", "x"))[0] == "reaction"
+    assert classify(body("", "You are simulating background NPC activity"))[0] == "simulation"
+
+
+def test_server_logs_bodies_and_streams(tmp_path: Path) -> None:
+    log = tmp_path / "requests.jsonl"
+    server = ScriptedServer(log).start()
+    try:
+        url = f"http://127.0.0.1:{server.port}/v1/chat/completions"
+        messages = [{"role": "system", "content": "Respond in character"}]
+        for stream in (False, True):
+            request = urllib.request.Request(
+                url,
+                data=json.dumps({"messages": messages, "stream": stream}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(request) as response:
+                text = response.read().decode()
+            if stream:
+                assert text.endswith("data: [DONE]\n\n")
+            else:
+                assert "God bless ye" in json.loads(text)["choices"][0]["message"]["content"]
+    finally:
+        server.shutdown()
+    entries = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [(e["workload"], e["body"]["stream"]) for e in entries] == [
+        ("dialogue", False),
+        ("dialogue", True),
+    ]
+
+
+def test_requests_group_by_turn_with_background_sorted(tmp_path: Path) -> None:
+    def entry(workload: str, text: str) -> str:
+        if workload == "simulation":
+            text = f"Location: The Mill\nCanonical location [location_id=18]\n{text}"
+        body = {"model": "scripted", "messages": [{"role": "user", "content": text}]}
+        return json.dumps({"workload": workload, "body": body})
+
+    log = tmp_path / "requests.jsonl"
+    log.write_text(
+        "\n".join(
+            [
+                json.dumps({"turn": 1, "input": "hello"}),
+                entry("intent", "i"),
+                entry("simulation", "z"),
+                entry("simulation", "a"),
+                entry("dialogue", "d"),
+            ]
+        )
+    )
+    loaded = load_requests(log)
+    assert [label for label, _ in loaded] == [
+        "turn 1 request #1 (intent)",
+        "turn 1 request #2 (dialogue)",
+        "turn 1 background [location_id=18] (simulation) #1",
+        "turn 1 background [location_id=18] (simulation) #2",
+    ]
+    assert loaded[2][1][-1] == "user| a"
+
+
+def test_variable_background_location_does_not_shift_request_comparison(tmp_path: Path) -> None:
+    def entry(location_id: int, location: str) -> str:
+        prompt = (
+            f"Location: {location}\n"
+            f"Canonical location [location_id={location_id}]\n"
+            f"Dramatis personae at {location}."
+        )
+        body = {"model": "scripted", "messages": [{"role": "user", "content": prompt}]}
+        return json.dumps({"workload": "simulation", "body": body})
+
+    def write_run(path: Path, locations: list[tuple[int, str]]) -> Path:
+        path.write_text(
+            "\n".join(
+                [json.dumps({"turn": 3, "input": "/pause"})]
+                + [entry(location_id, location) for location_id, location in locations]
+            )
+        )
+        return path
+
+    farm = (9, "Murphy's Farm")
+    common = [(2, "Darcy's Pub"), (18, "The Mill")]
+    base = [
+        write_run(tmp_path / "base-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-2.jsonl", common),
+    ]
+    head = [
+        write_run(tmp_path / "head-1.jsonl", common),
+        write_run(tmp_path / "head-2.jsonl", common),
+    ]
+    assert request_items("scenario", base, head) == []
+
+    new_location = (21, "The Chapel")
+    head_with_new = [
+        write_run(tmp_path / "head-new-1.jsonl", [*common, new_location]),
+        write_run(tmp_path / "head-new-2.jsonl", [*common, new_location]),
+    ]
+    added = request_items("scenario", base, head_with_new)
+    assert added
+    assert {item.unit for item in added} == {"turn 3 background [location_id=21] (simulation) #1"}
+
+    base_with_farm = [
+        write_run(tmp_path / "base-farm-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-farm-2.jsonl", [common[0], farm, common[1]]),
+    ]
+    removed = request_items("scenario", base_with_farm, head)
+    assert removed
+    assert {item.unit for item in removed} == {"turn 3 background [location_id=9] (simulation) #1"}
+    assert all(item.sign == "-" for item in removed)
+
+
+# drive_session
+
+
+def test_session_keeps_a_secure_cookie_over_http() -> None:
+    seen: list[str | None] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+            pass
+
+        def do_GET(self) -> None:
+            seen.append(self.headers.get("Cookie"))
+            self.send_response(200)
+            self.send_header("Set-Cookie", "limerick_sid=abc; HttpOnly; Secure; Path=/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        session = Session(f"http://127.0.0.1:{server.server_address[1]}")
+        session.request("/")
+        session.request("/")
+    finally:
+        server.shutdown()
+    assert seen == [None, "limerick_sid=abc"]
+
+
+def test_scenario_skips_comments_and_blanks(tmp_path: Path) -> None:
+    path = tmp_path / "s.txt"
+    path.write_text("# comment\n\n/pause\n  hello  \n")
+    assert read_scenario(path) == ["/pause", "hello"]

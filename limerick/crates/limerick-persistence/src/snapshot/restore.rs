@@ -178,7 +178,14 @@ impl GameSnapshot {
         world: &mut limerick_world::WorldState,
         npc_manager: &mut limerick_npc::manager::NpcManager,
     ) {
+        // The clock's mode belongs to the host, not the save: a host that
+        // detached its clock from real time (the script harness) keeps it
+        // detached across a load.
+        let follows_wall_clock = world.clock.follows_wall_clock();
         world.clock = Self::restore_clock(&self.clock);
+        if !follows_wall_clock {
+            world.clock.detach_from_wall_clock();
+        }
         world.player_location = self.player_location;
         world.weather = self
             .weather

@@ -334,6 +334,11 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: `Arc<dyn SessionStore>` is
     /// never held across lock acquisition of any `Mutex` field.
     pub session_store: Arc<dyn SessionStore>,
+    /// The session's turn engine: every free-form player input is a turn
+    /// request run through it. Its lock is taken only inside
+    /// `InProcessTurns::submit`, under `persistence_gate` and before any
+    /// other lock.
+    pub turns: limerick_core::turn::InProcessTurns,
     /// Setup status snapshot (always `done: true` for the web server since
     /// there is no Ollama bootstrap process).  Present for IPC wiring parity
     /// with the Tauri backend (#732).
@@ -562,6 +567,7 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
         save_lock: MeteredMutex::new("save_lock", None),
         inference_config,
         save_db: MeteredMutex::new("save_db", None),
+        turns: limerick_core::turn::InProcessTurns::new(),
         session_store,
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         language_settings,
