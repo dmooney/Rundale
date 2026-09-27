@@ -14,14 +14,13 @@
 //! - sequences are assigned at append and strictly increase.
 //!
 //! [`MemoryTurnJournal`] implements the contract in memory;
-//! [`SessionStoreTurnJournal`] adds the desktop save's task journal to it.
-//! The SQLite implementation (request and transcript tables in the existing
-//! save database, one transaction per commit) is convergence Stage 3; see
+//! [`super::sqlite_journal::SqliteTurnJournal`] implements it in the save
+//! database, with one SQLite transaction per call. See
 //! `docs/design/portable-turn-api.md` §6.
 
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use limerick_types::PlayerTask;
 
@@ -29,19 +28,23 @@ use super::BoxFuture;
 use super::ids::{EventSequence, LogicalRequestId, TranscriptEventId};
 use super::lifecycle::RequestRecord;
 use super::transcript::{PendingEvent, TranscriptEvent};
-use crate::session_store::{SessionStore, TaskJournalTarget, append_task_mutations};
+use crate::persistence::GameSnapshot;
 
 /// A committed turn: the terminal request record, its transcript events,
 /// and the durable state the turn changed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TurnCommit {
     /// The request, already transitioned to `Completed`.
     pub record: RequestRecord,
     /// Transcript events produced by the attempt.
     pub events: Vec<PendingEvent>,
-    /// Player-task post-states the turn produced (today's durable per-turn
-    /// state; Stage 3 adds the authoritative state delta).
+    /// Player-task post-states the turn produced.
     pub task_mutations: Vec<PlayerTask>,
+    /// The authoritative state after the turn: a snapshot of the world and
+    /// NPCs the turn installs. `None` when the turn completes at the current
+    /// revision without changing state (a clarification answered for
+    /// someone who has left).
+    pub state: Option<GameSnapshot>,
 }
 
 /// A journal write failed; nothing was written.
@@ -87,14 +90,20 @@ pub trait TurnJournal: Send + Sync {
 
     /// Requests that are not terminal (for restart recovery).
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
+
+    /// Every journaled request, in the order first accepted (for restoring
+    /// an engine from the journal).
+    fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
 }
 
 #[derive(Debug, Default)]
 struct MemoryState {
     requests: BTreeMap<LogicalRequestId, RequestRecord>,
+    accepted_order: HashMap<LogicalRequestId, usize>,
     events: Vec<TranscriptEvent>,
     event_index: HashMap<TranscriptEventId, usize>,
     task_batches: Vec<Vec<PlayerTask>>,
+    committed_states: usize,
     fail_next_writes: usize,
 }
 
@@ -107,7 +116,7 @@ pub struct MemoryTurnJournal {
 enum WriteKind {
     Accept,
     Update,
-    Commit(Vec<PlayerTask>),
+    Commit { tasks: Vec<PlayerTask>, state: bool },
 }
 
 impl MemoryTurnJournal {
@@ -146,6 +155,11 @@ impl MemoryTurnJournal {
             .clone()
     }
 
+    /// How many committed turns carried an authoritative state.
+    pub fn committed_states(&self) -> usize {
+        self.state.lock().expect("journal lock").committed_states
+    }
+
     /// Journals a committed turn after `durable` has stored its task batch.
     ///
     /// The commit is validated (and an injected failure consumed) before
@@ -153,6 +167,9 @@ impl MemoryTurnJournal {
     /// durable storage, and a failed `durable` leaves the journal unchanged.
     /// Writers must be serialized (the turn engine is the only writer), so
     /// nothing can invalidate the commit while `durable` runs.
+    ///
+    /// The script harness's real-loop journal (`limerick-engine`
+    /// `real_loop.rs`) uses it to append task batches to its own save.
     pub async fn commit_with<F, Fut>(
         &self,
         commit: TurnCommit,
@@ -237,6 +254,11 @@ impl MemoryTurnJournal {
         if let Some(tasks) = tasks {
             state.task_batches.push(tasks);
         }
+        let order = state.accepted_order.len();
+        state
+            .accepted_order
+            .entry(record.id.clone())
+            .or_insert(order);
         state.requests.insert(record.id.clone(), record);
         stored
     }
@@ -251,7 +273,13 @@ impl MemoryTurnJournal {
         Self::inject_failure(&mut state)?;
         Self::validate(&state, matches!(kind, WriteKind::Accept), &record, &events)?;
         let tasks = match kind {
-            WriteKind::Commit(tasks) => Some(tasks),
+            WriteKind::Commit {
+                tasks,
+                state: has_state,
+            } => {
+                state.committed_states += usize::from(has_state);
+                Some(tasks)
+            }
             WriteKind::Accept | WriteKind::Update => None,
         };
         Ok(Self::append(&mut state, tasks, record, events))
@@ -282,7 +310,10 @@ impl TurnJournal for MemoryTurnJournal {
         commit: TurnCommit,
     ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
         let result = self.write(
-            WriteKind::Commit(commit.task_mutations),
+            WriteKind::Commit {
+                tasks: commit.task_mutations,
+                state: commit.state.is_some(),
+            },
             commit.record,
             commit.events,
         );
@@ -301,267 +332,43 @@ impl TurnJournal for MemoryTurnJournal {
             .collect();
         Box::pin(async move { Ok(open) })
     }
-}
 
-/// The desktop journal: a committed turn's task batch goes to the save
-/// through [`append_task_mutations`], exactly as the staged turn path did;
-/// request records and transcript events are held in memory.
-///
-/// Acceptance is therefore not durable across a crash. Desktop kept no
-/// request records before, so nothing is lost; the durable request and
-/// transcript tables are the SQLite journal of Mobile Phase 2 (#2037).
-#[derive(Default)]
-pub struct SessionStoreTurnJournal {
-    memory: MemoryTurnJournal,
-    save: Mutex<Option<TaskSave>>,
-}
-
-/// Where a committed task batch goes.
-#[derive(Clone)]
-struct TaskSave {
-    store: Arc<dyn SessionStore>,
-    target: Option<TaskJournalTarget>,
-}
-
-impl SessionStoreTurnJournal {
-    /// A journal with no save bound. Commits carrying tasks fail until one is.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Binds the store, save, and branch the next commits append their tasks
-    /// to. The runtime binds them before each turn, because the player can
-    /// switch saves and branches between turns.
-    pub fn bind(&self, store: Arc<dyn SessionStore>, target: Option<TaskJournalTarget>) {
-        *self.save.lock().expect("journal save lock") = Some(TaskSave { store, target });
-    }
-}
-
-impl TurnJournal for SessionStoreTurnJournal {
-    fn accept(
-        &self,
-        record: RequestRecord,
-        events: Vec<PendingEvent>,
-    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
-        self.memory.accept(record, events)
-    }
-
-    fn update(
-        &self,
-        record: RequestRecord,
-        events: Vec<PendingEvent>,
-    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
-        self.memory.update(record, events)
-    }
-
-    fn commit(
-        &self,
-        commit: TurnCommit,
-    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
-        let save = self.save.lock().expect("journal save lock").clone();
-        Box::pin(self.memory.commit_with(commit, move |tasks| async move {
-            if tasks.is_empty() {
-                return Ok(());
-            }
-            let (store, target) = save
-                .and_then(|save| Some((save.store, save.target?)))
-                .ok_or_else(|| {
-                    JournalError::Storage(
-                        "cannot journal player task without an active save and branch".to_string(),
-                    )
-                })?;
-            append_task_mutations(store.as_ref(), &target, &tasks)
-                .await
-                .map(|_| ())
-                .map_err(|error| JournalError::Storage(error.to_string()))
-        }))
-    }
-
-    fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
-        self.memory.open_requests()
+    fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
+        let state = self.state.lock().expect("journal lock");
+        let mut records: Vec<RequestRecord> = state.requests.values().cloned().collect();
+        records.sort_by_key(|record| state.accepted_order.get(&record.id).copied());
+        Box::pin(async move { Ok(records) })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::turn::ids::{ExecutionAttemptId, StateRevision};
-    use crate::turn::lifecycle::{RequestPhase, TerminalOutcome};
-    use crate::turn::transcript::{EventBuilder, TranscriptEventKind};
+    use crate::turn::journal_contract::{self, ContractJournal, accepted, committed, one_task};
 
-    fn accepted(id: &str) -> (RequestRecord, PendingEvent) {
-        let record = RequestRecord::accept(LogicalRequestId::new(id), "hello", Vec::new(), None);
-        let mut builder = EventBuilder::new(record.id.clone(), None, 0);
-        let mut command = builder.event(TranscriptEventKind::PlayerCommand);
-        command.content = Some("hello".to_string());
-        command.item_id = Some(record.command_item());
-        (record, command)
-    }
+    impl ContractJournal for MemoryTurnJournal {
+        fn fail_next_writes(&self, count: usize) {
+            MemoryTurnJournal::fail_next_writes(self, count);
+        }
 
-    #[tokio::test]
-    async fn sequences_strictly_increase_across_requests() {
-        let journal = MemoryTurnJournal::new();
-        let (first, first_command) = accepted("r1");
-        let (second, second_command) = accepted("r2");
-        let a = journal.accept(first, vec![first_command]).await.unwrap();
-        let b = journal.accept(second, vec![second_command]).await.unwrap();
-        assert!(a[0].sequence < b[0].sequence);
-    }
+        fn stored_events(&self) -> Vec<TranscriptEvent> {
+            self.events()
+        }
 
-    // Oracle: ios-port persistence `duplicate_events_are_idempotent_but_conflicting_payload_is_rejected`.
-    #[tokio::test]
-    async fn duplicate_events_are_idempotent_but_conflicts_reject_the_whole_write() {
-        let journal = MemoryTurnJournal::new();
-        let (mut record, command) = accepted("r1");
-        let stored = journal
-            .accept(record.clone(), vec![command.clone()])
-            .await
-            .unwrap();
+        fn stored_request(&self, id: &LogicalRequestId) -> Option<RequestRecord> {
+            self.request(id)
+        }
 
-        let again = journal
-            .update(record.clone(), vec![command.clone()])
-            .await
-            .unwrap();
-        assert_eq!(again, stored, "redelivery returns the stored event");
-        assert_eq!(journal.events().len(), 1);
+        fn durable_task_count(&self) -> usize {
+            self.task_batches().iter().map(Vec::len).sum()
+        }
 
-        let mut builder =
-            EventBuilder::new(record.id.clone(), Some(ExecutionAttemptId::new("a1")), 0);
-        let progress = builder.event(TranscriptEventKind::Progress);
-        let mut conflicting = command.clone();
-        conflicting.content = Some("goodbye".to_string());
-        record
-            .begin_attempt(ExecutionAttemptId::new("a1"), StateRevision(0))
-            .unwrap();
-        let error = journal
-            .update(record.clone(), vec![progress, conflicting])
-            .await
-            .unwrap_err();
-        assert_eq!(error, JournalError::ConflictingEvent(command.id.clone()));
-        assert_eq!(journal.events().len(), 1, "no partial write");
-        assert_eq!(
-            journal.request(&record.id).unwrap().phase,
-            RequestPhase::Accepted,
-            "the record update is rolled back too"
-        );
-    }
-
-    // Oracle: ios-port persistence `sqlite_failure_rolls_back_generation_state_request_and_event_together`.
-    #[tokio::test]
-    async fn a_failed_commit_writes_nothing_and_an_unchanged_retry_commits_once() {
-        let journal = MemoryTurnJournal::new();
-        let (mut record, command) = accepted("r1");
-        journal.accept(record.clone(), vec![command]).await.unwrap();
-        let attempt = ExecutionAttemptId::new("a1");
-        record
-            .begin_attempt(attempt.clone(), StateRevision(0))
-            .unwrap();
-        journal.update(record.clone(), Vec::new()).await.unwrap();
-        record.complete(StateRevision(1)).unwrap();
-        let mut builder = EventBuilder::new(record.id.clone(), Some(attempt), 0);
-        let mut line = builder.event(TranscriptEventKind::NpcDialogue);
-        line.content = Some("God bless ye.".to_string());
-        let done = builder.response_completed(TerminalOutcome::Succeeded, Some(StateRevision(1)));
-        let commit = TurnCommit {
-            record: record.clone(),
-            events: vec![line, done],
-            task_mutations: Vec::new(),
-        };
-
-        journal.fail_next_writes(1);
-        assert!(journal.commit(commit.clone()).await.is_err());
-        assert_eq!(journal.events().len(), 1);
-        assert_eq!(journal.task_batches().len(), 0);
-        assert_eq!(
-            journal.request(&record.id).unwrap().phase,
-            RequestPhase::Executing
-        );
-
-        let stored = journal.commit(commit.clone()).await.unwrap();
-        assert_eq!(stored.len(), 2);
-        let replayed = journal.commit(commit).await.unwrap();
-        assert_eq!(replayed, stored, "a replayed commit appends nothing new");
-        assert_eq!(journal.events().len(), 3);
-        assert!(journal.request(&record.id).unwrap().has_committed());
-    }
-
-    #[tokio::test]
-    async fn accept_rejects_a_known_request_and_update_rejects_an_unknown_one() {
-        let journal = MemoryTurnJournal::new();
-        let (record, command) = accepted("r1");
-        journal
-            .accept(record.clone(), vec![command.clone()])
-            .await
-            .unwrap();
-        assert_eq!(
-            journal
-                .accept(record.clone(), vec![command])
-                .await
-                .unwrap_err(),
-            JournalError::DuplicateRequest(record.id.clone())
-        );
-        let (stranger, _) = accepted("r2");
-        assert_eq!(
-            journal
-                .update(stranger.clone(), Vec::new())
-                .await
-                .unwrap_err(),
-            JournalError::UnknownRequest(stranger.id)
-        );
-    }
-
-    #[tokio::test]
-    async fn open_requests_lists_only_non_terminal_records() {
-        let journal = MemoryTurnJournal::new();
-        let (mut open, open_command) = accepted("open");
-        let (mut done, done_command) = accepted("done");
-        journal
-            .accept(open.clone(), vec![open_command])
-            .await
-            .unwrap();
-        journal
-            .accept(done.clone(), vec![done_command])
-            .await
-            .unwrap();
-        open.begin_attempt(ExecutionAttemptId::new("a"), StateRevision(0))
-            .unwrap();
-        journal.update(open.clone(), Vec::new()).await.unwrap();
-        done.begin_attempt(ExecutionAttemptId::new("b"), StateRevision(0))
-            .unwrap();
-        done.finish_uncommitted(TerminalOutcome::Failed).unwrap();
-        journal.update(done, Vec::new()).await.unwrap();
-        let listed = journal.open_requests().await.unwrap();
-        assert_eq!(listed, vec![open]);
-    }
-
-    fn committed(record: &mut RequestRecord, tasks: Vec<PlayerTask>) -> TurnCommit {
-        let attempt = ExecutionAttemptId::new("a1");
-        record
-            .begin_attempt(attempt.clone(), StateRevision(0))
-            .unwrap();
-        let mut started = record.clone();
-        started.complete(StateRevision(1)).unwrap();
-        let mut builder = EventBuilder::new(record.id.clone(), Some(attempt), 0);
-        let done = builder.response_completed(TerminalOutcome::Succeeded, Some(StateRevision(1)));
-        TurnCommit {
-            record: started,
-            events: vec![done],
-            task_mutations: tasks,
+        fn durable_state_count(&self) -> usize {
+            self.committed_states()
         }
     }
 
-    fn one_task() -> Vec<PlayerTask> {
-        let mut progress = limerick_types::PlayerProgress::default();
-        progress
-            .assign_task(
-                "Dig over the potato patch.",
-                crate::npc::NpcId(7),
-                crate::world::LocationId(1),
-                chrono::Utc::now(),
-            )
-            .unwrap();
-        progress.tasks().to_vec()
-    }
+    journal_contract::journal_contract_tests!(MemoryTurnJournal::new());
 
     #[tokio::test]
     async fn a_failed_durable_write_leaves_the_memory_journal_unchanged() {
@@ -608,54 +415,5 @@ mod tests {
         assert_eq!(tasks.lock().unwrap().len(), 1);
         assert_eq!(journal.task_batches().len(), 1);
         assert!(journal.request(&record.id).unwrap().has_committed());
-    }
-
-    #[tokio::test]
-    async fn the_session_store_journal_appends_tasks_to_the_bound_save_only() {
-        use crate::session_store::{DbSessionStore, load_recovery_bundle};
-
-        let temp = tempfile::tempdir().unwrap();
-        let save_path = temp.path().join("limerick_001.db");
-        let branch_id = {
-            let db = crate::persistence::Database::open(&save_path).unwrap();
-            let main = db.find_branch("main").unwrap().unwrap();
-            let world = crate::world::WorldState::new();
-            let npcs = crate::npc::manager::NpcManager::new();
-            db.save_snapshot(
-                main.id,
-                &crate::persistence::GameSnapshot::capture(&world, &npcs),
-            )
-            .unwrap();
-            main.id
-        };
-        let save_path = std::fs::canonicalize(save_path).unwrap();
-        let store: Arc<dyn SessionStore> = Arc::new(DbSessionStore::new(temp.path().to_path_buf()));
-        store.set_active_save("", &save_path).unwrap();
-
-        let journal = SessionStoreTurnJournal::new();
-        let (mut record, command) = accepted("r1");
-        journal.accept(record.clone(), vec![command]).await.unwrap();
-        let commit = committed(&mut record, one_task());
-        journal.update(record.clone(), Vec::new()).await.unwrap();
-
-        // Unbound, and bound without a branch: the batch has nowhere to go.
-        assert!(journal.commit(commit.clone()).await.is_err());
-        journal.bind(Arc::clone(&store), None);
-        assert!(journal.commit(commit.clone()).await.is_err());
-        assert!(!journal.memory.request(&record.id).unwrap().has_committed());
-
-        let target = TaskJournalTarget {
-            session_id: String::new(),
-            save_path: save_path.clone(),
-            branch_id,
-        };
-        journal.bind(Arc::clone(&store), Some(target));
-        journal.commit(commit).await.unwrap();
-        assert!(journal.memory.request(&record.id).unwrap().has_committed());
-        let bundle = load_recovery_bundle(store.as_ref(), "", &save_path, branch_id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(bundle.journal.len(), 1, "one task event appended");
     }
 }

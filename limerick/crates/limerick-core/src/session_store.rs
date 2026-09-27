@@ -398,6 +398,20 @@ pub async fn append_task_mutations_or_rollback(
     result
 }
 
+/// Task post-states as the world events that journal them, each stamped
+/// with the game time of its latest transition.
+pub(crate) fn task_world_events(tasks: &[PlayerTask]) -> Vec<(WorldEvent, String)> {
+    tasks
+        .iter()
+        .map(|task| {
+            (
+                WorldEvent::PlayerTaskStateChanged { task: task.clone() },
+                task_event_game_time(task),
+            )
+        })
+        .collect()
+}
+
 fn task_event_game_time(task: &PlayerTask) -> String {
     task.completed_at
         .or(task.started_at)
@@ -765,15 +779,7 @@ impl SessionStore for DbSessionStore {
         let exact_db = self.bind_exact_db(&target.session_id, &target.save_path);
         Box::pin(async move {
             let sdb = exact_db?;
-            let events = tasks
-                .iter()
-                .map(|task| {
-                    (
-                        WorldEvent::PlayerTaskStateChanged { task: task.clone() },
-                        task_event_game_time(task),
-                    )
-                })
-                .collect::<Vec<_>>();
+            let events = task_world_events(tasks);
             let Some(_snapshot_id) = sdb
                 .async_db
                 .append_events_to_latest_snapshot(target.branch_id, &events)

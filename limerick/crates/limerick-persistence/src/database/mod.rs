@@ -11,16 +11,19 @@
 //! | `schema`          | DDL, WAL setup, migration helpers, `lock_recovered`     |
 //! | `branches`        | Branch CRUD, `BranchInfo`, row mapping                  |
 //! | `journal`         | Snapshot + journal ops, `SnapshotInfo`                  |
+//! | `turn_journal`    | Request and transcript tables of the turn journal       |
 //! | `async_adapter`   | `AsyncDatabase` — Tokio `spawn_blocking` wrapper        |
 
 mod async_adapter;
 mod branches;
 mod journal;
 mod schema;
+mod turn_journal;
 
 pub use async_adapter::AsyncDatabase;
 pub use branches::BranchInfo;
 pub use journal::{RecoveryData, SnapshotInfo};
+pub use turn_journal::{NewTranscriptEvent, TranscriptEventRow, TurnJournalWriter, TurnRequestRow};
 
 use std::path::Path;
 
@@ -235,6 +238,51 @@ impl Database {
     /// Used during compaction after a new snapshot is taken.
     pub fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), LimerickError> {
         journal::clear_journal(&self.conn, branch_id, snapshot_id)
+    }
+
+    /// Runs one turn-journal write in a single immediate SQLite transaction.
+    ///
+    /// Every write made through the [`TurnJournalWriter`] commits together
+    /// when `write` returns `Ok`; when it returns `Err`, or any statement or
+    /// the commit fails, none of them does. Snapshots saved through the
+    /// writer are stamped like [`Self::save_snapshot`].
+    pub fn turn_journal_transaction<T, E>(
+        &self,
+        write: impl FnOnce(&TurnJournalWriter<'_>) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<LimerickError>,
+    {
+        turn_journal::transaction(&self.conn, &self.timestamp(), write)
+    }
+
+    /// Every request journaled on `branch_id`, in the order first accepted.
+    pub fn turn_requests(&self, branch_id: i64) -> Result<Vec<TurnRequestRow>, LimerickError> {
+        turn_journal::requests(&self.conn, branch_id, false)
+    }
+
+    /// The request `request_id` if it was journaled on `branch_id`.
+    pub fn turn_request(
+        &self,
+        branch_id: i64,
+        request_id: &str,
+    ) -> Result<Option<TurnRequestRow>, LimerickError> {
+        Ok(turn_journal::request(&self.conn, request_id)?.filter(|row| row.branch_id == branch_id))
+    }
+
+    /// The requests of `branch_id` that are not yet terminal.
+    pub fn open_turn_requests(&self, branch_id: i64) -> Result<Vec<TurnRequestRow>, LimerickError> {
+        turn_journal::requests(&self.conn, branch_id, true)
+    }
+
+    /// Transcript events of `branch_id` with a sequence above `after`, in
+    /// sequence order.
+    pub fn transcript_events(
+        &self,
+        branch_id: i64,
+        after: u64,
+    ) -> Result<Vec<TranscriptEventRow>, LimerickError> {
+        turn_journal::events(&self.conn, branch_id, after)
     }
 }
 

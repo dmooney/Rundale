@@ -237,7 +237,6 @@ pub(crate) async fn handle_game_input(
                     ..Default::default()
                 },
                 rules,
-                session_store: Arc::clone(&state.session_store),
                 task_target,
                 loading: Some(loading),
             },
@@ -274,8 +273,8 @@ fn game_loop_ctx(
     }
 }
 
-/// The active save and branch player-task changes are journaled to.
-async fn task_journal_target(
+/// The active save and branch player turns are journaled to.
+pub(crate) async fn task_journal_target(
     state: &Arc<AppState>,
 ) -> Option<limerick_core::session_store::TaskJournalTarget> {
     let save_path = state.save_path.lock().await;

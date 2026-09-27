@@ -155,7 +155,6 @@ async fn restore_loaded_branch_state(
     // Runtime-only context is branch-local even when both branches happen to
     // restore at the same location.
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
-    state.turns.reset().await;
     state.game_events.lock().await.clear();
     ws
 }
@@ -229,6 +228,7 @@ pub async fn do_load_branch(
     if let Some(lock) = candidate_lock {
         *state.save_lock.lock().await = Some(lock);
     }
+    open_turns(state).await;
 
     Ok(())
 }
@@ -356,7 +356,7 @@ pub async fn do_create_branch(
         super::snapshot::get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations)
     };
     *state.conversation.lock().await = limerick_core::ipc::ConversationRuntimeState::new();
-    state.turns.reset().await;
+    open_turns(state).await;
     state.game_events.lock().await.clear();
     if let Some(emitter) = emitter {
         limerick_core::ipc::emit_game_context_reset_then_world_update(
@@ -467,7 +467,7 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         game_events: &state.game_events,
     })
     .await?;
-    state.turns.reset().await;
+    open_turns(state).await;
     Ok(())
 }
 
@@ -560,6 +560,27 @@ pub async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String>
     let branch_name = state.current_branch_name.lock().await;
     let name = branch_name.as_deref().unwrap_or("unknown");
     Ok(limerick_core::game_loop::render_branch_log_text(name, &log))
+}
+
+/// Opens the app's turn engine on the save and branch just bound (new game,
+/// load, fork, launch): restores that branch's journaled requests and
+/// revision and interrupts requests a stopped process left open. A failure
+/// is logged; the next turn retries the open and reports it.
+///
+/// The recovery events are durable in the save's journal, which is where a
+/// transcript is read from; the desktop UI has no transcript rehydration, so
+/// they are counted in the log rather than emitted.
+pub(crate) async fn open_turns(state: &Arc<AppState>) {
+    let target = super::input::task_journal_target(state).await;
+    match state.turns.open(target).await {
+        Ok(recovered) => tracing::debug!(
+            recovered = recovered.len(),
+            "opened the turn journal of the bound save"
+        ),
+        Err(error) => {
+            tracing::warn!(%error, "could not open the turn journal; the next turn retries");
+        }
+    }
 }
 
 #[cfg(test)]

@@ -459,6 +459,28 @@ impl TurnEngine {
         }
     }
 
+    /// An engine restored from `journal`: every journaled request record,
+    /// and the revision of the latest committed turn (0 when none has
+    /// committed). Requests left open by a stopped process stay open until
+    /// [`Self::recover`] runs.
+    pub async fn restore(
+        journal: Arc<dyn TurnJournal>,
+        rules: TurnRules,
+    ) -> Result<Self, TurnError> {
+        let records = journal.requests().await?;
+        let mut engine = Self::new(journal, rules);
+        engine.revision = records
+            .iter()
+            .filter_map(|record| record.committed_revision)
+            .max()
+            .unwrap_or_default();
+        engine.records = records
+            .into_iter()
+            .map(|record| (record.id.clone(), record))
+            .collect();
+        Ok(engine)
+    }
+
     /// Sets the route availability attempts started from now on see.
     pub fn set_routes(&mut self, routes: InferenceRoutes) {
         self.routes = routes;
@@ -620,6 +642,7 @@ impl TurnEngine {
                     record: record.clone(),
                     events: vec![selected, notice, terminal],
                     task_mutations: Vec::new(),
+                    state: None,
                 })
                 .await?;
             self.records.insert(request.clone(), record);
@@ -1127,6 +1150,7 @@ impl TurnEngine {
             record: record.clone(),
             events,
             task_mutations: outcome.task_mutations,
+            state: Some(finished.snapshot()),
         };
         let events = match self.journal.commit(commit).await {
             Ok(events) => events,

@@ -79,6 +79,10 @@ impl TurnJournal for HarnessTurnJournal {
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
         self.memory.open_requests()
     }
+
+    fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
+        self.memory.requests()
+    }
 }
 
 impl GameTestHarness {

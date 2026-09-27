@@ -144,24 +144,12 @@ pub(super) fn append_events_to_latest_snapshot(
     branch_id: i64,
     events: &[(WorldEvent, String)],
 ) -> Result<Option<i64>, LimerickError> {
-    use rusqlite::OptionalExtension as _;
-
     if events.is_empty() {
         return Ok(None);
     }
 
     let transaction = conn.unchecked_transaction().db_err()?;
-    let snapshot_id: Option<i64> = transaction
-        .query_row(
-            "SELECT id FROM snapshots
-             WHERE branch_id = ?1
-             ORDER BY id DESC LIMIT 1",
-            params![branch_id],
-            |row| row.get(0),
-        )
-        .optional()
-        .db_err()?;
-    let Some(snapshot_id) = snapshot_id else {
+    let Some(snapshot_id) = latest_snapshot_id(&transaction, branch_id)? else {
         transaction.commit().db_err()?;
         return Ok(None);
     };
@@ -171,6 +159,24 @@ pub(super) fn append_events_to_latest_snapshot(
     }
     transaction.commit().db_err()?;
     Ok(Some(snapshot_id))
+}
+
+/// The id of the latest snapshot of `branch_id`, if it has one.
+pub(super) fn latest_snapshot_id(
+    conn: &Connection,
+    branch_id: i64,
+) -> Result<Option<i64>, LimerickError> {
+    use rusqlite::OptionalExtension as _;
+
+    conn.query_row(
+        "SELECT id FROM snapshots
+         WHERE branch_id = ?1
+         ORDER BY id DESC LIMIT 1",
+        params![branch_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .db_err()
 }
 
 /// Returns all journal events after a given snapshot for a branch.

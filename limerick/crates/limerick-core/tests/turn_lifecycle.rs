@@ -22,9 +22,9 @@ use limerick_core::npc::types::NpcState;
 use limerick_core::persistence::GameSnapshot;
 use limerick_core::turn::{
     ClarificationPrompt, ExecutionAttemptId, IgnoredReason, InferenceResolution, LifecycleError,
-    LogicalRequestId, MemoryTurnJournal, PendingInference, RequestPhase, StateRevision,
-    TerminalOutcome, TranscriptEvent, TranscriptEventKind, TurnEngine, TurnError, TurnInput,
-    TurnJournal, TurnRules, TurnStatus, TurnStep, drive_in_process,
+    LogicalRequestId, MemoryTurnJournal, PendingInference, RequestPhase, SqliteTurnJournal,
+    StateRevision, TerminalOutcome, TranscriptEvent, TranscriptEventKind, TurnEngine, TurnError,
+    TurnInput, TurnJournal, TurnRules, TurnStatus, TurnStep, drive_in_process,
 };
 use limerick_core::turn_inference::{CallReport, InferenceFailureKind, InferenceOutcome};
 use limerick_core::world::transport::TransportMode;
@@ -1962,19 +1962,15 @@ async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
 }
 
 #[tokio::test]
-async fn resetting_in_process_turns_drops_a_pending_question() {
-    use limerick_core::session_store::{DbSessionStore, SessionStore};
+async fn reopening_in_process_turns_drops_a_pending_question() {
     use limerick_core::turn::{InProcessSubmission, InProcessTurns};
 
     let live = Live::rundale();
     two_micheals(&live).await;
-    let saves = tempfile::tempdir().unwrap();
-    let store: Arc<dyn SessionStore> = Arc::new(DbSessionStore::new(saves.path().to_path_buf()));
     let turns = InProcessTurns::new();
     let submit = |text: &str| InProcessSubmission {
         input: said(text),
         rules: live.rules(),
-        session_store: Arc::clone(&store),
         task_target: None,
         loading: None,
     };
@@ -1995,14 +1991,14 @@ async fn resetting_in_process_turns_drops_a_pending_question() {
         Some(TerminalOutcome::Cancelled)
     );
 
-    // After a reset (new game, load), the question belongs to the old game:
-    // new input starts clean.
+    // After the engine is reopened (new game, load), the question belongs
+    // to the old game: new input starts clean.
     let asked = turns
         .submit(&live.ctx(), submit("talk to Mícheál about the harvest"))
         .await
         .unwrap();
     asking(&asked);
-    turns.reset().await;
+    turns.open(None).await.unwrap();
     let next = turns.submit(&live.ctx(), submit("look")).await.unwrap();
     assert_eq!(
         next.events[0].event.kind,
@@ -2015,4 +2011,392 @@ async fn resetting_in_process_turns_drops_a_pending_question() {
             ..
         }
     ));
+}
+
+// ── The durable journal ─────────────────────────────────────────────────────
+//
+// The engine over the save database's journal (`SqliteTurnJournal`), closed
+// and reopened as a relaunch would.
+
+/// A save on disk holding `live`'s state as the first snapshot of `main`.
+struct Save {
+    _dir: tempfile::TempDir,
+    path: PathBuf,
+    branch_id: i64,
+}
+
+impl Save {
+    async fn of(live: &Live) -> Self {
+        use limerick_core::persistence::Database;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("limerick_001.db");
+        let db = Database::open(&path).unwrap();
+        let branch_id = db.find_branch("main").unwrap().unwrap().id;
+        let snapshot = {
+            let world = live.world.lock().await;
+            let npcs = live.npc_manager.lock().await;
+            GameSnapshot::capture(&world, &npcs)
+        };
+        db.save_snapshot(branch_id, &snapshot).unwrap();
+        Self {
+            _dir: dir,
+            path,
+            branch_id,
+        }
+    }
+
+    fn journal(&self) -> Arc<SqliteTurnJournal> {
+        Arc::new(SqliteTurnJournal::open(&self.path, self.branch_id).unwrap())
+    }
+
+    /// An engine restored from the save, as a relaunched process opens it.
+    async fn engine(&self, live: &Live) -> (TurnEngine, Arc<SqliteTurnJournal>) {
+        let journal = self.journal();
+        let engine = TurnEngine::restore(journal.clone(), live.rules())
+            .await
+            .unwrap();
+        (engine, journal)
+    }
+
+    /// How many snapshots the branch has, and the latest one.
+    fn snapshots(&self) -> (usize, GameSnapshot) {
+        use limerick_core::persistence::Database;
+
+        let db = Database::open(&self.path).unwrap();
+        let count = db.branch_log(self.branch_id).unwrap().len();
+        let (_, latest) = db.load_latest_snapshot(self.branch_id).unwrap().unwrap();
+        (count, latest)
+    }
+
+    /// Installs a trigger that fails every insert into `table`.
+    fn fail_inserts_into(&self, table: &str) {
+        rusqlite::Connection::open(&self.path)
+            .unwrap()
+            .execute_batch(&format!(
+                "CREATE TRIGGER fail_{table} BEFORE INSERT ON {table}
+                 BEGIN SELECT RAISE(ABORT, 'injected {table} failure'); END;"
+            ))
+            .unwrap();
+    }
+}
+
+async fn live_snapshot(live: &Live) -> GameSnapshot {
+    let world = live.world.lock().await;
+    let npcs = live.npc_manager.lock().await;
+    GameSnapshot::capture(&world, &npcs)
+}
+
+// Oracle: ios-port core `sqlite_success_events_have_distinct_durable_sequences`.
+#[tokio::test]
+async fn sqlite_success_events_have_distinct_durable_sequences() {
+    let live = Live::rundale();
+    let save = Save::of(&live).await;
+    let npc = live.first_npc_here().await;
+    let (mut engine, _) = save.engine(&live).await;
+    assert_eq!(engine.revision(), StateRevision(0));
+
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Is there work going here?"))
+        .await
+        .unwrap();
+    let request = step.request_id.clone().unwrap();
+    let (done, events, _) = run_scripted(&mut engine, &live, step, "").await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            revision: Some(StateRevision(1))
+        }
+    ));
+    let committed = engine.request(&request).unwrap().clone();
+    drop(engine);
+
+    // Relaunch: the transcript, the request, and the revision come back.
+    let (mut engine, journal) = save.engine(&live).await;
+    let stored = journal.events().unwrap();
+    assert_strictly_increasing(&stored);
+    assert_eq!(stored, events, "every event the turn produced, durably");
+    assert!(contents(&stored).contains(&NPC_LINE.to_string()));
+    assert_eq!(engine.revision(), StateRevision(1));
+    assert_eq!(engine.request(&request), Some(&committed));
+    assert!(engine.recover().await.unwrap().is_empty());
+
+    // The committed state is the save's latest snapshot: autosave and the
+    // turn journal agree.
+    let (count, latest) = save.snapshots();
+    assert_eq!(count, 2, "the initial snapshot and the committed turn");
+    assert_eq!(latest, live_snapshot(&live).await);
+
+    // A committed request never runs again, even after a relaunch.
+    let again = engine
+        .submit(
+            &live.ctx(),
+            TurnInput {
+                request_id: Some(request.clone()),
+                ..talk_to(&npc, "Is there work going here?")
+            },
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            &again,
+            TurnError::Lifecycle(LifecycleError::AlreadyCommitted(id)) if *id == request
+        ),
+        "{again}"
+    );
+
+    // The next turn continues the revision and the sequence.
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Grand weather."))
+        .await
+        .unwrap();
+    let (done, next_events, _) = run_scripted(&mut engine, &live, step, "").await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            revision: Some(StateRevision(2)),
+            ..
+        }
+    ));
+    assert!(next_events[0].sequence > stored.last().unwrap().sequence);
+}
+
+// Oracle: ios-port core `sqlite_failure_and_retry_events_remain_durable_and_monotonic`.
+#[tokio::test]
+async fn sqlite_failure_and_retry_events_remain_durable_and_monotonic() {
+    let live = Live::rundale();
+    let save = Save::of(&live).await;
+    let npc = live.first_npc_here().await;
+    let before = live.fingerprint().await;
+
+    let (mut engine, _) = save.engine(&live).await;
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Is there work going here?"))
+        .await
+        .unwrap();
+    let step = to_dialogue(&mut engine, &live, step).await;
+    let first = awaiting(&step).clone();
+    let failed_step = engine
+        .resume(
+            &live.ctx(),
+            resolution(&first, failed(InferenceFailureKind::Transport)),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        failed_step.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Failed,
+            revision: None
+        }
+    ));
+    drop(engine);
+
+    let (mut engine, _) = save.engine(&live).await;
+    assert_eq!(
+        engine.request(&first.request_id).unwrap().phase,
+        RequestPhase::Failed,
+        "the failure is durable"
+    );
+    let retry = engine.retry(&live.ctx(), &first.request_id).await.unwrap();
+    let retry = to_dialogue(&mut engine, &live, retry).await;
+    let second = awaiting(&retry).clone();
+    assert_ne!(second.attempt_id, first.attempt_id);
+    engine
+        .resume(
+            &live.ctx(),
+            resolution(&second, failed(InferenceFailureKind::TimedOut)),
+        )
+        .await
+        .unwrap();
+    drop(engine);
+
+    let (engine, journal) = save.engine(&live).await;
+    let stored = journal.events().unwrap();
+    assert_strictly_increasing(&stored);
+    let record = engine.request(&first.request_id).unwrap();
+    assert_eq!(record.phase, RequestPhase::Failed);
+    assert_eq!(record.attempts.len(), 2);
+    assert_eq!(engine.revision(), StateRevision(0));
+    assert_eq!(save.snapshots().0, 1, "a failed turn writes no state");
+    assert_eq!(live.fingerprint().await, before);
+}
+
+// Oracle: ios-port persistence `sqlite_failure_rolls_back_generation_state_request_and_event_together`.
+#[tokio::test]
+async fn sqlite_failure_rolls_back_generation_state_request_and_event_together() {
+    let live = Live::rundale();
+    let save = Save::of(&live).await;
+    let npc = live.first_npc_here().await;
+    let before = live.fingerprint().await;
+    let (mut engine, journal) = save.engine(&live).await;
+
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Is there work going here?"))
+        .await
+        .unwrap();
+    let request = step.request_id.clone().unwrap();
+    let step = to_dialogue(&mut engine, &live, step).await;
+    let pending = awaiting(&step).clone();
+    let events_before_commit = journal.events().unwrap();
+
+    // The commit's snapshot insert fails inside its transaction.
+    save.fail_inserts_into("snapshots");
+    let error = engine
+        .resume(&live.ctx(), resolution(&pending, scripted(&pending, "")))
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("injected snapshots failure"),
+        "{error}"
+    );
+
+    // Nothing of the commit reached the save or the live state.
+    assert_eq!(live.fingerprint().await, before);
+    assert_eq!(engine.revision(), StateRevision(0));
+    let stored = journal.events().unwrap();
+    assert!(!contents(&stored).contains(&NPC_LINE.to_string()));
+    assert!(
+        !stored
+            .iter()
+            .any(|event| event.event.terminal_outcome == Some(TerminalOutcome::Succeeded)),
+        "no succeeded terminal"
+    );
+    assert_eq!(
+        &stored[..events_before_commit.len()],
+        &events_before_commit[..]
+    );
+    assert_eq!(save.snapshots().0, 1);
+    drop(engine);
+
+    let (engine, _) = save.engine(&live).await;
+    let record = engine.request(&request).unwrap();
+    assert!(!record.has_committed());
+    assert_eq!(record.phase, RequestPhase::Failed, "retryable");
+    assert_eq!(engine.revision(), StateRevision(0));
+}
+
+#[tokio::test]
+async fn a_request_open_when_the_process_stopped_is_interrupted_on_open_and_never_rerun() {
+    use limerick_core::session_store::TaskJournalTarget;
+    use limerick_core::turn::InProcessTurns;
+
+    let live = Live::rundale();
+    let save = Save::of(&live).await;
+    let npc = live.first_npc_here().await;
+
+    // One committed turn, then a turn the process stops in the middle of.
+    let (mut engine, _) = save.engine(&live).await;
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Is there work going here?"))
+        .await
+        .unwrap();
+    run_scripted(&mut engine, &live, step, "").await;
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Grand weather."))
+        .await
+        .unwrap();
+    let pending = awaiting(&to_dialogue(&mut engine, &live, step).await).clone();
+    drop(engine);
+
+    let turns = InProcessTurns::new();
+    let recovered = turns
+        .open(Some(TaskJournalTarget {
+            session_id: String::new(),
+            save_path: save.path.clone(),
+            branch_id: save.branch_id,
+        }))
+        .await
+        .unwrap();
+    assert_eq!(
+        kinds(&recovered),
+        vec![
+            TranscriptEventKind::Narration,
+            TranscriptEventKind::ResponseCompleted
+        ]
+    );
+    assert_eq!(
+        recovered[1].event.terminal_outcome,
+        Some(TerminalOutcome::Interrupted)
+    );
+    assert_eq!(
+        recovered[0].event.attempt_id.as_ref(),
+        Some(&pending.attempt_id)
+    );
+    assert_eq!(turns.revision().await, StateRevision(1));
+
+    // Durably interrupted: a later open finds nothing to recover, and the
+    // interrupted attempt's late reply is ignored.
+    let (mut engine, journal) = save.engine(&live).await;
+    assert!(engine.recover().await.unwrap().is_empty());
+    let record = engine.request(&pending.request_id).unwrap();
+    assert_eq!(record.phase, RequestPhase::Interrupted);
+    assert_eq!(record.attempts.len(), 1, "not re-run");
+    let late = engine
+        .resume(&live.ctx(), resolution(&pending, scripted(&pending, "")))
+        .await
+        .unwrap();
+    assert!(matches!(late.status, TurnStatus::Ignored(_)));
+    assert_strictly_increasing(&journal.events().unwrap());
+}
+
+#[tokio::test]
+async fn a_save_from_before_the_turn_journal_opens_and_journals_turns() {
+    use limerick_core::persistence::Database;
+
+    let live = Live::rundale();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("limerick_001.db");
+    std::fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../limerick-persistence/tests/fixtures/pre_turn_journal_save.db"),
+        &path,
+    )
+    .unwrap();
+    let branch_id = Database::open(&path)
+        .unwrap()
+        .find_branch("main")
+        .unwrap()
+        .unwrap()
+        .id;
+    let save = Save {
+        _dir: dir,
+        path,
+        branch_id,
+    };
+    {
+        // Play on from the saved game, as a relaunch would.
+        let recovery = Database::open(&save.path)
+            .unwrap()
+            .load_recovery_data(branch_id)
+            .unwrap()
+            .unwrap();
+        let mut world = live.world.lock().await;
+        let mut npcs = live.npc_manager.lock().await;
+        recovery.snapshot.restore(&mut world, &mut npcs);
+        world.clock.pause();
+    }
+
+    let (mut engine, _) = save.engine(&live).await;
+    assert_eq!(engine.revision(), StateRevision(0));
+    assert!(engine.recover().await.unwrap().is_empty());
+    let npc = live.first_npc_here().await;
+    let step = engine
+        .submit(&live.ctx(), talk_to(&npc, "Grand weather."))
+        .await
+        .unwrap();
+    run_scripted(&mut engine, &live, step, "").await;
+    drop(engine);
+
+    let (engine, journal) = save.engine(&live).await;
+    assert_eq!(engine.revision(), StateRevision(1));
+    let stored = journal.events().unwrap();
+    assert!(kinds(&stored).contains(&TranscriptEventKind::NpcDialogue));
+    assert_eq!(
+        stored.last().unwrap().event.state_revision,
+        Some(StateRevision(1))
+    );
+    assert_eq!(save.snapshots().0, 3, "two saved snapshots and the turn's");
 }

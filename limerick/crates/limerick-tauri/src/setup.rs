@@ -580,6 +580,10 @@ pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
                         drop(branch_id);
                         drop(save_path);
                         *state.save_lock.lock().await = Some(candidate_lock);
+                        // Reopen the resumed branch's turn journal: its
+                        // revision and requests come back, and a request
+                        // the previous process left open ends interrupted.
+                        crate::commands::saves::open_turns(state).await;
                         tracing::info!(
                             "Restored from {} (branch: {})",
                             selected_filename,

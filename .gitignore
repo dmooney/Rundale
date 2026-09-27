@@ -16,6 +16,8 @@ __pycache__/
 .ruff_cache/
 .env
 *.db
+# Checked-in save fixtures (prior save formats opened by tests).
+!limerick/crates/limerick-persistence/tests/fixtures/*.db
 *.db-journal
 *.db-wal
 logs/
