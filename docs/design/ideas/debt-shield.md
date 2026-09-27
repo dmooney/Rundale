@@ -4,7 +4,7 @@
 
 ## Overview
 
-Debt Shield is a multi-layered, automated system that prevents the accumulation of technical debt and remediates existing debt in the Parish codebase. It combines pre-commit hooks, CI lint gates, an adversarial LLM-powered PR reviewer, quantitative debt measurement with SQALE ratios, and an autonomous detect-fix-land pipeline.
+Debt Shield is a multi-layered, automated system that prevents the accumulation of technical debt and remediates existing debt in the Limerick codebase. It combines pre-commit hooks, CI lint gates, an adversarial LLM-powered PR reviewer, quantitative debt measurement with SQALE ratios, and an autonomous detect-fix-land pipeline.
 
 ## Architecture
 
@@ -207,7 +207,7 @@ jobs:
 
             1. Read the issue at ${{ github.event.issue.html_url }} to understand the debt.
             2. Diagnose the root cause using the /five-whys method.
-            3. Implement the minimal fix. Follow Parish conventions in docs/agent/code-style.md and docs/agent/gotchas.md.
+            3. Implement the minimal fix. Follow Limerick conventions in docs/agent/code-style.md and docs/agent/gotchas.md.
             4. Run `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` to verify.
             5. Create a PR:
                - Branch: debt-fix/issue-${{ github.event.issue.number }}
@@ -328,7 +328,7 @@ jobs:
 
 ## Phase 2: Adversarial Agent
 
-**Goal**: An LLM agent loaded with the exhaustive debt taxonomy and Parish conventions reviews every PR as a hostile critic. Blocker/Critical findings prevent merge.
+**Goal**: An LLM agent loaded with the exhaustive debt taxonomy and Limerick conventions reviews every PR as a hostile critic. Blocker/Critical findings prevent merge.
 
 ### Skill: `.agents/skills/debt-review/SKILL.md`
 
@@ -376,8 +376,8 @@ For each of the following categories, examine the PR diff and report ALL finding
   the code no longer implements). Commented-out code blocks. TODO comments without issue references.
 
 ### 2. Design / Architecture Debt
-- **Structural Erosion**: New code that violates Parish's module ownership rules.
-  Leaf crate logic placed in `parish-engine/src/`. Backend-agnostic crates depending on
+- **Structural Erosion**: New code that violates Limerick's module ownership rules.
+  Leaf crate logic placed in `limerick-engine/src/`. Backend-agnostic crates depending on
   tauri/axum/tower/wry/tao.
 - **Tight Coupling**: Changes that create new dependencies between crates that should be
   independent. Changes in one module that force coordinated changes in unrelated modules.
@@ -406,14 +406,14 @@ For each of the following categories, examine the PR diff and report ALL finding
 - **Tribal Knowledge**: Patterns suggesting only the PR author understands the change.
   Unusual patterns without explanatory comments. Magic numbers or obscure constants.
 
-### 7. Parish-Specific Anti-Patterns
+### 7. Limerick-Specific Anti-Patterns
 - `unwrap()` / `expect()` in library crates (should propagate errors)
 - `println!` / `eprintln!` in library crates (use `tracing` macros)
 - `std::thread::sleep` anywhere (use `tokio::time::sleep`)
 - `current_dir()` or parent-walk patterns (use `AppState` runtime paths)
 - `#[allow(clippy::*)]` without a justifying comment
 - `reqwest::get()` or `reqwest::Client::new()` without an explicit timeout
-- Module ownership violation: leaf crate logic in `parish-engine/src/`
+- Module ownership violation: leaf crate logic in `limerick-engine/src/`
 
 ## Severity Classification
 
@@ -434,7 +434,7 @@ After reviewing, output a structured summary:
     {
       "category": "code_debt.complexity",
       "severity": "major",
-      "file": "parish/crates/parish-core/src/game_loop/reactions.rs",
+      "file": "limerick/crates/limerick-core/src/game_loop/reactions.rs",
       "lines": "88-145",
       "description": "The `process_reactions` function has cyclomatic complexity of approximately 18 due to nested match arms. Consider extracting reaction-type-specific handlers.",
       "interest_payment": "Each new reaction type requires modifying this function, increasing the risk of bugs in existing reactions. The function is already 60 lines and growing.",
@@ -517,7 +517,7 @@ jobs:
           prompt: |
             /debt-review Evaluate PR #${{ steps.pr.outputs.number }} for all forms of
             technical debt. Load the full debt taxonomy from docs/design/debt-shield.md.
-            Load Parish conventions from docs/agent/code-style.md, docs/agent/gotchas.md,
+            Load Limerick conventions from docs/agent/code-style.md, docs/agent/gotchas.md,
             and docs/agent/architecture.md.
 
             Be hostile. Assume nothing is acceptable until proven otherwise.
@@ -569,31 +569,31 @@ repos:
 
       - id: witness-scan
         name: witness scan
-        entry: bash parish/scripts/witness-scan.sh
+        entry: bash limerick/scripts/witness-scan.sh
         language: system
         files: \.rs$
 
-      - id: parish-lint
-        name: parish custom lint
-        entry: bash parish/scripts/parish-lint.sh
+      - id: limerick-lint
+        name: limerick custom lint
+        entry: bash limerick/scripts/limerick-lint.sh
         language: system
         files: \.rs$
 
       - id: check-doc-paths
         name: check doc paths
-        entry: bash parish/scripts/check-doc-paths.sh
+        entry: bash limerick/scripts/check-doc-paths.sh
         language: system
         pass_filenames: false
 
       - id: secrets
         name: no secrets
-        entry: bash parish/scripts/check-secrets.sh
+        entry: bash limerick/scripts/check-secrets.sh
         language: system
         stages: [commit]
 
       - id: large-files
         name: no large files
-        entry: bash parish/scripts/check-large-files.sh
+        entry: bash limerick/scripts/check-large-files.sh
         language: system
         stages: [commit]
 
@@ -618,10 +618,10 @@ repos:
           ]
 ```
 
-### File: `parish/clippy.toml`
+### File: `limerick/clippy.toml`
 
 ```toml
-# Clippy configuration for the Parish engine
+# Clippy configuration for the Limerick engine
 # Hyperaggressive posture: tighten all thresholds
 
 # Cognitive complexity -- functions exceeding this are considered too complex
@@ -680,11 +680,11 @@ The existing `ci.yml` runs `cargo clippy --workspace --all-targets -- -D warning
 
 ### Helper Scripts
 
-**`parish/scripts/check-commit-msg.sh`** -- validates conventional commit format in the commit message file.
+**`limerick/scripts/check-commit-msg.sh`** -- validates conventional commit format in the commit message file.
 
-**`parish/scripts/check-secrets.sh`** -- scans staged files for common secret patterns (API keys, tokens, passwords).
+**`limerick/scripts/check-secrets.sh`** -- scans staged files for common secret patterns (API keys, tokens, passwords).
 
-**`parish/scripts/check-large-files.sh`** -- rejects commits adding files over 500KB.
+**`limerick/scripts/check-large-files.sh`** -- rejects commits adding files over 500KB.
 
 ---
 
@@ -718,7 +718,7 @@ jobs:
 
       - name: Run debt scanner
         id: scan
-        run: bash parish/scripts/debt-scanner.sh
+        run: bash limerick/scripts/debt-scanner.sh
         env:
           DEBT_REPORT_PATH: DEBT_REPORT.md
           BASELINE_PATH: .github/debt-baseline.json
@@ -778,12 +778,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create debt issues
-        run: bash parish/scripts/debt-issue-creator.sh
+        run: bash limerick/scripts/debt-issue-creator.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Script: `parish/scripts/debt-scanner.sh`
+### Script: `limerick/scripts/debt-scanner.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -794,7 +794,7 @@ set -euo pipefail
 
 OUTPUT_JSON="/tmp/debt-scan-result.json"
 REPORT_PATH="${DEBT_REPORT_PATH:-DEBT_REPORT.md}"
-LOC=$(tokei --output json parish/crates/ | jq '.Rust.code // 0')
+LOC=$(tokei --output json limerick/crates/ | jq '.Rust.code // 0')
 PREV_RATIO=$(jq -r '.debt_ratio // 0' .github/debt-baseline.json 2>/dev/null || echo "0")
 
 echo "=== Debt Scanner ==="
@@ -944,7 +944,7 @@ echo "Report written to $REPORT_PATH"
 echo "JSON output written to $OUTPUT_JSON"
 ```
 
-### Script: `parish/scripts/debt-issue-creator.sh`
+### Script: `limerick/scripts/debt-issue-creator.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -1045,15 +1045,15 @@ done
 
 ## Phase 4: Architectural Hardening
 
-**Goal**: Encode Parish-specific anti-patterns as enforceable rules. Expand architecture fitness tests to cover mode parity, documentation coverage, and dependency graph constraints.
+**Goal**: Encode Limerick-specific anti-patterns as enforceable rules. Expand architecture fitness tests to cover mode parity, documentation coverage, and dependency graph constraints.
 
-### File: `parish/scripts/parish-lint.sh`
+### File: `limerick/scripts/limerick-lint.sh`
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Parish-specific lint rules that clippy cannot express directly.
+# Limerick-specific lint rules that clippy cannot express directly.
 # Run on staged .rs files (or all files if no arguments).
 # Exits non-zero if any violations found.
 
@@ -1068,18 +1068,18 @@ VIOLATIONS=0
 for FILE in $FILES; do
   LIBRARY_CRATE=false
   case "$FILE" in
-    parish/crates/parish-*/src/*)
+    limerick/crates/limerick-*/src/*)
       # Leaf crates are libraries
       LIBRARY_CRATE=true ;;
-    parish/crates/parish-core/src/*)
+    limerick/crates/limerick-core/src/*)
       LIBRARY_CRATE=true ;;
-    parish/crates/parish-engine/src/*)
+    limerick/crates/limerick-engine/src/*)
       # CLI is a binary, different rules apply
       ;;
-    parish/crates/parish-server/src/*)
+    limerick/crates/limerick-server/src/*)
       # Server is a binary
       ;;
-    parish/crates/parish-tauri/src/*)
+    limerick/crates/limerick-tauri/src/*)
       # Tauri is a binary
       ;;
     *)
@@ -1088,71 +1088,71 @@ for FILE in $FILES; do
   esac
 
   # Rule 1: No unwrap() or expect() in library crates
-  if $LIBRARY_CRATE && grep -n '\.unwrap()\|\.expect(' "$FILE" | grep -v '//.*unwrap\|//.*expect\|#\[allow' > /tmp/parish-lint-unwrap.txt 2>/dev/null; then
+  if $LIBRARY_CRATE && grep -n '\.unwrap()\|\.expect(' "$FILE" | grep -v '//.*unwrap\|//.*expect\|#\[allow' > /tmp/limerick-lint-unwrap.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
-      echo "::error file=$FILE,line=$LINE::[parish-lint] No .unwrap() or .expect() in library crates. Use proper error propagation."
+      echo "::error file=$FILE,line=$LINE::[limerick-lint] No .unwrap() or .expect() in library crates. Use proper error propagation."
       VIOLATIONS=$((VIOLATIONS + 1))
-    done < /tmp/parish-lint-unwrap.txt
+    done < /tmp/limerick-lint-unwrap.txt
   fi
 
   # Rule 2: No println! or eprintln! in library crates
-  if $LIBRARY_CRATE && grep -n 'println!\|eprintln!' "$FILE" | grep -v '//.*println\|//.*eprintln' > /tmp/parish-lint-println.txt 2>/dev/null; then
+  if $LIBRARY_CRATE && grep -n 'println!\|eprintln!' "$FILE" | grep -v '//.*println\|//.*eprintln' > /tmp/limerick-lint-println.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
-      echo "::error file=$FILE,line=$LINE::[parish-lint] No println!/eprintln! in library crates. Use tracing macros."
+      echo "::error file=$FILE,line=$LINE::[limerick-lint] No println!/eprintln! in library crates. Use tracing macros."
       VIOLATIONS=$((VIOLATIONS + 1))
-    done < /tmp/parish-lint-println.txt
+    done < /tmp/limerick-lint-println.txt
   fi
 
   # Rule 3: No std::thread::sleep
-  if grep -n 'std::thread::sleep\|thread::sleep' "$FILE" | grep -v '//.*sleep\|spawn_blocking' > /tmp/parish-lint-sleep.txt 2>/dev/null; then
+  if grep -n 'std::thread::sleep\|thread::sleep' "$FILE" | grep -v '//.*sleep\|spawn_blocking' > /tmp/limerick-lint-sleep.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
-      echo "::error file=$FILE,line=$LINE::[parish-lint] No std::thread::sleep. Use tokio::time::sleep or spawn_blocking."
+      echo "::error file=$FILE,line=$LINE::[limerick-lint] No std::thread::sleep. Use tokio::time::sleep or spawn_blocking."
       VIOLATIONS=$((VIOLATIONS + 1))
-    done < /tmp/parish-lint-sleep.txt
+    done < /tmp/limerick-lint-sleep.txt
   fi
 
   # Rule 4: No current_dir() or parent-walk patterns
-  if grep -n 'current_dir()\|\.parent()\|ancestors()' "$FILE" | grep -v '//.*path\|AppState\|picker::resolve' > /tmp/parish-lint-cwd.txt 2>/dev/null; then
+  if grep -n 'current_dir()\|\.parent()\|ancestors()' "$FILE" | grep -v '//.*path\|AppState\|picker::resolve' > /tmp/limerick-lint-cwd.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
-      echo "::error file=$FILE,line=$LINE::[parish-lint] No current_dir() or parent-walk. Use AppState runtime paths."
+      echo "::error file=$FILE,line=$LINE::[limerick-lint] No current_dir() or parent-walk. Use AppState runtime paths."
       VIOLATIONS=$((VIOLATIONS + 1))
-    done < /tmp/parish-lint-cwd.txt
+    done < /tmp/limerick-lint-cwd.txt
   fi
 
   # Rule 5: #[allow(clippy::*)] must have a justifying comment
-  if grep -n '#\[allow(clippy::' "$FILE" > /tmp/parish-lint-allow.txt 2>/dev/null; then
+  if grep -n '#\[allow(clippy::' "$FILE" > /tmp/limerick-lint-allow.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
       # Check if next line has a comment
       NEXT_LINE=$((LINE + 1))
       if ! sed -n "${NEXT_LINE}p" "$FILE" | grep -q '//'; then
-        echo "::error file=$FILE,line=$LINE::[parish-lint] #[allow(clippy::*)] must have a justifying comment on the following line."
+        echo "::error file=$FILE,line=$LINE::[limerick-lint] #[allow(clippy::*)] must have a justifying comment on the following line."
         VIOLATIONS=$((VIOLATIONS + 1))
       fi
-    done < /tmp/parish-lint-allow.txt
+    done < /tmp/limerick-lint-allow.txt
   fi
 
   # Rule 6: No reqwest::get() or Client::new() without timeout
-  if grep -n 'reqwest::get\|Client::new()' "$FILE" | grep -v 'timeout\|//.*timeout' > /tmp/parish-lint-timeout.txt 2>/dev/null; then
+  if grep -n 'reqwest::get\|Client::new()' "$FILE" | grep -v 'timeout\|//.*timeout' > /tmp/limerick-lint-timeout.txt 2>/dev/null; then
     while IFS= read -r match; do
       LINE=$(echo "$match" | cut -d: -f1)
-      echo "::error file=$FILE,line=$LINE::[parish-lint] reqwest HTTP calls must have explicit timeouts."
+      echo "::error file=$FILE,line=$LINE::[limerick-lint] reqwest HTTP calls must have explicit timeouts."
       VIOLATIONS=$((VIOLATIONS + 1))
-    done < /tmp/parish-lint-timeout.txt
+    done < /tmp/limerick-lint-timeout.txt
   fi
 done
 
-echo "Parish lint: $VIOLATIONS violation(s) found"
+echo "Limerick lint: $VIOLATIONS violation(s) found"
 exit $VIOLATIONS
 ```
 
 ### Expanded Architecture Fitness Tests
 
-Add to `parish/crates/parish-core/tests/architecture_fitness.rs`:
+Add to `limerick/crates/limerick-core/tests/architecture_fitness.rs`:
 
 ```rust
 // Existing tests... plus:
@@ -1161,7 +1161,7 @@ Add to `parish/crates/parish-core/tests/architecture_fitness.rs`:
 /// Each entry point should call the same core game loop functions.
 #[test]
 fn mode_parity_check() {
-    // Verify that parish-engine, parish-server, and parish-tauri
+    // Verify that limerick-engine, limerick-server, and limerick-tauri
     // all invoke the same set of game loop / session functions.
     // This is a structural check -- exact implementation details TBD
     // based on the current handler registration pattern.
@@ -1176,7 +1176,7 @@ fn all_public_items_documented() {
 }
 
 /// Crate dependency graph must follow allowed edges.
-/// For example: parish-input should not depend on parish-npc.
+/// For example: limerick-input should not depend on limerick-npc.
 #[test]
 fn crate_dependency_graph_valid() {
     // Parse Cargo.toml dependency declarations and verify
@@ -1198,32 +1198,32 @@ fn feature_flags_documented() {
 
 ### New Files (14)
 
-| File                                   | Phase | Purpose                                   |
-| -------------------------------------- | ----- | ----------------------------------------- |
-| `.github/workflows/debt-fix.yml`       | 3     | Issue -> Claude Code fix -> PR            |
-| `.github/workflows/debt-land.yml`      | 3     | PR -> verify CI -> classify -> auto-merge |
-| `.github/workflows/debt-scanner.yml`   | 1     | Weekly scan + SQALE + issue creation      |
-| `.github/workflows/debt-review.yml`    | 2     | Adversarial PR review (gating)            |
-| `.agents/skills/debt-review/SKILL.md`  | 2     | Hostile debt auditor skill definition     |
-| `.pre-commit-config.yaml`              | 0     | Human-facing git hooks                    |
-| `parish/clippy.toml`                   | 0     | Clippy thresholds                         |
-| `parish/scripts/debt-scanner.sh`       | 1     | Clippy JSON parser + SQALE calculator     |
-| `parish/scripts/debt-issue-creator.sh` | 1     | Converts scan findings to GitHub issues   |
-| `parish/scripts/parish-lint.sh`        | 4     | Custom Parish-specific lint rules         |
-| `parish/scripts/check-commit-msg.sh`   | 0     | Conventional commit validator             |
-| `parish/scripts/check-secrets.sh`      | 0     | Secret pattern scanner                    |
-| `parish/scripts/check-large-files.sh`  | 0     | Large file blocker                        |
-| `docs/design/debt-shield.md`           | --    | This document                             |
+| File                                     | Phase | Purpose                                   |
+| ---------------------------------------- | ----- | ----------------------------------------- |
+| `.github/workflows/debt-fix.yml`         | 3     | Issue -> Claude Code fix -> PR            |
+| `.github/workflows/debt-land.yml`        | 3     | PR -> verify CI -> classify -> auto-merge |
+| `.github/workflows/debt-scanner.yml`     | 1     | Weekly scan + SQALE + issue creation      |
+| `.github/workflows/debt-review.yml`      | 2     | Adversarial PR review (gating)            |
+| `.agents/skills/debt-review/SKILL.md`    | 2     | Hostile debt auditor skill definition     |
+| `.pre-commit-config.yaml`                | 0     | Human-facing git hooks                    |
+| `limerick/clippy.toml`                   | 0     | Clippy thresholds                         |
+| `limerick/scripts/debt-scanner.sh`       | 1     | Clippy JSON parser + SQALE calculator     |
+| `limerick/scripts/debt-issue-creator.sh` | 1     | Converts scan findings to GitHub issues   |
+| `limerick/scripts/limerick-lint.sh`      | 4     | Custom Limerick-specific lint rules       |
+| `limerick/scripts/check-commit-msg.sh`   | 0     | Conventional commit validator             |
+| `limerick/scripts/check-secrets.sh`      | 0     | Secret pattern scanner                    |
+| `limerick/scripts/check-large-files.sh`  | 0     | Large file blocker                        |
+| `docs/design/debt-shield.md`             | --    | This document                             |
 
 ### Modified Files (5)
 
-| File                                                      | Phase | Change                                                                            |
-| --------------------------------------------------------- | ----- | --------------------------------------------------------------------------------- |
-| `.github/workflows/ci.yml`                                | 0     | Add reviewdog diff-only clippy linting step                                       |
-| `parish/crates/parish-core/tests/architecture_fitness.rs` | 4     | Add mode parity, docs coverage, dep graph tests                                   |
-| `.agents/skills/techdebt/SKILL.md`                        | 3     | Integrate with autonomous pipeline                                                |
-| `AGENTS.md`                                               | 4     | Document new workflows, skills, and debt-shield system                            |
-| All library crate `src/lib.rs`                            | 0     | Add `#![deny(clippy::pedantic)]` and `#![deny(clippy::nursery)]` crate attributes |
+| File                                                          | Phase | Change                                                                            |
+| ------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| `.github/workflows/ci.yml`                                    | 0     | Add reviewdog diff-only clippy linting step                                       |
+| `limerick/crates/limerick-core/tests/architecture_fitness.rs` | 4     | Add mode parity, docs coverage, dep graph tests                                   |
+| `.agents/skills/techdebt/SKILL.md`                            | 3     | Integrate with autonomous pipeline                                                |
+| `AGENTS.md`                                                   | 4     | Document new workflows, skills, and debt-shield system                            |
+| All library crate `src/lib.rs`                                | 0     | Add `#![deny(clippy::pedantic)]` and `#![deny(clippy::nursery)]` crate attributes |
 
 ### Supporting Files
 
@@ -1255,4 +1255,4 @@ fn feature_flags_documented() {
 2. **Week 2**: Build Phase 2 (adversarial agent) -- `debt-review/SKILL.md`, `debt-review.yml`. Run in shadow mode (comment-only, no gating) for one week to tune false positive rate, then enable gating.
 3. **Week 3**: Build Phase 0 (foundation) -- `clippy.toml`, `.pre-commit-config.yaml`, helper scripts. Add `#![deny(clippy::pedantic)]` to crate roots. Fix initial wave of pedantic warnings.
 4. **Week 4**: Build Phase 1 (measurement) -- complete SQALE ratio, trending, hotspot detection. Wire up the CI threshold check.
-5. **Week 5**: Build Phase 4 (architectural) -- `parish-lint.sh`, expanded architecture fitness tests. Final integration testing of all layers.
+5. **Week 5**: Build Phase 4 (architectural) -- `limerick-lint.sh`, expanded architecture fitness tests. Final integration testing of all layers.

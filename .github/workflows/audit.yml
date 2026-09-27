@@ -10,18 +10,18 @@ on:
   # advisory can leave main red while the fast/full CI workflows remain green.
   pull_request:
     paths:
-      - "parish/Cargo.lock"
-      - "parish/Cargo.toml"
-      - "parish/crates/**/Cargo.toml"
+      - "limerick/Cargo.lock"
+      - "limerick/Cargo.toml"
+      - "limerick/crates/**/Cargo.toml"
       - ".github/workflows/audit.yml"
   # Re-audit immediately when the dependency tree changes on main, so we
   # don't wait up to 24h to notice a bad lockfile bump.
   push:
     branches: [main]
     paths:
-      - "parish/Cargo.lock"
-      - "parish/Cargo.toml"
-      - "parish/crates/**/Cargo.toml"
+      - "limerick/Cargo.lock"
+      - "limerick/Cargo.toml"
+      - "limerick/crates/**/Cargo.toml"
       - ".github/workflows/audit.yml"
 
 concurrency:
@@ -33,7 +33,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 jobs:
   cargo-audit:
@@ -65,7 +65,7 @@ jobs:
         run: cargo audit
 
       # Cargo.lock retains xcap's Linux-only transitive dependencies even
-      # though Parish enables xcap only on macOS and Windows. The exact git
+      # though Limerick enables xcap only on macOS and Windows. The exact git
       # pins in Cargo.toml therefore clear RustSec without changing a compiled
       # target. Fail before merge if that target-reachability invariant changes:
       # wayland-scanner's pinned tree contains unreleased breaking codegen.

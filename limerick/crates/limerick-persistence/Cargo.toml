@@ -1,0 +1,24 @@
+[package]
+name = "limerick-persistence"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "SQLite save/load with WAL journal and branching saves for the Limerick engine"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-world = { workspace = true }
+limerick-npc = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = { workspace = true }

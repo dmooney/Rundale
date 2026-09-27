@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Work the GitHub issue backlog in three modes — triage (label un-triaged issues by theme + P0–P3), fix-one (take a single issue end-to-end), and drain (multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green). Trigger for "triage the backlog", "fix issue #N", "drain the backlog", "merge ready PRs", "sweep open PRs", or cleanup after a triage pass. Per Parish convention, bugs ship before enhancements.
+description: Work the GitHub issue backlog in three modes — triage (label un-triaged issues by theme + P0–P3), fix-one (take a single issue end-to-end), and drain (multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green). Trigger for "triage the backlog", "fix issue #N", "drain the backlog", "merge ready PRs", "sweep open PRs", or cleanup after a triage pass. Per Limerick convention, bugs ship before enhancements.
 argument-hint: 'triage | fix-one <issue#> | drain [scope filter]'
 ---
 
@@ -75,7 +75,7 @@ Work a single GitHub issue end-to-end. Pass the issue number.
 4. **Plan the fix.** Outline which files change and what tests to add. Keep it minimal — only what's needed.
 5. **Implement.** Follow project style (cargo fmt, clippy clean, doc comments on public items).
 6. **Add tests** covering the new or changed behaviour.
-7. **Run checks**: `cd parish && cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`. All pass.
+7. **Run checks**: `cd limerick && cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`. All pass.
 8. **Game harness**: `cargo run -- --script testing/fixtures/test_walkthrough.txt`; verify the JSON output.
 9. **Update docs** affected by the change (README, docs/, doc comments).
 10. **Commit**: a conventional commit (e.g. `fix: resolve #N — <description>`).
@@ -99,7 +99,7 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    the `Agent` tool with `subagent_type: general-purpose`, `model: sonnet`, `isolation: worktree`,
    `run_in_background: true`. Each prompt **must** start with the verbatim WORKTREE DISCIPLINE block:
 
-   > **WORKTREE DISCIPLINE — verify pwd contains `/.claude/worktrees/agent-`. Never `cd` to `/Users/dmooney/Parish` or any other worktree. Push only with `git push origin <branch>` — never `HEAD:other-branch`. Do not push to any orchestrator-owned branch. Open new PRs via `gh pr create --base main --head <branch>` and verify a NEW PR number is returned.**
+   > **WORKTREE DISCIPLINE — verify pwd contains `/.claude/worktrees/agent-`. Never `cd` to `/Users/dmooney/Limerick` or any other worktree. Push only with `git push origin <branch>` — never `HEAD:other-branch`. Do not push to any orchestrator-owned branch. Open new PRs via `gh pr create --base main --head <branch>` and verify a NEW PR number is returned.**
 
    Then the task: branch name (e.g. `fix/<issue-list>-<topic>`), `Fixes #N, fixes #M.` in PR body for
    auto-close, conventional commit prefix (`fix:` / `security:` / `perf:` / `chore(deps):`), `just check`

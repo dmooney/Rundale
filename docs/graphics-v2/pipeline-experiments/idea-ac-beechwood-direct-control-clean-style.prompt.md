@@ -1,5 +1,5 @@
 Use case: historical-scene
-Asset type: direct-from-local-control illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: direct-from-local-control illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: tight local top-down topology control crop for the target location. This is the primary layout authority for the smaller playable plate area: building footprints and adjacency, yard/courtyard/open working areas, garden/enclosure boundaries, road edges, wall/hedge lines, tree masses, gates, and exits. It is not a style reference.

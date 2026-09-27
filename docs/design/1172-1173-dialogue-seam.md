@@ -65,9 +65,9 @@ validator never substitutes a noun while leaving the surrounding false claim
 intact. The direct apply API and both game-loop modes use the same validator and
 snapshot, with mode-parity coverage at the real-loop seam.
 
-### B2 (#1173) — one shared seam in `parish-core`
+### B2 (#1173) — one shared seam in `limerick-core`
 
-Add `parish_core::game_session::apply_npc_dialogue_turn`, next to
+Add `limerick_core::game_session::apply_npc_dialogue_turn`, next to
 `apply_movement`, doing all five steps over plain `&mut WorldState` /
 `&mut NpcManager` borrows (no runtime-specific I/O, so no `EventEmitter`
 parameter — the `DialogueOccurred` publish goes to `world.event_bus`, the
@@ -126,7 +126,7 @@ Callers become thin:
 
 ### B1 (#1172) — mode-parity golden test
 
-`parish-engine/tests/mode_parity.rs`: build a `GameTestHarness`, subscribe to
+`limerick-engine/tests/mode_parity.rs`: build a `GameTestHarness`, subscribe to
 `world.event_bus`, drive one deterministic dialogue input (`talk to <npc> …`)
 through the legacy `execute` path; capture the `GameEvent`s. Roll back to the
 pre-state, drive the _same_ input through `execute_via_real_loop` (the real
@@ -136,15 +136,15 @@ set-semantic runs — reuse `shadow::normalize` shape) and assert equality. A
 second test drops a step from one path behind a test-only switch (or asserts the
 pre-fix inequality on a captured fixture) to prove the guard bites (C6).
 
-Test lives in `parish-engine` (not `parish-core` as the issue's `e.g.`
-suggested) because only `parish-engine` can reach all of `GameTestHarness`,
-`execute_via_real_loop`, and the headless `App` — `parish-core` cannot depend on
-`parish-engine`. Noted as an intentional deviation.
+Test lives in `limerick-engine` (not `limerick-core` as the issue's `e.g.`
+suggested) because only `limerick-engine` can reach all of `GameTestHarness`,
+`execute_via_real_loop`, and the headless `App` — `limerick-core` cannot depend on
+`limerick-engine`. Noted as an intentional deviation.
 
 ## Affected subsystems
 
-- `parish-core` (`game_session.rs`) — new seam; `game_loop/npc_turn.rs` — call site.
-- `parish-engine` (`headless.rs`, `testing.rs`) — route through seam; new
+- `limerick-core` (`game_session.rs`) — new seam; `game_loop/npc_turn.rs` — call site.
+- `limerick-engine` (`headless.rs`, `testing.rs`) — route through seam; new
   `tests/mode_parity.rs`.
 - No new mod files, no new `Npc`/`World` fields, no new event variants.
 
@@ -173,4 +173,4 @@ suggested) because only `parish-engine` can reach all of `GameTestHarness`,
 `/debug memory Niamh Darcy` shows `Overheard: a newcomer said '…' and Padraig
 Darcy replied '…'` — impossible before the fix because the addressed path never
 called `record_witness_memories`. Fixture:
-`parish/testing/proofs/play_1172-1173-dialogue-seam.txt`.
+`limerick/testing/proofs/play_1172-1173-dialogue-seam.txt`.

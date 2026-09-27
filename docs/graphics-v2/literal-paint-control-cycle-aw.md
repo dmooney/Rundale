@@ -42,7 +42,7 @@ therefore remain a raw-map/imagegen inference, not a deterministic class.
 - Cleaned map oblique cue:
   `pipeline-experiments/idea-aw2-kilteevan-literal-paint-oblique-raw-warp.png`
 - Full illustrated notebook sample, style only:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 - Clean single-building slate and thatch references:
   `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`
   and

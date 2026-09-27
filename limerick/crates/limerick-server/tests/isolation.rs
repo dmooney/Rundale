@@ -1,0 +1,655 @@
+/// Integration tests for cross-user / shared-state isolation
+/// (issues #332, #333, #334, #335, #605, #752, #785).
+///
+/// These tests drive minimal axum routers that exercise the security
+/// boundaries without requiring a fully initialised game world where possible.
+use axum::http::StatusCode;
+
+use limerick_server::routes::{
+    check_admin_against, check_admin_no_config, is_admin_command, redact_call_log,
+    validate_addressed_to, validate_branch_name,
+};
+use limerick_server::session::is_valid_session_id;
+
+// ── #332 — Admin-command gate ─────────────────────────────────────────────────
+
+/// Non-admin user issuing `/cloud key sk-evil` must be blocked.
+///
+/// `is_admin_command` operates on the parsed `Command` variant (#509, #516) to
+/// avoid false-matching in-game dialogue; `check_admin_against` is the testable
+/// version of the env-var-backed `check_admin`.
+#[test]
+fn submit_input_admin_command_non_admin_is_403() {
+    use limerick_core::input::{InputResult, classify_input};
+    let text = "/cloud key sk-evil";
+    let InputResult::SystemCommand(cmd) = classify_input(text) else {
+        panic!("expected SystemCommand for {text:?}");
+    };
+    assert!(is_admin_command(&cmd));
+    assert_eq!(
+        check_admin_against("attacker@example.com", text, Some("operator@example.com")),
+        Err(StatusCode::FORBIDDEN),
+    );
+}
+
+/// Non-admin user issuing a gameplay command must not be blocked.
+#[test]
+fn submit_input_gameplay_command_any_user_is_200() {
+    use limerick_core::input::{InputResult, classify_input};
+    // "say hello" is not a system command at all — is_admin_command must return false.
+    match classify_input("say hello") {
+        InputResult::SystemCommand(cmd) => assert!(!is_admin_command(&cmd)),
+        _ => { /* not a system command: definitely not admin */ }
+    }
+}
+
+/// Admin user issuing an admin command must be allowed.
+#[test]
+fn submit_input_admin_command_admin_is_ok() {
+    use limerick_core::input::{InputResult, classify_input};
+    let text = "/cloud key sk-good";
+    let InputResult::SystemCommand(cmd) = classify_input(text) else {
+        panic!("expected SystemCommand for {text:?}");
+    };
+    assert!(is_admin_command(&cmd));
+    assert_eq!(
+        check_admin_against("operator@example.com", text, Some("operator@example.com")),
+        Ok(()),
+    );
+}
+
+// ── #605 — Admin-email check is order-independent ────────────────────────────
+//
+// The production `admin_emails()` caches parsed emails in a `OnceCell`
+// forever, making tests that call it in parallel order-dependent.
+// `check_admin_against` accepts the admin email as an explicit parameter,
+// so each test is fully self-contained and carries no shared state.
+
+/// A completely different admin email set can be used in the same test run
+/// without interfering with other tests — each call is stateless.
+#[test]
+fn check_admin_against_different_admin_sets_are_independent() {
+    // Simulate a test that runs *first* and configures one admin.
+    let result_a = check_admin_against("alice@example.com", "/key sk-a", Some("alice@example.com"));
+    assert_eq!(
+        result_a,
+        Ok(()),
+        "alice should be allowed when she is the admin"
+    );
+
+    // Simulate a test that runs *second* with a completely different admin —
+    // this must not be affected by the previous call's email set.
+    let result_b = check_admin_against("bob@example.com", "/key sk-b", Some("bob@example.com"));
+    assert_eq!(
+        result_b,
+        Ok(()),
+        "bob should be allowed when he is the admin"
+    );
+
+    // Cross-check: alice is not an admin in bob's config.
+    let result_c = check_admin_against("alice@example.com", "/key sk-c", Some("bob@example.com"));
+    assert_eq!(
+        result_c,
+        Err(StatusCode::FORBIDDEN),
+        "alice must be rejected when bob is the sole admin"
+    );
+}
+
+/// When no admin is configured (`None`), the fail-closed rule applies in
+/// release builds.  In debug builds (tests run with debug assertions) it
+/// must succeed.  This result is deterministic regardless of test order.
+#[test]
+fn check_admin_against_none_config_is_deterministic() {
+    let result = check_admin_against("any@example.com", "/key sk-x", None);
+    // In test/debug builds, cfg!(debug_assertions) is true → Ok(()).
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
+/// Covers the release-mode fail-closed branch of `check_admin_against`.
+///
+/// `cfg!(debug_assertions)` is always `true` under `cargo test`, so the
+/// release path is exercised via `check_admin_no_config(is_debug = false)`.
+/// This is the testable helper extracted specifically to cover issue #763.
+#[test]
+fn check_admin_no_config_release_mode_is_fail_closed() {
+    // Simulate release build: is_debug = false → must be FORBIDDEN.
+    let result = check_admin_no_config("any@example.com", "/key sk-x", false);
+    assert_eq!(
+        result,
+        Err(StatusCode::FORBIDDEN),
+        "release build with no admin config must deny (fail-closed)"
+    );
+}
+
+/// Confirm the debug-mode path of `check_admin_no_config` allows any user.
+#[test]
+fn check_admin_no_config_debug_mode_is_fail_open() {
+    let result = check_admin_no_config("any@example.com", "/key sk-x", true);
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
+// ── #333 — Debug snapshot redaction ──────────────────────────────────────────
+
+/// The debug-snapshot handler strips sensitive fields from the call log.
+///
+/// Constructs an `InferenceLogEntry` with sensitive content, passes it through
+/// the production `redact_call_log` function (the same path called by
+/// `get_debug_snapshot`), then asserts the serialised JSON contains
+/// `prompt_len` but not the secret text.
+#[test]
+fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
+    use limerick_core::debug_snapshot::InferenceLogEntry;
+
+    // Construct a synthetic log entry with sensitive content.
+    let entry = InferenceLogEntry {
+        request_id: 1,
+        timestamp: "12:00:00".to_string(),
+        model: "llama3".to_string(),
+        streaming: false,
+        duration_ms: 500,
+        prompt_len: 42,
+        response_len: 17,
+        error: None,
+        system_prompt: Some("SECRET SYSTEM PROMPT".to_string()),
+        prompt_text: "secret user prompt".to_string(),
+        response_text: "secret response".to_string(),
+        max_tokens: None,
+        ttft_ms: Some(45),
+        output_tokens: Some(12),
+        temperature: None,
+        priority: limerick_core::inference::InferencePriority::Interactive,
+        ..Default::default()
+    };
+
+    // Call the production redaction function — the same path `get_debug_snapshot`
+    // calls (#333).  This ensures the test exercises real production code rather
+    // than a hand-rolled copy.
+    let redacted_log = redact_call_log(&[entry]);
+    assert_eq!(redacted_log.len(), 1, "redacted log must have one entry");
+    let redacted = &redacted_log[0];
+
+    let json = serde_json::to_value(redacted).unwrap();
+
+    // Must contain prompt_len.
+    assert!(
+        json.get("prompt_len").is_some(),
+        "prompt_len must be present"
+    );
+    assert_eq!(json["prompt_len"], 42);
+
+    // Must NOT contain sensitive text anywhere in the serialised output.
+    let json_str = json.to_string();
+    assert!(
+        !json_str.contains("secret"),
+        "redacted entry must not contain prompt/response text"
+    );
+    assert!(
+        !json_str.contains("SECRET SYSTEM PROMPT"),
+        "redacted entry must not contain system_prompt text"
+    );
+
+    // Sensitive fields exist in the struct but are empty / null.
+    assert_eq!(json["prompt_text"], "");
+    assert_eq!(json["response_text"], "");
+    assert!(json["system_prompt"].is_null());
+}
+
+// ── #334 / #618 — Single WS per account_id ───────────────────────────────────
+
+/// A second WS upgrade for the same `account_id` must be blocked (409 Conflict).
+///
+/// We test the `active_ws` set logic directly against `AppState` rather than
+/// driving a real WebSocket upgrade (which requires a live TCP server).
+///
+/// #618: the key is now `uuid::Uuid` (account_id) rather than an email string,
+/// so multiple browser tabs from the same user get the same stable ID.
+#[tokio::test]
+async fn second_ws_upgrade_same_account_is_409() {
+    use std::sync::Arc;
+
+    // Build a minimal AppState using the public builder.
+    use limerick_core::npc::manager::NpcManager;
+    use limerick_core::world::transport::TransportConfig;
+    use limerick_core::world::{DEFAULT_START_LOCATION, WorldState};
+    use limerick_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
+
+    let data_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let world =
+        WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
+    let npc_manager = NpcManager::new();
+    let ui_config = UiConfigSnapshot {
+        hints_label: "test".to_string(),
+        default_accent: "#000".to_string(),
+        splash_text: String::new(),
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
+        auto_pause_timeout_seconds: 300,
+        app_icon_url: None,
+        favicon_url: None,
+        map_overlay: None,
+        base_mod_required: false,
+    };
+    let theme_palette = limerick_core::game_mod::default_theme_palette();
+    let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+
+    let session_store: std::sync::Arc<dyn limerick_core::session_store::SessionStore> =
+        std::sync::Arc::new(limerick_server::session_store_impl::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
+    let state = Arc::new(build_app_state(AppStateParts {
+        session_id: "test-session".to_string(),
+        world,
+        npc_manager,
+        client: None,
+        config: GameConfig {
+            provider_name: String::new(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
+            flags: limerick_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+            ..GameConfig::default()
+        },
+        cloud_client: None,
+        transport: TransportConfig::default(),
+        ui_config,
+        theme_palette,
+        saves_dir,
+        data_dir: data_dir.clone(),
+        game_mod: None,
+        flags_path: data_dir.join("limerick-flags.json"),
+        inference_config: limerick_core::config::InferenceConfig::default(),
+        session_store,
+        inference_file_log: limerick_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: limerick_core::chat_transcript::ChatTranscriptLog::disabled(),
+    }));
+
+    // Simulate first connection inserting the account_id (#618).
+    let account_id: uuid::Uuid = uuid::Uuid::new_v4();
+    let first_insert: bool = state.active_ws.lock().await.insert(account_id);
+    assert!(first_insert, "first insert must succeed");
+
+    // Second attempt: the account_id is already present — insert returns false.
+    let second_insert: bool = state.active_ws.lock().await.insert(account_id);
+    assert!(
+        !second_insert,
+        "second insert must fail (account already active)"
+    );
+
+    // Map the HashSet result to the 409 the handler would return.
+    let status = if !second_insert {
+        StatusCode::CONFLICT
+    } else {
+        StatusCode::OK
+    };
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+// ── #105 / #282 — Debug snapshot acquires locks sequentially, not all at once ─
+//
+// Before the fix, `get_debug_snapshot` (and the Tauri debug tick) held all 5+
+// mutexes simultaneously while building the snapshot.  The fix snapshots each
+// lock's data in a brief, non-overlapping window so only `world` and
+// `npc_manager` are held during the actual `build_debug_snapshot` call.
+//
+// This test exercises the corrected lock pattern against a live `AppState` to
+// confirm that concurrent snapshot + state-mutation tasks do not deadlock and
+// both produce sensible output.
+
+/// Concurrent snapshot builds and state reads must not deadlock (#105, #282).
+///
+/// Spawns multiple tasks that simultaneously:
+/// - read the debug_events / game_events / inference_log (snapshot path)
+/// - acquire world + npc_manager (the dominant locks in `build_debug_snapshot`)
+///
+/// If any task blocks forever the test times out; if the data is coherent
+/// each snapshot's `world` fields must be non-empty.
+#[tokio::test]
+async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use limerick_core::debug_snapshot::{
+        AuthDebug, DebugEvent, InferenceDebug, build_debug_snapshot,
+    };
+    use limerick_core::npc::manager::NpcManager;
+    use limerick_core::world::events::GameEvent;
+    use limerick_core::world::transport::TransportConfig;
+    use limerick_core::world::{DEFAULT_START_LOCATION, WorldState};
+    use limerick_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
+
+    let data_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let world =
+        WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
+    let npc_manager = NpcManager::new();
+    let ui_config = UiConfigSnapshot {
+        hints_label: "test".to_string(),
+        default_accent: "#000".to_string(),
+        splash_text: String::new(),
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
+        auto_pause_timeout_seconds: 300,
+        app_icon_url: None,
+        favicon_url: None,
+        map_overlay: None,
+        base_mod_required: false,
+    };
+    let theme_palette = limerick_core::game_mod::default_theme_palette();
+    let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+
+    let session_store2: std::sync::Arc<dyn limerick_core::session_store::SessionStore> =
+        std::sync::Arc::new(limerick_server::session_store_impl::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
+    let state = Arc::new(build_app_state(AppStateParts {
+        session_id: "test-session".to_string(),
+        world,
+        npc_manager,
+        client: None,
+        config: GameConfig {
+            provider_name: "test".to_string(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: "test-model".to_string(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
+            flags: limerick_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+            ..GameConfig::default()
+        },
+        cloud_client: None,
+        transport: TransportConfig::default(),
+        ui_config,
+        theme_palette,
+        saves_dir,
+        data_dir: data_dir.clone(),
+        game_mod: None,
+        flags_path: data_dir.join("limerick-flags.json"),
+        inference_config: limerick_core::config::InferenceConfig::default(),
+        session_store: session_store2,
+        inference_file_log: limerick_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: limerick_core::chat_transcript::ChatTranscriptLog::disabled(),
+    }));
+
+    // Pre-populate debug_events so the snapshot has something to copy.
+    {
+        let mut events = state.debug_events.lock().await;
+        events.push_back(DebugEvent {
+            timestamp: "08:00 1820-03-20".to_string(),
+            category: "system".to_string(),
+            message: "test event".to_string(),
+        });
+    }
+
+    // Spawn 8 concurrent tasks that each execute the fixed snapshot pattern.
+    let mut handles = Vec::new();
+    for _ in 0..8 {
+        let state = Arc::clone(&state);
+        handles.push(tokio::spawn(async move {
+            // Replicate the fixed lock acquisition sequence from get_debug_snapshot.
+            let has_inference_queue = state.inference.inference_queue.lock().await.is_some();
+            let (provider_name, model_name, base_url, improv_enabled) = {
+                let config = state.config.lock().await;
+                (
+                    config.provider_name.clone(),
+                    config.model_name.clone(),
+                    config.base_url.clone(),
+                    config.improv_enabled,
+                )
+            };
+            let events_snap: VecDeque<DebugEvent> =
+                state.debug_events.lock().await.iter().cloned().collect();
+            let game_events_snap: VecDeque<GameEvent> =
+                state.game_events.lock().await.iter().cloned().collect();
+            let call_log: Vec<limerick_core::debug_snapshot::InferenceLogEntry> =
+                state.inference_log.lock().await.iter().cloned().collect();
+
+            let inference = InferenceDebug {
+                provider_name,
+                model_name,
+                base_url,
+                cloud_provider: None,
+                cloud_model: None,
+                has_queue: has_inference_queue,
+                reaction_req_id: 0,
+                improv_enabled,
+                call_log,
+                categories: vec![],
+                configured_providers: vec![],
+                tier2_parse_failures_total: 0,
+            };
+
+            // Acquire world + npc_manager last, build snapshot, release.
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let snapshot = build_debug_snapshot(
+                &world,
+                &npc_manager,
+                &events_snap,
+                &game_events_snap,
+                &inference,
+                &AuthDebug::disabled(),
+            );
+            drop(npc_manager);
+            drop(world);
+
+            snapshot
+        }));
+    }
+
+    // All tasks must complete without deadlock.
+    let mut snapshots = Vec::new();
+    for handle in handles {
+        snapshots.push(handle.await.expect("task panicked"));
+    }
+
+    assert_eq!(snapshots.len(), 8, "all 8 snapshot tasks must complete");
+    for snap in &snapshots {
+        // The snapshot must reference a valid world clock.
+        assert!(
+            snap.clock.game_time.contains("08:00"),
+            "clock should start at 08:00"
+        );
+        // The pre-populated debug event must be present.
+        assert_eq!(snap.events.len(), 1, "one debug event must be present");
+    }
+}
+
+// ── #335 — Branch name validation ────────────────────────────────────────────
+
+/// A branch name of 65 characters must be rejected with 400.
+#[test]
+fn create_branch_65_char_name_is_400() {
+    let long_name = "a".repeat(65);
+    assert_eq!(
+        validate_branch_name(&long_name),
+        Err(StatusCode::BAD_REQUEST)
+    );
+}
+
+/// A branch name with only valid characters must pass validation.
+#[test]
+fn create_branch_valid_name_passes_validation() {
+    assert_eq!(validate_branch_name("valid name"), Ok(()));
+}
+
+// ── #753 — /api/debug-snapshot admin gate ────────────────────────────────────
+//
+// `check_admin_against` is the testable variant of the production `check_admin`
+// call that now guards `get_debug_snapshot`.  These tests mirror the isolation
+// tests for admin commands (#332, #605) above: they supply an explicit admin
+// email rather than touching the `LIMERICK_ADMIN_EMAILS` OnceCell cache, so
+// they remain fully self-contained and order-independent regardless of how
+// other tests set the env var.
+
+/// Non-admin authenticated user must be rejected (403) from `/api/debug-snapshot`.
+#[test]
+fn debug_snapshot_non_admin_is_403() {
+    assert_eq!(
+        check_admin_against(
+            "attacker@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Err(StatusCode::FORBIDDEN),
+        "non-admin user must receive 403 from debug-snapshot gate"
+    );
+}
+
+/// Admin user must be allowed through the gate (Ok(())).
+#[test]
+fn debug_snapshot_admin_is_ok() {
+    assert_eq!(
+        check_admin_against(
+            "operator@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Ok(()),
+        "admin user must be allowed through the debug-snapshot gate"
+    );
+}
+
+/// Unauthenticated requests (no CF JWT) are rejected upstream by
+/// `cf_access_guard` with 401 before the handler is even reached.
+///
+/// That path is covered by `tests/auth_guard.rs`; this test confirms
+/// that the admin gate is independent from the auth gate: a completely
+/// un-configured admin list (`None`) behaves consistently with the
+/// rest of the admin-gate tests (fail-open in debug, fail-closed in release).
+#[test]
+fn debug_snapshot_no_admin_config_is_deterministic() {
+    let result = check_admin_against("any@example.com", "debug-snapshot", None);
+    // Debug builds (tests) are fail-open for local dev.
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
+// ── #785 — Session cookie format validation ──────────────────────────────────
+
+/// A well-formed UUID v4 is accepted.
+#[test]
+fn session_id_valid_uuid_v4_passes() {
+    assert!(is_valid_session_id("550e8400-e29b-41d4-a716-446655440000"));
+}
+
+/// An empty string must be rejected — it would produce a useless path.
+#[test]
+fn session_id_empty_string_is_rejected() {
+    assert!(!is_valid_session_id(""));
+}
+
+/// A path-traversal attempt (`..`) must be rejected unconditionally.
+#[test]
+fn session_id_path_traversal_is_rejected() {
+    assert!(!is_valid_session_id("../../../etc/passwd"));
+}
+
+/// A `..`-containing value that still has only hex/hyphen chars is rejected
+/// because `..` is blocked explicitly.
+#[test]
+fn session_id_double_dot_only_hex_is_rejected() {
+    assert!(!is_valid_session_id("aaaa..bbbb"));
+}
+
+/// Non-hex characters (e.g. a slash or uppercase letter) are rejected.
+#[test]
+fn session_id_non_hex_chars_are_rejected() {
+    assert!(!is_valid_session_id("UPPERCASE-UUID-IS-INVALID"));
+    assert!(!is_valid_session_id("bad/path"));
+    assert!(!is_valid_session_id("with spaces"));
+}
+
+// ── #752 — addressed_to length cap ──────────────────────────────────────────
+
+/// Empty addressee list is always valid.
+#[test]
+fn addressed_to_empty_list_passes() {
+    assert_eq!(validate_addressed_to(&[]), Ok(()));
+}
+
+/// Up to 10 entries with short names is valid.
+#[test]
+fn addressed_to_ten_entries_passes() {
+    let names: Vec<String> = (0..10).map(|i| format!("npc{i}")).collect();
+    assert_eq!(validate_addressed_to(&names), Ok(()));
+}
+
+/// 11 entries must be rejected (exceeds the 10-entry cap).
+#[test]
+fn addressed_to_eleven_entries_is_rejected() {
+    let names: Vec<String> = (0..11).map(|i| format!("npc{i}")).collect();
+    assert_eq!(validate_addressed_to(&names), Err(StatusCode::BAD_REQUEST));
+}
+
+/// A single name longer than 100 characters must be rejected.
+#[test]
+fn addressed_to_name_over_100_chars_is_rejected() {
+    let long_name = "a".repeat(101);
+    assert_eq!(
+        validate_addressed_to(&[long_name]),
+        Err(StatusCode::BAD_REQUEST)
+    );
+}
+
+/// A name of exactly 100 characters must be accepted.
+#[test]
+fn addressed_to_name_exactly_100_chars_passes() {
+    let name = "a".repeat(100);
+    assert_eq!(validate_addressed_to(&[name]), Ok(()));
+}
+
+/// Mix: valid count but one name is oversized — still rejected.
+#[test]
+fn addressed_to_valid_count_but_oversized_name_is_rejected() {
+    let mut names: Vec<String> = (0..5).map(|i| format!("npc{i}")).collect();
+    names.push("x".repeat(101));
+    assert_eq!(validate_addressed_to(&names), Err(StatusCode::BAD_REQUEST));
+}

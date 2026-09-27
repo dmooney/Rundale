@@ -45,7 +45,7 @@ for location names. Players can now say "go to the coast" (→ Lough Ree Shore),
   reverse substring, article-stripped), with name matches always taking priority
 - Added Level 5 Jaro-Winkler fuzzy fallback (`strsim` crate) to catch typos
   and near-misses (threshold 0.82 to avoid false positives)
-- Added aliases to all 15 locations in `data/parish.json`
+- Added aliases to all 15 locations in `data/world.json`
 - Added unit tests for alias matching, fuzzy matching, and integration tests
   against real parish data
 
@@ -86,7 +86,7 @@ Key decisions: NpcManager owned by App (no Arc), Tier 2 uses non-streaming `gene
 
 ### Changes this session
 
-- **Historical period fixed**: Game now set in 1820. Clock initialization changed from 2026 to 1820. All location data in `data/parish.json` updated to remove anachronisms (GAA → hurling green, An Post → letter office, National School → hedge school, tractors → donkeys, corrugated sheds → thatched stone outbuildings, creamery → lime kiln, modern shop goods → period-appropriate items).
+- **Historical period fixed**: Game now set in 1820. Clock initialization changed from 2026 to 1820. All location data in `data/world.json` updated to remove anachronisms (GAA → hurling green, An Post → letter office, National School → hedge school, tractors → donkeys, corrugated sheds → thatched stone outbuildings, creamery → lime kiln, modern shop goods → period-appropriate items).
 - **NPC system prompt overhauled**: `build_tier1_system_prompt()` now includes detailed 1820 historical context (Acts of Union, Catholic Emancipation not yet achieved, agricultural economy, no modern technology), cultural guidelines (avoid stereotypes, portray with dignity), and instructions for Irish word pronunciation hints in metadata.
 - **Irish pronunciation sidebar**: New collapsible sidebar in the TUI (toggle via Tab or `/irish`). Displays Irish words used in NPC dialogue with phonetic pronunciation and English translations. New `IrishWordHint` struct and `irish_words` field added to `NpcMetadata`. Sidebar renders in a 70/30 horizontal split with title "Focail — Words".
 - **Whimsical text throughout**: All player-facing messages updated with warm, atmospheric Irish flavor. The LLM/Ollama is framed as "the parish storyteller." Idle messages rotate through atmospheric descriptions. Help text, quit message, error messages, and setup progress all rewritten. Headless mode updated to match.
@@ -107,14 +107,14 @@ Key decisions: NpcManager owned by App (no Arc), Tier 2 uses non-streaming `gene
 ### Changes this session
 
 - **World graph system**: New `src/world/graph.rs` module with `WorldGraph`, `Connection`, and `LocationData` types. Graph supports BFS pathfinding, fuzzy name search (with article stripping), neighbor queries, and path travel time calculation.
-- **Parish data file**: `data/parish.json` with 14 hand-authored Kiltoom locations: The Crossroads (hub), Darcy's Pub, St. Brigid's Church, The Post Office, The GAA Pitch, The National School, Lough Ree Shore, Hodson Bay, Murphy's Farm, O'Brien's Farm, The Fairy Fort, The Bog Road, Connolly's Shop, and The Creamery.
+- **Limerick data file**: `data/world.json` with 14 hand-authored Kiltoom locations: The Crossroads (hub), Darcy's Pub, St. Brigid's Church, The Post Office, The GAA Pitch, The National School, Lough Ree Shore, Hodson Bay, Murphy's Farm, O'Brien's Farm, The Fairy Fort, The Bog Road, Connolly's Shop, and The Creamery.
 - **Graph validation**: On load, validates all connection targets exist, connections are bidirectional, and no orphan nodes.
 - **Movement system**: New `src/world/movement.rs` with `resolve_movement()` — resolves "go to X" intents to destinations via fuzzy matching, computes shortest path via BFS, and generates travel narration text.
 - **Encounter system**: New `src/world/encounter.rs` — probability-based random encounters during travel. Base ~20% chance, modified by time of day (higher in morning, lower at night/midnight).
 - **Dynamic descriptions**: New `src/world/description.rs` — renders location description templates by interpolating `{time}`, `{weather}`, and `{npcs_present}` placeholders with current game state.
-- **WorldState integration**: `WorldState::from_parish_file()` loads the world graph and populates both the new graph and legacy locations map. New `current_location_data()` accessor.
+- **WorldState integration**: `WorldState::from_world_file()` loads the world graph and populates both the new graph and legacy locations map. New `current_location_data()` accessor.
 - **Serde support**: Added `Serialize`/`Deserialize` to `LocationId` and `NpcId` with `#[serde(transparent)]`.
-- **New error variant**: `WorldGraph(String)` in `ParishError`.
+- **New error variant**: `WorldGraph(String)` in `LimerickError`.
 - **Test count**: 160 tests passing (up from 90), 1 ignored. Added 21 integration tests in `tests/world_graph_integration.rs`.
 - **Mythological significance**: Crossroads, St. Brigid's Church, The Fairy Fort, The Bog Road, and Lough Ree Shore all have mythological flavor text.
 
@@ -128,7 +128,7 @@ Key decisions: NpcManager owned by App (no Arc), Tier 2 uses non-streaming `gene
 ### Recommendations for next session
 
 1. **Wire movement into game loop**: The movement resolution, time advancement, encounter checks, and description rendering are all implemented but not yet connected to the main game loop (`main.rs`, `headless.rs`). Next step is to handle `IntentKind::Move` in the game loop by calling `resolve_movement()`, advancing the clock, checking encounters, and rendering the new location.
-2. **Wire `from_parish_file` into startup**: Replace `WorldState::new()` with `WorldState::from_parish_file()` in `main.rs` so the full parish loads on game start.
+2. **Wire `from_world_file` into startup**: Replace `WorldState::new()` with `WorldState::from_world_file()` in `main.rs` so the full parish loads on game start.
 3. **Add `/look` command**: Now that dynamic descriptions exist, wire up `IntentKind::Look` to render the current location description.
 4. **OSM extraction tool**: Deferred — hand-authored data is sufficient for now.
 
@@ -143,10 +143,10 @@ Key decisions: NpcManager owned by App (no Arc), Tier 2 uses non-streaming `gene
 - **Automatic model selection**: Picks the best model for available VRAM (14b → 8b → 3b → 1.5b). Conservative thresholds leave headroom for OS/desktop.
 - **Automatic model pulling**: If the selected model isn't available locally, pulls it via Ollama's `/api/pull` endpoint with progress reporting.
 - **Headless CLI mode**: `--headless` flag starts a plain stdin/stdout REPL for testing without the TUI. Identical game logic.
-- **CLI argument parsing**: Added `clap` for `--headless`, `--model`, and `--ollama-url` flags. Env vars (`PARISH_MODEL`, `PARISH_OLLAMA_URL`) still work as fallbacks.
+- **CLI argument parsing**: Added `clap` for `--headless`, `--model`, and `--ollama-url` flags. Env vars (`LIMERICK_MODEL`, `LIMERICK_OLLAMA_URL`) still work as fallbacks.
 - **New module**: `src/inference/setup.rs` — full Ollama lifecycle management (install, GPU detection, model selection, pulling).
 - **New module**: `src/headless.rs` — headless REPL game loop.
-- **New error variants**: `Setup(String)` and `ModelNotAvailable(String)` in `ParishError`.
+- **New error variants**: `Setup(String)` and `ModelNotAvailable(String)` in `LimerickError`.
 - **Test count**: 90 tests passing (up from 52), 1 ignored.
 
 ### Technical notes
@@ -181,6 +181,6 @@ Phase 1 (Core Loop) is fully done. All roadmap items checked off. The game boots
 
 ### Technical notes
 
-- **Ctrl+C handling**: Currently Ctrl+C will leave the terminal in raw mode and won't stop a Parish-started Ollama. A graceful signal handler (tokio::signal) should be added.
+- **Ctrl+C handling**: Currently Ctrl+C will leave the terminal in raw mode and won't stop a Limerick-started Ollama. A graceful signal handler (tokio::signal) should be added.
 - **Test coverage**: 52 tests passing, 1 ignored (live Ollama test). Coverage should be verified with `cargo tarpaulin` before Phase 2 starts.
 - **Inference latency**: No metrics yet. Consider adding request timing before scaling to multiple NPCs in Phase 3.

@@ -1,5 +1,5 @@
 Use case: historical-scene
-Asset type: tiny defect cleanup on an illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: tiny defect cleanup on an illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: current AE direct-control plate to edit. This is the edit target.

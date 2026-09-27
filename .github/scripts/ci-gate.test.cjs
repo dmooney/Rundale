@@ -12,6 +12,8 @@ function runGate({
 	playwrightWindowsResult = 'success',
 	runtimeRequired,
 	runtimeResult,
+	differentialRequired = 'false',
+	differentialResult = 'skipped',
 }) {
 	return spawnSync('bash', [gate], {
 		encoding: 'utf8',
@@ -21,6 +23,8 @@ function runGate({
 			PLAYWRIGHT_WINDOWS_RESULT: playwrightWindowsResult,
 			RUNTIME_SUITE_REQUIRED: runtimeRequired,
 			RUNTIME_SUITE_RESULT: runtimeResult,
+			DIFFERENTIAL_REQUIRED: differentialRequired,
+			DIFFERENTIAL_RESULT: differentialResult,
 		},
 	});
 }
@@ -126,4 +130,38 @@ test('an invalid runtime-suite requirement value fails closed', () => {
 
 	assert.equal(result.status, 1, result.stdout + result.stderr);
 	assert.match(result.stdout, /must be 'true' or 'false'/);
+});
+
+test('the differential proof must succeed when selected and be skipped otherwise', async (t) => {
+	const cases = [
+		['true', 'success', 0],
+		['true', 'skipped', 1],
+		['true', 'failure', 1],
+		['false', 'skipped', 0],
+		['false', 'success', 1],
+	];
+
+	for (const [
+		differentialRequired,
+		differentialResult,
+		expectedStatus,
+	] of cases) {
+		await t.test(`${differentialRequired}/${differentialResult}`, () => {
+			const result = runGate({
+				gatedResults: 'success skipped',
+				runtimeRequired: 'false',
+				runtimeResult: 'skipped',
+				differentialRequired,
+				differentialResult,
+			});
+			assert.equal(
+				result.status,
+				expectedStatus,
+				result.stdout + result.stderr,
+			);
+			if (expectedStatus === 1) {
+				assert.match(result.stdout, /differential proof/);
+			}
+		});
+	}
 });

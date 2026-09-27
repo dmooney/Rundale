@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run one immutable cloud-dialogue preflight and performance profile.
 
-The live preflight goes through Parish's canonical NPC turn path. Only a
+The live preflight goes through Limerick's canonical NPC turn path. Only a
 structurally valid, low-guard profile advances to the fixed promptfoo perf
 panel. Every run uses isolated config/state/output directories, so retries
 cannot overwrite a prior paid response.
@@ -41,14 +41,14 @@ def wait_for_health(port: int, process: subprocess.Popen, timeout: float = 90.0)
     url = f"http://127.0.0.1:{port}/api/health"
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"parish-server exited during startup: {process.returncode}")
+            raise RuntimeError(f"limerick-server exited during startup: {process.returncode}")
         try:
             with urllib.request.urlopen(url, timeout=2) as response:
                 if response.status == 200:
                     return
         except OSError:
             time.sleep(0.5)
-    raise RuntimeError(f"parish-server did not become healthy on port {port}")
+    raise RuntimeError(f"limerick-server did not become healthy on port {port}")
 
 
 def engine_config(args: argparse.Namespace) -> str:
@@ -119,36 +119,36 @@ def main(argv: list[str] | None = None) -> int:
     date_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f"rundale-cloud-{args.slug}-") as tmp_raw:
         tmp = Path(tmp_raw)
-        config = tmp / "parish.toml"
+        config = tmp / "limerick.toml"
         config.write_text(engine_config(args), encoding="utf-8")
         user_config_dir = tmp / "user-config"
         user_config_dir.mkdir(parents=True, exist_ok=True)
         native_user_config = user_config(args)
         if native_user_config:
-            (user_config_dir / "parish.toml").write_text(native_user_config, encoding="utf-8")
+            (user_config_dir / "limerick.toml").write_text(native_user_config, encoding="utf-8")
         output_dir = PF / "output" / "cloud-profiles" / args.tested_on / args.slug
         output_dir.mkdir(parents=True, exist_ok=True)
 
         env = os.environ.copy()
         env.update(
             {
-                "PARISH_PROVIDER": args.provider,
-                "PARISH_BASE_URL": args.base_url,
-                "PARISH_MODEL": args.model,
-                "PARISH_DIALOGUE_PROVIDER": args.provider,
-                "PARISH_DIALOGUE_BASE_URL": args.base_url,
-                "PARISH_DIALOGUE_MODEL": args.model,
-                "PARISH_INTENT_PROVIDER": "simulator",
-                "PARISH_SIMULATION_PROVIDER": "simulator",
-                "PARISH_REACTION_PROVIDER": "simulator",
-                "PARISH_ENGINE_CONFIG": str(config),
-                "PARISH_USER_CONFIG_DIR": str(user_config_dir),
-                "PARISH_USER_DATA_DIR": str(tmp / "user-data"),
-                "PARISH_SAVES_DIR": str(tmp / "saves"),
-                "PARISH_TILE_CACHE_DIR": str(tmp / "tiles"),
+                "LIMERICK_PROVIDER": args.provider,
+                "LIMERICK_BASE_URL": args.base_url,
+                "LIMERICK_MODEL": args.model,
+                "LIMERICK_DIALOGUE_PROVIDER": args.provider,
+                "LIMERICK_DIALOGUE_BASE_URL": args.base_url,
+                "LIMERICK_DIALOGUE_MODEL": args.model,
+                "LIMERICK_INTENT_PROVIDER": "simulator",
+                "LIMERICK_SIMULATION_PROVIDER": "simulator",
+                "LIMERICK_REACTION_PROVIDER": "simulator",
+                "LIMERICK_ENGINE_CONFIG": str(config),
+                "LIMERICK_USER_CONFIG_DIR": str(user_config_dir),
+                "LIMERICK_USER_DATA_DIR": str(tmp / "user-data"),
+                "LIMERICK_SAVES_DIR": str(tmp / "saves"),
+                "LIMERICK_TILE_CACHE_DIR": str(tmp / "tiles"),
             }
         )
-        log_path = output_dir / "parish-server.log"
+        log_path = output_dir / "limerick-server.log"
         with log_path.open("ab") as log:
             server = subprocess.Popen(
                 [
@@ -156,18 +156,18 @@ def main(argv: list[str] | None = None) -> int:
                     "run",
                     "--quiet",
                     "-p",
-                    "parish-server",
+                    "limerick-server",
                     "--",
                     "--port",
                     str(args.port),
                     "--data-dir",
                     str(REPO / "mods" / "rundale"),
                     "--static-dir",
-                    str(REPO / "parish" / "apps" / "ui" / "dist"),
+                    str(REPO / "limerick" / "apps" / "ui" / "dist"),
                     "--engine-config",
                     str(config),
                 ],
-                cwd=REPO / "parish",
+                cwd=REPO / "limerick",
                 env=env,
                 stdout=log,
                 stderr=subprocess.STDOUT,

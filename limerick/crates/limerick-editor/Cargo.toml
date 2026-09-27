@@ -1,0 +1,20 @@
+[package]
+name = "limerick-editor"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Limerick Designer backend: mod browsing, NPC/location editing, cross-reference validation, deterministic persistence, and save-file inspection"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-world = { workspace = true }
+limerick-npc = { workspace = true }
+limerick-mod = { workspace = true }
+limerick-persistence = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

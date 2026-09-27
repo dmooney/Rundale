@@ -13,7 +13,7 @@ Replace the static `Weather` enum with a dynamic state machine that transitions 
 
 ## Tasks
 
-### 1. Expand `Weather` enum (`crates/parish-core/src/world/mod.rs`)
+### 1. Expand `Weather` enum (`crates/limerick-core/src/world/mod.rs`)
 
 Add two new variants to the existing `Weather` enum:
 
@@ -31,7 +31,7 @@ pub enum Weather {
 
 Update `Display` impl, palette tinting parameters in `palette.rs`, and all match arms.
 
-### 2. `WeatherEngine` (`crates/parish-core/src/world/weather.rs` — new file)
+### 2. `WeatherEngine` (`crates/limerick-core/src/world/weather.rs` — new file)
 
 ```rust
 use chrono::{DateTime, Utc};

@@ -12,7 +12,7 @@ Both Grove and Beechwood used the same generic procedure:
 2. Previous notebook-style isomorphic output for the same site as a secondary
    continuity reference.
 3. Original historic map crop as source evidence.
-4. `illustrated-parish-notebook.png` as a full-scene style and camera-feel
+4. `illustrated-rundale-notebook.png` as a full-scene style and camera-feel
    reference only.
 5. The same cleaned material swatches:
    - `style-crops/illustrated-style-field-wall-no-animals.png`

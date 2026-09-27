@@ -17,7 +17,7 @@ The `ChatPanel.svelte` component displays an animated **Celtic triquetra (Trinit
 
 Once streaming tokens begin arriving, the spinner is replaced by a blinking cursor (`▋`) at the end of the streaming text. The streaming source label is derived from the last non-player, non-system log entry so the correct NPC name appears during token streaming.
 
-Headless mode continues to use the Rust `LoadingAnimation` (`crates/parish-core/src/loading.rs`) with Celtic cross Unicode characters and Irish-themed phrases.
+Headless mode continues to use the Rust `LoadingAnimation` (`crates/limerick-core/src/loading.rs`) with Celtic cross Unicode characters and Irish-themed phrases.
 
 ---
 
@@ -95,7 +95,7 @@ Two collapsible sections:
 
 ## Color System
 
-The GUI uses time-of-day palettes computed by the shared `crates/parish-palette` engine. The 7 defined palettes cover the major times of day:
+The GUI uses time-of-day palettes computed by the shared `crates/limerick-palette` engine. The 7 defined palettes cover the major times of day:
 
 | Time      | Background                  | Text                    | Accent                    |
 | --------- | --------------------------- | ----------------------- | ------------------------- |
@@ -107,7 +107,7 @@ The GUI uses time-of-day palettes computed by the shared `crates/parish-palette`
 | Night     | `(20,25,40)` near-black     | `(180,180,190)` silver  | `(100,110,140)` blue-grey |
 | Midnight  | `(10,12,20)` darkest        | `(150,150,165)` muted   | `(70,75,100)` dark blue   |
 
-Palettes are selected by `compute_palette()` (from `crates/parish-palette`), which interpolates between the 7 keyframes and enforces a minimum foreground/background contrast floor.
+Palettes are selected by `compute_palette()` (from `crates/limerick-palette`), which interpolates between the 7 keyframes and enforces a minimum foreground/background contrast floor.
 
 ## Input Processing
 
@@ -140,7 +140,7 @@ All `/commands` work in GUI mode. The `/irish` and `/debug panel` commands toggl
 
 ## Source Modules
 
-- [`parish/apps/ui/src/components/`](../../parish/apps/ui/src/components/) — Svelte UI components (ChatPanel, MapPanel, FullMapOverlay, Sidebar, StatusBar)
-- [`MapPanel.svelte`](../../parish/apps/ui/src/components/MapPanel.svelte) — Map rendering and labels
-- [`FullMapOverlay.svelte`](../../parish/apps/ui/src/components/FullMapOverlay.svelte) — Full-map interaction
-- [`parish-palette`](../../parish/crates/parish-palette/src/) — Time-of-day palette engine
+- [`limerick/apps/ui/src/components/`](../../limerick/apps/ui/src/components/) — Svelte UI components (ChatPanel, MapPanel, FullMapOverlay, Sidebar, StatusBar)
+- [`MapPanel.svelte`](../../limerick/apps/ui/src/components/MapPanel.svelte) — Map rendering and labels
+- [`FullMapOverlay.svelte`](../../limerick/apps/ui/src/components/FullMapOverlay.svelte) — Full-map interaction
+- [`limerick-palette`](../../limerick/crates/limerick-palette/src/) — Time-of-day palette engine

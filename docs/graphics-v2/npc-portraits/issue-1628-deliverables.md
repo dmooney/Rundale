@@ -18,7 +18,7 @@ be reviewed independently.
 | 9   | Production-quality unknown NPC fallback portrait and marker.                                            | Done   | The approved unknown-neighbour pair follows the same production contracts, remains distinct from every named NPC, and is the deterministic runtime fallback.                                                                                                                                  |
 | 10  | Runtime integration from NPC identity to approved portrait/marker assets.                               | Done   | Runtime lookup is numeric-ID-first with ambiguity rejection and deterministic fallback. The browser sentinel proved NPC 19 resolves by ID even when its compatibility name is deliberately stale.                                                                                             |
 | 11  | Runtime manifest/provenance coverage.                                                                   | Done   | Release `41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049` and the regenerated runtime manifest cover NPC IDs 1-23 plus fallback, 48 unique assets, release freshness, and the complete source/approval hash chain.                                                           |
-| 12  | Desktop and mobile proof screenshots from the real illustrated notebook UI.                             | Done   | The final Playwright proof captured `.proofs/issue-1628-person-art/desktop.png` and `mobile.png` from a fresh Parish server and verified painted, unclipped runtime regions.                                                                                                                  |
+| 12  | Desktop and mobile proof screenshots from the real illustrated notebook UI.                             | Done   | The final Playwright proof captured `.proofs/issue-1628-person-art/desktop.png` and `mobile.png` from a fresh Limerick server and verified painted, unclipped runtime regions.                                                                                                                |
 | 13  | Visible contact sheet or equivalent final review artifact plus proof-gate evidence.                     | Done   | The runtime HTML/PNG contact sheet contains 24 labeled pairs. Browser proof decoded all 48 images, and the final proof bundle maps the release, tests, and screenshots to the acceptance criteria.                                                                                            |
 
 ## Completion Evidence
@@ -33,6 +33,6 @@ before writing immutable release `approved/v1`.
 The release-only builder generated the complete runtime pack, manifest,
 provenance, and contact sheets. The production frontend freshness gate passed.
 The four-part browser proof passed numeric-ID selection, desktop rendering,
-mobile rendering, and the 24-entry/48-image contact sheet against a fresh Parish
+mobile rendering, and the 24-entry/48-image contact sheet against a fresh Limerick
 server. Exact commands, release IDs, screenshot artifacts, and acceptance
 mapping are recorded in `.proofs/issue-1628-person-art/evidence.md`.

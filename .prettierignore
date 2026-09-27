@@ -3,7 +3,7 @@
 # EXCEPT the paths below.
 
 # Owned by another formatter / scope
-parish/apps/ui/
+limerick/apps/ui/
 .opencode/
 .codex/
 target/
@@ -25,13 +25,13 @@ THIRD_PARTY_NOTICES.ui.md
 **/package-lock.json
 pnpm-lock.yaml
 **/pnpm-lock.yaml
-parish/crates/parish-tauri/gen/
+limerick/crates/limerick-tauri/gen/
 promptfoo/bench-site/
 **/graphify-out/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)
-parish/testing/
+limerick/testing/
 docs/proofs/
 rundale-bench/artifacts/
 rundale-bench/v1/

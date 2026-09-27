@@ -4,14 +4,14 @@ This folder defines the Graphics V2 pipeline for generated NPC portraits: small
 human-readable head icons/busts like the left-side people list in the UI
 concepts.
 
-The target is the **Illustrated Parish Notebook** treatment: small
+The target is the **Illustrated Rundale Notebook** treatment: small
 ink-and-watercolor head sketches on warm paper like the left-side people list
-in `illustrated-parish-notebook.png`. This is not a cinematic dialogue portrait
+in `illustrated-rundale-notebook.png`. This is not a cinematic dialogue portrait
 pipeline and not the darker `concept-7a` painted-card style.
 
 ## Source References
 
-- `../illustrated-parish-notebook.png` — authoritative portrait treatment.
+- `../illustrated-rundale-notebook.png` — authoritative portrait treatment.
 - `../../research/clothing-textiles.md` — period clothing and class cues.
 - `../../../mods/rundale/npcs.json` — source roster and persona data.
 

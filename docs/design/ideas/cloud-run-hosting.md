@@ -7,21 +7,21 @@ inference and a GCS FUSE mount for persistence.
 ## Context
 
 Rundale currently deploys via a Railway-targeted Docker image
-(`deploy/Dockerfile`) running a single Axum server (`parish-server`) that:
+(`deploy/Dockerfile`) running a single Axum server (`limerick-server`) that:
 
-- binds `0.0.0.0:$PORT` via `parish-server --port ${PORT:-3001}` with
+- binds `0.0.0.0:$PORT` via `limerick-server --port ${PORT:-3001}` with
   explicit packaged mod and frontend paths;
 - serves the pre-built Svelte frontend out of `apps/ui/dist`;
 - writes SQLite databases under a `saves/` directory — one global
-  `sessions.db` plus per-session `saves/<sid>/parish_NNN.db`
-  (`crates/parish-persistence/src/picker.rs:15`,
-  `crates/parish-server/src/session.rs:284`);
+  `sessions.db` plus per-session `saves/<sid>/limerick_NNN.db`
+  (`crates/limerick-persistence/src/picker.rs:15`,
+  `crates/limerick-server/src/session.rs:284`);
 - keeps live `WorldState`/`NpcManager` in an in-memory `DashMap` session
   registry with per-session background tick tasks
-  (`crates/parish-server/src/session.rs:79`,
-  `crates/parish-server/src/lib.rs:276`);
+  (`crates/limerick-server/src/session.rs:79`,
+  `crates/limerick-server/src/lib.rs:276`);
 - defaults to local Ollama on `localhost:11434` but has a full provider
-  abstraction (`crates/parish-config/src/provider.rs:28`) that already
+  abstraction (`crates/limerick-config/src/provider.rs:28`) that already
   supports Google Gemini via its OpenAI-compatible endpoint.
 
 A pre-existing `railway.toml` already defines a `GET /api/health` health check
@@ -76,7 +76,7 @@ spec:
     spec:
       timeoutSeconds: 3600 # 60-min max; required for long WS sessions
       containers:
-        - image: REGION-docker.pkg.dev/PROJECT/parish/parish:TAG
+        - image: REGION-docker.pkg.dev/PROJECT/limerick/rundale:TAG
           volumeMounts:
             - name: saves
               mountPath: /app/saves
@@ -85,7 +85,7 @@ spec:
           csi:
             driver: gcsfuse.run.googleapis.com
             volumeAttributes:
-              bucketName: PROJECT-parish-saves
+              bucketName: PROJECT-limerick-saves
 ```
 
 ### 3. Environment and secrets
@@ -94,25 +94,25 @@ Set on the service (`--set-env-vars` / `--set-secrets`):
 
 | Var                            | Value                     | Notes                                                                      |
 | ------------------------------ | ------------------------- | -------------------------------------------------------------------------- |
-| `PARISH_PROVIDER`              | `google`                  | Matches the enum in `crates/parish-config/src/provider.rs:28`              |
-| `PARISH_MODEL`                 | e.g. `gemini-1.5-flash`   | Pick per cost/quality target                                               |
-| `PARISH_API_KEY`               | _Secret Manager ref_      | Gemini API key                                                             |
-| `PARISH_WS_SIGNING_KEY`        | _Secret Manager ref_      | Required in release builds (WS token signing)                              |
+| `LIMERICK_PROVIDER`            | `google`                  | Matches the enum in `crates/limerick-config/src/provider.rs:28`            |
+| `LIMERICK_MODEL`               | e.g. `gemini-1.5-flash`   | Pick per cost/quality target                                               |
+| `LIMERICK_API_KEY`             | _Secret Manager ref_      | Gemini API key                                                             |
+| `LIMERICK_WS_SIGNING_KEY`      | _Secret Manager ref_      | Required in release builds (WS token signing)                              |
 | `CF_ACCESS_AUD`                | _empty or set_            | Release-build `cf_access_guard` fails closed if unset — see Authentication |
-| `PARISH_PUBLIC_URL`            | `https://<cloud-run-url>` | Used by OAuth redirects                                                    |
+| `LIMERICK_PUBLIC_URL`          | `https://<cloud-run-url>` | Used by OAuth redirects                                                    |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | _optional_                | Only if using in-app Google OAuth sign-in                                  |
 | `RUST_LOG`                     | `info`                    |                                                                            |
 
 ### 4. GCS bucket for saves
 
-Create `gs://PROJECT-parish-saves` in the service's region. Grant the Cloud
+Create `gs://PROJECT-limerick-saves` in the service's region. Grant the Cloud
 Run service account `roles/storage.objectUser` on it. Gen 2 mounts it at
-`/app/saves`, exactly where `crates/parish-persistence/src/picker.rs:15`
+`/app/saves`, exactly where `crates/limerick-persistence/src/picker.rs:15`
 writes (`const SAVES_DIR = "saves"`) — no code change needed.
 
 **Caveat:** SQLite WAL over GCS FUSE has known quirks. Confirm DBs are opened
 in `journal_mode=DELETE` (not WAL) for FUSE compatibility; the change, if
-needed, lives in `crates/parish-persistence/src/`. If FUSE proves unreliable,
+needed, lives in `crates/limerick-persistence/src/`. If FUSE proves unreliable,
 the drop-in fallback is a Filestore (NFS) mount, which has stronger POSIX
 semantics.
 
@@ -122,8 +122,8 @@ Pick one before exposing the service:
 
 - **Cloud IAM / IAP** (`--no-allow-unauthenticated`) — simplest within GCP.
 - **In-app Google OAuth** — already wired in
-  `crates/parish-server/src/auth.rs`; set `GOOGLE_CLIENT_ID`/`_SECRET` and
-  `PARISH_PUBLIC_URL`.
+  `crates/limerick-server/src/auth.rs`; set `GOOGLE_CLIENT_ID`/`_SECRET` and
+  `LIMERICK_PUBLIC_URL`.
 - **Cloudflare Access in front** — keeps the current auth model; point a CF
   Access application at the Cloud Run URL and set `CF_ACCESS_AUD`.
 
@@ -135,7 +135,7 @@ Doing none of these leaves the world open, and in a release build the
 - `deploy/Dockerfile` — drop `cloudflared` download; `$PORT` passthrough kept.
 - `deploy/cloud-run.yaml` _(new)_ — Knative descriptor (Gen 2, no CPU
   throttling, min=max=1, GCS FUSE volume, env/secret refs).
-- No Rust changes for the happy path. Only `crates/parish-persistence/src/` if
+- No Rust changes for the happy path. Only `crates/limerick-persistence/src/` if
   SQLite-on-FUSE journaling needs adjusting.
 
 ## Verification plan
@@ -143,18 +143,18 @@ Doing none of these leaves the world open, and in a release build the
 1. **Local image smoke test**
 
    ```sh
-   docker build -f deploy/Dockerfile -t parish:local .
+   docker build -f deploy/Dockerfile -t rundale:local .
    docker run --rm -p 8080:8080 -e PORT=8080 \
-     -e PARISH_PROVIDER=simulator parish:local
+     -e LIMERICK_PROVIDER=simulator rundale:local
    curl -fsS http://localhost:8080/api/health
    ```
 
 2. **Deploy**
 
    ```sh
-   gcloud artifacts repositories create parish \
+   gcloud artifacts repositories create rundale \
      --repository-format=docker --location=REGION
-   gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/parish/parish:TAG
+   gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT/limerick/rundale:TAG
    gcloud run services replace deploy/cloud-run.yaml --region=REGION
    ```
 
@@ -170,4 +170,4 @@ Doing none of these leaves the world open, and in a release build the
    `generativelanguage.googleapis.com` in logs.
 7. **WebSocket longevity** — hold a WS session open 65+ min to confirm the
    client reconnects cleanly after the 60-min cap (the 409-on-duplicate guard
-   in `crates/parish-server/src/ws.rs:88` should be exercised and handled).
+   in `crates/limerick-server/src/ws.rs:88` should be exercised and handled).

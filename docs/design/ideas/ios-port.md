@@ -25,7 +25,7 @@ the trade-off is explicit.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│       parish-core · parish-inference · parish-persistence (+ others)    │
+│       limerick-core · limerick-inference · limerick-persistence (+ others)    │
 │  WorldGraph · NpcManager · GameClock · SimulationTiers · Persistence    │
 │  InferenceBackend trait (Box<dyn>; impl chosen at compile time)         │
 └──────────────────────────┬──────────────────────────────────────────────┘
@@ -34,22 +34,22 @@ the trade-off is explicit.
    │                       │                                 │
    ▼                       ▼                                 ▼
 ┌─────────────┐  ┌──────────────────┐  ┌──────────────────────────────┐
-│ parish-engine  │  │ parish-tauri     │  │ parish-tauri                 │
+│ limerick-engine  │  │ limerick-tauri     │  │ limerick-tauri                 │
 │ (headless)  │  │ desktop          │  │ iOS (new)                    │
 │ Ollama HTTP │  │ Ollama HTTP      │  │ LiteRT-LM + iOS GPU in-proc  │
 └─────────────┘  └──────────────────┘  └──────────────────────────────┘
                  ┌──────────────────┐
-                 │ parish-server    │
+                 │ limerick-server    │
                  │ Axum + cloud LLM │
                  └──────────────────┘
 ```
 
 iOS becomes a fourth mode alongside the headless CLI, Tauri desktop, and the
-Axum web server. All four consume the shared crates (`parish-core`,
-`parish-inference`, `parish-persistence`, and siblings) unchanged. The only
+Axum web server. All four consume the shared crates (`limerick-core`,
+`limerick-inference`, `limerick-persistence`, and siblings) unchanged. The only
 iOS-specific code lives in three places:
 
-1. **The inference backend** — LiteRT-LM linked into `parish-inference` via a thin C FFI bridge
+1. **The inference backend** — LiteRT-LM linked into `limerick-inference` via a thin C FFI bridge
 2. **The save-path resolver** — iOS sandbox instead of relative `saves/`
 3. **The Tauri shell glue** — the Xcode project, bundle resources, and a one-line override that forces the embedded backend on iOS
 
@@ -63,7 +63,7 @@ This is the only hard problem. Everything else is plumbing.
 
 ### Why Ollama can't ship to iOS
 
-Parish's inference layer today (`crates/parish-inference/src/`) assumes a
+Limerick's inference layer today (`crates/limerick-inference/src/`) assumes a
 desktop OS that can spawn processes and host a multi-GB model server:
 
 - `setup.rs` shells out to `Command::new("ollama")` to bootstrap and pull models, and runs `nvidia-smi` / `rocm-smi` for GPU detection
@@ -77,7 +77,7 @@ unusable.
 
 ### The trait
 
-Introduce an `InferenceBackend` trait in `crates/parish-inference/src/`
+Introduce an `InferenceBackend` trait in `crates/limerick-inference/src/`
 mirroring the three async methods every current caller already uses on
 `OpenAiClient` / `SimulatorClient` / `AnyClient`. Keep `temperature` in the
 surface — it's already threaded through the real signatures:
@@ -92,7 +92,7 @@ pub trait InferenceBackend: Send + Sync {
         system: Option<&str>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
-    ) -> Result<String, ParishError>;
+    ) -> Result<String, LimerickError>;
 
     async fn generate_stream(
         &self,
@@ -102,7 +102,7 @@ pub trait InferenceBackend: Send + Sync {
         token_tx: mpsc::UnboundedSender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
-    ) -> Result<String, ParishError>;
+    ) -> Result<String, LimerickError>;
 
     /// Default impl calls `generate` and `serde_json::from_str`; backends
     /// that support native structured output (OpenAI JSON mode) override it.
@@ -113,7 +113,7 @@ pub trait InferenceBackend: Send + Sync {
         system: Option<&str>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
-    ) -> Result<String, ParishError> {
+    ) -> Result<String, LimerickError> {
         self.generate(model, prompt, system, max_tokens, temperature).await
     }
 }
@@ -127,7 +127,7 @@ trait.
 collection of per-category overrides (`interactive`, `background`, `batch`,
 …): a single monomorphized `T` would force every slot to be the same
 concrete type, which collapses the point of the struct. Dynamic dispatch
-also lets `parish-tauri` swap backends at runtime for non-iOS (env-driven)
+also lets `limerick-tauri` swap backends at runtime for non-iOS (env-driven)
 modes without re-parameterizing the rest of the worker. The per-call cost
 is negligible against network or on-device inference latency.
 
@@ -138,11 +138,11 @@ or `Arc<dyn InferenceBackend>` as ownership demands.
 
 Concrete call sites to update (from a repo sweep):
 
-- `crates/parish-inference/src/lib.rs` — definition of `AnyClient`, `InferenceClients`, `spawn_inference_worker`
-- `crates/parish-tauri/src/lib.rs` — `build_client_from_env` and `build_cloud_client_from_env` (both construct `AnyClient`); setup hook that wires `InferenceClients`
-- `crates/parish-tauri/src/commands.rs` — dynamic `InferenceClients` rebuild path when the user changes provider at runtime
-- `crates/parish-engine/` — any direct `AnyClient` use
-- `crates/parish-server/` — any direct `AnyClient` use
+- `crates/limerick-inference/src/lib.rs` — definition of `AnyClient`, `InferenceClients`, `spawn_inference_worker`
+- `crates/limerick-tauri/src/lib.rs` — `build_client_from_env` and `build_cloud_client_from_env` (both construct `AnyClient`); setup hook that wires `InferenceClients`
+- `crates/limerick-tauri/src/commands.rs` — dynamic `InferenceClients` rebuild path when the user changes provider at runtime
+- `crates/limerick-engine/` — any direct `AnyClient` use
+- `crates/limerick-server/` — any direct `AnyClient` use
 
 The worker's queue / log / streaming machinery does not change — only the
 type of the `client` field and of each `InferenceClients` slot.
@@ -150,13 +150,13 @@ type of the `client` field and of each `InferenceClients` slot.
 The existing `OpenAiClient` becomes one impl (HTTP path, used by every
 non-iOS mode). `SimulatorClient` becomes another. A new `LiteRtLmClient`
 becomes the third (embedded path), gated behind an `ios-inference` Cargo
-feature on `parish-inference`. No mode gets all at once: the iOS-specific
+feature on `limerick-inference`. No mode gets all at once: the iOS-specific
 backend is compile-time.
 
 ### The embedded backend
 
 The v1 option is **LiteRT-LM via a thin C shim, statically linked into
-`parish-inference`.** Google positions LiteRT-LM as the production-ready
+`limerick-inference`.** Google positions LiteRT-LM as the production-ready
 on-device LLM runtime for Android/iOS/web/desktop, and specifically ships
 Gemma 4 E2B/E4B edge variants with iOS GPU acceleration.
 
@@ -174,10 +174,10 @@ Alternatives considered for v1 and rejected:
 ### Build + FFI
 
 The workspace has **no existing C/C++ FFI today** (only `tauri_build::build()`
-in `parish-tauri`'s `build.rs`), so this is greenfield. Commit to:
+in `limerick-tauri`'s `build.rs`), so this is greenfield. Commit to:
 
-- **Source vendoring:** LiteRT-LM pinned as a git submodule at `crates/parish-inference/vendor/litert-lm/`. Submodule pinning is preferred over `cmake` `FetchContent` because the workspace has no precedent for network fetches in `build.rs`.
-- **Bridge language:** a thin **C** (not C++) shim at `crates/parish-inference/vendor/bridge/litert_lm_bridge.{h,cc}`. C ABI avoids name mangling and keeps `bindgen` trivial. The `.cc` file is the only C++ in the tree; it is compiled with `-fno-exceptions -fno-rtti` and linked with the LiteRT-LM static library.
+- **Source vendoring:** LiteRT-LM pinned as a git submodule at `crates/limerick-inference/vendor/litert-lm/`. Submodule pinning is preferred over `cmake` `FetchContent` because the workspace has no precedent for network fetches in `build.rs`.
+- **Bridge language:** a thin **C** (not C++) shim at `crates/limerick-inference/vendor/bridge/litert_lm_bridge.{h,cc}`. C ABI avoids name mangling and keeps `bindgen` trivial. The `.cc` file is the only C++ in the tree; it is compiled with `-fno-exceptions -fno-rtti` and linked with the LiteRT-LM static library.
 - **Shim surface** — five entry points over an opaque `LiteRtLmHandle*`:
 
   ```c
@@ -206,11 +206,11 @@ in `parish-tauri`'s `build.rs`), so this is greenfield. Commit to:
   const char* litert_lm_last_error(void);
   ```
 
-- **Rust side:** `bindgen` in a new `crates/parish-inference/build.rs` generates bindings from the shim header. The `cc` crate compiles the shim. Both are gated on `cfg(feature = "ios-inference")`. `parish-tauri`'s `build.rs` stays untouched.
-- **Rust wrapper** at `crates/parish-inference/src/litert_lm_client.rs` holds an `Arc<Mutex<NonNull<LiteRtLmHandle>>>` (the underlying runtime is not `Sync`) and implements `InferenceBackend`. The wrapper owns the `CString` for the model path for the lifetime of the handle.
+- **Rust side:** `bindgen` in a new `crates/limerick-inference/build.rs` generates bindings from the shim header. The `cc` crate compiles the shim. Both are gated on `cfg(feature = "ios-inference")`. `limerick-tauri`'s `build.rs` stays untouched.
+- **Rust wrapper** at `crates/limerick-inference/src/litert_lm_client.rs` holds an `Arc<Mutex<NonNull<LiteRtLmHandle>>>` (the underlying runtime is not `Sync`) and implements `InferenceBackend`. The wrapper owns the `CString` for the model path for the lifetime of the handle.
 - **Async/sync bridge:** streaming runs on `tokio::task::spawn_blocking`. Inside the blocking task, a loop calls `litert_lm_stream_next` and forwards each token through the existing `mpsc::UnboundedSender<String>` — matching the contract `spawn_inference_worker` already consumes. Non-streaming `generate` also runs on `spawn_blocking` (a single call) to avoid parking the Tokio runtime.
-- **Error mapping:** any non-zero status code from the shim yields `ParishError::Inference(String)` populated from `litert_lm_last_error()`. Null-handle creation failures yield `ParishError::Setup(String)` to match existing conventions.
-- **Model-path ownership:** `LiteRtLmClient::new(path: &Path) -> Result<Self, ParishError>` clones the path into an owned `CString` and passes it to `litert_lm_create`. The model file must outlive the client; this is the caller's responsibility. On iOS the caller is the Tauri setup hook, which reads the path from the `PARISH_MODEL_PATH` env var (set by the Swift layer after ODR resolves the tag).
+- **Error mapping:** any non-zero status code from the shim yields `LimerickError::Inference(String)` populated from `litert_lm_last_error()`. Null-handle creation failures yield `LimerickError::Setup(String)` to match existing conventions.
+- **Model-path ownership:** `LiteRtLmClient::new(path: &Path) -> Result<Self, LimerickError>` clones the path into an owned `CString` and passes it to `litert_lm_create`. The model file must outlive the client; this is the caller's responsibility. On iOS the caller is the Tauri setup hook, which reads the path from the `LIMERICK_MODEL_PATH` env var (set by the Swift layer after ODR resolves the tag).
 
 ### Model choice
 
@@ -235,9 +235,9 @@ right shape for this; nothing about the file layout needs to change.
 ### Cleanup
 
 `#[cfg(not(target_os = "ios"))]`-gate everything in
-`crates/parish-setup/src/` (Ollama bootstrap, GPU probe, all
+`crates/limerick-setup/src/` (Ollama bootstrap, GPU probe, all
 `Command::new` paths) and the `OllamaProcess` lifecycle wrapper in
-`crates/parish-inference/src/client.rs`. With the trait in place,
+`crates/limerick-inference/src/client.rs`. With the trait in place,
 `spawn_inference_worker` no longer cares which backend it's holding, so the
 gating is local to those two files.
 
@@ -248,14 +248,14 @@ the prep work has, however, already happened organically.
 
 ### What's already done
 
-- `crates/parish-tauri/Cargo.toml` already isolates `gdk` and `glib` behind `[target.'cfg(target_os = "linux")'.dependencies]`. iOS builds skip them automatically.
-- `crates/parish-tauri/src/lib.rs` already gates `capture_gdk_screenshot` and `dispatch_screenshot` behind `#[cfg(target_os = "linux")]` with `bail!` stubs for other targets.
-- `tauri.conf.json` already uses identifier `ie.parish.app`, which is reusable for iOS.
+- `crates/limerick-tauri/Cargo.toml` already isolates `gdk` and `glib` behind `[target.'cfg(target_os = "linux")'.dependencies]`. iOS builds skip them automatically.
+- `crates/limerick-tauri/src/lib.rs` already gates `capture_gdk_screenshot` and `dispatch_screenshot` behind `#[cfg(target_os = "linux")]` with `bail!` stubs for other targets.
+- `tauri.conf.json` already uses identifier `ie.limerick.app`, which is reusable for iOS.
 - `apps/ui/` already builds to a static bundle via the SvelteKit static adapter, which is exactly what `WKWebView` wants.
 
 ### What's left
 
-- Run `cargo tauri ios init` from `crates/parish-tauri/` to generate the Xcode project under `crates/parish-tauri/gen/apple/`. Today only `gen/schemas/` exists.
+- Run `cargo tauri ios init` from `crates/limerick-tauri/` to generate the Xcode project under `crates/limerick-tauri/gen/apple/`. Today only `gen/schemas/` exists.
 - `tauri.conf.json` currently has `"bundle.targets": "all"` (a string). Change the schema to an explicit array and include `"iOS"`:
 
   ```jsonc
@@ -269,9 +269,9 @@ the prep work has, however, already happened organically.
 
   Add iOS icons and Info.plist entries (no camera/mic usage strings needed; the game requires neither).
 
-- In `crates/parish-tauri/src/lib.rs`, `build_client_from_env` reads the `PARISH_PROVIDER` env var and dispatches between Ollama, OpenAI-compatible cloud providers, and the simulator. On `target_os = "ios"`, short-circuit that function to construct a `LiteRtLmClient` from `PARISH_MODEL_PATH` regardless of env. `build_cloud_client_from_env` is desktop-only and is `cfg`-gated out.
-- `crates/parish-tauri/src/commands.rs` contains a **second** `InferenceClients` construction path used when the user changes provider at runtime. Apply the same iOS override there (or better: collapse both call sites onto a single helper before adding the iOS branch, so the override lives in one place).
-- The `--screenshot <dir>` CLI flag parsing in `crates/parish-tauri/src/lib.rs` is a desktop dev affordance. `#[cfg(not(target_os = "ios"))]`-gate the whole flag-parsing block (the iOS binary receives no command-line arguments).
+- In `crates/limerick-tauri/src/lib.rs`, `build_client_from_env` reads the `LIMERICK_PROVIDER` env var and dispatches between Ollama, OpenAI-compatible cloud providers, and the simulator. On `target_os = "ios"`, short-circuit that function to construct a `LiteRtLmClient` from `LIMERICK_MODEL_PATH` regardless of env. `build_cloud_client_from_env` is desktop-only and is `cfg`-gated out.
+- `crates/limerick-tauri/src/commands.rs` contains a **second** `InferenceClients` construction path used when the user changes provider at runtime. Apply the same iOS override there (or better: collapse both call sites onto a single helper before adding the iOS branch, so the override lives in one place).
+- The `--screenshot <dir>` CLI flag parsing in `crates/limerick-tauri/src/lib.rs` is a desktop dev affordance. `#[cfg(not(target_os = "ios"))]`-gate the whole flag-parsing block (the iOS binary receives no command-line arguments).
 
 ### Touch input
 
@@ -292,10 +292,10 @@ standard iOS safe-area dance.
 ### Save files
 
 `rusqlite` with the `bundled` feature already cross-compiles to iOS, so the
-database layer in `crates/parish-persistence/src/database.rs` needs zero
+database layer in `crates/limerick-persistence/src/database.rs` needs zero
 changes.
 
-The change is in `crates/parish-persistence/src/picker.rs::ensure_saves_dir`,
+The change is in `crates/limerick-persistence/src/picker.rs::ensure_saves_dir`,
 which today hard-codes a relative path:
 
 ```rust
@@ -310,10 +310,10 @@ A relative path is fine on desktop and the headless CLI but meaningless on
 iOS — the app's working directory is not where its writable storage lives.
 
 **Commit:** change `ensure_saves_dir` to accept an explicit base directory,
-and resolve that base in `parish-tauri` via `tauri::Manager::path().app_data_dir()`.
+and resolve that base in `limerick-tauri` via `tauri::Manager::path().app_data_dir()`.
 
 ```rust
-// parish-persistence
+// limerick-persistence
 pub fn ensure_saves_dir(base: &Path) -> PathBuf {
     let saves_dir = base.join(SAVES_DIR);
     std::fs::create_dir_all(&saves_dir).ok();
@@ -324,29 +324,29 @@ pub fn ensure_saves_dir(base: &Path) -> PathBuf {
 
 Call-site handling:
 
-- **`parish-engine`** passes `Path::new(".")` — preserves today's relative-`saves/` behaviour.
-- **`parish-tauri` (desktop + iOS)** passes `app_handle.path().app_data_dir()?`. On desktop this resolves to the OS-native app-data directory (XDG on Linux, `Application Support` on macOS, `%APPDATA%` on Windows); on iOS it resolves to the sandboxed Application Support directory. One mechanism, no iOS-only branch.
-- **`parish-server`** passes its existing configured data directory.
+- **`limerick-engine`** passes `Path::new(".")` — preserves today's relative-`saves/` behaviour.
+- **`limerick-tauri` (desktop + iOS)** passes `app_handle.path().app_data_dir()?`. On desktop this resolves to the OS-native app-data directory (XDG on Linux, `Application Support` on macOS, `%APPDATA%` on Windows); on iOS it resolves to the sandboxed Application Support directory. One mechanism, no iOS-only branch.
+- **`limerick-server`** passes its existing configured data directory.
 
 This avoids introducing the `dirs` crate (which does not resolve a useful
-iOS sandbox path) and keeps `parish-persistence` free of any `tauri`
+iOS sandbox path) and keeps `limerick-persistence` free of any `tauri`
 dependency. Every other persistence function already takes an explicit
 `&Path`, so no other signatures change.
 
 ### Mod assets
 
-`mods/rundale/` is currently located via `parish_core::game_mod::find_default_mod`,
+`mods/rundale/` is currently located via `limerick_core::game_mod::find_default_mod`,
 which walks up from `std::env::current_dir()` looking for a `mods/rundale/mod.toml`.
 On iOS the app sandbox has no concept of "the directory the binary was launched
 from", so `current_dir()` is useless and the mod has to ship as a Tauri
 _resource_:
 
 - Add `"../../mods/rundale/**"` to `tauri.conf.json` → `bundle.resources` (shown in §"What's left" above).
-- In `parish-tauri/src/lib.rs`, replace the `find_default_mod()` / `GameMod::load(&dir)` pairing in the Tauri startup hook with `app_handle.path().resolve("mods/rundale", BaseDirectory::Resource)?` before calling `GameMod::load`. Keep `find_default_mod` untouched for the CLI and server binaries.
+- In `limerick-tauri/src/lib.rs`, replace the `find_default_mod()` / `GameMod::load(&dir)` pairing in the Tauri startup hook with `app_handle.path().resolve("mods/rundale", BaseDirectory::Resource)?` before calling `GameMod::load`. Keep `find_default_mod` untouched for the CLI and server binaries.
 - The resolver returns the correct on-disk path on every platform — desktop reads from the dev directory, iOS reads from inside the app bundle.
 
 Other callers of `GameMod::load` to audit (from a repo sweep):
-`parish-tauri/src/commands.rs`, `parish-tauri/src/ipc/handlers.rs`,
+`limerick-tauri/src/commands.rs`, `limerick-tauri/src/ipc/handlers.rs`,
 plus the CLI entry point. Only the Tauri entry points need the resource-resolver
 change; the CLI keeps its existing discovery.
 
@@ -355,11 +355,11 @@ size impact.
 
 ## What Gets Dropped on iOS
 
-- The Ollama auto-installer and GPU probe in `crates/parish-setup/src/`
-- The `OllamaProcess` lifecycle wrapper in `crates/parish-inference/src/client.rs`
+- The Ollama auto-installer and GPU probe in `crates/limerick-setup/src/`
+- The `OllamaProcess` lifecycle wrapper in `crates/limerick-inference/src/client.rs`
 - The `AnyClient` enum — replaced by the `InferenceBackend` trait for every mode
-- The Axum web-server mode (`crates/parish-server/`) — not built for iOS. The iOS build only touches `parish-tauri`, `parish-core`, `parish-inference`, `parish-persistence`, so `parish-server` and `parish-engine` are excluded naturally. No Cargo manifest surgery required.
-- The `--screenshot <dir>` flag parsing in `crates/parish-tauri/src/lib.rs` (a desktop dev affordance)
+- The Axum web-server mode (`crates/limerick-server/`) — not built for iOS. The iOS build only touches `limerick-tauri`, `limerick-core`, `limerick-inference`, `limerick-persistence`, so `limerick-server` and `limerick-engine` are excluded naturally. No Cargo manifest surgery required.
+- The `--screenshot <dir>` flag parsing in `crates/limerick-tauri/src/lib.rs` (a desktop dev affordance)
 
 ## Model Download UX
 
@@ -378,8 +378,8 @@ gives us for free.
 Flow:
 
 1. **Swift layer on cold start** runs `NSBundleResourceRequest` with the tag for the selected model tier (see thresholds below). Shows the progress UI while the download runs.
-2. **On success**, Swift resolves the bundle URL (`Bundle.main.url(forResource:withExtension:)` for the tag's resource), writes it to the process environment as `PARISH_MODEL_PATH`, and proceeds with Tauri init.
-3. **Rust setup hook** reads `PARISH_MODEL_PATH` and constructs `LiteRtLmClient::new(path)`. If the env var is missing or the file is unreadable, surface `ParishError::Setup` and return to the Swift layer so it can retry the ODR request.
+2. **On success**, Swift resolves the bundle URL (`Bundle.main.url(forResource:withExtension:)` for the tag's resource), writes it to the process environment as `LIMERICK_MODEL_PATH`, and proceeds with Tauri init.
+3. **Rust setup hook** reads `LIMERICK_MODEL_PATH` and constructs `LiteRtLmClient::new(path)`. If the env var is missing or the file is unreadable, surface `LimerickError::Setup` and return to the Swift layer so it can retry the ODR request.
 4. **On ODR failure**, Swift retries once; on second failure, it blocks at the loading screen with a user-visible error and an explicit "Retry" button. No silent fallback.
 
 Device tiering (evaluated once, persisted in `UserDefaults`):
@@ -388,8 +388,8 @@ Device tiering (evaluated once, persisted in `UserDefaults`):
 - Otherwise → **Gemma4-E2B** (2.58 GB, ~56–57 tok/s).
 - Pre-iPhone-15-Pro hardware is out of scope; do not attempt to run.
 
-Show a one-time "Downloading parish brain (~2 GB)" screen on first launch.
-Reuse the existing `LoadingAnimation` from `crates/parish-core/src/loading.rs`
+Show a one-time "Downloading storyteller model (~2 GB)" screen on first launch.
+Reuse the existing `LoadingAnimation` from `crates/limerick-core/src/loading.rs`
 for visual continuity with the desktop boot experience.
 
 ## Q&A — Common Decisions
@@ -528,15 +528,15 @@ rotates a certificate.
 For Rundale specifically: the existing GitHub Actions workflows for
 desktop/CLI tests should not change. Add a separate `ios-build.yml`
 workflow that runs on `macos-latest`, gated with path filters to only run
-on PRs that touch `crates/parish-tauri/**`, `crates/parish-inference/**`,
-`crates/parish-core/**`, `crates/parish-persistence/**`, `apps/ui/**`, or
+on PRs that touch `crates/limerick-tauri/**`, `crates/limerick-inference/**`,
+`crates/limerick-core/**`, `crates/limerick-persistence/**`, `apps/ui/**`, or
 the workflow itself. This avoids burning macOS minutes on unrelated PRs.
 
 ### App Store submission
 
 Once a TestFlight build is solid:
 
-1. In **App Store Connect**, create the app listing (bundle ID `ie.parish.app`, name, primary language, SKU)
+1. In **App Store Connect**, create the app listing (bundle ID `ie.limerick.app`, name, primary language, SKU)
 2. Fill out metadata: description, keywords, support URL, marketing URL, age rating questionnaire, category, pricing
 3. Upload **screenshots** for every required device size (currently 6.7" and 6.5" iPhone are mandatory; iPad if supported). Apple is strict about pixel dimensions.
 4. Provide a **privacy policy URL** and complete the **App Privacy** disclosures. A fully on-device Rundale should be a clean "no data collected" declaration, which is the easy case.
@@ -557,13 +557,13 @@ App Review reality:
 - **You can never test "what App Store users see" before submitting.** TestFlight uses the same binary but a different distribution path; some bugs only surface in production builds.
 - **Provisioning profiles expire** every year, or whenever a certificate rotates. Builds that worked yesterday will fail today with `No matching provisioning profiles found`. Budget time for this every ~12 months.
 - **Apple's review guidelines change.** A pattern that was fine last submission can be a rejection reason on the next one. Re-read the [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) before any submission after a long gap.
-- **Bundle identifiers are forever.** Once `ie.parish.app` ships to the store, it can't be changed without releasing a new app and migrating saves manually.
+- **Bundle identifiers are forever.** Once `ie.limerick.app` ships to the store, it can't be changed without releasing a new app and migrating saves manually.
 - **Release builds are slow.** A clean Rust + Tauri release build is 10–20 minutes on a Mac mini. CI minutes add up fast.
 - **iOS aggressively kills backgrounded apps with high RAM usage.** Rundale + a 3 GB resident model is exactly the kind of app iOS will reap. The session-resume path (load from latest snapshot on cold start) needs to be fast and reliable.
 
 ## Risks
 
-- **LLM quality on a 3B model is the dominant risk.** Current prompts and the anachronism pipeline (`crates/parish-npc/src/anachronism.rs`) were tuned against a 14B model. Expect a real prompt-engineering pass and possibly more frequent fallback to Tier-2 cognition. This is the only piece that can't be derisked just by writing the integration — it has to be measured against real player conversations.
+- **LLM quality on a 3B model is the dominant risk.** Current prompts and the anachronism pipeline (`crates/limerick-npc/src/anachronism.rs`) were tuned against a 14B model. Expect a real prompt-engineering pass and possibly more frequent fallback to Tier-2 cognition. This is the only piece that can't be derisked just by writing the integration — it has to be measured against real player conversations.
 - **Memory pressure.** Gemma4-E2B plus `WKWebView` + game state should be manageable on 8 GB devices, but E4B can push thermal and memory headroom. Keep pre-iPhone-15-Pro hardware out of scope.
 - **App Store review.** Bundling a multi-GB model is allowed but pushes the IPA over the cellular-download limit. ODR sidesteps this but adds a first-launch download-screen requirement that reviewers will check.
 - **Tauri iOS maturity.** `WKWebView` quirks (no `eval`, stricter CSP) sometimes bite Svelte apps. Budget time for a shakedown pass. `tauri.conf.json` currently sets `security.csp: null`, which simplifies dev but may need tightening for App Store review.
@@ -575,20 +575,20 @@ An explicit sequence so a single implementation pass can execute end-to-end
 without partial-state breakage. Each step leaves the tree green on the
 existing desktop/CLI/web targets before moving on.
 
-1. Introduce `InferenceBackend` trait in `crates/parish-inference/src/lib.rs`.
+1. Introduce `InferenceBackend` trait in `crates/limerick-inference/src/lib.rs`.
 2. `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode) and `impl InferenceBackend for SimulatorClient`.
-3. Delete `AnyClient`. Replace every occurrence with `Box<dyn InferenceBackend>` (or `Arc<dyn …>` where shared). Update `InferenceClients` and `spawn_inference_worker` signatures accordingly. Touch both construction sites in `parish-tauri` (`src/lib.rs` and `src/commands.rs`) — consider collapsing them onto a single helper first.
-4. Add the `ios-inference` Cargo feature to `crates/parish-inference/Cargo.toml` with the LiteRT-LM C-shim build deps (`bindgen` build-dep, `cc` build-dep, `async-trait`).
-5. Vendor LiteRT-LM as a submodule at `crates/parish-inference/vendor/litert-lm/`. Add the C shim at `vendor/bridge/`. Add the `crates/parish-inference/build.rs` that compiles the shim when the feature is on.
-6. Add `crates/parish-inference/src/litert_lm_client.rs` implementing `InferenceBackend` via the shim + `spawn_blocking`.
+3. Delete `AnyClient`. Replace every occurrence with `Box<dyn InferenceBackend>` (or `Arc<dyn …>` where shared). Update `InferenceClients` and `spawn_inference_worker` signatures accordingly. Touch both construction sites in `limerick-tauri` (`src/lib.rs` and `src/commands.rs`) — consider collapsing them onto a single helper first.
+4. Add the `ios-inference` Cargo feature to `crates/limerick-inference/Cargo.toml` with the LiteRT-LM C-shim build deps (`bindgen` build-dep, `cc` build-dep, `async-trait`).
+5. Vendor LiteRT-LM as a submodule at `crates/limerick-inference/vendor/litert-lm/`. Add the C shim at `vendor/bridge/`. Add the `crates/limerick-inference/build.rs` that compiles the shim when the feature is on.
+6. Add `crates/limerick-inference/src/litert_lm_client.rs` implementing `InferenceBackend` via the shim + `spawn_blocking`.
 7. `#[cfg(not(target_os = "ios"))]`-gate Ollama bootstrap (`setup.rs`) and `OllamaProcess` (`client.rs`).
-8. In `parish-tauri`, branch the setup hook on `target_os = "ios"` to build a `LiteRtLmClient` from `PARISH_MODEL_PATH` instead of calling `build_client_from_env`.
-9. Change `ensure_saves_dir` to `ensure_saves_dir(base: &Path)`. Update every call site (CLI, Tauri, server) to pass its platform base. In `parish-tauri`, resolve the base via `app_handle.path().app_data_dir()`.
+8. In `limerick-tauri`, branch the setup hook on `target_os = "ios"` to build a `LiteRtLmClient` from `LIMERICK_MODEL_PATH` instead of calling `build_client_from_env`.
+9. Change `ensure_saves_dir` to `ensure_saves_dir(base: &Path)`. Update every call site (CLI, Tauri, server) to pass its platform base. In `limerick-tauri`, resolve the base via `app_handle.path().app_data_dir()`.
 10. Add `../../mods/rundale/**` to `bundle.resources` in `tauri.conf.json`. In the Tauri setup hook, replace `find_default_mod()` with `app_handle.path().resolve("mods/rundale", BaseDirectory::Resource)`.
-11. `cargo tauri ios init` → commit the generated Xcode project under `crates/parish-tauri/gen/apple/`.
+11. `cargo tauri ios init` → commit the generated Xcode project under `crates/limerick-tauri/gen/apple/`.
 12. Update `bundle.targets` to the array form including `"iOS"`; add iOS icon assets.
 13. `env(safe-area-inset-*)` pass in `apps/ui/src/app.css` (at minimum the input bar and the status bar / chat panel header).
-14. Add ODR tag entries for the two model tiers to the Xcode project. Write the Swift bootstrapper that resolves the tag, populates `PARISH_MODEL_PATH`, and shows the first-launch download UI.
+14. Add ODR tag entries for the two model tiers to the Xcode project. Write the Swift bootstrapper that resolves the tag, populates `LIMERICK_MODEL_PATH`, and shows the first-launch download UI.
 15. Add `.github/workflows/ios-build.yml` — macOS runner, path-filtered, `fastlane match` for signing, `cargo tauri ios build --release` + `fastlane pilot upload` on `main`.
 16. Prompt-tuning pass for Gemma4-E2B on `mods/rundale/prompts/{tier1_system,tier1_context,tier2_system}.txt`.
 
@@ -613,9 +613,9 @@ Everything past that requires a human with the hardware above.
 
 When this design is implemented:
 
-1. `cargo build --target aarch64-apple-ios --features ios-inference -p parish-inference` — embedded backend compiles for the device.
-2. `cargo build --target aarch64-apple-ios -p parish-core -p parish-persistence` — shared crates compile for the device.
-3. `cd crates/parish-tauri && cargo tauri ios build` — produces an `.ipa`.
+1. `cargo build --target aarch64-apple-ios --features ios-inference -p limerick-inference` — embedded backend compiles for the device.
+2. `cargo build --target aarch64-apple-ios -p limerick-core -p limerick-persistence` — shared crates compile for the device.
+3. `cd crates/limerick-tauri && cargo tauri ios build` — produces an `.ipa`.
 4. **Install on a physical iPhone 15 Pro or newer** (the simulator can't represent real on-device GPU LLM perf) and smoke-test:
    - Start a new game, walk between two locations, talk to an NPC. Confirm token streaming arrives in `apps/ui/src/components/ChatPanel.svelte`.
    - Save, kill the app from the multitasker, relaunch, load. Confirm `rusqlite` round-trips through the iOS sandbox path resolved by `ensure_saves_dir`.
@@ -627,7 +627,7 @@ When this design is implemented:
    - Thermal state at the end of the session
 6. **Confirm no desktop regressions** from the trait refactor:
    - `cd apps/ui && npx vitest run`
-   - `cargo test -p parish-core -p parish-inference -p parish-persistence`
+   - `cargo test -p limerick-core -p limerick-inference -p limerick-persistence`
    - `just check` and `just verify` (CLI / Tauri desktop / web server still build and pass)
 
 ## Implementation Spec (Execution-Ready)
@@ -645,19 +645,19 @@ the work can be delivered in one pass.
 
 ### Rust ↔ C++ FFI contract (normative)
 
-Add a C ABI bridge consumed by `crates/parish-core/src/inference/litert_lm_client.rs`.
+Add a C ABI bridge consumed by `crates/limerick-core/src/inference/litert_lm_client.rs`.
 
 #### Ownership and lifetime
 
 - Rust owns request buffers and passes UTF-8 pointers + lengths into C.
 - C++ must copy request text before returning from the FFI call.
 - C++ owns model/session state behind an opaque handle.
-- Rust owns the opaque handle pointer and must call `parish_litert_free` exactly once.
-- All FFI functions return a status code; failures are mapped to `ParishError`.
+- Rust owns the opaque handle pointer and must call `limerick_litert_free` exactly once.
+- All FFI functions return a status code; failures are mapped to `LimerickError`.
 
 #### Threading
 
-- `parish_litert_generate*` calls are serialized per model handle.
+- `limerick_litert_generate*` calls are serialized per model handle.
 - Creating multiple handles is allowed, but v1 uses a single shared handle.
 - Streaming callbacks may be invoked on a LiteRT worker thread; callback
   implementation must be `Send + 'static` and non-blocking.
@@ -665,28 +665,28 @@ Add a C ABI bridge consumed by `crates/parish-core/src/inference/litert_lm_clien
 #### C ABI surface
 
 ```c
-typedef struct ParishLiteRtHandle ParishLiteRtHandle;
+typedef struct LimerickLiteRtHandle LimerickLiteRtHandle;
 
 typedef enum {
-  PARISH_LITERT_OK = 0,
-  PARISH_LITERT_INVALID_ARG = 1,
-  PARISH_LITERT_MODEL_LOAD_FAILED = 2,
-  PARISH_LITERT_INFERENCE_FAILED = 3,
-  PARISH_LITERT_CANCELLED = 4,
-  PARISH_LITERT_INTERNAL = 255
-} ParishLiteRtStatus;
+  LIMERICK_LITERT_OK = 0,
+  LIMERICK_LITERT_INVALID_ARG = 1,
+  LIMERICK_LITERT_MODEL_LOAD_FAILED = 2,
+  LIMERICK_LITERT_INFERENCE_FAILED = 3,
+  LIMERICK_LITERT_CANCELLED = 4,
+  LIMERICK_LITERT_INTERNAL = 255
+} LimerickLiteRtStatus;
 
-typedef void (*ParishTokenCallback)(const char* token_utf8,
+typedef void (*LimerickTokenCallback)(const char* token_utf8,
                                     size_t token_len,
                                     void* user_data);
 
-typedef int (*ParishCancelCallback)(void* user_data); // non-zero => cancel
+typedef int (*LimerickCancelCallback)(void* user_data); // non-zero => cancel
 
-ParishLiteRtStatus parish_litert_new(const char* model_path_utf8,
+LimerickLiteRtStatus limerick_litert_new(const char* model_path_utf8,
                                      size_t model_path_len,
-                                     ParishLiteRtHandle** out_handle);
+                                     LimerickLiteRtHandle** out_handle);
 
-ParishLiteRtStatus parish_litert_generate(ParishLiteRtHandle* handle,
+LimerickLiteRtStatus limerick_litert_generate(LimerickLiteRtHandle* handle,
                                           const char* system_utf8,
                                           size_t system_len,
                                           const char* prompt_utf8,
@@ -695,29 +695,29 @@ ParishLiteRtStatus parish_litert_generate(ParishLiteRtHandle* handle,
                                           char** out_text_utf8,
                                           size_t* out_text_len);
 
-ParishLiteRtStatus parish_litert_generate_stream(
-    ParishLiteRtHandle* handle,
+LimerickLiteRtStatus limerick_litert_generate_stream(
+    LimerickLiteRtHandle* handle,
     const char* system_utf8,
     size_t system_len,
     const char* prompt_utf8,
     size_t prompt_len,
     uint32_t max_tokens,
-    ParishTokenCallback on_token,
-    ParishCancelCallback should_cancel,
+    LimerickTokenCallback on_token,
+    LimerickCancelCallback should_cancel,
     void* user_data,
     char** out_text_utf8,
     size_t* out_text_len);
 
-void parish_litert_string_free(char* s);
-void parish_litert_free(ParishLiteRtHandle* handle);
+void limerick_litert_string_free(char* s);
+void limerick_litert_free(LimerickLiteRtHandle* handle);
 ```
 
 #### Error mapping in Rust
 
-- `INVALID_ARG` -> `ParishError::InvalidInput`
-- `MODEL_LOAD_FAILED` -> `ParishError::Config`
-- `INFERENCE_FAILED` / `INTERNAL` -> `ParishError::Inference`
-- `CANCELLED` -> `ParishError::Inference` with `"cancelled"` marker text
+- `INVALID_ARG` -> `LimerickError::InvalidInput`
+- `MODEL_LOAD_FAILED` -> `LimerickError::Config`
+- `INFERENCE_FAILED` / `INTERNAL` -> `LimerickError::Inference`
+- `CANCELLED` -> `LimerickError::Inference` with `"cancelled"` marker text
 
 `generate_stream` must always return the final accumulated text, even if token
 callbacks were emitted.
@@ -753,7 +753,7 @@ At first launch:
 
 ### Persistence path contract
 
-Implement `saves_dir()` in `parish-core`:
+Implement `saves_dir()` in `limerick-core`:
 
 - non-iOS: unchanged relative `saves/`
 - iOS: app Application Support directory + `/saves`
@@ -797,28 +797,28 @@ Store the scripted corpus and outcomes in `testing/fixtures/ios_prompt_eval/`.
 
 Forward reference for whoever picks this up:
 
-| Path                                                                    | Change                                                                                                                                                                                  |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/parish-inference/src/lib.rs`                                    | Introduce `InferenceBackend` trait; delete `AnyClient`; `InferenceClients` + `spawn_inference_worker` move to `Box<dyn InferenceBackend>`                                               |
-| `crates/parish-providers/src/openai_client/`                            | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode)                                                                                            |
-| `crates/parish-providers/src/simulator.rs`                              | `impl InferenceBackend for SimulatorClient`                                                                                                                                             |
-| `crates/parish-inference/src/litert_lm_client.rs` _(new)_               | Embedded LiteRT-LM backend behind `ios-inference` feature                                                                                                                               |
-| `crates/parish-setup/src/`                                              | `cfg`-gate Ollama bootstrap and GPU probe                                                                                                                                               |
-| `crates/parish-inference/src/client.rs`                                 | `cfg`-gate `OllamaProcess`                                                                                                                                                              |
-| `crates/parish-inference/build.rs` _(new)_                              | `bindgen` + `cc` for the C shim, gated on `ios-inference`                                                                                                                               |
-| `crates/parish-inference/vendor/litert-lm/` _(new submodule)_           | Pinned upstream LiteRT-LM source                                                                                                                                                        |
-| `crates/parish-inference/vendor/bridge/litert_lm_bridge.{h,cc}` _(new)_ | Thin C shim over LiteRT-LM                                                                                                                                                              |
-| `crates/parish-inference/Cargo.toml`                                    | `ios-inference` feature; `async-trait`, `bindgen` (build-dep), `cc` (build-dep)                                                                                                         |
-| `crates/parish-persistence/src/picker.rs`                               | `ensure_saves_dir(base: &Path)` — explicit base, no iOS branch in this crate                                                                                                            |
-| `crates/parish-tauri/tauri.conf.json`                                   | `bundle.targets` → array with `"iOS"`; `bundle.resources` for the mod; iOS icons                                                                                                        |
-| `crates/parish-tauri/src/lib.rs`                                        | Resolve mod via Tauri resource API; pass `app_data_dir` to `ensure_saves_dir`; force embedded backend on `target_os = "ios"` via `PARISH_MODEL_PATH`; `cfg`-gate `--screenshot` parsing |
-| `crates/parish-tauri/src/commands.rs`                                   | Same iOS override at the dynamic `InferenceClients` rebuild path; unify both construction sites on one helper                                                                           |
-| `crates/parish-tauri/gen/apple/` _(generated)_                          | Xcode project from `cargo tauri ios init`                                                                                                                                               |
-| `mods/rundale/prompts/tier1_system.txt`                                 | Slim down for 3B-class model                                                                                                                                                            |
-| `mods/rundale/prompts/tier1_context.txt`                                | Same; tighten scaffolding                                                                                                                                                               |
-| `mods/rundale/prompts/tier2_system.txt`                                 | Same                                                                                                                                                                                    |
-| `apps/ui/src/app.css`                                                   | `env(safe-area-inset-*)` rules                                                                                                                                                          |
-| `.github/workflows/ios-build.yml` _(new)_                               | macOS runner, path-filtered triggers (`crates/parish-tauri/**`, `crates/parish-inference/**`, `apps/ui/**`, self); `fastlane match` for signing                                         |
+| Path                                                                      | Change                                                                                                                                                                                    |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/limerick-inference/src/lib.rs`                                    | Introduce `InferenceBackend` trait; delete `AnyClient`; `InferenceClients` + `spawn_inference_worker` move to `Box<dyn InferenceBackend>`                                                 |
+| `crates/limerick-providers/src/openai_client/`                            | `impl InferenceBackend for OpenAiClient` (override `generate_json_raw` for native JSON mode)                                                                                              |
+| `crates/limerick-providers/src/simulator.rs`                              | `impl InferenceBackend for SimulatorClient`                                                                                                                                               |
+| `crates/limerick-inference/src/litert_lm_client.rs` _(new)_               | Embedded LiteRT-LM backend behind `ios-inference` feature                                                                                                                                 |
+| `crates/limerick-setup/src/`                                              | `cfg`-gate Ollama bootstrap and GPU probe                                                                                                                                                 |
+| `crates/limerick-inference/src/client.rs`                                 | `cfg`-gate `OllamaProcess`                                                                                                                                                                |
+| `crates/limerick-inference/build.rs` _(new)_                              | `bindgen` + `cc` for the C shim, gated on `ios-inference`                                                                                                                                 |
+| `crates/limerick-inference/vendor/litert-lm/` _(new submodule)_           | Pinned upstream LiteRT-LM source                                                                                                                                                          |
+| `crates/limerick-inference/vendor/bridge/litert_lm_bridge.{h,cc}` _(new)_ | Thin C shim over LiteRT-LM                                                                                                                                                                |
+| `crates/limerick-inference/Cargo.toml`                                    | `ios-inference` feature; `async-trait`, `bindgen` (build-dep), `cc` (build-dep)                                                                                                           |
+| `crates/limerick-persistence/src/picker.rs`                               | `ensure_saves_dir(base: &Path)` — explicit base, no iOS branch in this crate                                                                                                              |
+| `crates/limerick-tauri/tauri.conf.json`                                   | `bundle.targets` → array with `"iOS"`; `bundle.resources` for the mod; iOS icons                                                                                                          |
+| `crates/limerick-tauri/src/lib.rs`                                        | Resolve mod via Tauri resource API; pass `app_data_dir` to `ensure_saves_dir`; force embedded backend on `target_os = "ios"` via `LIMERICK_MODEL_PATH`; `cfg`-gate `--screenshot` parsing |
+| `crates/limerick-tauri/src/commands.rs`                                   | Same iOS override at the dynamic `InferenceClients` rebuild path; unify both construction sites on one helper                                                                             |
+| `crates/limerick-tauri/gen/apple/` _(generated)_                          | Xcode project from `cargo tauri ios init`                                                                                                                                                 |
+| `mods/rundale/prompts/tier1_system.txt`                                   | Slim down for 3B-class model                                                                                                                                                              |
+| `mods/rundale/prompts/tier1_context.txt`                                  | Same; tighten scaffolding                                                                                                                                                                 |
+| `mods/rundale/prompts/tier2_system.txt`                                   | Same                                                                                                                                                                                      |
+| `apps/ui/src/app.css`                                                     | `env(safe-area-inset-*)` rules                                                                                                                                                            |
+| `.github/workflows/ios-build.yml` _(new)_                                 | macOS runner, path-filtered triggers (`crates/limerick-tauri/**`, `crates/limerick-inference/**`, `apps/ui/**`, self); `fastlane match` for signing                                       |
 
 ## Headless Execution Addendum
 
@@ -835,8 +835,8 @@ Forward reference for whoever picks this up:
 gating, 12-partial, 13, 16-first-pass):**
 
 - Inference trait refactor (`AnyClient` → `Arc<dyn InferenceBackend>`) across all
-  five consumers (`parish-inference`, `parish-tauri`, `parish-cli`,
-  `parish-server`, `parish-input` tests).
+  five consumers (`limerick-inference`, `limerick-tauri`, `limerick-engine`,
+  `limerick-server`, `limerick-input` tests).
 - `ios-inference` Cargo feature with `async-trait`, `bindgen`, `cc` wired.
 - LiteRT-LM C-shim header + Rust wrapper skeleton + `build.rs` that compiles to a
   **stub** when upstream sources are absent (so `cargo check --features
@@ -870,10 +870,10 @@ A code sweep found six points where the implementation differs from the
 assumptions baked into the sections above. Whoever executes the refactor should
 account for these:
 
-1. **`AnyClient` has three variants, not two.** `crates/parish-inference/src/lib.rs:452-460`
+1. **`AnyClient` has three variants, not two.** `crates/limerick-inference/src/lib.rs:452-460`
    defines `OpenAi`, **`Anthropic`**, and `Simulator`. The design's trait section
    only names `OpenAi`/`Simulator`. → also `impl InferenceBackend for AnthropicClient`
-   (`crates/parish-providers/src/anthropic_client/`).
+   (`crates/limerick-providers/src/anthropic_client/`).
 2. **A fourth method exists: `generate_stream_json`** (`lib.rs:534-557`), used for
    streaming Tier-1 NPC dialogue embedded in JSON. The design's trait lists only
    `generate` / `generate_stream` / `generate_json_raw`. → add `generate_stream_json`
@@ -888,7 +888,7 @@ account for these:
    unused, drop `ProviderKind` entirely.
 4. **`build_client_from_env` does not exist.** The design names it, but the real
    factory is the free `build_client()` (`lib.rs:54-73`) plus
-   `build_cloud_client_from_env` in `crates/parish-tauri/src/lib.rs:1709-1747`.
+   `build_cloud_client_from_env` in `crates/limerick-tauri/src/lib.rs:1709-1747`.
    The iOS override belongs in a unified Tauri setup helper that both
    `src/lib.rs` and `src/commands.rs` call.
 5. **`token_tx` is `mpsc::Sender<String>` (bounded), not `UnboundedSender`.**
@@ -902,7 +902,7 @@ account for these:
    `HashMap<InferenceCategory, (AnyClient, String)>` today and already supports
    heterogeneous per-category backends, so dynamic dispatch is a natural fit.
 
-`AnyClient` removal is a breaking change to `parish-inference`'s public API,
+`AnyClient` removal is a breaking change to `limerick-inference`'s public API,
 which is fine: it is an unpublished path-dependency crate.
 
 ### Headless verification commands
@@ -911,9 +911,9 @@ After each migration step, keep the desktop/CLI/web tree green:
 
 ```sh
 just check                                   # fmt + clippy + tests (desktop)
-cargo test -p parish-core -p parish-inference -p parish-persistence -p parish-input
+cargo test -p limerick-core -p limerick-inference -p limerick-persistence -p limerick-input
 cd apps/ui && npx vitest run                 # frontend unit tests
-cargo build -p parish-cli -p parish-server -p parish-tauri
+cargo build -p limerick-engine -p limerick-server -p limerick-tauri
 ```
 
 Then confirm the iOS target type-checks (no Apple SDK / linker required — pure
@@ -921,10 +921,10 @@ Then confirm the iOS target type-checks (no Apple SDK / linker required — pure
 
 ```sh
 rustup target add aarch64-apple-ios
-cargo check --target aarch64-apple-ios -p parish-core
-cargo check --target aarch64-apple-ios -p parish-persistence
-cargo check --target aarch64-apple-ios -p parish-inference
-cargo check --target aarch64-apple-ios -p parish-inference --features ios-inference
+cargo check --target aarch64-apple-ios -p limerick-core
+cargo check --target aarch64-apple-ios -p limerick-persistence
+cargo check --target aarch64-apple-ios -p limerick-inference
+cargo check --target aarch64-apple-ios -p limerick-inference --features ios-inference
 ```
 
 The last line passing against the stub shim proves the trait, `bindgen`
@@ -936,7 +936,7 @@ toolchain, so headless validation stops at `cargo check`.)
 
 ### Stub-shim caveat
 
-The `vendor/bridge/litert_lm_bridge.cc` stub returns `PARISH_LITERT_INTERNAL`
+The `vendor/bridge/litert_lm_bridge.cc` stub returns `LIMERICK_LITERT_INTERNAL`
 with a "not vendored" error for every call. It exists solely so the
 `ios-inference` feature compiles and links on Linux for type-checking. It is not
 a working backend — the `build.rs` should emit a `cargo:warning` when the stub

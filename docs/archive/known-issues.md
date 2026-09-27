@@ -19,7 +19,7 @@ _No active issues._
 **Severity:** Medium — **Fixed 2026-03-20** — **Superseded 2026-04-22**
 **Description:** When the LLM puts `---` inline with dialogue instead of on its own line (e.g., `(smiles) --- {"action":...}`), the separator filter failed to detect it, causing JSON metadata to display to the player.
 **Original fix:** Extended `find_response_separator()` to detect inline patterns. Increased `SEPARATOR_HOLDBACK` from 16 to 24 bytes.
-**Superseded:** The entire separator approach was replaced with JSON structured output (`response_format: json_object`). Tier 1 NPC responses are now full JSON with a `dialogue` field. The `extract_dialogue_from_partial_json()` function extracts dialogue incrementally during streaming. See `parish-types/src/ids.rs`.
+**Superseded:** The entire separator approach was replaced with JSON structured output (`response_format: json_object`). Tier 1 NPC responses are now full JSON with a `dialogue` field. The `extract_dialogue_from_partial_json()` function extracts dialogue incrementally during streaming. See `limerick-types/src/ids.rs`.
 
 ### 2. LLM fallback fails for unusual movement verbs
 

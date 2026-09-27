@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# harness-shadow.sh — run the GameTestHarness corpus in differential ("shadow")
+# mode and summarize the divergence ledger.
+#
+# Drives the whole harness corpus with LIMERICK_HARNESS_SHADOW=1 so every
+# GameTestHarness::execute also replays its input through the real
+# limerick_core::game_loop and records any divergence (#1159). The aggregated
+# JSONL ledger is summarized into a Markdown report.
+#
+# Divergences are intentionally non-gating: they measure the current
+# legacy-vs-real delta. Cargo compilation and test failures are gating and are
+# returned to the caller after the partial ledger has been summarized.
+#
+# Usage:
+#   bash limerick/scripts/harness-shadow.sh [SUMMARY_MD]
+#
+# Env overrides:
+#   LIMERICK_HARNESS_SHADOW_LEDGER   ledger JSONL path (default: target/harness-shadow-ledger.jsonl)
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT" || exit 1
+
+MANIFEST="limerick/Cargo.toml"
+LEDGER="${LIMERICK_HARNESS_SHADOW_LEDGER:-$REPO_ROOT/limerick/target/harness-shadow-ledger.jsonl}"
+# Default summary lives under the ignored local docs/proofs archive rather
+# than .proofs/ (short-lived PR proof bundles).
+SUMMARY="${1:-$REPO_ROOT/docs/proofs/harness-shadow/initial-ledger.md}"
+
+export LIMERICK_HARNESS_SHADOW=1
+export LIMERICK_HARNESS_SHADOW_LEDGER="$LEDGER"
+
+mkdir -p "$(dirname "$LEDGER")" "$(dirname "$SUMMARY")"
+rm -f "$LEDGER"
+
+# Each invocation tags its records with a case label so the summary can break
+# divergences down by corpus area. The grep is presentation-only; capture the
+# pipeline statuses before any follow-up command can overwrite PIPESTATUS.
+corpus_status=0
+run_case() {
+    local case_label="$1"
+    shift
+    echo "=== shadow corpus: $case_label ==="
+    LIMERICK_HARNESS_SHADOW_CASE="$case_label" cargo test --manifest-path "$MANIFEST" "$@" 2>&1 \
+        | grep -E "test result|FAILED|error\["
+    local pipeline_status=("${PIPESTATUS[@]}")
+    local rc=${pipeline_status[0]}
+    if [ "$rc" -ne 0 ]; then
+        echo "WARNING: cargo test for '$case_label' exited $rc — ledger may be incomplete for this case."
+        corpus_status=1
+    fi
+}
+
+run_case engine-unit -p limerick-engine --lib
+run_case engine-integration -p limerick-engine --tests
+run_case core -p limerick-core --lib
+
+if [ "$corpus_status" -ne 0 ]; then
+    echo "NOTE: at least one corpus case had test failures; the divergence ledger below may be partial."
+fi
+
+echo
+echo "=== summarizing $LEDGER -> $SUMMARY ==="
+python3 "$REPO_ROOT/limerick/scripts/harness-shadow-summarize.py" "$LEDGER" >"$SUMMARY"
+echo "wrote $SUMMARY"
+cat "$SUMMARY"
+
+exit "$corpus_status"

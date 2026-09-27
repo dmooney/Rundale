@@ -70,7 +70,7 @@ The material above suggests several concrete systems for Rundale. **NPC daily sc
 
 [6] **Verified.** _Bean chaointe_ is indeed a keening woman (professional mourner at wakes and funerals), derived from _caoineadh_ (to weep/wail). These were professional mourners whose laments blended singing, weeping, and poetic expression. — Wikipedia, "Keening"; Oriel Arts, "An Bhean Chaointe."
 
-[7] **Verified.** Wake games with sexual connotations (e.g., "Priest of the Parish," "Hide the Gulley") were documented into the 20th century. At the 1720 synod of Cashel and Emly, clergy officially condemned the games. Despite disapproval, people largely ignored clerical denunciations; games continued into the 20th century in Connacht and Munster. — Cabinet Magazine, "Irish Wake Amusements"; Irish Central, "Traditional Irish wakes."
+[7] **Verified.** Wake games with sexual connotations (e.g., "Priest of the Limerick," "Hide the Gulley") were documented into the 20th century. At the 1720 synod of Cashel and Emly, clergy officially condemned the games. Despite disapproval, people largely ignored clerical denunciations; games continued into the 20th century in Connacht and Munster. — Cabinet Magazine, "Irish Wake Amusements"; Irish Central, "Traditional Irish wakes."
 
 [8] **Verified.** "Pattern" is a corruption of the word "patron" (as in patron saint), deriving from Irish _pátrún_. Patterns were celebrated on the feast day of the parish's patron saint, often held at holy wells. — Wikipedia, "Pattern (devotional)."
 

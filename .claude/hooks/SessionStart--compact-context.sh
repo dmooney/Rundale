@@ -4,16 +4,16 @@ set -euo pipefail
 # SessionStart hook (matcher: compact): re-inject project context after compaction
 
 cat <<'CONTEXT'
-=== Parish Project Context (re-injected after compaction) ===
+=== Limerick Project Context (re-injected after compaction) ===
 
-PROJECT: Parish -- An Irish Living World Text Adventure (Rust, Cargo workspace)
+PROJECT: Limerick -- An Irish Living World Text Adventure (Rust, Cargo workspace)
 
 WORKSPACE MEMBERS:
-- crates/parish-engine/: CLI entry point, headless mode, test harness
-- crates/parish-core/: Pure game logic library
-- crates/parish-npc/: NPC AI and memory system
-- crates/parish-world/: World state, locations, descriptions
-- crates/parish-tauri/: Tauri 2 desktop backend
+- crates/limerick-engine/: CLI entry point, headless mode, test harness
+- crates/limerick-core/: Pure game logic library
+- crates/limerick-npc/: NPC AI and memory system
+- crates/limerick-world/: World state, locations, descriptions
+- crates/limerick-tauri/: Tauri 2 desktop backend
 - apps/ui/: Svelte 5 + TypeScript frontend
 
 QUALITY GATES (must pass before every commit):
@@ -34,7 +34,7 @@ GIT CONVENTIONS:
 
 CRITICAL FILES (do not edit directly):
 - Cargo.lock (managed by cargo)
-- mods/rundale/world.json, mods/rundale/npcs.json (world data, use parish-geo-tool)
+- mods/rundale/world.json, mods/rundale/npcs.json (world data, use limerick-geo-tool)
 
 KEY PATHS:
 - docs/index.md -- documentation hub

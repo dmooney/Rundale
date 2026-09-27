@@ -2,11 +2,11 @@
 
 Cycle AH tests whether the current direct map/control prompt family can
 generalize beyond the Grove and Beechwood crops while keeping the original
-illustrated parish-notebook style.
+illustrated rundale-notebook style.
 
 The test crop is data-derived from the repository's configured historic map
 source, not from hand-authored layout notes. It uses the NLS Roscommon
-1st-edition 6-inch XYZ tile source already configured in Parish:
+1st-edition 6-inch XYZ tile source already configured in Limerick:
 
 `https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png`
 

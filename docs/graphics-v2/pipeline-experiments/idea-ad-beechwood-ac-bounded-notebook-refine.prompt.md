@@ -1,5 +1,5 @@
 Use case: historical-scene
-Asset type: bounded style/camera refinement of an illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: bounded style/camera refinement of an illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: current direct-control background plate to refine. This is the edit target. Preserve its crop, north-up ground plan, building count, building adjacency, yards, road exits, wall/hedge boundaries, garden/enclosure placement, gates, and tree masses.
@@ -11,7 +11,7 @@ Image 6: cleaned single-building thatched/no-chimney style crop. Thatch/no-chimn
 Images 7-8: material swatches only for rough stone, roof/wall texture, muddy ground, fields, grass, and ink/watercolor texture.
 
 Primary request:
-Refine Image 1 in place into a more convincing original parish-notebook background plate while preserving its map-derived topology. This is a conservative style/camera/texture repair, not a new layout generation. Do not redraw the scene from scratch.
+Refine Image 1 in place into a more convincing original rundale-notebook background plate while preserving its map-derived topology. This is a conservative style/camera/texture repair, not a new layout generation. Do not redraw the scene from scratch.
 
 Absolute topology locks:
 Keep the same local plate area and north-up relationships as Image 1. Keep every building in the same location, same connected-or-separated relationship, and same broad footprint. Keep the same road entries/exits and road continuity. Keep the same yard/courtyard/open working areas. Keep garden/enclosure walls and plot boundaries in the same locations. Keep gates and tree masses in the same approximate locations. Do not add, delete, merge, split, rotate, or relocate buildings. Do not add or remove roads, paths, walls, water, bridges, churches, graveyards, shops, people, animals, carts, signs, labels, smoke, or chimneys.

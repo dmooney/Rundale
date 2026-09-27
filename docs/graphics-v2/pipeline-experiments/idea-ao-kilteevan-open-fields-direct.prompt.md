@@ -7,7 +7,7 @@ Generated with the built-in `image_gen` tool from a clean-context graphics worke
 1. `/Users/dmooney/Rundale/docs/graphics-v2/pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png` - original historic map crop; primary layout evidence for roads/lanes, roof marks, enclosures, tree/scrub marks, planted enclosure, and field/parcel divisions.
 2. `/Users/dmooney/Rundale/docs/graphics-v2/pipeline-experiments/idea-aj2-kilteevan-dot-suppressed-no-admin-map-crop.png` - cleaned no-admin map crop; physical-linework control and deletion-artifact warning.
 3. `/Users/dmooney/Rundale/docs/graphics-v2/pipeline-experiments/idea-aj2-kilteevan-dot-suppressed-no-admin-oblique-raw-warp.png` - oblique cleaned control; camera/pitch cue only.
-4. `/Users/dmooney/Rundale/docs/graphics-v2/illustrated-parish-notebook.png` - original notebook art-direction reference only.
+4. `/Users/dmooney/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png` - original notebook art-direction reference only.
 5. `/Users/dmooney/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png` - slate-roof rural cottage material, facade, and doorway reference.
 6. `/Users/dmooney/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-thatched-single-house-door-clean.png` - thatch, rough eaves, no-chimney, and dark doorway reference.
 7. `/Users/dmooney/Rundale/docs/graphics-v2/style-crops/illustrated-style-trees-fields.png` - tree, field, hedge, scrub, and watercolor vegetation reference.

@@ -9,7 +9,7 @@ without per-location hints.
 - Source map crop: `map-crop-control-02.png`
 - Generated plate: `idea-g-raw-map-control-02.png`
 - Prompt: `idea-g-raw-map-control-02.prompt.md`
-- Style reference: `../illustrated-parish-notebook.png`
+- Style reference: `../illustrated-rundale-notebook.png`
 
 ## Likely Cause
 

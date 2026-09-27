@@ -4,15 +4,15 @@ This guide is for newcomers who want to make their first meaningful contribution
 
 ## TL;DR: Mental model
 
-**Rundale** is the game. **Parish** is the Rust engine it runs on — a workspace built around a shared core library plus multiple runtime surfaces:
+**Rundale** is the game. **Limerick** is the Rust engine it runs on — a workspace built around a shared core library plus multiple runtime surfaces:
 
-- `crates/parish-core` → engine and simulation logic (shared)
+- `crates/limerick-core` → engine and simulation logic (shared)
 - root crate (`src/`) → CLI/headless runtime and app bootstrapping
-- `crates/parish-tauri/` → desktop backend
-- `crates/parish-server/` → web server backend
+- `crates/limerick-tauri/` → desktop backend
+- `crates/limerick-server/` → web server backend
 - `apps/ui/` → Svelte frontend with a dual transport layer
 
-When in doubt: if logic should work in more than one mode, put it in `parish-core`.
+When in doubt: if logic should work in more than one mode, put it in `limerick-core`.
 
 ---
 
@@ -20,7 +20,7 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
 
 ### Workspace layers
 
-1. **Core domain (`crates/parish-core`)**
+1. **Core domain (`crates/limerick-core`)**
 
    - World state and simulation
    - NPC management and cognitive tiers
@@ -36,13 +36,13 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
    - Config loading and override wiring
    - Test harness orchestration
 
-3. **Desktop app (`crates/parish-tauri/`)**
+3. **Desktop app (`crates/limerick-tauri/`)**
 
    - Tauri command handlers
    - Event emission wiring
    - Integration with core IPC payloads
 
-4. **Web server (`crates/parish-server/`)**
+4. **Web server (`crates/limerick-server/`)**
 
    - Axum routes and WebSocket flow
    - Browser-compatible endpoints mirroring desktop behavior
@@ -54,7 +54,7 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
 
 ### Runtime boot flow (high level)
 
-`crates/parish-engine/src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
+`crates/limerick-engine/src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
 
 ### Core simulation triangle to understand early
 
@@ -72,10 +72,10 @@ If you only study three subsystems first, make them:
 
 Start in input classification and command dispatch, then wire each runtime surface:
 
-- shared parse/intent behavior in `parish-core`
-- headless dispatch path in `crates/parish-engine/src/headless.rs`
-- web command endpoint in `crates/parish-server/src/routes.rs`
-- desktop command wiring in `crates/parish-tauri/src/`
+- shared parse/intent behavior in `limerick-core`
+- headless dispatch path in `crates/limerick-engine/src/headless.rs`
+- web command endpoint in `crates/limerick-server/src/routes.rs`
+- desktop command wiring in `crates/limerick-tauri/src/`
 
 **Rule of thumb:** keep command semantics shared; keep transport-specific glue local.
 
@@ -83,9 +83,9 @@ Start in input classification and command dispatch, then wire each runtime surfa
 
 Typical touch points:
 
-- `crates/parish-core/src/npc/manager.rs`
-- tier tick logic under `crates/parish-core/src/npc/`
-- optional IPC mapping updates in `crates/parish-core/src/ipc/`
+- `crates/limerick-core/src/npc/manager.rs`
+- tier tick logic under `crates/limerick-core/src/npc/`
+- optional IPC mapping updates in `crates/limerick-core/src/ipc/`
 
 Suggested sequence:
 
@@ -106,9 +106,9 @@ If backend work is required, mirror behavior across Tauri + web to preserve mode
 
 Use this pattern:
 
-1. Add shared payload mapping/handler in `parish-core/src/ipc/`.
+1. Add shared payload mapping/handler in `limerick-core/src/ipc/`.
 2. Expose on desktop (Tauri command/event).
-3. Expose on web (`parish-server` route/ws).
+3. Expose on web (`limerick-server` route/ws).
 4. Add frontend wrapper in `apps/ui/src/lib/ipc.ts`.
 
 ### 5) Content-only contribution (easiest first PR)
@@ -126,7 +126,7 @@ This lets you improve game content without touching engine runtime behavior.
 ## Newcomer gotchas
 
 1. **Do not duplicate shared gameplay logic in root `src/`.**
-   Put reusable behavior in `crates/parish-core`.
+   Put reusable behavior in `crates/limerick-core`.
 
 2. **Parity across modes is intentional.**
    Check CLI/headless, Tauri, and web impact for feature changes.
@@ -146,10 +146,10 @@ Read these in order:
 1. `README.md`
 2. `docs/index.md`
 3. `docs/design/overview.md`
-4. `crates/parish-engine/src/main.rs` (startup + mode routing)
-5. `crates/parish-engine/src/headless.rs` (single-turn runtime flow)
-6. `crates/parish-core/src/world/`, `npc/`, and `inference/`
-7. `crates/parish-engine/src/testing.rs` (GameTestHarness for controlled iteration)
+4. `crates/limerick-engine/src/main.rs` (startup + mode routing)
+5. `crates/limerick-engine/src/headless.rs` (single-turn runtime flow)
+6. `crates/limerick-core/src/world/`, `npc/`, and `inference/`
+7. `crates/limerick-engine/src/testing.rs` (GameTestHarness for controlled iteration)
 
 ---
 

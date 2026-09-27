@@ -5,6 +5,8 @@ set -euo pipefail
 : "${PLAYWRIGHT_WINDOWS_RESULT:?PLAYWRIGHT_WINDOWS_RESULT must be set}"
 : "${RUNTIME_SUITE_REQUIRED:?RUNTIME_SUITE_REQUIRED must be set}"
 : "${RUNTIME_SUITE_RESULT:?RUNTIME_SUITE_RESULT must be set}"
+: "${DIFFERENTIAL_REQUIRED:?DIFFERENTIAL_REQUIRED must be set}"
+: "${DIFFERENTIAL_RESULT:?DIFFERENTIAL_RESULT must be set}"
 
 echo "gated job results: $GATED_RESULTS"
 read -ra results <<<"$GATED_RESULTS"
@@ -25,24 +27,32 @@ if [[ "$PLAYWRIGHT_WINDOWS_RESULT" != "success" ]]; then
     status=1
 fi
 
-case "$RUNTIME_SUITE_REQUIRED" in
-    true)
-        if [[ "$RUNTIME_SUITE_RESULT" != "success" ]]; then
-            echo "::error::runtime correctness suite was required but ended with '$RUNTIME_SUITE_RESULT'"
+# A conditional job must succeed when its path filter selected it and be
+# skipped otherwise; anything else means the condition and the filter drifted.
+check_conditional() {
+    local label="$1" required="$2" result="$3"
+    case "$required" in
+        true)
+            if [[ "$result" != "success" ]]; then
+                echo "::error::$label was required but ended with '$result'"
+                status=1
+            fi
+            ;;
+        false)
+            if [[ "$result" != "skipped" ]]; then
+                echo "::error::$label was not required but ended with '$result' instead of 'skipped'"
+                status=1
+            fi
+            ;;
+        *)
+            echo "::error::required flag for $label must be 'true' or 'false', got '$required'"
             status=1
-        fi
-        ;;
-    false)
-        if [[ "$RUNTIME_SUITE_RESULT" != "skipped" ]]; then
-            echo "::error::runtime correctness suite was not required but ended with '$RUNTIME_SUITE_RESULT' instead of 'skipped'"
-            status=1
-        fi
-        ;;
-    *)
-        echo "::error::RUNTIME_SUITE_REQUIRED must be 'true' or 'false', got '$RUNTIME_SUITE_REQUIRED'"
-        status=1
-        ;;
-esac
+            ;;
+    esac
+}
+
+check_conditional "runtime correctness suite" "$RUNTIME_SUITE_REQUIRED" "$RUNTIME_SUITE_RESULT"
+check_conditional "differential proof" "$DIFFERENTIAL_REQUIRED" "$DIFFERENTIAL_RESULT"
 
 if [[ "$status" -ne 0 ]]; then
     echo "CI gate: FAIL — a gated job failed, was cancelled, or was skipped unexpectedly."

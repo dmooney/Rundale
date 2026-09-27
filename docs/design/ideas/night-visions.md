@@ -4,7 +4,7 @@
 
 > Status: **parked** — design captured for a future implementation. First
 > prototyped on branch `claude/serene-bardeen-6VMVM` (PR #489) as a
-> standalone `/sleep` command; shelved because the parish engine does
+> standalone `/sleep` command; shelved because the limerick engine does
 > not yet model player vitals (fatigue) or housing (a bed to lie down in).
 > Revisit once those systems land.
 
@@ -285,7 +285,7 @@ and they can share the same folklore tables and tone.
 The prototype on branch `claude/serene-bardeen-6VMVM` had all the
 generator pieces working against the simulator provider:
 
-- `parish_world::night_vision::{NightVision, generate_vision,
+- `limerick_world::night_vision::{NightVision, generate_vision,
 is_sleeping_hour}` — 8 unit tests
 - `Command::Sleep(u32)` + `/sleep [hours]` parsing with clamp to
   `[1, 24]` — 5 unit tests

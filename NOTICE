@@ -1,4 +1,4 @@
-Rundale on the Parish engine
+Rundale on the Limerick engine
 Copyright (C) 2026 Dave Mooney
 
 This program is free software: you can redistribute it and/or modify it
@@ -10,7 +10,7 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
-"Rundale" and "Parish" are unregistered trademarks of Dave Mooney; the
+"Rundale" and "Limerick" are unregistered trademarks of Dave Mooney; the
 GPL covers source reuse, but the project names and logos are not part
 of that grant.
 
@@ -42,7 +42,7 @@ Font License 1.1. Full text: `assets/fonts/NotoSansSymbols2-LICENSE.txt`.
 Open Sans Regular map-label glyphs — Copyright 2020 The Open Sans Project
 Authors (https://github.com/googlefonts/opensans), licensed under the SIL
 Open Font License 1.1. Full text:
-`parish/apps/ui/static/map-glyphs/OFL.txt`.
+`limerick/apps/ui/static/map-glyphs/OFL.txt`.
 
 MapLibre GL JS — Copyright (c) 2020 MapLibre contributors, Copyright
 (c) 2014–2020 Mapbox, Inc., licensed under the Mozilla Public License

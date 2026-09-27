@@ -1,7 +1,7 @@
 # Personalisation & Online Learning
 
-**Target crate:** new `crates/parish-preferences/`, integrations in
-`crates/parish-npc/` and `crates/parish-inference/`. Offline training lives in
+**Target crate:** new `crates/limerick-preferences/`, integrations in
+`crates/limerick-npc/` and `crates/limerick-inference/`. Offline training lives in
 `training/` (mirrors `gemma4-rundale-training-plan.md`).
 
 ## Problem
@@ -53,7 +53,7 @@ disclosure).
 
 ### 3a. Distillation from cloud into local via emoji-sentiment filter
 
-`crates/parish-npc/src/reactions.rs` already logs player emoji reactions
+`crates/limerick-npc/src/reactions.rs` already logs player emoji reactions
 per turn. That log is a free preference signal:
 
 1. **Harvest:** for every Tier 1 turn routed to cloud (Claude Opus /
@@ -103,12 +103,12 @@ player, each NPC has a personalised retrieval-augmented style. The NPC
 
 ## Minimal first cut
 
-1. Add `crates/parish-preferences` with a `PlayerProfile` struct, JSON
+1. Add `crates/limerick-preferences` with a `PlayerProfile` struct, JSON
    persisted next to saves.
 2. Nightly (in-game dawn) tick that re-runs a short LLM profile update over
    the last day's transcripts.
 3. Inject profile block into `tier1_system.txt` template.
-4. Log dialogue thumbs in `parish-types::conversation`; use only for
+4. Log dialogue thumbs in `limerick-types::conversation`; use only for
    analytics initially. Fine-tuning is a later phase.
 
 ## Risks

@@ -44,7 +44,7 @@ panel, but the axum server had no corresponding route.
 every page load.
 
 **Fix applied**: Added `get_debug_snapshot` handler in `routes.rs` using
-`parish_core::debug_snapshot::build_debug_snapshot`, and wired the route in
+`limerick_core::debug_snapshot::build_debug_snapshot`, and wired the route in
 `lib.rs`.
 
 ## Features Tested
@@ -201,7 +201,7 @@ None (all tests that could run passed cleanly).
 ### Key Observations
 
 - **All 7 persistence routes are live.** Before this fix they returned 404; now all respond correctly.
-- **Save flow works end-to-end:** `save-game` returned `"Game saved to parish_004.db (branch: main)."`, `discover-save-files` found 4 save files, `save-state` reported `{branch_id: 1, branch_name: "main", filename: "parish_004.db"}`.
+- **Save flow works end-to-end:** `save-game` returned `"Game saved to limerick_004.db (branch: main)."`, `discover-save-files` found 4 save files, `save-state` reported `{branch_id: 1, branch_name: "main", filename: "limerick_004.db"}`.
 - **new-game route resets properly:** Calling `/api/new-game` restarted at Kilteevan Village with the log message "A new chapter begins in the parish..." visible in the chat.
 - **Ledger UI:** Opening the LEDGER button after saving shows the "main" branch card at "Kilteevan Village, 20 Mar 1820, Morning" with "YOU ARE HERE" indicator.
 - **React-to-message route** (added in `origin/main` alongside this fix) is present in the router and was correctly merged during rebase.
@@ -215,5 +215,5 @@ None.
 
 - macOS Darwin 24.6.0
 - Chrome with Claude-in-Chrome MCP extension
-- Rust axum web server, debug build from `/Users/dmooney/Parish/.worktrees/2`
+- Rust axum web server, debug build from `/Users/dmooney/Limerick/.worktrees/2`
 - Svelte 5 + SvelteKit (static adapter, freshly built)

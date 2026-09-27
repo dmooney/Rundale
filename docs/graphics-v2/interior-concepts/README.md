@@ -66,8 +66,8 @@ Gameplay fit audit:
 
 All four prompts used the same core constraints:
 
-- Use the visible `illustrated-parish-notebook.png` and
-  `illustrated-parish-scene-no-ui.png` as style, scale, linework, watercolor,
+- Use the visible `illustrated-rundale-notebook.png` and
+  `illustrated-rundale-scene-no-ui.png` as style, scale, linework, watercolor,
   and low-oblique camera references.
 - Generate a historically grounded 1820 rural Irish interior.
 - Render it as a front-wall-removed cutaway, not side-scroller, not top-down.

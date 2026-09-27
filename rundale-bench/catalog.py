@@ -6,7 +6,7 @@ providers that serve it. Quality judging happens once per model on the
 *cheapest* provider; perf benchmarking (later phase) sweeps every provider.
 
 Provider ``base_url`` / ``api_key_env`` mirror the engine's provider presets
-in ``parish/crates/parish-config/providers/*.toml`` — the catalog is the
+in ``limerick/crates/limerick-config/providers/*.toml`` — the catalog is the
 eval-side view of the same provider set, annotated with prices.
 """
 

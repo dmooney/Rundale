@@ -1,5 +1,5 @@
 Use case: historical-scene
-Asset type: core-crop direct-control illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: core-crop direct-control illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: core top-down topology control crop for the target location. This is the primary layout authority for the deliberately smaller playable plate area. It defines the output crop: central buildings, immediate working yards, nearby garden/enclosure edges, road edges/exits, walls/hedges, gates, and local tree masses. It is not a style reference.

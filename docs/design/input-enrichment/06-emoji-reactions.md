@@ -57,7 +57,7 @@ export const REACTION_PALETTE: ReactionDef[] = [
 ### Backend Palette Definition
 
 ```rust
-// crates/parish-core/src/npc/reactions.rs (new file)
+// crates/limerick-core/src/npc/reactions.rs (new file)
 
 /// A reaction emoji with its natural-language description.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -275,7 +275,7 @@ Two approaches, chosen per implementation phase:
 Fast, zero-latency reactions based on keyword matching and NPC mood:
 
 ```rust
-// crates/parish-core/src/npc/reactions.rs
+// crates/limerick-core/src/npc/reactions.rs
 
 /// Generate a quick reaction from an NPC based on keywords and mood.
 ///
@@ -329,7 +329,7 @@ This piggybacks on the existing inference call — the NPC's structured JSON res
 New event type for NPC reactions:
 
 ```rust
-// crates/parish-core/src/ipc/types.rs
+// crates/limerick-core/src/ipc/types.rs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NpcReactionPayload {
@@ -391,7 +391,7 @@ When the player reacts to an NPC message, the reaction is stored and injected in
 ### Storage
 
 ```rust
-// crates/parish-core/src/npc/reactions.rs
+// crates/limerick-core/src/npc/reactions.rs
 
 /// Recent player reactions toward this NPC.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -456,7 +456,7 @@ This gives the NPC awareness of the player's nonverbal feedback over time.
 ## Route Handler — Player React
 
 ```rust
-// crates/parish-server/src/routes.rs
+// crates/limerick-server/src/routes.rs
 
 #[derive(Deserialize)]
 struct ReactRequest {
@@ -605,19 +605,19 @@ Phase 1 is the most impactful — it gives the player a new input modality. Phas
 
 ## Files to Modify
 
-| File                                      | Change                                                                           |
-| ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `ui/src/lib/reactions.ts`                 | **New** — reaction palette definitions                                           |
-| `ui/src/lib/types.ts`                     | Add `Reaction`, `id` to `TextLogEntry`, reaction fields                          |
-| `ui/src/lib/ipc.ts`                       | Add `reactToMessage()` command                                                   |
-| `ui/src/components/ChatPanel.svelte`      | Reaction picker on hover, reaction bar rendering                                 |
-| `ui/src/stores/game.ts`                   | Handle `npc-reaction` events                                                     |
-| `ui/src/routes/+page.svelte`              | Wire up `npc-reaction` event listener                                            |
-| `crates/parish-core/src/npc/reactions.rs` | **New** — ReactionDef, ReactionLog, reaction_description, generate_rule_reaction |
-| `crates/parish-core/src/npc/mod.rs`       | Add `reaction_log: ReactionLog` to `Npc` struct                                  |
-| `crates/parish-core/src/npc/ticks.rs`     | Inject reaction context into enhanced context                                    |
-| `crates/parish-core/src/ipc/types.rs`     | Add `NpcReactionPayload`, `id` to `TextLogPayload`                               |
-| `crates/parish-server/src/routes.rs`      | Add `react_to_message` handler, NPC reaction generation in conversation flow     |
+| File                                        | Change                                                                           |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ui/src/lib/reactions.ts`                   | **New** — reaction palette definitions                                           |
+| `ui/src/lib/types.ts`                       | Add `Reaction`, `id` to `TextLogEntry`, reaction fields                          |
+| `ui/src/lib/ipc.ts`                         | Add `reactToMessage()` command                                                   |
+| `ui/src/components/ChatPanel.svelte`        | Reaction picker on hover, reaction bar rendering                                 |
+| `ui/src/stores/game.ts`                     | Handle `npc-reaction` events                                                     |
+| `ui/src/routes/+page.svelte`                | Wire up `npc-reaction` event listener                                            |
+| `crates/limerick-core/src/npc/reactions.rs` | **New** — ReactionDef, ReactionLog, reaction_description, generate_rule_reaction |
+| `crates/limerick-core/src/npc/mod.rs`       | Add `reaction_log: ReactionLog` to `Npc` struct                                  |
+| `crates/limerick-core/src/npc/ticks.rs`     | Inject reaction context into enhanced context                                    |
+| `crates/limerick-core/src/ipc/types.rs`     | Add `NpcReactionPayload`, `id` to `TextLogPayload`                               |
+| `crates/limerick-server/src/routes.rs`      | Add `react_to_message` handler, NPC reaction generation in conversation flow     |
 
 ## Effort Estimate
 

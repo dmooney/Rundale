@@ -18,7 +18,7 @@ A root cause analysis technique developed at Toyota. Ask "why?" five times (or u
 
 ## Example
 
-Problem: Headless CLI hangs on `parish run` after upgrading tokio.
+Problem: Headless CLI hangs on `limerick run` after upgrading tokio.
 
 1. Why? — Worker task never completes.
 2. Why? — `recv()` on the input channel blocks forever.

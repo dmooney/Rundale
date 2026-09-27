@@ -37,7 +37,7 @@ response is now a single JSON object:
 
 During streaming, the `dialogue` field is extracted incrementally from the
 partial JSON buffer using `extract_dialogue_from_partial_json()` in
-`parish-types`. Metadata fields are parsed from the complete JSON after
+`limerick-types`. Metadata fields are parsed from the complete JSON after
 streaming finishes.
 
 ## Consequences

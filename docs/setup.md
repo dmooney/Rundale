@@ -22,11 +22,11 @@ source "$HOME/.cargo/env"
 
 ### Install Node.js
 
-Required for the Tauri GUI frontend. Node.js v20+ recommended.
+Required for the Tauri GUI frontend and repository tooling. Use Node.js 24 LTS, matching [`.nvmrc`](../.nvmrc) and the package engine constraints.
 
-- **macOS:** `brew install node` or download from [nodejs.org](https://nodejs.org/)
+- **macOS:** Use a Node version manager to install/select the version in [`.nvmrc`](../.nvmrc), or download Node.js 24 LTS from [nodejs.org](https://nodejs.org/)
 - **Linux:** Use your package manager or [nvm](https://github.com/nvm-sh/nvm) for version management
-- **Windows:** Download from [nodejs.org](https://nodejs.org/) (v20+ LTS recommended)
+- **Windows:** Download Node.js 24 LTS from [nodejs.org](https://nodejs.org/)
 
 ### Install Tauri CLI
 
@@ -62,7 +62,7 @@ Rundale works out of the box with Ollama defaults. To use an alternative LLM pro
 cp .env.example .env
 ```
 
-Edit `.env` to set your provider, API key, and model. See the comments in `.env.example` for options. You can also configure via `parish.toml` or CLI flags — see [Architecture Overview](design/overview.md) for details.
+Edit `.env` to set your provider, API key, and model. See the comments in `.env.example` for options. You can also configure via `limerick.toml` or CLI flags — see [Architecture Overview](design/overview.md) for details.
 
 ---
 
@@ -97,8 +97,8 @@ curl http://localhost:11434/api/tags
 ### Build & Run
 
 ```sh
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui && npm install && cd ..           # one-time frontend deps
@@ -202,8 +202,8 @@ GPU acceleration is optional but strongly recommended for larger models.
 ### Build & Run
 
 ```sh
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui && npm install && cd ..           # one-time frontend deps
@@ -288,8 +288,8 @@ curl http://localhost:11434/api/tags
 ### Build & Run
 
 ```powershell
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui

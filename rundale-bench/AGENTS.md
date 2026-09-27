@@ -1,6 +1,6 @@
 # rundale-bench — agent scope
 
-Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference; drives model + provider choices in `parish-config::presets::preset_models()`. See root [`AGENTS.md`](../AGENTS.md) for non-negotiable rules. The `/rundale-bench` skill at [`.agents/skills/rundale-bench/SKILL.md`](../.agents/skills/rundale-bench/SKILL.md) drives this tooling from Claude Code.
+Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference; drives model + provider choices in `limerick-config::presets::preset_models()`. See root [`AGENTS.md`](../AGENTS.md) for non-negotiable rules. The `/rundale-bench` skill at [`.agents/skills/rundale-bench/SKILL.md`](../.agents/skills/rundale-bench/SKILL.md) drives this tooling from Claude Code.
 
 ## Scoped commands
 

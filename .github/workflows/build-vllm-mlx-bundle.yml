@@ -1,4 +1,4 @@
-# Builds the relocatable Python runtime + vllm-mlx venv that Parish
+# Builds the relocatable Python runtime + vllm-mlx venv that Limerick
 # ships inside the macOS .app's Contents/Resources for first-run local
 # inference. Output uploaded as a workflow artifact; the .dmg build
 # step (separate workflow) downloads it before invoking
@@ -41,7 +41,7 @@ jobs:
       - name: Cache python-build-standalone tarball
         uses: actions/cache@v4
         with:
-          path: parish/dist/cpython-*.tar.gz
+          path: limerick/dist/cpython-*.tar.gz
           key: pbs-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Build the bundle
@@ -52,7 +52,7 @@ jobs:
         with:
           name: vllm-mlx-bundle-aarch64-apple-darwin
           path: |
-            parish/dist/vllm-mlx-bundle.tar.zst
-            parish/dist/vllm-mlx-bundle.tar.zst.sha256
+            limerick/dist/vllm-mlx-bundle.tar.zst
+            limerick/dist/vllm-mlx-bundle.tar.zst.sha256
           retention-days: 90
           compression-level: 0 # the tarball is already zstd-compressed
