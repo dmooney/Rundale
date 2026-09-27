@@ -18,7 +18,7 @@
 //! The whole system is gated behind the default-on `banshee` feature flag
 //! — disabling it reverts to the older behaviour of instant removal.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 
@@ -167,7 +167,7 @@ pub(crate) use crate::tier4::RING_BUFFER_CAPACITY;
 ///
 /// `player_loc` is used only to pick the near/far wail voicing.
 pub fn tick(
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     recent_events_ring: &mut VecDeque<String>,
     clock: &GameClock,
     graph: &WorldGraph,
@@ -347,10 +347,10 @@ mod tests {
     use crate::test_helpers::{make_mourning_world, make_test_npc};
     use limerick_types::NpcId;
     use limerick_world::time::GameClock;
-    use std::collections::{HashMap, VecDeque};
+    use std::collections::{BTreeMap, VecDeque};
 
     fn run_tick(
-        npcs: &mut HashMap<NpcId, crate::Npc>,
+        npcs: &mut BTreeMap<NpcId, crate::Npc>,
         world: &mut limerick_world::WorldState,
     ) -> BansheeReport {
         let mut ring = VecDeque::new();
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn banshee_herald_fires_at_night_with_near_doom() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npcs.insert(NpcId(42), npc);
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn banshee_wail_is_emitted_only_once_per_doom() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npcs.insert(NpcId(42), npc);
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn banshee_finalises_death_once_doom_passes() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         // Doom 1 hour in the past.
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 15, 21, 0, 0).unwrap());
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn banshee_does_not_fire_during_daytime() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npcs.insert(NpcId(42), npc);
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn banshee_herald_near_player_uses_close_voicing() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 0); // NPC lives at player's location.
         npc.home = Some(LocationId(0));
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
@@ -468,7 +468,7 @@ mod tests {
 
     #[test]
     fn multiple_simultaneous_dooms_all_heralded() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc1 = make_test_npc(42, 2);
         npc1.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npcs.insert(NpcId(42), npc1);
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn multiple_simultaneous_dooms_all_die() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc1 = make_test_npc(42, 2);
         npc1.doom = Some(Utc.with_ymd_and_hms(1820, 6, 15, 21, 30, 0).unwrap());
         npc1.banshee_heralded = true;
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn clock_rewind_after_herald_does_not_double_wail() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npcs.insert(NpcId(42), npc);
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn clock_rewind_past_doom_does_not_double_kill() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_test_npc(42, 2);
         npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
         npc.banshee_heralded = true;

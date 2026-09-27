@@ -5,7 +5,7 @@
 //! event application — live in their own modules; the methods here are thin
 //! wrappers that delegate and expose the stable public API.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use chrono::{DateTime, Utc};
 
@@ -44,9 +44,13 @@ pub const REACTION_EMOJI_BUFFER_CAPACITY: usize = 8;
 #[derive(Clone)]
 pub struct NpcManager {
     /// All NPCs keyed by their unique id.
-    npcs: HashMap<NpcId, Npc>,
-    /// Current cognitive tier assignment for each NPC.
-    tier_assignments: HashMap<NpcId, CogTier>,
+    ///
+    /// Ordered by id so every NPC list the game builds from it (tier lists,
+    /// simulation prompts, arrivals and departures, debug output) comes out
+    /// in the same order on every run.
+    npcs: BTreeMap<NpcId, Npc>,
+    /// Current cognitive tier assignment for each NPC, ordered by id.
+    tier_assignments: BTreeMap<NpcId, CogTier>,
     /// Scheduling state for Tier 2.
     tier2_state: TierTickState,
     /// Scheduling state for Tier 3.
@@ -94,8 +98,8 @@ mod tests;
 impl NpcManager {
     pub fn new() -> Self {
         Self {
-            npcs: HashMap::new(),
-            tier_assignments: HashMap::new(),
+            npcs: BTreeMap::new(),
+            tier_assignments: BTreeMap::new(),
             tier2_state: TierTickState::default(),
             tier3_state: TierTickState::default(),
             tier4_state: TierTickState::default(),

@@ -28,7 +28,7 @@ pub mod conversation {
     pub use limerick_types::conversation::*;
 }
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::Deserialize;
 

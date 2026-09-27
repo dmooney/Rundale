@@ -301,8 +301,15 @@ pub fn apply_movement(
             }
 
             // Check for a travel encounter now that the clock has advanced.
-            let encounter_msg =
-                check_encounter(world.clock.time_of_day(), dice::DiceRoll::roll().value());
+            let encounter_roll = dice::DiceRoll::seeded(dice::seed(
+                "travel-encounter",
+                &[
+                    world.clock.game_minutes(),
+                    u64::from(origin.0),
+                    u64::from(destination.0),
+                ],
+            ));
+            let encounter_msg = check_encounter(world.clock.time_of_day(), encounter_roll.value());
 
             // Reassign NPC cognitive tiers
             let tier_transitions = npc_manager.assign_tiers(world, &[]);
@@ -468,8 +475,8 @@ pub fn roll_travel_encounter(world: &WorldState, effects: &GameEffects) -> Optio
         .and_then(|w| w.id.parse::<u32>().ok())
         .map(LocationId)
         .unwrap_or(world.player_location);
-    let clock_minutes = world.clock.now().timestamp() / 60;
-    let seed = limerick_world::wayfarers::encounter_seed(clock_minutes, from_id, to_id);
+    let seed =
+        limerick_world::wayfarers::encounter_seed(world.clock.game_minutes(), from_id, to_id);
     let time = world.clock.time_of_day();
     let season = world.clock.season();
     let weather = world.weather;
@@ -628,7 +635,16 @@ pub fn apply_arrival_reactions(
     let tod = world.clock.time_of_day();
     let weather = world.weather.to_string();
     let introduced = npc_manager.introduced_set();
-    let roll_dice = dice::roll_n(npcs.len() * 2);
+    let roll_dice = dice::seeded_n(
+        dice::seed(
+            "arrival-reactions",
+            &[
+                world.clock.game_minutes(),
+                u64::from(world.player_location.0),
+            ],
+        ),
+        npcs.len() * 2,
+    );
 
     let arrival_ctx = ArrivalContext {
         location: &loc_data,
@@ -1041,6 +1057,45 @@ mod tests {
         assert!(effects.travel_start.is_none());
         assert_eq!(effects.messages.len(), 1);
         assert!(effects.messages[0].text.contains("faintest notion"));
+    }
+
+    #[test]
+    fn travel_encounter_roll_ignores_seconds_within_the_minute() {
+        // Game dates precede 1970, so a truncating `timestamp() / 60` put
+        // 08:13:01 in the 08:14 bucket: wall-clock seconds left on the live
+        // clock before a pause changed which encounter fired.
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        world.clock.pause();
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            "The Crossroads",
+            &transport,
+            &FeatureFlags::default(),
+        );
+        assert!(effects.world_changed);
+        let arrival = world.clock.now();
+        let mut roll_at = |seconds: i64| {
+            let mut clock =
+                limerick_types::GameClock::new(arrival + chrono::Duration::seconds(seconds));
+            clock.pause();
+            world.clock = clock;
+            roll_travel_encounter(&world, &effects).map(|rolled| (rolled.seed, rolled.canned.text))
+        };
+        let on_the_minute = roll_at(0);
+        assert!(
+            on_the_minute.is_some(),
+            "Kilteevan to the Crossroads at 08:13 meets someone"
+        );
+        assert_eq!(roll_at(1), on_the_minute);
+        assert_eq!(roll_at(59), on_the_minute);
+        assert_ne!(
+            roll_at(60).map(|(seed, _)| seed),
+            on_the_minute.map(|(seed, _)| seed)
+        );
     }
 
     #[test]

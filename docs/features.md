@@ -787,7 +787,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - `justfile` with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`
 - Witness-marker scan (`just witness-scan`) — rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files
 - Doc-path validator (`just check-doc-paths`) — ensures every backtick-cited file path in `docs/` actually exists
-- `just setup` — one-time recipe installing system dependencies, Rust toolchain, Node.js v20+, and frontend packages
+- `just setup` — one-time recipe installing system dependencies, Rust toolchain, Node.js 24 LTS, and frontend packages
 - `just act-*` recipes for running CI workflows locally via `nektos/act`
 - `just reset-onboarding` — clears keychain entries and config markers for end-to-end testing of the BYOK flow
 

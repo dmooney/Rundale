@@ -267,6 +267,7 @@ pub async fn handle_game_input(
         return Ok(limerick_core::game_loop::GameInputOutcome {
             task_mutations: commit.task_mutations,
             dialogue_failure: commit.dialogue_failure,
+            clarification: commit.clarification,
         });
     }
 

@@ -312,12 +312,20 @@ impl GameTestHarness {
             app.npc_manager.add_npc(Npc::new_test_npc());
         }
         app.game_mod = game_mod;
+        // Game time moves only through commands, so a script replays to the
+        // same game time, schedules, and seeded rolls on every run.
+        app.world.clock.detach_from_wall_clock();
 
         // Initial tier assignment
         app.npc_manager.assign_tiers(&app.world, &[]);
 
         // Initialize in-memory persistence for test harness
-        let db_sync = crate::persistence::Database::open_memory().ok();
+        // Saves and branches are stamped at the Unix epoch rather than the
+        // wall clock, so `/log` and `/branches` replay identically.
+        let db_sync = crate::persistence::Database::open_memory_with_fixed_timestamps(
+            chrono::DateTime::UNIX_EPOCH,
+        )
+        .ok();
         let mut active_branch_id = 1;
         let mut latest_snapshot_id = 0;
         if let Some(ref db) = db_sync
@@ -1206,6 +1214,7 @@ impl GameTestHarness {
                 response: "New game failed: failed to load NPCs from mod.".to_string(),
             };
         };
+        world.clock.detach_from_wall_clock();
         mgr.assign_tiers(&world, &[]);
         world.log("New game started.".to_string());
 
@@ -1463,7 +1472,7 @@ impl GameTestHarness {
     /// synchronous harness). Reactions are logged to each NPC's `reaction_log`
     /// and to the world text log so they appear in script output.
     fn apply_rule_reactions(&mut self, text: &str) {
-        use limerick_core::npc::reactions::generate_rule_reaction;
+        use limerick_core::npc::reactions::{MessageReactionDice, generate_rule_reaction};
 
         let npc_ids_here: Vec<_> = self
             .app
@@ -1473,8 +1482,10 @@ impl GameTestHarness {
             .map(|n| (n.id, n.name.clone()))
             .collect();
 
+        let game_minutes = self.app.world.clock.game_minutes();
         for (id, name) in npc_ids_here {
-            if let Some(emoji) = generate_rule_reaction(text) {
+            let dice = MessageReactionDice::new(game_minutes, id, text);
+            if let Some(emoji) = generate_rule_reaction(text, dice.rule_seed) {
                 // Persist to reaction_log (proves #403).
                 if let Some(event) = limerick_core::game_loop::record_directional_reaction(
                     &mut self.app.npc_manager,
@@ -1932,9 +1943,16 @@ pub fn run_script_mode(
 /// callers (and integration tests) can inject a vanilla
 /// `GameTestHarness::new()` (character logs off) and avoid writing to
 /// the shared user-data directory.
-pub fn run_script_mode_with(
+pub fn run_script_mode_with(script_path: &Path, harness: GameTestHarness) -> anyhow::Result<()> {
+    run_script_to(script_path, harness, &mut std::io::stdout().lock())
+}
+
+/// Same as [`run_script_mode_with`] but writes the JSON lines to `out`, so a
+/// test can compare the exact bytes two runs produce.
+pub fn run_script_to(
     script_path: &Path,
     mut harness: GameTestHarness,
+    out: &mut impl std::io::Write,
 ) -> anyhow::Result<()> {
     let contents = std::fs::read_to_string(script_path)?;
     let mut last_log_len = harness.text_log().len();
@@ -1961,7 +1979,7 @@ pub fn run_script_mode_with(
             season: harness.season().to_string(),
             new_log_lines,
         };
-        println!("{}", serde_json::to_string(&output)?);
+        writeln!(out, "{}", serde_json::to_string(&output)?)?;
 
         if harness.app.should_quit {
             break;
@@ -2018,6 +2036,32 @@ mod tests {
         let h = GameTestHarness::new();
         assert_eq!(h.player_location(), "Kilteevan Village");
         assert_eq!(h.location_id(), DEFAULT_START_LOCATION);
+    }
+
+    #[test]
+    fn harness_clock_ignores_wall_time_across_new_game_and_load() {
+        let mut h = GameTestHarness::new();
+        assert!(!h.app.world.clock.follows_wall_clock());
+        let start = h.app.world.clock.now();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert_eq!(h.app.world.clock.now(), start, "wall time moved game time");
+
+        h.execute("/save");
+        h.execute("/fork alternate");
+        h.execute("/load main");
+        assert!(
+            !h.app.world.clock.follows_wall_clock(),
+            "a load reattached the clock"
+        );
+
+        assert!(matches!(
+            h.handle_new_game_effect(),
+            ActionResult::SystemCommand { .. }
+        ));
+        assert!(
+            !h.app.world.clock.follows_wall_clock(),
+            "a new game reattached the clock"
+        );
     }
 
     #[test]

@@ -35,6 +35,7 @@ pub(super) fn create_branch(
     conn: &Connection,
     name: &str,
     parent_branch_id: Option<i64>,
+    created_at: &str,
 ) -> Result<i64, LimerickError> {
     if let Some(parent_id) = parent_branch_id {
         let exists: bool = conn
@@ -51,7 +52,6 @@ pub(super) fn create_branch(
         }
     }
 
-    let created_at = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, ?3)",
         params![name, created_at, parent_branch_id],

@@ -91,7 +91,7 @@ What it does (`limerick/scripts/proof/prove_diff.py`):
    uncommitted changes included. Changed files are touched before each build so
    the shared cargo target cannot reuse the other tree's fingerprint, and each
    side's binaries are copied out before the next build.
-2. On each side, several times (`--runs`, default 3):
+2. On each side, twice (`--runs`, default 2):
    - drives the live scenario (`limerick/scripts/proof/scenarios/<name>.txt`,
      one player line per line) through `limerick-server` over
      `POST /api/submit-input`, against the scripted model server. The server
@@ -119,18 +119,21 @@ surface = "requests"          # optional: responses | state | requests | script
 name = "talk-and-task"        # optional: fnmatch on the scenario or fixture name
 match = 'WORLD FACTS .* County Roscommon'  # regex searched in the difference line
 reason = "tier-1 prompt names the county"
+# required = false            # optional: only when the base side is random and
+                              # can match the head by chance (reported, not failed)
 ```
 
 With no file, the run passes only if nothing differs, which is the proof for a
 refactor.
 
-Nondeterminism: runs on `main` still vary (unseeded dice, HashMap-ordered NPC
-lists, wall-clock clocks and save times). `limerick/scripts/proof/noise.py`
-masks each known source, and where a side's runs still disagree the report
-lists it under "Nondeterminism" and compares that unit as a range: a line
-differs only if every run of one side has it and no run of the other does.
-Item 2 of #2033 removes these sources; delete a normaliser when its source is
-fixed.
+Nondeterminism: runs are deterministic at the source (#2033): NPC lists come
+out in id order, rolls are seeded from game state, the script clock and save
+stamps ignore wall time, and background simulation requests are grouped per
+turn. Head runs that disagree with each other fail the check, because the
+change made a run nondeterministic; a base side that disagrees (an older
+`main`) is compared as a range and listed under "Nondeterminism". The one
+remaining normaliser (`limerick/scripts/proof/noise.py`) masks the seconds the
+live server's real-time clock adds before the scenario's `/pause`.
 
 Writing a scenario: start with `/pause`, since the live clock otherwise runs in
 wall-clock time. Lines starting with a movement verb go to the local parser;
@@ -143,6 +146,26 @@ at it with `LIMERICK_BASE_URL=http://127.0.0.1:P/v1`), `drive_session.py`
 (launch `limerick-server`, or `--attach URL` to drive a running server or the
 Tauri bridge), `body_diff.py` (request logs), and `script_compare.py`
 (`--script` output directories).
+
+### In CI
+
+The `Differential proof` job in `.github/workflows/ci.yml` runs the same check
+on every pull request that changes code compiled into `limerick-server` or
+`limerick-engine`, `mods/`, the `--script` fixtures, or the proof tooling.
+Docs-only and UI-only pull requests skip it. It builds `main` and the pull
+request's merge commit, runs the `talk-and-task` scenario and every fixture
+on both, and reads the intended differences from the pull request body: every
+fenced block opened with ` ```toml intended-diffs `. When the bundle has
+`.proofs/<id>/intended-diffs.toml`, `compose-proof-body.sh` and
+`just attach-proof` put that block in the body for you. The report goes to
+the job summary, a sticky pull request comment, and a `prove-diff` artifact
+with every run. The job is part of the `CI gate` aggregate, so an undeclared
+difference, an unobserved required declaration, or a nondeterministic head
+run blocks the merge.
+
+To change the declaration, edit the body (`just attach-proof <id>` after
+editing the bundle file) and re-run the job; a body edit alone does not
+trigger a run.
 
 ## Belt-and-suspenders Lints
 

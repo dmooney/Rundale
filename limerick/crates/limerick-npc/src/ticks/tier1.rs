@@ -97,7 +97,7 @@ pub(crate) fn apply_tier1_response(
 /// witness the exchange and store it in their short-term memory. This
 /// gives bystander NPCs awareness of what's been said around them.
 pub fn record_witness_memories(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     speaker_id: NpcId,
     speaker_name: &str,
     player_input: &str,
@@ -151,11 +151,11 @@ mod tests {
     use super::*;
     use crate::test_helpers::make_test_npc;
     use chrono::TimeZone;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_witness_memory_created_for_bystander() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let speaker = make_test_npc(1, 1);
         let witness = make_test_npc(2, 1);
         npcs.insert(NpcId(1), {
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_speaker_not_given_witness_memory() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let speaker = make_test_npc(1, 1);
         let witness = make_test_npc(2, 1);
         npcs.insert(NpcId(1), {
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_witness_memory_only_for_present_npcs() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), {
             let mut n = make_test_npc(1, 1);
             n.name = "Padraig".to_string();
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_witness_memory_content_format() {
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), {
             let mut n = make_test_npc(1, 1);
             n.name = "Padraig".to_string();

@@ -61,6 +61,13 @@ just act-pr         # simulate the pull_request fast lane
 - The former dispatcher handled PR opens and authorized `@gemini-cli /review` requests; the reusable workflow ran `google-github-actions/run-gemini-cli` with the GitHub MCP integration.
 - To re-enable it, restore both `.yml` filenames together, confirm provider billing, and run `actionlint` on both files before merging.
 
+### `ai-issue-triage.yml.disabled` — AI issue triage (retired)
+
+- **Status:** disabled 2026-09-26 after GitHub Models retirement (2026-07-30). Non-YAML extension keeps it out of Actions.
+- Former triggers were `issues` opened/reopened + `workflow_dispatch`. Classification called `actions/ai-inference` against Models and failed permanently with 410 / non-JSON responses.
+- Manual priority/theme labels from `.github/triage-labels.json` still apply; `triage-audit.yml` continues to audit coverage.
+- To re-enable: restore the `.yml` suffix and rewire classification to another provider.
+
 ### `audit.yml` — Security audit (cargo-audit)
 
 - **Triggers:** `schedule` (daily 06:17 UTC), dependency-changing `pull_request`, `push` to `main` on Cargo manifest/lock changes, and `workflow_dispatch`.
@@ -71,7 +78,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `osv-scanner.yml` — OSV vulnerability scanner
 
 - **Triggers:** `pull_request`/`push`/`merge_group` to `main`, `schedule` (weekly 22:42 UTC Saturday).
-- Uses Google's reusable `osv-scanner-reusable.yml`/`osv-scanner-reusable-pr.yml` v2.3.5. Scan args: `-r --skip-git ./`.
+- Uses Google's reusable `osv-scanner-reusable.yml`/`osv-scanner-reusable-pr.yml` v2.6.0. Scan args: `-r ./` (`--skip-git` was removed upstream; do not pass it).
 - **Permissions:** `security-events: write` (uploads SARIF to Security tab).
 
 ### `build-vllm-mlx-bundle.yml` — Build vllm-mlx distribution bundle
@@ -80,11 +87,11 @@ just act-pr         # simulate the pull_request fast lane
 - Runs on `macos-14` (Apple Silicon); calls `just build-vllm-mlx-bundle`. Produces a `.tar.zst` consumed by the Tauri `.dmg` build. Re-run when vllm-mlx, python-build-standalone, or HfModelDownloader cache layout changes.
 - **Retention:** 90 days, compression-level 0 (already zstd-compressed).
 
-### `eval-inference.yml` — Inference evaluation
+### `eval-inference.yml.disabled` — Inference evaluation (retired)
 
-- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection. The player shares one cookie jar across all Limerick HTTP requests so the run stays in one server session.
-- Builds `limerick-server`, spawns it with `LIMERICK_PROVIDER=github_models` and `PLAYER_MODEL=microsoft/Phi-4`, runs a Python player agent across scenarios (smoke=10t, intent=25t, reactions=15t, tier2=12t, dialogue=20t, full_session=50t). Judges with gpt-4o via `actions/ai-inference@v1`. Aggregates into a CI summary table.
-- **Concurrency:** `eval-inference-${{ github.ref }}`, cancel-in-progress.
+- **Status:** disabled 2026-09-26 after GitHub Models retirement (2026-07-30). Non-YAML extension keeps it out of Actions.
+- Former triggers were nightly schedule + `workflow_dispatch`. Player and judge both called Models (`github_models` / `actions/ai-inference`) and failed permanently with 410 / non-JSON responses.
+- To re-enable: restore the `.yml` suffix and rewire player + judge to another provider.
 
 ### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
 

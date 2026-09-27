@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier3Response, Tier3Update};
@@ -563,7 +563,7 @@ pub async fn tick_tier3_with_profile_and_audit(
 /// Returns debug event strings describing what happened.
 pub fn apply_tier3_updates(
     updates: &[Tier3Update],
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     graph: &WorldGraph,
     game_time: DateTime<Utc>,
     event_bus: &limerick_types::events::EventBus,
@@ -802,7 +802,7 @@ mod tests {
 
     #[test]
     fn test_tier3_update_application() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         let mut npc1 = named_npc(1, "Padraig", 2);
         npc1.relationships
             .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.5));
@@ -861,7 +861,7 @@ mod tests {
 
     #[test]
     fn test_tier3_invalid_location_ignored() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
 
         let graph = WorldGraph::new(); // empty graph — no valid locations
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_tier3_unknown_npc_skipped() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
 
         let graph = WorldGraph::new();

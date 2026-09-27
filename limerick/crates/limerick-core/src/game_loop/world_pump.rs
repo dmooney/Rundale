@@ -324,7 +324,7 @@ fn propagate_gossip_all(world: &mut WorldState, npc: &NpcManager, rng: &mut impl
 /// otherwise name, keeping it unit-testable with a counting stub. This is the
 /// single home of the budgeting math that `limerick-server` used to own (#1159).
 pub fn budgeted_round_robin<F>(
-    groups: &std::collections::HashMap<crate::world::LocationId, Vec<NpcId>>,
+    groups: &std::collections::BTreeMap<crate::world::LocationId, Vec<NpcId>>,
     cursor: usize,
     budget: usize,
     mut propagate: F,
@@ -332,10 +332,9 @@ pub fn budgeted_round_robin<F>(
 where
     F: FnMut(&[NpcId]),
 {
-    // Sort groups by LocationId so the cursor addresses a stable order across
-    // ticks; `HashMap::iter` order would shift on every resize.
-    let mut sorted_keys: Vec<crate::world::LocationId> = groups.keys().copied().collect();
-    sorted_keys.sort();
+    // Groups are keyed in LocationId order, so the cursor addresses a stable
+    // order across ticks.
+    let sorted_keys: Vec<crate::world::LocationId> = groups.keys().copied().collect();
     let n = sorted_keys.len();
     if n == 0 {
         return 0;
@@ -388,7 +387,7 @@ where
 ///   guard directly.
 pub fn mint_tier2_gossip(
     events: &[crate::npc::types::Tier2Event],
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     game_time: chrono::DateTime<chrono::Utc>,
     config: &crate::config::NpcConfig,
     world: &mut WorldState,
@@ -457,6 +456,7 @@ fn dispatch_tier4(
 mod tests {
     use super::*;
     use crate::world::LocationId;
+    use std::collections::BTreeMap;
 
     fn make_group(n: u32) -> (LocationId, Vec<NpcId>) {
         // 2 NPCs so the group is gossip-eligible.
@@ -464,7 +464,7 @@ mod tests {
     }
 
     fn grounding_at(
-        npcs: &HashMap<NpcId, Npc>,
+        npcs: &BTreeMap<NpcId, Npc>,
         participants: &[NpcId],
         location: LocationId,
         game_time: chrono::DateTime<chrono::Utc>,
@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     fn gossip_budget_empty_returns_zero_cursor() {
-        let groups = std::collections::HashMap::new();
+        let groups = std::collections::BTreeMap::new();
         let mut calls = 0;
         let new_cursor = budgeted_round_robin(&groups, 42, 20, |_| calls += 1);
         assert_eq!(new_cursor, 0);
@@ -499,7 +499,7 @@ mod tests {
     #[test]
     fn gossip_budget_caps_at_budget_and_returns_next_cursor() {
         // 50 eligible groups, budget 20 — expect 20 propagations and cursor=20.
-        let mut groups = std::collections::HashMap::new();
+        let mut groups = std::collections::BTreeMap::new();
         for i in 1..=50 {
             let (loc, npcs) = make_group(i);
             groups.insert(loc, npcs);
@@ -514,7 +514,7 @@ mod tests {
     fn gossip_budget_round_robins_across_ticks() {
         // 30 groups, budget 20. Tick 1 does 0..20, tick 2 should pick up at 20
         // and wrap through 29, 0..9 — ending at cursor 10 (20+20 mod 30).
-        let mut groups = std::collections::HashMap::new();
+        let mut groups = std::collections::BTreeMap::new();
         for i in 1..=30 {
             let (loc, npcs) = make_group(i);
             groups.insert(loc, npcs);
@@ -539,7 +539,7 @@ mod tests {
 
     #[test]
     fn gossip_budget_skips_sparse_groups_without_consuming_budget() {
-        let mut groups = std::collections::HashMap::new();
+        let mut groups = std::collections::BTreeMap::new();
         for i in 1..=10u32 {
             let (loc, mut npcs) = make_group(i);
             if i.is_multiple_of(2) {
@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn gossip_budget_cursor_wraps_modulo_group_count() {
-        let mut groups = std::collections::HashMap::new();
+        let mut groups = std::collections::BTreeMap::new();
         for i in 1..=5 {
             let (loc, npcs) = make_group(i);
             groups.insert(loc, npcs);
@@ -633,14 +633,14 @@ mod tests {
         use chrono::TimeZone;
         use limerick_types::events::GameEvent;
         use limerick_types::{LocationId, NpcId};
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
 
         let mut world = WorldState::new();
         // Subscribe before publishing so we can drain the bus.
         let mut rx = world.event_bus.subscribe();
 
         // Build a minimal NPC map: two participants at the same location.
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         let mut npc1 = Npc::new_test_npc();
         npc1.id = NpcId(1);
         npc1.set_location(LocationId(1));
@@ -713,7 +713,7 @@ mod tests {
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let participants = [NpcId(1), NpcId(2)];
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc1 = Npc::new_test_npc();
         npc1.id = participants[0];
         npc1.set_location(LocationId(1));
@@ -795,7 +795,7 @@ mod tests {
         let snapshot_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let apply_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 11, 0, 0).unwrap();
         let participants = [NpcId(1), NpcId(2)];
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc1 = Npc::new_test_npc();
         npc1.id = participants[0];
         npc1.set_location(LocationId(1));
@@ -879,7 +879,7 @@ mod tests {
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let participants = [NpcId(1), NpcId(2)];
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc1 = Npc::new_test_npc();
         npc1.id = participants[0];
         npc1.relationships.insert(
@@ -1030,7 +1030,7 @@ mod tests {
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let participants = [NpcId(1), NpcId(2)];
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         for id in participants {
             let mut npc = Npc::new_test_npc();
             npc.id = id;
@@ -1233,7 +1233,7 @@ mod tests {
         use limerick_types::{LocationId, NpcId};
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         for (id, location) in [
             (NpcId(1), LocationId(1)),
             (NpcId(2), LocationId(1)),

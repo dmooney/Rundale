@@ -111,14 +111,16 @@ pub fn is_snippet_injection_char(c: char) -> bool {
 /// caller's event loop is not blocked.  A watcher task logs any panics or
 /// unexpected task exits without crashing the runtime.
 ///
-/// The eight parameters are semantically distinct (message identity, NPC
-/// snapshot, client, model, feature flag, emitter, persist callback); grouping
-/// them into a struct would create a spurious coupling layer.
+/// The parameters are semantically distinct (message identity, the game
+/// minute that seeds the reaction rolls, NPC snapshot, client, model, feature
+/// flag, emitter, persist callback); grouping them into a struct would create
+/// a spurious coupling layer.
 // allow: justified above — eight distinct concerns, no struct makes sense here.
 #[allow(clippy::too_many_arguments)]
 pub fn emit_npc_reactions(
     player_msg_id: String,
     player_input: String,
+    game_minutes: u64,
     npcs_here: Vec<Npc>,
     reaction_client: Option<AnyClient>,
     reaction_model: String,
@@ -151,10 +153,12 @@ pub fn emit_npc_reactions(
                 // Acquire a permit before starting the (potentially slow) LLM call.
                 let _permit = sem.acquire().await.ok();
 
+                let dice =
+                    crate::npc::reactions::MessageReactionDice::new(game_minutes, npc.id, &input);
                 // Try LLM path first; fall back to rule-based on any failure (#404).
                 let emoji = if llm_enabled {
                     if let Some(ref c) = client {
-                        crate::npc::reactions::infer_player_message_reaction_with_profile_and_audit(
+                        let inferred = crate::npc::reactions::infer_player_message_reaction_with_profile_and_audit(
                             c,
                             &model,
                             &npc,
@@ -163,13 +167,15 @@ pub fn emit_npc_reactions(
                             reaction_profile,
                             audit_sink,
                         )
-                        .await
-                        .or_else(|| crate::npc::reactions::generate_rule_reaction(&input))
+                        .await;
+                        dice.gate_inferred(inferred).or_else(|| {
+                            crate::npc::reactions::generate_rule_reaction(&input, dice.rule_seed)
+                        })
                     } else {
-                        crate::npc::reactions::generate_rule_reaction(&input)
+                        crate::npc::reactions::generate_rule_reaction(&input, dice.rule_seed)
                     }
                 } else {
-                    crate::npc::reactions::generate_rule_reaction(&input)
+                    crate::npc::reactions::generate_rule_reaction(&input, dice.rule_seed)
                 };
 
                 (npc.name.clone(), emoji)
@@ -295,6 +301,7 @@ mod tests {
         emit_npc_reactions(
             "test-msg-id".to_string(),
             player_input.to_string(),
+            0,
             npcs,
             None, // No LLM client — deterministic rule-based path
             String::new(),

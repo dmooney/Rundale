@@ -205,9 +205,11 @@ fn midnight_lines(season: Season, weather: Weather) -> &'static [&'static str] {
     }
 }
 
-/// Compute a seed from the game clock (minutes since epoch) and path endpoints.
-pub fn encounter_seed(clock_minutes: i64, from: LocationId, to: LocationId) -> u64 {
-    let a = clock_minutes as u64;
+/// Compute a seed from the game clock and path endpoints. `game_minutes` is
+/// [`limerick_types::GameClock::game_minutes`]: whole minutes, floored, so the
+/// seconds within a minute never change the seed.
+pub fn encounter_seed(game_minutes: u64, from: LocationId, to: LocationId) -> u64 {
+    let a = game_minutes;
     let b = from.0 as u64;
     let c = to.0 as u64;
     // Simple mix
@@ -371,7 +373,7 @@ mod tests {
         // We brute-force a seed that triggers midnight (prob 0.12)
         let mut found = false;
         for i in 0u64..200 {
-            let seed = encounter_seed(i as i64, LocationId(1), LocationId(2));
+            let seed = encounter_seed(i, LocationId(1), LocationId(2));
             if resolve_encounter(TimeOfDay::Midnight, Season::Autumn, Weather::Clear, seed)
                 .is_some()
             {
@@ -386,7 +388,7 @@ mod tests {
     fn morning_clear_spring_triggers_often() {
         let mut hits = 0usize;
         for i in 0..100u64 {
-            let seed = encounter_seed(i as i64, LocationId(1), LocationId(3));
+            let seed = encounter_seed(i, LocationId(1), LocationId(3));
             if resolve_encounter(TimeOfDay::Morning, Season::Spring, Weather::Clear, seed).is_some()
             {
                 hits += 1;
@@ -400,7 +402,7 @@ mod tests {
     fn storm_suppresses_encounters() {
         let mut hits = 0usize;
         for i in 0..100u64 {
-            let seed = encounter_seed(i as i64, LocationId(1), LocationId(3));
+            let seed = encounter_seed(i, LocationId(1), LocationId(3));
             if resolve_encounter(TimeOfDay::Morning, Season::Winter, Weather::Storm, seed).is_some()
             {
                 hits += 1;

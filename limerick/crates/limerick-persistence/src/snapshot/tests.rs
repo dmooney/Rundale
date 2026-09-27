@@ -1,6 +1,6 @@
 //! Tests for snapshot serialization, conversion, and restore.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use chrono::{TimeZone, Utc};
 use limerick_npc::manager::NpcManager;
@@ -95,7 +95,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         workplace: Some(LocationId(7)),
         schedule: None,
         relationships: {
-            let mut m = HashMap::new();
+            let mut m = BTreeMap::new();
             m.insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.6));
             m
         },

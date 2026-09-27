@@ -1,6 +1,6 @@
 //! Shared NPC test fixtures used across unit-test suites.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::{TimeZone, Utc};
@@ -30,7 +30,7 @@ pub fn make_test_npc(id: u32, location: u32) -> Npc {
         home: Some(LocationId(location)),
         workplace: None,
         schedule: None,
-        relationships: HashMap::new(),
+        relationships: BTreeMap::new(),
         memory: ShortTermMemory::new(),
         long_term_memory: LongTermMemory::new(),
         knowledge: Vec::new(),

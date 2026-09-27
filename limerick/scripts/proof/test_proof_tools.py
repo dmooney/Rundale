@@ -11,8 +11,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import noise  # noqa: E402
-from body_diff import load_requests  # noqa: E402
-from differences import Intended, Item, check, diff_units, load_intended  # noqa: E402
+from body_diff import load_requests, request_items  # noqa: E402
+from differences import (  # noqa: E402
+    Intended,
+    Item,
+    check,
+    diff_units,
+    load_intended,
+    load_intended_markdown,
+)
 from drive_session import Session, read_scenario  # noqa: E402
 from script_compare import script_units  # noqa: E402
 from scripted_openai import ScriptedServer, classify  # noqa: E402
@@ -48,11 +55,25 @@ def test_changed_line_is_reported_with_unit_label() -> None:
 
 
 def test_inserted_and_removed_units_are_reported_whole() -> None:
-    assert signs(diff_units("script", "f", [units("a", "c")], [units("a", "b|x", "c")])) == [
-        "+b",
-        "+x",
+    def labelled(*labels: str) -> list[tuple[str, list[str]]]:
+        return [(label, [f"{label} line"]) for label in labels]
+
+    assert signs(diff_units("script", "f", [labelled("a", "c")], [labelled("a", "b", "c")])) == [
+        "+b line"
     ]
-    assert signs(diff_units("script", "f", [units("a", "b", "c")], [units("a", "c")])) == ["-b"]
+    assert signs(diff_units("script", "f", [labelled("a", "b", "c")], [labelled("a", "c")])) == [
+        "-b line"
+    ]
+
+
+def test_units_pair_by_label_in_repetitive_runs() -> None:
+    # Round trips repeat identical units; only the labelled unit that changed
+    # is reported, not a shifted alignment of its neighbours.
+    trip = ["go to crossroads", "go to kilteevan"] * 3
+    base = [(f"cmd {i}", [cmd]) for i, cmd in enumerate(trip)]
+    head = [(label, lines + (["encounter"] if label == "cmd 3" else [])) for label, lines in base]
+    items = diff_units("script", "f", [base], [head])
+    assert [(item.unit, item.sign, item.text) for item in items] == [("cmd 3", "+", "encounter")]
 
 
 def test_a_unit_that_varies_on_base_is_compared_as_a_range() -> None:
@@ -78,7 +99,8 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     path = tmp_path / "intended.toml"
     path.write_text(
         '[[intended]]\nsurface = "script"\nmatch = "Hold time"\nreason = "help text"\n\n'
-        '[[intended]]\nmatch = "never"\nreason = "not observed"\n'
+        '[[intended]]\nmatch = "never"\nreason = "not observed"\n\n'
+        '[[intended]]\nmatch = "maybe"\nreason = "optional"\nrequired = false\n'
     )
     intended = load_intended(path)
     items = [
@@ -87,7 +109,25 @@ def test_undeclared_and_unobserved_declarations(tmp_path: Path) -> None:
     ]
     undeclared = check(items, intended)
     assert undeclared == [items[1]]  # surface filter excludes the request line
-    assert [entry.hits for entry in intended] == [1, 0]
+    assert [entry.hits for entry in intended] == [1, 0, 0]
+    assert [entry.required for entry in intended] == [True, True, False]
+
+
+def test_intended_differences_are_read_from_a_pr_body(tmp_path: Path) -> None:
+    body = tmp_path / "body.md"
+    body.write_text(
+        'Summary.\n\n```toml\n[[intended]]\nmatch = "not this"\nreason = "plain toml"\n```\n\n'
+        "### Intended differences\n\n```toml intended-diffs\n"
+        '[[intended]]\nsurface = "script"\nmatch = "Tier"\nreason = "id order"\n'
+        "```\n\n```toml intended-diffs\n"
+        '[[intended]]\nmatch = "saved"\nreason = "stamps"\nrequired = false\n'
+        "```\n"
+    )
+    entries = load_intended_markdown(body)
+    assert [(e.match, e.surface, e.required) for e in entries] == [
+        ("Tier", "script", True),
+        ("saved", None, False),
+    ]
 
 
 def test_name_filter_uses_fnmatch() -> None:
@@ -99,35 +139,11 @@ def test_name_filter_uses_fnmatch() -> None:
 # noise
 
 
-def test_tier_lists_are_sorted_and_undecorated() -> None:
-    line = "  Here: Peig Hannigan 😤 [sharp], Aoife Brennan 🔥 [passionate]"
-    assert noise.script_log_line(line, set()) == "  Here: Aoife Brennan, Peig Hannigan"
-    tiers = "  Tier 2 (nearby): Nora Duffy, Liam Murphy"
-    assert noise.script_log_line(tiers, set()) == "  Tier 2 (nearby): Liam Murphy, Nora Duffy"
-
-
-def test_encounters_emoji_lines_and_save_times_are_masked() -> None:
-    assert noise.script_log_line("  · A fox sits in the road.", set()) is None
-    assert noise.script_log_line("Peig nods. 🙂", set()) is None
-    assert noise.script_log_line("A fixed encounter text", {"A fixed encounter text"}) is None
-    saved = "  #5 — game: 1820-03-20T08:26:01+00:00 | saved: 26 Sep 1:27 PM"
-    assert noise.mask_times(saved) == "  #N — game: <t> | saved: <wall-clock> PM"
-
-
-def test_tier3_prompt_npc_blocks_are_sorted() -> None:
-    prompt = (
-        "Simulate.\n\nNPCs (id in brackets — reuse these in your JSON):\n"
-        "- [17] Ciaran\n  close to Kathleen\n- [16] Kathleen\n  close to Ciaran\n"
-        "For each NPC, return one update."
+def test_live_game_timestamps_lose_their_wall_clock_seconds() -> None:
+    text = '"assigned_at": "1820-03-20T08:26:01Z", "other": "1820-03-20T08:26:59.5Z"'
+    assert noise.game_seconds(text) == (
+        '"assigned_at": "1820-03-20T08:26:<s>Z", "other": "1820-03-20T08:26:<s>Z"'
     )
-    lines = noise.prompt_text(prompt).split("\n")
-    assert lines[3:7] == [
-        "- [16] Kathleen",
-        "  close to Ciaran",
-        "- [17] Ciaran",
-        "  close to Kathleen",
-    ]
-    assert lines[-1] == "For each NPC, return one update."
 
 
 # script_compare
@@ -143,15 +159,15 @@ def test_script_units_split_fields_and_include_exit(tmp_path: Path) -> None:
     }
     out.write_text(json.dumps(record) + "\nnot json\n")
     (tmp_path / "test_x.exit").write_text("0\n")
-    units_ = script_units(out, set())
+    units_ = script_units(out)
     assert units_[0] == ("exit", ["exit: 0"])
     assert units_[1][1] == [
         'command: "/help"',
         'result: "system_command"',
         "response| Available:",
         "response|   /pause",
-        "log: a line",
         "log: b line",
+        "log: a line",
         "log: second",
     ]
     assert units_[2][1] == ["raw: not json"]
@@ -207,6 +223,8 @@ def test_server_logs_bodies_and_streams(tmp_path: Path) -> None:
 
 def test_requests_group_by_turn_with_background_sorted(tmp_path: Path) -> None:
     def entry(workload: str, text: str) -> str:
+        if workload == "simulation":
+            text = f"Location: The Mill\nCanonical location [location_id=18]\n{text}"
         body = {"model": "scripted", "messages": [{"role": "user", "content": text}]}
         return json.dumps({"workload": workload, "body": body})
 
@@ -224,12 +242,62 @@ def test_requests_group_by_turn_with_background_sorted(tmp_path: Path) -> None:
     )
     loaded = load_requests(log)
     assert [label for label, _ in loaded] == [
-        "turn 1 request (intent)",
-        "turn 1 request (dialogue)",
-        "turn 1 background (simulation)",
-        "turn 1 background (simulation)",
+        "turn 1 request #1 (intent)",
+        "turn 1 request #2 (dialogue)",
+        "turn 1 background [location_id=18] (simulation) #1",
+        "turn 1 background [location_id=18] (simulation) #2",
     ]
     assert loaded[2][1][-1] == "user| a"
+
+
+def test_variable_background_location_does_not_shift_request_comparison(tmp_path: Path) -> None:
+    def entry(location_id: int, location: str) -> str:
+        prompt = (
+            f"Location: {location}\n"
+            f"Canonical location [location_id={location_id}]\n"
+            f"Dramatis personae at {location}."
+        )
+        body = {"model": "scripted", "messages": [{"role": "user", "content": prompt}]}
+        return json.dumps({"workload": "simulation", "body": body})
+
+    def write_run(path: Path, locations: list[tuple[int, str]]) -> Path:
+        path.write_text(
+            "\n".join(
+                [json.dumps({"turn": 3, "input": "/pause"})]
+                + [entry(location_id, location) for location_id, location in locations]
+            )
+        )
+        return path
+
+    farm = (9, "Murphy's Farm")
+    common = [(2, "Darcy's Pub"), (18, "The Mill")]
+    base = [
+        write_run(tmp_path / "base-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-2.jsonl", common),
+    ]
+    head = [
+        write_run(tmp_path / "head-1.jsonl", common),
+        write_run(tmp_path / "head-2.jsonl", common),
+    ]
+    assert request_items("scenario", base, head) == []
+
+    new_location = (21, "The Chapel")
+    head_with_new = [
+        write_run(tmp_path / "head-new-1.jsonl", [*common, new_location]),
+        write_run(tmp_path / "head-new-2.jsonl", [*common, new_location]),
+    ]
+    added = request_items("scenario", base, head_with_new)
+    assert added
+    assert {item.unit for item in added} == {"turn 3 background [location_id=21] (simulation) #1"}
+
+    base_with_farm = [
+        write_run(tmp_path / "base-farm-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-farm-2.jsonl", [common[0], farm, common[1]]),
+    ]
+    removed = request_items("scenario", base_with_farm, head)
+    assert removed
+    assert {item.unit for item in removed} == {"turn 3 background [location_id=9] (simulation) #1"}
+    assert all(item.sign == "-" for item in removed)
 
 
 # drive_session
