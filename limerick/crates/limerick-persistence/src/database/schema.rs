@@ -63,8 +63,11 @@ pub(super) fn migrate(conn: &Connection, now: &str) -> Result<(), LimerickError>
 
     migrate_branch_parent_fk(conn)?;
     super::turn_journal::migrate(conn)?;
+    ensure_main_branch(conn, now)
+}
 
-    // Ensure the "main" branch exists
+/// Creates the "main" branch, stamped with `now`, when it is missing.
+pub(super) fn ensure_main_branch(conn: &Connection, now: &str) -> Result<(), LimerickError> {
     let exists: bool = conn
         .query_row(
             "SELECT COUNT(*) > 0 FROM branches WHERE name = 'main'",

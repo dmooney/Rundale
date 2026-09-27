@@ -41,6 +41,13 @@ pub enum LimerickError {
     /// from a provider connectivity failure. (#416)
     #[error("inference JSON parse failed: {0}")]
     InferenceJsonParseFailed(String),
+
+    /// A save whose authoritative state (world snapshot, world-event journal,
+    /// or turn requests) this build cannot read, or that belongs to other
+    /// content. The save is refused before anything writes to it, so the
+    /// file is left byte-identical (ADR-025 §4).
+    #[error("save cannot be opened: {0}")]
+    SaveIncompatible(String),
 }
 
 #[cfg(test)]
@@ -69,6 +76,15 @@ mod tests {
     fn test_display_model_not_available() {
         let err = LimerickError::ModelNotAvailable("llama3".into());
         assert_eq!(err.to_string(), "model not available: llama3");
+    }
+
+    #[test]
+    fn test_display_save_incompatible() {
+        let err = LimerickError::SaveIncompatible("snapshot 2 is unreadable".into());
+        assert_eq!(
+            err.to_string(),
+            "save cannot be opened: snapshot 2 is unreadable"
+        );
     }
 
     #[test]

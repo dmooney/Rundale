@@ -39,8 +39,9 @@ pub use active_identity::{
     write_active_save_identity,
 };
 pub use database::{
-    AsyncDatabase, BranchInfo, Database, NewTranscriptEvent, RecoveryData, SnapshotInfo,
-    TranscriptEventRow, TurnJournalWriter, TurnRequestRow,
+    AsyncDatabase, BranchInfo, Database, InspectedBranch, NewTranscriptEvent, RecoveryData,
+    SAVE_FORMAT_VERSION, SaveInspection, SnapshotInfo, TranscriptEventRow, TurnJournalWriter,
+    TurnRequestRow, inspect_save, inspect_save_with,
 };
 pub use journal::{WorldEvent, replay_journal};
 pub use lock::SaveFileLock;

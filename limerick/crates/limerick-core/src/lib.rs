@@ -53,6 +53,7 @@ pub mod loading;
 pub mod mod_source;
 pub mod portable_look;
 pub mod prompts;
+pub mod save_compat;
 pub mod secret_store;
 pub mod session_store;
 pub mod tile_cache;

@@ -304,6 +304,15 @@ impl GameMod {
         self.manifest.setting.start_location
     }
 
+    /// The stable identity saves record for this content: the manifest's
+    /// `[mod] id` and `version` (ADR-025 §4).
+    pub fn content_identity(&self) -> limerick_types::ContentIdentity {
+        limerick_types::ContentIdentity {
+            id: self.manifest.meta.id.clone(),
+            version: self.manifest.meta.version.clone(),
+        }
+    }
+
     /// Period year used for anachronism detection.
     pub fn period_year(&self) -> u16 {
         self.manifest.setting.period_year

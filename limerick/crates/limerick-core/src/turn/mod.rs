@@ -23,7 +23,7 @@ pub mod host;
 pub mod ids;
 pub mod journal;
 #[cfg(test)]
-mod journal_contract;
+pub(crate) mod journal_contract;
 pub mod lifecycle;
 pub mod projection;
 pub mod sqlite_journal;
@@ -49,4 +49,6 @@ pub use lifecycle::{
 };
 pub use projection::{PRESENTATION_EMISSIONS, TRANSCRIPT_EMISSIONS, project_emissions};
 pub use sqlite_journal::SqliteTurnJournal;
-pub use transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
+pub use transcript::{
+    EventBuilder, FALLBACK_LINE, PendingEvent, TranscriptEvent, TranscriptEventKind,
+};
