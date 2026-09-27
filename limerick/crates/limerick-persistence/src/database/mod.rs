@@ -72,6 +72,12 @@ impl Database {
     /// never migrated, and the connection cannot write to the file (see
     /// `format::read_only_connection`).
     pub fn open_read_only(path: &Path) -> Result<Self, LimerickError> {
+        if !path.is_file() {
+            return Err(LimerickError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("no save at {}", path.display()),
+            )));
+        }
         format::inspect(path)?;
         Ok(Self {
             conn: format::read_only_connection(path)?,

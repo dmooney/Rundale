@@ -232,3 +232,46 @@ fn new_saves_are_stamped_and_a_current_save_reopens_without_writes() {
     let memory = Database::open_memory().unwrap();
     drop(memory);
 }
+
+#[test]
+fn inspecting_a_closed_save_leaves_no_sidecars() {
+    let (dir, path) = copy_of("turn_journal_v2_save.db");
+    inspect_save(&path).unwrap();
+    let names: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(names, vec!["limerick_001.db".to_string()]);
+}
+
+#[test]
+fn a_crashed_writers_wal_is_read_but_never_copied_into_the_save() {
+    // A writer that stopped without checkpointing leaves its last commit in
+    // the WAL. Here that commit makes the latest snapshot unreadable.
+    let (_dir, source) = copy_of("turn_journal_v2_save.db");
+    let writer = Connection::open(&source).unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA wal_autocheckpoint = 0;
+             UPDATE snapshots SET world_state = json_set(world_state, '$.player_location', 'nowhere')
+             WHERE id = (SELECT MAX(id) FROM snapshots);",
+        )
+        .unwrap();
+    let crashed = tempfile::tempdir().unwrap();
+    let path = crashed.path().join("limerick_001.db");
+    std::fs::copy(&source, &path).unwrap();
+    let mut wal = source.as_os_str().to_owned();
+    wal.push("-wal");
+    let mut copied_wal = path.as_os_str().to_owned();
+    copied_wal.push("-wal");
+    std::fs::copy(&wal, &copied_wal).unwrap();
+    drop(writer);
+    assert!(std::fs::metadata(&copied_wal).unwrap().len() > 0);
+
+    let reason = assert_refused_and_untouched(&path);
+    assert!(reason.contains("cannot be read"), "{reason}");
+    assert!(
+        std::fs::metadata(&copied_wal).unwrap().len() > 0,
+        "the WAL frames stay in the WAL"
+    );
+}
