@@ -691,31 +691,29 @@ mod resume_identity_tests {
         save_path
     }
 
+    /// Holds the save's kernel lock through its own open file, as another
+    /// process would; this process's `SaveFileLock` registry does not know it.
     #[cfg(unix)]
     struct ExternalSaveLock {
-        child: std::process::Child,
+        file: std::fs::File,
         lock_path: std::path::PathBuf,
     }
 
     #[cfg(unix)]
     impl ExternalSaveLock {
         fn acquire(save_path: &std::path::Path) -> Self {
-            let child = std::process::Command::new("sleep")
-                .arg("60")
-                .spawn()
-                .expect("spawn external lock owner");
             let lock_path = limerick_core::persistence::SaveFileLock::lock_path_for(save_path);
-            std::fs::write(&lock_path, child.id().to_string()).unwrap();
-            Self { child, lock_path }
+            let file = std::fs::File::create(&lock_path).expect("create external lock file");
+            file.try_lock().expect("take external save lock");
+            Self { file, lock_path }
         }
     }
 
     #[cfg(unix)]
     impl Drop for ExternalSaveLock {
         fn drop(&mut self) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
             let _ = std::fs::remove_file(&self.lock_path);
+            let _ = self.file.unlock();
         }
     }
 
