@@ -31,7 +31,7 @@ use std::sync::atomic::Ordering;
 
 use tokio_util::sync::CancellationToken;
 
-use crate::game_loop::{GameInputOutcome, GameLoopContext};
+use crate::game_loop::{AddresseeClarification, GameInputOutcome, GameLoopContext};
 use crate::ipc::{
     ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
     DialogueQualityPayload, IDLE_MESSAGES, REQUEST_ID, StreamEndPayload, StreamTokenPayload,
@@ -95,6 +95,15 @@ pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
 ///
 /// Kill-switch: disable via `flags.is_disabled(POST_GUARD_UI_REPLACE_FLAG)`.
 pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
+
+/// Feature-flag name (default **on**) for addressee clarification. An
+/// explicit addressee (a chip, the `X` of "talk to X", or a leading vocative
+/// such as "Widow, any news?") that matches several people present makes the
+/// turn ask which one the player meant instead of reporting "X is not here."
+/// A leading name or role vocative in free text is also passed to the shared
+/// resolver, rather than the message going to whoever is first. Kill-switch:
+/// disable via `flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG)`.
+pub const ADDRESSEE_CLARIFICATION_FLAG: &str = "addressee-clarification";
 
 /// Token cap for Tier 1 dialogue generation.
 ///
@@ -615,6 +624,24 @@ pub async fn handle_npc_conversation(
     target_names: Vec<String>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) -> GameInputOutcome {
+    handle_npc_conversation_settled(ctx, raw, target_names, &[], spawn_loading).await
+}
+
+/// [`handle_npc_conversation`] with the player's answers to earlier
+/// clarifications of the same request: a target name equal to an answered
+/// reference addresses the chosen NPC.
+///
+/// When an explicit target matches several people present (and
+/// [`ADDRESSEE_CLARIFICATION_FLAG`] is on), the turn asks which one the
+/// player meant: it emits the question as a system line and returns it in
+/// [`GameInputOutcome::clarification`] without running any dialogue.
+pub async fn handle_npc_conversation_settled(
+    ctx: &GameLoopContext<'_>,
+    raw: String,
+    target_names: Vec<String>,
+    answered: &[(String, NpcId)],
+    spawn_loading: impl Fn() -> Option<CancellationToken>,
+) -> GameInputOutcome {
     let trimmed = raw.trim().to_string();
 
     // #1379 — serialize player turns against in-flight NPC streaming.
@@ -658,6 +685,7 @@ pub async fn handle_npc_conversation(
         autonomous_chain_enabled,
         targets,
         absent,
+        clarification,
     ) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
@@ -668,16 +696,30 @@ pub async fn handle_npc_conversation(
         // player "{name} is not here." instead of letting a different
         // co-located NPC speak for them (#985). For ambient input with no
         // named target, fall back to the first co-located NPC as before.
-        let (targets, absent) = if target_names.is_empty() {
+        let (targets, absent, ambiguous) = if target_names.is_empty() {
             (
                 crate::ipc::resolve_npc_targets(&world, &npc_manager, &target_names),
                 Vec::new(),
+                Vec::new(),
             )
-        } else {
+        } else if config.flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG) {
             let resolved =
                 crate::ipc::resolve_addressed_targets(&world, &npc_manager, &target_names);
-            (resolved.resolved, resolved.absent)
+            (resolved.resolved, resolved.absent, Vec::new())
+        } else {
+            let resolved = crate::ipc::resolve_clarifiable_targets(
+                &world,
+                &npc_manager,
+                &target_names,
+                answered,
+            );
+            (resolved.resolved, resolved.absent, resolved.ambiguous)
         };
+        // Ask about the first ambiguous reference; any other is asked about
+        // when the answer's run reaches it.
+        let clarification = ambiguous
+            .first()
+            .map(|ambiguous| addressee_prompt(&npc_manager, ambiguous));
         (
             npc_present,
             world.player_location,
@@ -685,6 +727,7 @@ pub async fn handle_npc_conversation(
             config.flags.is_enabled(AUTONOMOUS_NPC_CHAIN_FLAG),
             targets,
             absent,
+            clarification,
         )
     };
 
@@ -696,6 +739,24 @@ pub async fn handle_npc_conversation(
             ctx.conversation.lock().await.end_turn();
         }
     };
+
+    // An addressee that matches several people present is never guessed:
+    // ask which one the player meant before anyone speaks.
+    if let Some(prompt) = clarification {
+        release_claim().await;
+        ctx.emitter.emit_event(
+            "text-log",
+            serde_json::to_value(text_log("system", prompt.as_line()))
+                .unwrap_or(serde_json::Value::Null),
+        );
+        return GameInputOutcome {
+            clarification: Some(AddresseeClarification {
+                prompt,
+                intent: None,
+            }),
+            ..GameInputOutcome::default()
+        };
+    }
 
     if !npc_present && absent.is_empty() {
         release_claim().await;
@@ -911,6 +972,30 @@ pub async fn handle_npc_conversation(
     GameInputOutcome {
         task_mutations: assigned_tasks,
         dialogue_failure,
+        clarification: None,
+    }
+}
+
+/// The question put to the player when `ambiguous` matches several people:
+/// one choice per person, labelled with the name the player knows them by.
+fn addressee_prompt(
+    npc_manager: &crate::npc::manager::NpcManager,
+    ambiguous: &crate::ipc::AmbiguousAddressee,
+) -> crate::turn::ClarificationPrompt {
+    let choices = ambiguous
+        .candidates
+        .iter()
+        .filter_map(|id| npc_manager.get(*id))
+        .map(|npc| crate::turn::ClarificationChoice {
+            id: format!("choose-npc-{}", npc.id.0),
+            label: npc_manager.display_name(npc).to_string(),
+            entity_id: Some(npc.id.0.to_string()),
+        })
+        .collect();
+    crate::turn::ClarificationPrompt {
+        question: format!("Which {} do you mean?", ambiguous.reference.trim()),
+        choices,
+        reference: Some(ambiguous.reference.clone()),
     }
 }
 
@@ -1049,7 +1134,7 @@ pub async fn run_idle_banter(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
-        dialogue_failure: None,
+        ..GameInputOutcome::default()
     }
 }
 

@@ -24,7 +24,7 @@ const targetManifestPath = path.join(
 	'ui-notice-targets.json',
 );
 const scannerPackage = 'license-checker-rseidelsohn';
-const scannerVersion = '4.4.2';
+const scannerVersion = '5.0.1';
 const firstTarget = [SUPPORTED_TARGETS[0]];
 
 const tests = [];

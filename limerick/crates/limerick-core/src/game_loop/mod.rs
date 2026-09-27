@@ -61,6 +61,9 @@ pub struct GameInputOutcome {
     /// Player-visible recovery when an initiated NPC turn produced no
     /// canonical exchange (for example a length-terminated provider stream).
     pub dialogue_failure: Option<String>,
+    /// The turn stopped before any dialogue to ask which person an explicit
+    /// addressee meant. A turn engine parks the request on this question.
+    pub clarification: Option<AddresseeClarification>,
 }
 
 impl GameInputOutcome {
@@ -68,9 +71,31 @@ impl GameInputOutcome {
     pub fn from_task(task: Option<limerick_types::PlayerTask>) -> Self {
         Self {
             task_mutations: task.into_iter().collect(),
-            dialogue_failure: None,
+            ..Self::default()
         }
     }
+}
+
+/// An explicit addressee matched several people present, so the turn asks
+/// the player which one they meant instead of guessing.
+#[derive(Debug, Clone)]
+pub struct AddresseeClarification {
+    /// The question and its choices (one per matching NPC).
+    pub prompt: crate::turn::ClarificationPrompt,
+    /// The intent the turn resolved before asking, so the answer's run needs
+    /// no second intent call.
+    pub intent: Option<crate::input::PlayerIntent>,
+}
+
+/// What an earlier run of the same request already settled: its intent and
+/// the player's answers to clarifications. A run given this does not call
+/// the intent model and resolves each answered reference to its choice.
+#[derive(Debug, Clone, Default)]
+pub struct SettledInput {
+    /// The intent to use in place of parsing.
+    pub intent: Option<crate::input::PlayerIntent>,
+    /// Answered references and the NPC each one means.
+    pub addressees: Vec<(String, crate::npc::NpcId)>,
 }
 
 pub mod context;
@@ -86,11 +111,12 @@ pub mod world_pump;
 
 pub use context::GameLoopContext;
 pub use inference::{InferenceSlots, rebuild_inference_worker};
-pub use input::{handle_examine, handle_game_input, handle_look};
+pub use input::{handle_examine, handle_game_input, handle_game_input_settled, handle_look};
 pub use movement::handle_movement;
 pub use npc_turn::{
-    AUTONOMOUS_NPC_CHAIN_FLAG, NPC_ACTION_NARRATION_FLAG, TurnOutcome, handle_npc_conversation,
-    run_idle_banter, run_npc_turn,
+    ADDRESSEE_CLARIFICATION_FLAG, AUTONOMOUS_NPC_CHAIN_FLAG, NPC_ACTION_NARRATION_FLAG,
+    TurnOutcome, handle_npc_conversation, handle_npc_conversation_settled, run_idle_banter,
+    run_npc_turn,
 };
 pub use reactions::{
     PersistReactionFn, ReactionContextValidFn, emit_npc_reactions, is_snippet_injection_char,

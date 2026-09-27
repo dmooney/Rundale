@@ -10,8 +10,15 @@
 //! engine journals the outcome and, for a successful attempt, installs the
 //! candidate into live state and releases its events and emissions.
 //!
-//! Stop, failure, and interruption discard the candidate, so they have no
-//! authoritative effect. Callbacks for an attempt that is no longer current,
+//! When the pipeline finds an explicit addressee that matches several people
+//! present, the engine discards the candidate and parks the request on a
+//! question ([`TurnStatus::AwaitingClarification`]). The player's answer
+//! ([`TurnEngine::answer_clarification`]) re-runs the same attempt from the
+//! original input with the chosen addressee and the intent resolved before
+//! the question. A pending question survives restart; new input cancels it.
+//!
+//! Stop, failure, clarification, and interruption discard the candidate, so
+//! they have no authoritative effect. Callbacks for an attempt that is no longer current,
 //! a call that is not the awaited one, or a stale base revision are
 //! [`TurnStatus::Ignored`] with no effect.
 //!
@@ -30,17 +37,23 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use super::BoxFuture;
 use super::ids::{ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision};
 use super::journal::{JournalError, TurnCommit, TurnJournal};
-use super::lifecycle::{IgnoredReason, LifecycleError, RequestRecord, TerminalOutcome};
+use super::lifecycle::{
+    ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
+    TerminalOutcome,
+};
 use super::projection::project_emissions;
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
 use crate::config::{InferenceConfig, InferenceSubrole};
 use crate::game_loop::inference::InProcessInference;
-use crate::game_loop::{GameInputOutcome, GameLoopContext, TurnCandidate, handle_game_input};
+use crate::game_loop::{
+    AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
+    handle_game_input_settled,
+};
 use crate::game_mod::PronunciationEntry;
 use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
-use crate::ipc::GameConfig;
-use crate::npc::LanguageSettings;
+use crate::ipc::{GameConfig, text_log};
 use crate::npc::reactions::ReactionTemplates;
+use crate::npc::{LanguageSettings, NpcId};
 use crate::turn_inference::{
     CallReport, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus, TurnInference,
 };
@@ -100,6 +113,9 @@ pub struct InferenceResolution {
 pub enum TurnStatus {
     /// The attempt is suspended until the host resolves this call.
     AwaitingInference(PendingInference),
+    /// The request is parked until the player answers this question with
+    /// [`TurnEngine::answer_clarification`]. It survives restart.
+    AwaitingClarification(ClarificationPrompt),
     /// The attempt ended.
     Completed {
         /// How it ended.
@@ -417,15 +433,21 @@ impl TurnEngine {
         live: &GameLoopContext<'_>,
         input: TurnInput,
     ) -> Result<TurnStep, TurnError> {
-        if let Some(open) = self.open_request() {
-            return Err(TurnError::RequestInProgress(open.clone()));
-        }
         let id = input.request_id.unwrap_or_else(LogicalRequestId::fresh);
         if let Some(known) = self.records.get(&id) {
             if known.has_committed() {
                 return Err(LifecycleError::AlreadyCommitted(id).into());
             }
             return Err(TurnError::DuplicateRequest(id));
+        }
+        // New input supersedes an unanswered question, so the player is
+        // never blocked by it.
+        let mut superseded = match self.pending_clarification() {
+            Some(pending) if self.running.is_none() => self.cancel_clarification(&pending).await?,
+            _ => Vec::new(),
+        };
+        if let Some(open) = self.open_request() {
+            return Err(TurnError::RequestInProgress(open.clone()));
         }
         let record = RequestRecord::accept(
             id.clone(),
@@ -458,7 +480,95 @@ impl TurnEngine {
             }
         };
         accepted.append(&mut step.events);
-        step.events = accepted;
+        superseded.append(&mut accepted);
+        step.events = superseded;
+        Ok(step)
+    }
+
+    /// Answers the question a request is parked on. The same attempt runs
+    /// again from the original input, with the chosen person as the
+    /// addressee and the intent resolved before the question (no second
+    /// intent call). If the chosen person has left, the request completes
+    /// with "X is no longer here." and nothing else changes.
+    pub async fn answer_clarification(
+        &mut self,
+        live: &GameLoopContext<'_>,
+        request: &LogicalRequestId,
+        choice: &str,
+    ) -> Result<TurnStep, TurnError> {
+        let Some(record) = self.records.get(request) else {
+            return Err(TurnError::UnknownRequest(request.clone()));
+        };
+        if let Some(running) = &self.running {
+            return Err(TurnError::RequestInProgress(running.request_id.clone()));
+        }
+        let mut record = record.clone();
+        let choice = record.answer_clarification(choice, self.revision)?;
+        let attempt = record
+            .current_attempt()
+            .expect("an answered request has an attempt");
+        let attempt_id = attempt.id.clone();
+        let mut builder = EventBuilder::new(
+            request.clone(),
+            Some(attempt_id.clone()),
+            attempt.next_event_ordinal,
+        );
+        let mut selected = builder.event(TranscriptEventKind::ClarificationSelected);
+        selected.content = Some(choice.label.clone());
+        selected
+            .metadata
+            .insert("choiceID".to_string(), choice.id.clone());
+        if let Some(entity) = &choice.entity_id {
+            selected
+                .metadata
+                .insert("entityID".to_string(), entity.clone());
+        }
+
+        let chosen = choice.entity_id.as_deref().and_then(parse_npc_id);
+        let present = match chosen {
+            Some(id) => {
+                let world = live.world.lock().await;
+                let npc_manager = live.npc_manager.lock().await;
+                npc_manager.npcs_at_ids(world.player_location).contains(&id)
+            }
+            None => false,
+        };
+        if !present {
+            let line = format!("{} is no longer here.", choice.label);
+            let mut notice = builder.event(TranscriptEventKind::Narration);
+            notice.content = Some(line.clone());
+            record.complete(self.revision)?;
+            let terminal =
+                builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
+            let events = self
+                .journal
+                .commit(TurnCommit {
+                    record: record.clone(),
+                    events: vec![selected, notice, terminal],
+                    task_mutations: Vec::new(),
+                })
+                .await?;
+            self.records.insert(request.clone(), record);
+            return Ok(TurnStep {
+                request_id: Some(request.clone()),
+                attempt_id: Some(attempt_id),
+                events,
+                emissions: release_system_line(live, line),
+                status: TurnStatus::Completed {
+                    outcome: TerminalOutcome::Succeeded,
+                    revision: Some(self.revision),
+                },
+            });
+        }
+
+        record.note_event_ordinal(builder.next_ordinal());
+        let mut events = self.journal.update(record.clone(), vec![selected]).await?;
+        self.records.insert(request.clone(), record);
+        let mut step = self
+            .launch(live, request, attempt_id, builder.next_ordinal())
+            .await?;
+        events.append(&mut step.events);
+        step.events = events;
         Ok(step)
     }
 
@@ -536,6 +646,24 @@ impl TurnEngine {
             .as_ref()
             .filter(|running| &running.attempt_id == attempt)
         else {
+            let parked = self.record_of_attempt(attempt).filter(|record| {
+                record.phase == RequestPhase::AwaitingClarification
+                    && record.current_attempt().map(|a| &a.id) == Some(attempt)
+            });
+            if let Some(record) = parked {
+                let request_id = record.id.clone();
+                let events = self.cancel_clarification(&request_id).await?;
+                return Ok(TurnStep {
+                    request_id: Some(request_id),
+                    attempt_id: Some(attempt.clone()),
+                    events,
+                    emissions: Vec::new(),
+                    status: TurnStatus::Completed {
+                        outcome: TerminalOutcome::Cancelled,
+                        revision: None,
+                    },
+                });
+            }
             let (request_id, reason) = match self.record_of_attempt(attempt) {
                 Some(record) if record.current_attempt().map(|a| &a.id) == Some(attempt) => {
                     (Some(record.id.clone()), IgnoredReason::AttemptTerminal)
@@ -602,7 +730,7 @@ impl TurnEngine {
                     Some(attempt) => EventBuilder::new(
                         record.id.clone(),
                         Some(attempt.id.clone()),
-                        u32::from(record.attempts.len() > 1),
+                        attempt.next_event_ordinal,
                     ),
                     None => EventBuilder::new(record.id.clone(), None, 1),
                 };
@@ -626,6 +754,36 @@ impl TurnEngine {
             .find(|record| record.attempts.iter().any(|a| &a.id == attempt))
     }
 
+    /// The request parked on a question, if any.
+    fn pending_clarification(&self) -> Option<LogicalRequestId> {
+        self.records
+            .values()
+            .find(|record| record.phase == RequestPhase::AwaitingClarification)
+            .map(|record| record.id.clone())
+    }
+
+    /// Ends a parked request `Cancelled` without running it.
+    async fn cancel_clarification(
+        &mut self,
+        request: &LogicalRequestId,
+    ) -> Result<Vec<TranscriptEvent>, TurnError> {
+        let mut record = self.records[request].clone();
+        record.cancel_clarification()?;
+        let attempt = record
+            .current_attempt()
+            .expect("a parked request has an attempt");
+        let mut builder = EventBuilder::new(
+            request.clone(),
+            Some(attempt.id.clone()),
+            attempt.next_event_ordinal,
+        );
+        let terminal = builder.response_completed(TerminalOutcome::Cancelled, None);
+        record.note_event_ordinal(builder.next_ordinal());
+        let events = self.journal.update(record.clone(), vec![terminal]).await?;
+        self.records.insert(request.clone(), record);
+        Ok(events)
+    }
+
     async fn start_attempt(
         &mut self,
         live: &GameLoopContext<'_>,
@@ -645,8 +803,46 @@ impl TurnEngine {
                 .insert("retry".to_string(), "true".to_string());
             started.push(progress);
         }
+        record.note_event_ordinal(builder.next_ordinal());
         let mut events = self.journal.update(record.clone(), started).await?;
-        self.records.insert(request_id.clone(), record.clone());
+        self.records.insert(request_id.clone(), record);
+        let mut step = self
+            .launch(live, request_id, attempt_id, builder.next_ordinal())
+            .await?;
+        events.append(&mut step.events);
+        step.events = events;
+        Ok(step)
+    }
+
+    /// Runs the pipeline for the request's current attempt on a fresh
+    /// candidate, numbering its events from `next_ordinal`, until it asks
+    /// for inference or finishes. A request whose clarification was answered
+    /// runs with its settled intent and addressees.
+    async fn launch(
+        &mut self,
+        live: &GameLoopContext<'_>,
+        request_id: &LogicalRequestId,
+        attempt_id: ExecutionAttemptId,
+        next_ordinal: u32,
+    ) -> Result<TurnStep, TurnError> {
+        let record = &self.records[request_id];
+        let settled = record.is_clarified().then(|| SettledInput {
+            intent: record.resolved_intent.clone(),
+            addressees: record
+                .selected_addressees
+                .iter()
+                .filter_map(|selection| {
+                    let id = selection
+                        .choice
+                        .entity_id
+                        .as_deref()
+                        .and_then(parse_npc_id)?;
+                    Some((selection.reference.clone(), id))
+                })
+                .collect(),
+        });
+        let text = record.original_text.clone();
+        let addressed_to = record.addressed_to.clone();
 
         let (calls_tx, calls) = mpsc::unbounded_channel();
         let location_before = live
@@ -673,17 +869,16 @@ impl TurnEngine {
             rules: self.rules.clone(),
         });
         let attempt_env = Arc::clone(&env);
-        let text = record.original_text.clone();
-        let addressed_to = record.addressed_to.clone();
         let future: AttemptFuture = Box::pin(async move {
             let ctx = attempt_env.context();
-            handle_game_input(
+            handle_game_input_settled(
                 &ctx,
                 text,
                 addressed_to,
                 &attempt_env.rules.transport,
                 &attempt_env.rules.reaction_templates,
                 || None,
+                settled.as_ref(),
             )
             .await
         });
@@ -695,13 +890,10 @@ impl TurnEngine {
             calls,
             awaiting: None,
             location_before,
-            next_ordinal: builder.next_ordinal(),
+            next_ordinal,
             last_dialogue_failure: None,
         });
-        let mut step = self.advance(live).await?;
-        events.append(&mut step.events);
-        step.events = events;
-        Ok(step)
+        self.advance(live).await
     }
 
     /// Polls the running attempt until it asks for inference or finishes.
@@ -797,6 +989,14 @@ impl TurnEngine {
             }
         };
 
+        if let Some(clarification) = outcome.clarification {
+            // The candidate is discarded: asking commits nothing.
+            drop(finished);
+            return self
+                .park(live, &request_id, attempt_id, builder, clarification)
+                .await;
+        }
+
         if let Some(message) = outcome.dialogue_failure {
             let (terminal, kind) = match last_dialogue_failure {
                 Some(Some(InferenceFailureKind::Interrupted)) => {
@@ -871,6 +1071,48 @@ impl TurnEngine {
         })
     }
 
+    /// Parks the finished attempt on the pipeline's question: journals the
+    /// prompt and the intent resolved so far, and shows the question.
+    async fn park(
+        &mut self,
+        live: &GameLoopContext<'_>,
+        request_id: &LogicalRequestId,
+        attempt_id: ExecutionAttemptId,
+        mut builder: EventBuilder,
+        clarification: AddresseeClarification,
+    ) -> Result<TurnStep, TurnError> {
+        let AddresseeClarification { prompt, intent } = clarification;
+        let mut record = self.records[request_id].clone();
+        record.await_clarification(prompt.clone(), intent)?;
+        let mut question = builder.event(TranscriptEventKind::ClarificationRequired);
+        question.content = Some(prompt.question.clone());
+        question.clarification = Some(prompt.clone());
+        record.note_event_ordinal(builder.next_ordinal());
+        let events = match self.journal.update(record.clone(), vec![question]).await {
+            Ok(events) => events,
+            Err(error) => {
+                let _ = self
+                    .end_uncommitted(
+                        request_id,
+                        &mut builder,
+                        TerminalOutcome::Failed,
+                        "journal",
+                        &error.to_string(),
+                    )
+                    .await;
+                return Err(error.into());
+            }
+        };
+        self.records.insert(request_id.clone(), record);
+        Ok(TurnStep {
+            request_id: Some(request_id.clone()),
+            attempt_id: Some(attempt_id),
+            events,
+            emissions: release_system_line(live, prompt.as_line()),
+            status: TurnStatus::AwaitingClarification(prompt),
+        })
+    }
+
     /// Ends the current attempt of `request` without committing. The record
     /// is updated in memory even when the journal write fails (recovery
     /// then interrupts the journaled copy).
@@ -900,6 +1142,22 @@ impl TurnEngine {
         let events: Vec<PendingEvent> = vec![error, terminal];
         Ok(self.journal.update(record, events).await?)
     }
+}
+
+/// Parses the NPC id a clarification choice carries.
+fn parse_npc_id(entity: &str) -> Option<NpcId> {
+    entity.parse().ok().map(NpcId)
+}
+
+/// Emits one system line to the live runtime and returns it as the step's
+/// emission.
+fn release_system_line(
+    live: &GameLoopContext<'_>,
+    line: String,
+) -> Vec<(String, serde_json::Value)> {
+    let payload = serde_json::to_value(text_log("system", line)).unwrap_or(serde_json::Value::Null);
+    live.emitter.emit_event("text-log", payload.clone());
+    vec![("text-log".to_string(), payload)]
 }
 
 fn failure_kind_name(kind: InferenceFailureKind) -> &'static str {
@@ -972,7 +1230,7 @@ pub async fn drive_in_process(
                 }
                 return Ok(TurnStep { events, ..current });
             }
-            TurnStatus::Ignored(_) => {
+            TurnStatus::AwaitingClarification(_) | TurnStatus::Ignored(_) => {
                 audit.discard().await;
                 return Ok(TurnStep { events, ..current });
             }
