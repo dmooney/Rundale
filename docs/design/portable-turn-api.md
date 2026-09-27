@@ -456,8 +456,9 @@ What Mobile Phase 2 must supply (#2037, #2038):
 4. Forward compatibility per ADR-025 §4: unknown `TranscriptEventKind` values
    are preserved verbatim and rendered as a fallback line (the Mobile Phase 1 enum
    gets an `Unknown { raw }` arm and a round-trip test so Mobile Phase 2 does not have
-   to change the type).
-5. The save format version bump and prior-format fixtures.
+   to change the type). **Done in #2038; see §6.2.**
+5. The save format version bump and prior-format fixtures. **Done in #2038;
+   see §6.2.**
 
 ### 6.1 The SQLite journal (#2037)
 
@@ -467,7 +468,7 @@ so saves written before #2037 open unchanged and gain empty tables
 `requests` holds one row per logical request (the serialized `RequestRecord`,
 its phase, an open flag, and the committed revision); `transcript_events` holds
 one row per event (the serialized `PendingEvent`, its kind and request). The
-schema has no version marker yet; the format version is #2038.
+format version is described in §6.2.
 
 Sequence counter. `transcript_events.sequence` is an `AUTOINCREMENT` key, so
 SQLite's durable counter assigns it: strictly increasing across the whole save,
@@ -511,6 +512,61 @@ reopens first, so a missed call site cannot write to the wrong branch; a failed
 open is retried by the next submission and reported as its error. With no save
 bound the engine uses an in-memory journal that refuses task batches, as
 before.
+
+### 6.2 Save format and forward compatibility (#2038)
+
+Format version. A save records its format in SQLite's `PRAGMA user_version`
+(`SAVE_FORMAT_VERSION`, `limerick-persistence` `database/format.rs`). Format 1
+is a save from before #2037, format 2 adds the turn-journal tables (#2037),
+format 3 stamps the version and records content identity in snapshots. Unmarked
+saves are detected as 1 or 2 by their tables. Opening an older save migrates it
+and stamps the current format; a current save is not migrated again, so opening
+it writes nothing. A save stamped newer than the build opens unchanged when its
+authoritative state reads, and its stamp is never lowered.
+
+One gate, before any write. `Database::open` first inspects the file through a
+connection that cannot write to it (`query_only`, no checkpoint on close; a
+read-only open cannot open a closed WAL save). It refuses the save with
+`LimerickError::SaveIncompatible` only when authoritative state cannot be read:
+not a save database, a column this build reads is missing, a branch's latest
+snapshot or the world events replayed over it do not parse, or a turn request is
+not JSON. The runtimes call `limerick_core::save_compat::check_save` before they
+open a save for play, which adds the typed `RequestRecord` check and the content
+check. Nothing has written to a refused file, so it stays byte-identical.
+
+Refusal. On a load (server `/api/load-branch` and `/load`, Tauri and its MCP
+bridge, headless `/load`) the player sees `INCOMPATIBLE_SAVE_MESSAGE`, the current
+game carries on, and `/new` is offered. At launch the server session and the
+headless REPL start a new game in a new save file beside the refused one; the
+Tauri app opens its save picker, which offers a new game. The web client has no
+channel for a message sent before it connects, so the server logs the launch
+refusal rather than showing it.
+
+Content identity. Snapshots record the content they were captured against:
+the mod's `[mod] id` and `version` (`ContentIdentity`, carried on `WorldState`
+from `world_state_from_mod`). A save opens against any version of the same
+content and is refused against other content, whose places and people reuse
+the same numeric ids. Snapshots written before format 3 record none and open as
+before. No file path or content hash takes part.
+
+Unknown transcript events. A transcript event is presentation, never
+authoritative state, so an event of a kind this build does not know never blocks
+opening. The journal reads it as `TranscriptEventKind::Unknown`, keeps the row
+verbatim (unknown fields included), and journals around it. When a save is
+loaded, each event this build cannot present (unknown kind, or a payload that
+does not read) is shown as one `FALLBACK_LINE`, at most the ten most recent.
+Desktop has no transcript rehydration otherwise, so these are the only journal
+events it shows on load; a mobile client renders the same line in place.
+
+Shape test. `limerick-core` `save_compat::tests::save_format_shape` compares the
+schema of a new save and the JSON field paths of a snapshot, every world event,
+a request record, and a transcript event with the recorded shape of the current
+format (`limerick-persistence/tests/fixtures/save_format_vN.shape`). Changing
+what a save stores fails it until the version is bumped, a fixture of the
+previous format is checked in, and the new shape is recorded. Fixtures:
+`pre_turn_journal_save.db` (format 1), `turn_journal_v2_save.db` (format 2),
+`future_format_unknown_event_save.db` (a newer format with an unknown event
+kind), and `unreadable_state_save.db`.
 
 ## 7. Desktop invariance
 
