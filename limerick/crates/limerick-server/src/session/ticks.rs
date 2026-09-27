@@ -355,8 +355,8 @@ pub(super) fn spawn_session_ticks(
     // Due Tier-3/Tier-2 work is claimed by the world tick and executed by the
     // worker tasks below. Each tier's in-flight flag admits one job at a time,
     // so a single slot is enough.
-    let (tier3_tx, tier3_rx) = tokio::sync::mpsc::channel::<Tier3Job>(1);
-    let (tier2_tx, tier2_rx) = tokio::sync::mpsc::channel::<Tier2Job>(1);
+    let (tier3_tx, mut tier3_rx) = tokio::sync::mpsc::channel::<Tier3Job>(1);
+    let (tier2_tx, mut tier2_rx) = tokio::sync::mpsc::channel::<Tier2Job>(1);
 
     // ── World tick (5 s) ─────────────────────────────────────────────────────
     {
@@ -547,7 +547,6 @@ pub(super) fn spawn_session_ticks(
     {
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
-        let mut tier2_rx = tier2_rx;
         handles.push(tokio::spawn(async move {
             loop {
                 let Tier2Job {
@@ -674,7 +673,6 @@ pub(super) fn spawn_session_ticks(
     {
         let s = Arc::clone(&state);
         let token = shutdown_token.clone();
-        let mut tier3_rx = tier3_rx;
         handles.push(tokio::spawn(async move {
             loop {
                 let Tier3Job {
@@ -811,10 +809,11 @@ struct BackgroundSimSenders {
 /// advanced gossip cursor.
 ///
 /// The claims must follow `advance_world` in the same critical section, as in
-/// the Tauri world tick and the headless REPL: tier assignment and schedule
-/// presence only change in the pump, so a Tier-2 check made from its own timer
-/// could see pre-move tiers or post-move tiers depending on which timer fired
-/// first after a player turn (#2078).
+/// the Tauri world tick and the headless REPL. Tiers can lag NPC state until
+/// the next pump: `apply_movement` reassigns tiers before ticking schedules, so
+/// an NPC who arrives during the player's travel keeps a stale tier. A Tier-2
+/// check made from its own timer could then see stale or refreshed tiers
+/// depending on which timer fired first after a player turn (#2078).
 async fn advance_world_tick(
     s: &AppState,
     gossip_cursor: usize,
@@ -1333,10 +1332,10 @@ mod tests {
         }
     }
 
-    /// #2078: a player move changes distances, but tiers only follow in the
-    /// world pump. The Tier-2 claim must see the post-pump tiers of the same
-    /// tick; a claim made from its own timer could run before the pump and
-    /// miss a group the move brought into Tier-2 range.
+    /// #2078: tiers can be stale between pumps (after a move, NPCs who arrived
+    /// during travel keep their pre-arrival tier). The Tier-2 claim must see
+    /// the post-pump tiers of the same tick; a claim made from its own timer
+    /// could run before the pump and miss a group that is already eligible.
     #[tokio::test]
     async fn world_tick_claims_tier2_groups_after_post_move_tier_reassignment() {
         use chrono::TimeZone;
@@ -1396,8 +1395,9 @@ mod tests {
             advance_world(&mut world, &mut npc_mgr, &mut rand::rng(), quiet);
             assert_eq!(npc_mgr.tier_of(pair[0]), Some(CogTier::Tier3));
 
-            // A committed move turn updates the player location without
-            // reassigning tiers; until the next pump the pair is still Tier 3.
+            // Moving the player without a pump leaves the pair's tier stale
+            // (still Tier 3), the same staleness an arrival during travel
+            // leaves behind.
             world.player_location = LocationId(3);
             assert!(
                 limerick_core::game_loop::build_tier2_groups(&world, &npc_mgr).is_empty(),
