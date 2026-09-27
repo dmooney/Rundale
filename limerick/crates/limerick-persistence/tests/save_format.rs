@@ -63,7 +63,10 @@ fn every_prior_format_opens_and_migrates_to_the_current_one() {
         assert_eq!(recovery.snapshot.content, None, "{name}: no identity yet");
         drop(db);
         assert_eq!(user_version(&path), SAVE_FORMAT_VERSION, "{name}: stamped");
-        assert_eq!(inspect_save(&path).unwrap().format_version, SAVE_FORMAT_VERSION);
+        assert_eq!(
+            inspect_save(&path).unwrap().format_version,
+            SAVE_FORMAT_VERSION
+        );
     }
 }
 
@@ -76,7 +79,11 @@ fn the_format_2_save_keeps_its_turn_journal() {
     assert!(db.open_turn_requests(main.id).unwrap().is_empty());
     let events = db.transcript_events(main.id, 0).unwrap();
     assert_eq!(events.len(), 24);
-    assert!(events.windows(2).all(|pair| pair[0].sequence < pair[1].sequence));
+    assert!(
+        events
+            .windows(2)
+            .all(|pair| pair[0].sequence < pair[1].sequence)
+    );
     assert_eq!(db.branch_log(main.id).unwrap().len(), 6);
 }
 
@@ -87,7 +94,10 @@ fn a_newer_format_opens_unchanged_when_its_state_reads() {
     assert_eq!(inspection.format_version, 4);
     assert!(!inspection.needs_migration());
     assert_eq!(
-        inspection.branches[0].content.as_ref().map(|c| c.id.as_str()),
+        inspection.branches[0]
+            .content
+            .as_ref()
+            .map(|c| c.id.as_str()),
         Some("rundale")
     );
 
@@ -105,7 +115,9 @@ fn a_newer_format_opens_unchanged_when_its_state_reads() {
     assert_eq!(user_version(&path), 4, "a newer stamp is never lowered");
     let conn = Connection::open(&path).unwrap();
     let festivals: i64 = conn
-        .query_row("SELECT COUNT(*) FROM harvest_festivals", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM harvest_festivals", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(festivals, 1, "tables this build does not know are kept");
 }
@@ -150,7 +162,11 @@ fn a_save_whose_state_cannot_be_read_is_refused_and_left_untouched() {
 fn a_file_that_is_not_a_save_is_refused_and_left_untouched() {
     let dir = tempfile::tempdir().unwrap();
     let garbage = dir.path().join("limerick_001.db");
-    std::fs::write(&garbage, b"this is not a sqlite database, just some bytes .....").unwrap();
+    std::fs::write(
+        &garbage,
+        b"this is not a sqlite database, just some bytes .....",
+    )
+    .unwrap();
     assert!(assert_refused_and_untouched(&garbage).contains("not a readable save database"));
 
     let other = dir.path().join("limerick_002.db");

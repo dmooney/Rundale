@@ -499,6 +499,22 @@ pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
             return false;
         };
 
+        // A save this build cannot read is never opened for play or written
+        // to; the save picker opens instead and offers a new game.
+        let content = state
+            .game_mod
+            .as_ref()
+            .map(limerick_core::game_mod::GameMod::content_identity);
+        if let Err(error) = limerick_core::save_compat::check_save(&selected_path, content.as_ref())
+        {
+            if limerick_core::save_compat::is_incompatible(&error) {
+                limerick_core::save_compat::refusal_message(&selected_path, &error);
+            } else {
+                tracing::warn!(%error, path = %selected_path.display(), "failed to read save");
+            }
+            return false;
+        }
+
         // Load the most recent unlocked save file
         match Database::open(&selected_path) {
             Ok(db) => {

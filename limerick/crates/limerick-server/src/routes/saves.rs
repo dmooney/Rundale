@@ -223,12 +223,15 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
 /// The recovery events are durable in the save's journal, which is where a
 /// transcript is read from; the desktop UI has no transcript rehydration, so
 /// they are counted in the log rather than emitted.
+///
+/// Transcript events this build cannot present (a kind written by a newer
+/// build) are shown as one neutral fallback line each.
 pub(crate) async fn open_turns(state: &Arc<AppState>) {
     let target = state
         .save_identity
         .task_journal_target(&state.session_id)
         .await;
-    match state.turns.open(target).await {
+    match state.turns.open(target.clone()).await {
         Ok(recovered) => tracing::debug!(
             recovered = recovered.len(),
             "opened the turn journal of the bound save"
@@ -236,6 +239,41 @@ pub(crate) async fn open_turns(state: &Arc<AppState>) {
         Err(error) => {
             tracing::warn!(%error, "could not open the turn journal; the next turn retries");
         }
+    }
+    for line in limerick_core::save_compat::fallback_lines_for(target.as_ref()).await {
+        state
+            .event_bus
+            .emit_named(Topic::TextLog, "text-log", &text_log("system", line));
+    }
+}
+
+/// Refuses a save this build cannot open before anything reads it for play
+/// or writes to it: the player is told, the file is left byte-identical,
+/// and the current game carries on. `Ok` when the save can be opened.
+pub(crate) async fn refuse_incompatible_save(
+    state: &Arc<AppState>,
+    path: &std::path::Path,
+) -> Result<(), (StatusCode, String)> {
+    let content = state
+        .game_mod
+        .as_ref()
+        .map(limerick_core::game_mod::GameMod::content_identity);
+    let check_path = path.to_path_buf();
+    let checked = tokio::task::spawn_blocking(move || {
+        limerick_core::save_compat::check_save(&check_path, content.as_ref())
+    })
+    .await
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+    match checked {
+        Ok(_) => Ok(()),
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
+            let message = limerick_core::save_compat::refusal_message(path, &error);
+            state
+                .event_bus
+                .emit_named(Topic::TextLog, "text-log", &text_log("system", message));
+            Err((StatusCode::CONFLICT, message.to_string()))
+        }
+        Err(error) => Err((StatusCode::INTERNAL_SERVER_ERROR, error.to_string())),
     }
 }
 
@@ -296,6 +334,7 @@ pub async fn do_load_branch_inner(
     body: LoadBranchRequest,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let (path, branch_id, candidate_lock) = validate_and_acquire_lock(state, &body).await?;
+    refuse_incompatible_save(state, &path).await?;
 
     let path_clone = path.clone();
     let branch_name = tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id))

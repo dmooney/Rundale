@@ -444,14 +444,31 @@ pub async fn run_headless(
         let lock = take_or_acquire_save_lock(&mut picker_locks, &path)?;
         (path, lock)
     };
+    let mut preferred_branch = remembered_identity
+        .as_ref()
+        .map(|identity| (identity.branch_id, identity.branch_name.clone()));
+    // A save this build cannot read is never opened for play or written
+    // to: the player is told, and a new game starts in a new save file
+    // beside it, leaving the refused file byte-identical.
+    let (db_path, save_lock, refused) = checked_resume_target(
+        &saves_dir,
+        db_path,
+        save_lock,
+        headless_content(&app).as_ref(),
+    )?;
+    if refused {
+        println!(
+            "{}",
+            limerick_core::save_compat::INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE
+        );
+        println!();
+        preferred_branch = None;
+    }
     app.save_file_path = Some(db_path.clone());
     app.save_lock = Some(save_lock);
 
     let db = crate::persistence::Database::open(&db_path)?;
     let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
-    let preferred_branch = remembered_identity
-        .as_ref()
-        .map(|identity| (identity.branch_id, identity.branch_name.clone()));
     restore_from_db(&mut app, &async_db, &db_path, preferred_branch).await?;
     app.db = Some(async_db);
     app.last_autosave = Some(std::time::Instant::now());
@@ -511,6 +528,52 @@ pub async fn run_headless(
     print_arrival_reactions(&mut app).await;
 
     run_headless_repl_loop(&mut app, inference_log).await
+}
+
+/// Prints one neutral fallback line per transcript event of the branch this
+/// build cannot present (a kind written by a newer build).
+fn print_transcript_fallback_lines(save_path: &std::path::Path, branch_id: i64) {
+    match limerick_core::save_compat::transcript_fallback_lines_at(save_path, branch_id) {
+        Ok(lines) => {
+            for line in lines {
+                println!("{line}");
+            }
+        }
+        Err(error) => tracing::warn!(%error, "could not read the transcript for fallback lines"),
+    }
+}
+
+/// The save to resume at launch: `db_path` when this build can open it;
+/// otherwise a new save path beside it, locked, with `true` for refused.
+/// The refused file is never opened for play or written to.
+fn checked_resume_target(
+    saves_dir: &std::path::Path,
+    db_path: std::path::PathBuf,
+    save_lock: crate::persistence::SaveFileLock,
+    content: Option<&limerick_core::ContentIdentity>,
+) -> Result<(std::path::PathBuf, crate::persistence::SaveFileLock, bool)> {
+    match limerick_core::save_compat::check_save(&db_path, content) {
+        Ok(_) => Ok((db_path, save_lock, false)),
+        Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
+            limerick_core::save_compat::refusal_message(&db_path, &error);
+            drop(save_lock);
+            let new_path = crate::persistence::picker::new_save_path(saves_dir);
+            let lock =
+                crate::persistence::SaveFileLock::try_acquire(&new_path).ok_or_else(|| {
+                    anyhow::anyhow!("could not lock new save file {}", new_path.display())
+                })?;
+            Ok((new_path, lock, true))
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// The identity of the content the REPL runs, which saves record and are
+/// checked against.
+fn headless_content(app: &App) -> Option<limerick_core::ContentIdentity> {
+    app.game_mod
+        .as_ref()
+        .map(limerick_core::game_mod::GameMod::content_identity)
 }
 
 /// Restores game state from a snapshot and replay journal on the given branch.
@@ -669,7 +732,10 @@ async fn restore_from_db(
         .await
         .map_err(anyhow::Error::msg)?
     {
-        true => println!("Restored from save."),
+        true => {
+            println!("Restored from save.");
+            print_transcript_fallback_lines(save_path, branch.id);
+        }
         false => {
             // First run — save initial snapshot. Recovery errors propagate
             // above instead of being mistaken for an empty save and overwritten.
@@ -867,6 +933,18 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
             // Picker metadata was read only while every candidate was locked.
             // Keep the old live guard until the selected candidate recovers.
             let candidate_lock = take_or_acquire_save_lock(&mut picker_locks, &new_path)?;
+            if let Err(error) =
+                limerick_core::save_compat::check_save(&new_path, headless_content(app).as_ref())
+            {
+                if limerick_core::save_compat::is_incompatible(&error) {
+                    println!(
+                        "{}",
+                        limerick_core::save_compat::refusal_message(&new_path, &error)
+                    );
+                    return Ok(());
+                }
+                return Err(error.into());
+            }
             let new_db = crate::persistence::Database::open(&new_path)?;
             let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
             restore_from_db(app, &async_db, &new_path, None).await?;
@@ -897,6 +975,7 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
                         let season = app.world.clock.season();
                         let loc = app.world.current_location().name.clone();
                         println!("Loaded branch '{}'. {} — {}, {}.", name, loc, season, time);
+                        print_transcript_fallback_lines(&save_path, branch.id);
                     }
                     Ok(false) => anyhow::bail!("branch '{name}' has no snapshots"),
                     Err(msg) => anyhow::bail!("failed to load branch '{name}': {msg}"),
@@ -2783,6 +2862,49 @@ mod tests {
             app2.npc_manager.is_introduced(introduced_id),
             "headless database restore must preserve durable identity knowledge"
         );
+    }
+
+    #[test]
+    fn an_unreadable_save_at_launch_is_left_untouched_for_a_new_save() {
+        let temp = tempfile::tempdir().unwrap();
+        let refused = temp.path().join("limerick_001.db");
+        std::fs::copy(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures/unreadable_state_save.db"),
+            &refused,
+        )
+        .unwrap();
+        let before = std::fs::read(&refused).unwrap();
+        let lock = crate::persistence::SaveFileLock::try_acquire(&refused).unwrap();
+
+        let (path, _lock, was_refused) =
+            checked_resume_target(temp.path(), refused.clone(), lock, None).unwrap();
+
+        assert!(was_refused);
+        assert_eq!(
+            path,
+            temp.path().join("limerick_002.db"),
+            "a new save beside it"
+        );
+        assert_eq!(std::fs::read(&refused).unwrap(), before, "byte-identical");
+        assert!(
+            crate::persistence::SaveFileLock::try_acquire(&refused).is_some(),
+            "the refused save is unlocked"
+        );
+
+        // A readable save is resumed as it is.
+        let readable = temp.path().join("limerick_003.db");
+        std::fs::copy(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures/turn_journal_v2_save.db"),
+            &readable,
+        )
+        .unwrap();
+        let lock = crate::persistence::SaveFileLock::try_acquire(&readable).unwrap();
+        let (path, _lock, was_refused) =
+            checked_resume_target(temp.path(), readable.clone(), lock, None).unwrap();
+        assert!(!was_refused);
+        assert_eq!(path, readable);
     }
 
     #[tokio::test]

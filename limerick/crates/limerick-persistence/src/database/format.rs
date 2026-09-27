@@ -44,7 +44,10 @@ pub const SAVE_FORMAT_VERSION: u32 = 3;
 
 /// Tables this build reads and the columns it reads from each.
 const TABLES: &[(&str, &[&str])] = &[
-    ("branches", &["id", "name", "created_at", "parent_branch_id"]),
+    (
+        "branches",
+        &["id", "name", "created_at", "parent_branch_id"],
+    ),
     (
         "snapshots",
         &["id", "branch_id", "game_time", "real_time", "world_state"],
@@ -195,7 +198,9 @@ fn inspect_connection(
         });
     }
     if !has("branches") {
-        return Err(refuse("it is not a save database (no `branches` table)".into()));
+        return Err(refuse(
+            "it is not a save database (no `branches` table)".into(),
+        ));
     }
     let has_turn_journal = TURN_JOURNAL_TABLES.iter().all(|table| has(table));
     if stamped_version >= SAVE_FORMAT_VERSION
@@ -217,9 +222,7 @@ fn inspect_connection(
             .iter()
             .find(|column| !present.iter().any(|name| name == *column))
         {
-            return Err(refuse(format!(
-                "table `{table}` has no `{missing}` column"
-            )));
+            return Err(refuse(format!("table `{table}` has no `{missing}` column")));
         }
     }
 

@@ -138,7 +138,10 @@ async fn an_unknown_event_kind_survives_the_sqlite_journal_verbatim() {
         unknown.event.kind,
         TranscriptEventKind::Unknown("harvest_festival".to_string())
     );
-    assert_eq!(unknown.event.content.as_deref(), Some("Bonfires on the hill."));
+    assert_eq!(
+        unknown.event.content.as_deref(),
+        Some("Bonfires on the hill.")
+    );
     let commit = committed(&mut record, one_task());
     reopened.update(record.clone(), Vec::new()).await.unwrap();
     reopened.commit(commit).await.unwrap();
@@ -174,7 +177,11 @@ fn only_events_this_build_cannot_present_get_fallback_lines() {
         .unwrap()
         .unwrap()
         .id;
-    assert!(transcript_fallback_lines_at(&path, main).unwrap().is_empty());
+    assert!(
+        transcript_fallback_lines_at(&path, main)
+            .unwrap()
+            .is_empty()
+    );
 
     let (_dir, future) = copy_of("future_format_unknown_event_save.db");
     assert_eq!(
@@ -275,7 +282,10 @@ fn save_format_shape_text() -> String {
     }
     let samples: Vec<(&str, Value)> = vec![
         ("snapshot", serde_json::to_value(sample_snapshot()).unwrap()),
-        ("world_events", serde_json::to_value(sample_world_events()).unwrap()),
+        (
+            "world_events",
+            serde_json::to_value(sample_world_events()).unwrap(),
+        ),
         ("request", serde_json::to_value(sample_request()).unwrap()),
         (
             "transcript_event",
@@ -380,9 +390,10 @@ fn sample_snapshot() -> GameSnapshot {
     snapshot.introduced_npcs.insert(npc.id);
     snapshot.npcs_who_know_player_name.insert(npc.id);
     snapshot.visited_order = vec![crate::world::LocationId(1)];
-    snapshot
-        .edge_traversals
-        .insert((crate::world::LocationId(1), crate::world::LocationId(2)), 3);
+    snapshot.edge_traversals.insert(
+        (crate::world::LocationId(1), crate::world::LocationId(2)),
+        3,
+    );
     snapshot.player_name = Some("Ciarán".to_string());
     snapshot
         .player_progress
@@ -511,9 +522,7 @@ fn sample_transcript_event() -> PendingEvent {
     event.speaker = Some("Padraig".to_string());
     event.content = Some("God bless ye.".to_string());
     event.clarification = Some(sample_prompt());
-    event
-        .metadata
-        .insert("retry".to_string(), "1".to_string());
+    event.metadata.insert("retry".to_string(), "1".to_string());
     event
 }
 

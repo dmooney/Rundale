@@ -34,7 +34,7 @@ fn make_test_snapshot() -> GameSnapshot {
         npcs_who_know_player_name: Default::default(),
         active_session: None,
         content: None,
-}
+    }
 }
 
 #[test]
