@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use super::ids::{
     ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision, TranscriptItemId,
 };
+use crate::input::PlayerIntent;
 
 /// Where a request or attempt is in its lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,6 +101,37 @@ pub struct ClarificationPrompt {
     pub question: String,
     /// The allowed answers.
     pub choices: Vec<ClarificationChoice>,
+    /// What the player wrote that needs clarifying (for example the
+    /// ambiguous addressee "Mícheál").
+    #[serde(default)]
+    pub reference: Option<String>,
+}
+
+impl ClarificationPrompt {
+    /// The question and its choices as one line, for clients that show it
+    /// as text: "Which Mícheál do you mean: Mícheál Connolly or Mícheál Duffy?"
+    pub fn as_line(&self) -> String {
+        let labels: Vec<&str> = self
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect();
+        let options = match labels.as_slice() {
+            [] => return self.question.clone(),
+            [only] => (*only).to_string(),
+            [rest @ .., last] => format!("{} or {last}", rest.join(", ")),
+        };
+        format!("{}: {options}?", self.question.trim_end_matches('?'))
+    }
+}
+
+/// The player's answer to a clarification: which choice `reference` meant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddresseeSelection {
+    /// The ambiguous reference the choice resolves.
+    pub reference: String,
+    /// The chosen answer.
+    pub choice: ClarificationChoice,
 }
 
 /// One execution of a logical request.
@@ -120,6 +152,11 @@ pub struct RequestAttempt {
     /// Revision produced by this attempt's commit.
     #[serde(default)]
     pub committed_revision: Option<StateRevision>,
+    /// Ordinal of the attempt's next transcript event: every lower ordinal
+    /// is already journaled. Lets an attempt parked on a clarification, or
+    /// interrupted by a restart, continue numbering without reusing an id.
+    #[serde(default)]
+    pub next_event_ordinal: u32,
 }
 
 /// The durable record of one player submission.
@@ -149,9 +186,15 @@ pub struct RequestRecord {
     /// The open question, while awaiting clarification.
     #[serde(default)]
     pub pending_clarification: Option<ClarificationPrompt>,
-    /// Addressee the player selected in answer to a clarification.
+    /// Addressees the player selected in answer to clarifications, in
+    /// order. They stay with the request, so a retry does not ask again.
     #[serde(default)]
-    pub selected_addressee: Option<String>,
+    pub selected_addressees: Vec<AddresseeSelection>,
+    /// The intent resolved before the first clarification. Once the player
+    /// has answered, every later run of the request reuses it instead of
+    /// calling the intent model again.
+    #[serde(default)]
+    pub resolved_intent: Option<PlayerIntent>,
 }
 
 /// A transition that the current state does not allow.
@@ -211,7 +254,8 @@ impl RequestRecord {
             terminal_outcome: None,
             committed_revision: None,
             pending_clarification: None,
-            selected_addressee: None,
+            selected_addressees: Vec::new(),
+            resolved_intent: None,
         }
     }
 
@@ -255,6 +299,7 @@ impl RequestRecord {
             base_revision,
             calls_issued: 0,
             committed_revision: None,
+            next_event_ordinal: 0,
         });
         self.phase = RequestPhase::Executing;
         self.terminal_outcome = None;
@@ -302,10 +347,27 @@ impl RequestRecord {
         Ok(())
     }
 
-    /// Parks the running attempt on a question for the player.
+    /// Whether the player has answered a clarification for this request,
+    /// so runs reuse [`Self::resolved_intent`] and the selections.
+    pub fn is_clarified(&self) -> bool {
+        !self.selected_addressees.is_empty()
+    }
+
+    /// Records that the current attempt's transcript events up to (not
+    /// including) `ordinal` are journaled.
+    pub fn note_event_ordinal(&mut self, ordinal: u32) {
+        if let Some(attempt) = self.current_attempt_mut() {
+            attempt.next_event_ordinal = attempt.next_event_ordinal.max(ordinal);
+        }
+    }
+
+    /// Parks the running attempt on a question for the player. The intent
+    /// the attempt resolved is kept for the answer's run, unless an earlier
+    /// clarification of the request already fixed it.
     pub fn await_clarification(
         &mut self,
         prompt: ClarificationPrompt,
+        intent: Option<PlayerIntent>,
     ) -> Result<(), LifecycleError> {
         let id = self.id.clone();
         let attempt = self
@@ -315,11 +377,16 @@ impl RequestRecord {
         attempt.phase = RequestPhase::AwaitingClarification;
         self.phase = RequestPhase::AwaitingClarification;
         self.pending_clarification = Some(prompt);
+        if !self.is_clarified() {
+            self.resolved_intent = intent;
+        }
         Ok(())
     }
 
     /// Resumes the same attempt with the player's choice. The attempt's base
     /// revision moves to `current`, because it re-runs against current state.
+    /// Call ids keep counting, so a late reply to a call from before the
+    /// question can never answer a call of the re-run.
     pub fn answer_clarification(
         &mut self,
         choice_id: &str,
@@ -328,21 +395,31 @@ impl RequestRecord {
         if self.phase != RequestPhase::AwaitingClarification {
             return Err(LifecycleError::NotAwaitingClarification(self.id.clone()));
         }
-        let choice = self
+        let prompt = self
             .pending_clarification
             .as_ref()
-            .and_then(|prompt| prompt.choices.iter().find(|choice| choice.id == choice_id))
+            .ok_or_else(|| LifecycleError::NotAwaitingClarification(self.id.clone()))?;
+        let choice = prompt
+            .choices
+            .iter()
+            .find(|choice| choice.id == choice_id)
             .cloned()
             .ok_or_else(|| LifecycleError::UnknownChoice(choice_id.to_string()))?;
+        let reference = prompt
+            .reference
+            .clone()
+            .unwrap_or_else(|| choice.label.clone());
         let attempt = self
             .current_attempt_mut()
             .expect("an awaiting request has an attempt");
         attempt.phase = RequestPhase::Executing;
         attempt.base_revision = current;
-        attempt.calls_issued = 0;
         self.phase = RequestPhase::Executing;
         self.pending_clarification = None;
-        self.selected_addressee = choice.entity_id.clone().or(Some(choice.label.clone()));
+        self.selected_addressees.push(AddresseeSelection {
+            reference,
+            choice: choice.clone(),
+        });
         Ok(choice)
     }
 
@@ -447,6 +524,7 @@ mod tests {
                     entity_id: Some("2".to_string()),
                 },
             ],
+            reference: Some("Connolly".to_string()),
         }
     }
 
@@ -563,7 +641,7 @@ mod tests {
         );
 
         let (mut asking, _) = running();
-        asking.await_clarification(prompt()).unwrap();
+        asking.await_clarification(prompt(), None).unwrap();
         assert!(!asking.recover());
         assert_eq!(asking.phase, RequestPhase::AwaitingClarification);
 
@@ -576,7 +654,11 @@ mod tests {
     #[test]
     fn a_clarification_answer_continues_the_same_attempt() {
         let (mut record, attempt) = running();
-        record.await_clarification(prompt()).unwrap();
+        let first_call = record.next_call().unwrap();
+        let intent = crate::input::unknown_intent("ask Peig about the wall");
+        record
+            .await_clarification(prompt(), Some(intent.clone()))
+            .unwrap();
         let restored: RequestRecord =
             serde_json::from_str(&serde_json::to_string(&record).unwrap()).unwrap();
         let mut record = restored;
@@ -595,14 +677,31 @@ mod tests {
             record.current_attempt().unwrap().base_revision,
             StateRevision(2)
         );
-        assert_eq!(record.selected_addressee.as_deref(), Some("2"));
+        assert!(record.is_clarified());
+        assert_eq!(record.selected_addressees[0].reference, "Connolly");
+        assert_eq!(
+            record.selected_addressees[0].choice.entity_id.as_deref(),
+            Some("2")
+        );
+        assert_eq!(record.resolved_intent, Some(intent));
         assert_eq!(record.original_text, "ask Peig about the wall");
+        let rerun_call = record.next_call().unwrap();
+        assert_ne!(rerun_call, first_call, "call ids are never reused");
+        assert_eq!(
+            record.check_callback(
+                &attempt,
+                Some(&first_call),
+                StateRevision(2),
+                StateRevision(2)
+            ),
+            Err(IgnoredReason::StaleCall)
+        );
     }
 
     #[test]
     fn a_superseded_clarification_is_cancelled_and_retryable() {
         let (mut record, _) = running();
-        record.await_clarification(prompt()).unwrap();
+        record.await_clarification(prompt(), None).unwrap();
         assert_eq!(
             record.begin_attempt(ExecutionAttemptId::new("a2"), StateRevision(0)),
             Err(LifecycleError::StillOpen(record.id.clone()))
@@ -613,6 +712,24 @@ mod tests {
         record
             .begin_attempt(ExecutionAttemptId::new("a2"), StateRevision(0))
             .unwrap();
+    }
+
+    #[test]
+    fn a_prompt_reads_as_one_line_with_its_choices() {
+        assert_eq!(
+            prompt().as_line(),
+            "Which person do you mean: Mícheál Connolly or Róisín Connolly?"
+        );
+        let mut three = prompt();
+        three.choices.push(ClarificationChoice {
+            id: "choose-3".to_string(),
+            label: "Peig Hannigan".to_string(),
+            entity_id: None,
+        });
+        assert_eq!(
+            three.as_line(),
+            "Which person do you mean: Mícheál Connolly, Róisín Connolly or Peig Hannigan?"
+        );
     }
 
     #[test]

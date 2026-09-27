@@ -14,14 +14,16 @@ use limerick_core::game_loop::inference::InProcessInference;
 use limerick_core::game_mod::GameMod;
 use limerick_core::inference::{AnyClient, InferenceQueue, InferenceRequest, InferenceResponse};
 use limerick_core::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter, GameConfig};
+use limerick_core::npc::NpcId;
 use limerick_core::npc::manager::NpcManager;
 use limerick_core::npc::reactions::ReactionTemplates;
+use limerick_core::npc::types::NpcState;
 use limerick_core::persistence::GameSnapshot;
 use limerick_core::turn::{
-    ExecutionAttemptId, IgnoredReason, InferenceResolution, LifecycleError, LogicalRequestId,
-    MemoryTurnJournal, PendingInference, RequestPhase, StateRevision, TerminalOutcome,
-    TranscriptEvent, TranscriptEventKind, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus,
-    TurnStep, drive_in_process,
+    ClarificationPrompt, ExecutionAttemptId, IgnoredReason, InferenceResolution, LifecycleError,
+    LogicalRequestId, MemoryTurnJournal, PendingInference, RequestPhase, StateRevision,
+    TerminalOutcome, TranscriptEvent, TranscriptEventKind, TurnEngine, TurnError, TurnInput,
+    TurnJournal, TurnRules, TurnStatus, TurnStep, drive_in_process,
 };
 use limerick_core::turn_inference::{CallReport, InferenceFailureKind, InferenceOutcome};
 use limerick_core::world::transport::TransportMode;
@@ -1356,4 +1358,535 @@ async fn measure_candidate_capture_cost_on_rundale() {
         }
     }
     sample(&live, "with a full text log").await;
+}
+
+// ── Addressee clarification ─────────────────────────────────────────────────
+
+/// Leaves exactly the named NPCs at the player's location (everyone else
+/// elsewhere) and returns their ids in the order given.
+async fn only_present(live: &Live, names: &[&str]) -> Vec<NpcId> {
+    let world = live.world.lock().await;
+    let here = world.player_location;
+    let elsewhere = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .find(|location| *location != here)
+        .expect("Rundale has more than one location");
+    drop(world);
+    let mut npcs = live.npc_manager.lock().await;
+    let ids: Vec<NpcId> = names
+        .iter()
+        .map(|name| {
+            npcs.all_npcs()
+                .find(|npc| npc.name == *name)
+                .unwrap_or_else(|| panic!("Rundale contains {name}"))
+                .id
+        })
+        .collect();
+    let all: Vec<NpcId> = npcs.all_npcs().map(|npc| npc.id).collect();
+    for id in all {
+        let npc = npcs.get_mut(id).unwrap();
+        if ids.contains(&id) {
+            npc.set_location_and_state(here, NpcState::Present);
+        } else {
+            npc.set_location_and_state(elsewhere, NpcState::Present);
+        }
+    }
+    ids
+}
+
+/// Two introduced people present who share the first name Mícheál:
+/// (Mícheál Connolly, Mícheál Duffy).
+async fn two_micheals(live: &Live) -> (NpcId, NpcId) {
+    let ids = only_present(live, &["Roisin Connolly", "Cormac Duffy"]).await;
+    let mut npcs = live.npc_manager.lock().await;
+    npcs.get_mut(ids[0]).unwrap().name = "Mícheál Connolly".to_string();
+    npcs.get_mut(ids[1]).unwrap().name = "Mícheál Duffy".to_string();
+    npcs.mark_introduced(ids[0]);
+    npcs.mark_introduced(ids[1]);
+    (ids[0], ids[1])
+}
+
+fn said(text: &str) -> TurnInput {
+    TurnInput {
+        request_id: None,
+        text: text.to_string(),
+        addressed_to: Vec::new(),
+        draft_id: None,
+    }
+}
+
+fn asking(step: &TurnStep) -> &ClarificationPrompt {
+    match &step.status {
+        TurnStatus::AwaitingClarification(prompt) => prompt,
+        other => panic!("expected a clarification, got {other:?}"),
+    }
+}
+
+fn speakers(events: &[TranscriptEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter(|event| event.event.kind == TranscriptEventKind::NpcDialogue)
+        .filter_map(|event| event.event.speaker.clone())
+        .collect()
+}
+
+fn contents(events: &[TranscriptEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| event.event.content.clone())
+        .collect()
+}
+
+/// Submits `input` and answers every call with the scripted host (speech).
+async fn submit_scripted(
+    engine: &mut TurnEngine,
+    live: &Live,
+    input: TurnInput,
+) -> (TurnStep, Vec<TranscriptEvent>, Vec<InferenceSubrole>) {
+    let step = engine.submit(&live.ctx(), input).await.expect("submit");
+    run_scripted(engine, live, step, "").await
+}
+
+// Oracle: ios-port `phase3_ambiguity_survives_resume_and_selection_continues_original_request`
+// and RundaleKit `testFixtureClarificationContinuesSameLogicalRequest`.
+// ios-port asked about a shared surname ("Connolly"); the shared resolver
+// matches names and first names, so the port uses a shared first name.
+#[tokio::test]
+async fn an_ambiguous_addressee_asks_survives_restart_and_the_answer_continues_the_request() {
+    let live = Live::rundale();
+    let (connolly, duffy) = two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let before = live.fingerprint().await;
+
+    let (asked, events, calls) = submit_scripted(
+        &mut engine,
+        &live,
+        said("talk to Mícheál about the household"),
+    )
+    .await;
+    let prompt = asking(&asked).clone();
+    let request = asked.request_id.clone().unwrap();
+    let attempt = asked.attempt_id.clone().unwrap();
+    assert!(
+        !calls.contains(&InferenceSubrole::Dialogue),
+        "no one speaks before the player chooses: {calls:?}"
+    );
+    assert_eq!(
+        prompt
+            .choices
+            .iter()
+            .map(|c| c.id.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            format!("choose-npc-{}", connolly.0),
+            format!("choose-npc-{}", duffy.0)
+        ]
+    );
+    assert_eq!(
+        prompt
+            .choices
+            .iter()
+            .map(|c| c.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Mícheál Connolly", "Mícheál Duffy"]
+    );
+    assert_eq!(prompt.reference.as_deref(), Some("Mícheál"));
+    assert_eq!(
+        kinds(&events),
+        vec![
+            TranscriptEventKind::PlayerCommand,
+            TranscriptEventKind::ClarificationRequired
+        ]
+    );
+    assert_eq!(events[1].event.clarification.as_ref(), Some(&prompt));
+    // Asking commits nothing; the question is shown as one system line.
+    assert_eq!(live.fingerprint().await, before);
+    assert_eq!(engine.revision(), StateRevision(0));
+    assert_eq!(live.emitter.events(), asked.emissions);
+    assert_eq!(
+        asked.emissions[0].1["content"],
+        "Which Mícheál do you mean: Mícheál Connolly or Mícheál Duffy?"
+    );
+    let record = journal.request(&request).unwrap();
+    assert_eq!(record.phase, RequestPhase::AwaitingClarification);
+    assert!(record.resolved_intent.is_some(), "the intent is journaled");
+
+    // Restart: the question survives and nothing is interrupted.
+    let mut engine = TurnEngine::new(journal.clone(), live.rules());
+    assert!(engine.recover().await.unwrap().is_empty());
+    assert_eq!(engine.open_request(), Some(&request));
+
+    let answered = engine
+        .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+        .await
+        .unwrap();
+    assert_eq!(answered.request_id.as_ref(), Some(&request));
+    assert_eq!(answered.attempt_id.as_ref(), Some(&attempt), "same attempt");
+    let selected = &answered.events[0].event;
+    assert_eq!(selected.kind, TranscriptEventKind::ClarificationSelected);
+    assert_eq!(
+        selected.metadata.get("choiceID"),
+        Some(&format!("choose-npc-{}", duffy.0))
+    );
+    // The journaled intent is reused: the first call is the dialogue.
+    let pending = awaiting(&answered).clone();
+    assert_eq!(pending.call.subrole, InferenceSubrole::Dialogue);
+    assert!(pending.call.prompt.contains("the household"));
+    let (done, rest, calls) = run_scripted(&mut engine, &live, answered.clone(), "").await;
+    assert!(
+        !calls.contains(&InferenceSubrole::Intent),
+        "no second intent call"
+    );
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            revision: Some(StateRevision(1))
+        }
+    ));
+    assert_eq!(speakers(&rest), vec!["Mícheál Duffy".to_string()]);
+    assert!(journal.request(&request).unwrap().has_committed());
+    assert_reducer_contract(&journal.events(), &request);
+}
+
+// Oracle: ios-port `phase3_explicit_full_name_tag_selects_one_person_without_clarification`.
+#[tokio::test]
+async fn a_full_name_tag_selects_one_person_without_asking() {
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let (mut engine, _) = engine(&live);
+    let (done, events, _) =
+        submit_scripted(&mut engine, &live, said("Hello @Mícheál Connolly")).await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
+    assert_eq!(speakers(&events), vec!["Mícheál Connolly".to_string()]);
+}
+
+// Oracle: ios-port `explicit_absent_addressee_does_not_fall_back_to_present_npc`.
+#[tokio::test]
+async fn an_absent_explicit_addressee_does_not_fall_back_to_someone_present() {
+    let live = Live::rundale();
+    only_present(&live, &["Peig Hannigan"]).await;
+    let (mut engine, _) = engine(&live);
+    let (done, events, calls) =
+        submit_scripted(&mut engine, &live, said("talk to Padraig about work")).await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(!calls.contains(&InferenceSubrole::Dialogue));
+    assert!(speakers(&events).is_empty());
+    assert!(contents(&events).contains(&"Padraig is not here.".to_string()));
+}
+
+// Oracle: ios-port `leading_vocative_still_selects_explicit_present_npc`.
+#[tokio::test]
+async fn a_leading_vocative_addresses_that_person_not_whoever_is_first() {
+    let live = Live::rundale();
+    // Padraig (id 1) is first; the message opens by addressing the widow.
+    only_present(&live, &["Padraig Darcy", "Peig Hannigan"]).await;
+    let (mut engine, _) = engine(&live);
+    let (_, events, _) = submit_scripted(&mut engine, &live, said("Widow, any news?")).await;
+    let widow = {
+        let npcs = live.npc_manager.lock().await;
+        let peig = npcs
+            .all_npcs()
+            .find(|npc| npc.name == "Peig Hannigan")
+            .unwrap();
+        npcs.display_name(peig).to_string()
+    };
+    assert_eq!(speakers(&events).len(), 1);
+    assert!(speakers(&events)[0].eq_ignore_ascii_case(&widow));
+
+    let (_, events, _) = submit_scripted(
+        &mut engine,
+        &live,
+        said("Hello Peig Hannigan, could you help?"),
+    )
+    .await;
+    assert_eq!(speakers(&events).len(), 1);
+    assert!(speakers(&events)[0].eq_ignore_ascii_case(&widow));
+
+    // An opening that names no one present is not an address.
+    let (_, events, _) = submit_scripted(&mut engine, &live, said("Well, it is a fine day.")).await;
+    assert_eq!(speakers(&events).len(), 1);
+    assert!(
+        !contents(&events)
+            .iter()
+            .any(|line| line.contains("not here"))
+    );
+}
+
+#[tokio::test]
+async fn an_ambiguous_leading_vocative_asks_which_person() {
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let (mut engine, _) = engine(&live);
+    let (asked, _, calls) =
+        submit_scripted(&mut engine, &live, said("Mícheál, is the mill working?")).await;
+    assert_eq!(asking(&asked).choices.len(), 2);
+    assert!(!calls.contains(&InferenceSubrole::Dialogue));
+}
+
+// Oracle: ios-port `dialogue_body_mention_does_not_address_absent_npc`.
+#[tokio::test]
+async fn a_body_mention_of_someone_absent_does_not_address_them() {
+    let live = Live::rundale();
+    only_present(&live, &["Peig Hannigan"]).await;
+    let (mut engine, _) = engine(&live);
+    let (_, events, calls) = submit_scripted(
+        &mut engine,
+        &live,
+        said(
+            "Well I'm looking for work and a place to stay. Padraig said maybe you could direct me.",
+        ),
+    )
+    .await;
+    // Peig, the only person present, is asked. The canned reply itself is
+    // refused by the dialogue guards; routing is what is under test.
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| **call == InferenceSubrole::Dialogue)
+            .count(),
+        1,
+        "the person present is addressed: {calls:?}"
+    );
+    assert!(
+        !contents(&events)
+            .iter()
+            .any(|line| line.contains("not here"))
+    );
+}
+
+#[tokio::test]
+async fn new_input_cancels_a_pending_question_first() {
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let (asked, _, _) = submit_scripted(
+        &mut engine,
+        &live,
+        said("talk to Mícheál about the household"),
+    )
+    .await;
+    let pending = asked.request_id.clone().unwrap();
+
+    let (done, events, _) =
+        submit_scripted(&mut engine, &live, said("Mícheál Duffy, good day.")).await;
+    let cancelled = &events[0].event;
+    assert_eq!(cancelled.request_id.as_ref(), Some(&pending));
+    assert_eq!(cancelled.kind, TranscriptEventKind::ResponseCompleted);
+    assert_eq!(cancelled.terminal_outcome, Some(TerminalOutcome::Cancelled));
+    assert_eq!(
+        journal.request(&pending).unwrap().phase,
+        RequestPhase::Cancelled
+    );
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(matches!(
+        engine
+            .answer_clarification(&live.ctx(), &pending, "choose-npc-1")
+            .await,
+        Err(TurnError::Lifecycle(
+            LifecycleError::NotAwaitingClarification(_)
+        ))
+    ));
+    let of_pending: Vec<_> = journal
+        .events()
+        .into_iter()
+        .filter(|event| event.event.request_id.as_ref() == Some(&pending))
+        .collect();
+    assert_reducer_contract(&of_pending, &pending);
+}
+
+#[tokio::test]
+async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
+    let live = Live::rundale();
+    let (_, duffy) = two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let (asked, _, _) = submit_scripted(
+        &mut engine,
+        &live,
+        said("talk to Mícheál about the household"),
+    )
+    .await;
+    let request = asked.request_id.clone().unwrap();
+    {
+        let here = live.world.lock().await.player_location;
+        let mut npcs = live.npc_manager.lock().await;
+        let away = if here == LocationId(1) {
+            LocationId(2)
+        } else {
+            LocationId(1)
+        };
+        npcs.get_mut(duffy).unwrap().set_location(away);
+    }
+    let before = live.fingerprint().await;
+    live.emitter.drain();
+
+    let done = engine
+        .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+        .await
+        .unwrap();
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            revision: Some(StateRevision(0))
+        }
+    ));
+    assert_eq!(
+        kinds(&done.events),
+        vec![
+            TranscriptEventKind::ClarificationSelected,
+            TranscriptEventKind::Narration,
+            TranscriptEventKind::ResponseCompleted
+        ]
+    );
+    assert_eq!(
+        done.events[1].event.content.as_deref(),
+        Some("Mícheál Duffy is no longer here.")
+    );
+    assert_eq!(live.fingerprint().await, before);
+    assert_eq!(live.emitter.events(), done.emissions);
+    assert!(journal.request(&request).unwrap().has_committed());
+    assert_reducer_contract(&journal.events(), &request);
+}
+
+// Oracle: ios-port FFI `unresolved_clarification_survives_bounded_restart_projection`.
+// The in-memory journal has no bounded tail to fall out of; the port checks
+// that the journaled record, not engine memory, carries the question and
+// its choice ids through restart, and that later requests do not disturb it.
+#[tokio::test]
+async fn a_pending_question_is_projected_from_the_journal_after_restart() {
+    let live = Live::rundale();
+    let (connolly, duffy) = two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let (asked, _, _) = submit_scripted(
+        &mut engine,
+        &live,
+        said("talk to Mícheál about the household"),
+    )
+    .await;
+    let request = asked.request_id.clone().unwrap();
+    drop(engine);
+
+    let open = journal.open_requests().await.unwrap();
+    let record = open
+        .iter()
+        .find(|record| record.id == request)
+        .expect("the question is still open");
+    let projected = serde_json::to_value(record).unwrap();
+    assert_eq!(projected["phase"], "awaiting_clarification");
+    assert_eq!(
+        projected["pending_clarification"]["choices"][0]["id"],
+        format!("choose-npc-{}", connolly.0)
+    );
+    assert_eq!(
+        projected["pending_clarification"]["choices"][1]["id"],
+        format!("choose-npc-{}", duffy.0)
+    );
+
+    let mut engine = TurnEngine::new(journal.clone(), live.rules());
+    engine.recover().await.unwrap();
+    let answered = engine
+        .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", connolly.0))
+        .await
+        .unwrap();
+    let (done, events, _) = run_scripted(&mut engine, &live, answered, "").await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_eq!(speakers(&events), vec!["Mícheál Connolly".to_string()]);
+}
+
+#[tokio::test]
+async fn stop_cancels_a_pending_question_and_a_late_reply_is_ignored() {
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let step = engine
+        .submit(
+            &live.ctx(),
+            said("Mícheál, what do you make of the weather?"),
+        )
+        .await
+        .unwrap();
+    // Hold on to the intent call, if the input needed one, to reply late.
+    let early = match &step.status {
+        TurnStatus::AwaitingInference(pending) => Some(pending.clone()),
+        _ => None,
+    };
+    let (asked, _, _) = run_scripted(&mut engine, &live, step, "").await;
+    let request = asked.request_id.clone().unwrap();
+    let attempt = asked.attempt_id.clone().unwrap();
+
+    if let Some(early) = &early {
+        let late = engine
+            .resume(&live.ctx(), resolution(early, scripted(early, "")))
+            .await
+            .unwrap();
+        assert!(matches!(late.status, TurnStatus::Ignored(_)));
+    }
+    let stopped = engine.stop(&live.ctx(), &attempt).await.unwrap();
+    assert!(matches!(
+        stopped.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Cancelled,
+            revision: None
+        }
+    ));
+    assert_eq!(
+        journal.request(&request).unwrap().phase,
+        RequestPhase::Cancelled
+    );
+    assert_eq!(engine.open_request(), None);
+}
+
+#[tokio::test]
+async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
+    let live = Live::rundale();
+    two_micheals(&live).await;
+    live.config
+        .lock()
+        .await
+        .flags
+        .disable("addressee-clarification");
+    let (mut engine, _) = engine(&live);
+    let (done, events, _) = submit_scripted(
+        &mut engine,
+        &live,
+        said("talk to Mícheál about the household"),
+    )
+    .await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(contents(&events).contains(&"Mícheál is not here.".to_string()));
+    assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
 }
