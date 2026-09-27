@@ -38,7 +38,10 @@ pub use active_identity::{
     ActiveSaveIdentity, read_active_save_identity, read_active_save_identity_candidate,
     write_active_save_identity,
 };
-pub use database::{AsyncDatabase, BranchInfo, Database, RecoveryData, SnapshotInfo};
+pub use database::{
+    AsyncDatabase, BranchInfo, Database, NewTranscriptEvent, RecoveryData, SnapshotInfo,
+    TranscriptEventRow, TurnJournalWriter, TurnRequestRow,
+};
 pub use journal::{WorldEvent, replay_journal};
 pub use lock::SaveFileLock;
 pub use snapshot::{ClockSnapshot, GameSnapshot, NpcSnapshot};

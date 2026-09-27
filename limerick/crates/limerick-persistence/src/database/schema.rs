@@ -62,6 +62,7 @@ pub(super) fn migrate(conn: &Connection, now: &str) -> Result<(), LimerickError>
     .db_err()?;
 
     migrate_branch_parent_fk(conn)?;
+    super::turn_journal::migrate(conn)?;
 
     // Ensure the "main" branch exists
     let exists: bool = conn
