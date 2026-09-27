@@ -532,15 +532,17 @@ not a save database, a column this build reads is missing, a branch's latest
 snapshot or the world events replayed over it do not parse, or a turn request is
 not JSON. The runtimes call `limerick_core::save_compat::check_save` before they
 open a save for play, which adds the typed `RequestRecord` check and the content
-check. Nothing has written to a refused file, so it stays byte-identical.
+check, and open it with the inspection that check returned. Nothing has written
+to a refused file, so it stays byte-identical. Transcript fallback lines are
+read through `Database::open_read_only`.
 
 Refusal. On a load (server `/api/load-branch` and `/load`, Tauri and its MCP
 bridge, headless `/load`) the player sees `INCOMPATIBLE_SAVE_MESSAGE`, the current
-game carries on, and `/new` is offered. At launch the server session and the
-headless REPL start a new game in a new save file beside the refused one; the
-Tauri app opens its save picker, which offers a new game. The web client has no
-channel for a message sent before it connects, so the server logs the launch
-refusal rather than showing it.
+game carries on, and `/new` is offered. At launch the server session, the
+Tauri app, and the headless REPL leave the refused file untouched and start a
+new game in a new save file beside it. The headless REPL prints
+`INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE`; the server and Tauri log the refusal,
+because their UIs have no channel for a message sent before they connect.
 
 Content identity. Snapshots record the content they were captured against:
 the mod's `[mod] id` and `version` (`ContentIdentity`, carried on `WorldState`

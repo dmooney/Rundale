@@ -452,7 +452,6 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
 pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
     use limerick_core::persistence::Database;
     use limerick_core::persistence::SaveFileLock;
-    use limerick_core::persistence::picker::new_save_path;
     use limerick_core::persistence::snapshot::GameSnapshot;
 
     let _persistence_guard = state.persistence_gate.lock().await;
@@ -500,23 +499,30 @@ pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
         };
 
         // A save this build cannot read is never opened for play or written
-        // to; the save picker opens instead and offers a new game.
+        // to: it is left byte-identical and a new game starts in a new save
+        // file beside it, as on the server and in the headless REPL.
         let content = state
             .game_mod
             .as_ref()
             .map(limerick_core::game_mod::GameMod::content_identity);
-        if let Err(error) = limerick_core::save_compat::check_save(&selected_path, content.as_ref())
-        {
-            if limerick_core::save_compat::is_incompatible(&error) {
+        let inspection = match limerick_core::save_compat::check_save(
+            &selected_path,
+            content.as_ref(),
+        ) {
+            Ok(inspection) => inspection,
+            Err(error) => {
+                if !limerick_core::save_compat::is_incompatible(&error) {
+                    tracing::warn!(%error, path = %selected_path.display(), "failed to read save");
+                    return false;
+                }
                 limerick_core::save_compat::refusal_message(&selected_path, &error);
-            } else {
-                tracing::warn!(%error, path = %selected_path.display(), "failed to read save");
+                drop(candidate_lock);
+                return create_startup_save(state, &saves_dir).await;
             }
-            return false;
-        }
+        };
 
         // Load the most recent unlocked save file
-        match Database::open(&selected_path) {
+        match Database::open_inspected(&selected_path, &inspection) {
             Ok(db) => {
                 // Resume the exact remembered branch when this is the
                 // remembered file; otherwise retain the legacy main/first
@@ -669,63 +675,76 @@ pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
         }
     } else {
         // No saves exist — create a new save file
-        let path = new_save_path(&saves_dir);
-        let Some(candidate_lock) = SaveFileLock::try_acquire(&path) else {
-            tracing::warn!(
-                path = %path.display(),
-                "failed to lock newly-selected save path",
-            );
-            return false;
-        };
-        match Database::open(&path) {
-            Ok(db) => {
-                if let Ok(Some(branch)) = db.find_branch("main") {
-                    let world = state.world.lock().await;
-                    let npc_mgr = state.npc_manager.lock().await;
-                    let snap = GameSnapshot::capture(&world, &npc_mgr);
-                    drop(npc_mgr);
-                    drop(world);
-                    if let Err(error) = db.save_snapshot(branch.id, &snap) {
-                        tracing::warn!(%error, "failed to seed newly-created save");
-                        return false;
-                    }
+        return create_startup_save(state, &saves_dir).await;
+    }
+    false
+}
 
-                    let prepared_binding = match state.session_store.prepare_active_save("", &path)
-                    {
-                        Ok(binding) => binding,
-                        Err(error) => {
-                            tracing::warn!(
-                                %error,
-                                path = %path.display(),
-                                "failed to bind newly-created save"
-                            );
-                            return false;
-                        }
-                    };
-                    if let Err(error) = limerick_core::persistence::write_active_save_identity(
-                        &saves_dir, &path, branch.id, "main",
-                    ) {
-                        tracing::warn!(%error, "failed to commit newly-created active save");
+/// Creates a new save file in `saves_dir`, seeds it with the current world,
+/// and binds it: the launch path when there is no save to resume, or when
+/// the save to resume was refused. The caller holds the persistence gate.
+async fn create_startup_save(state: &Arc<AppState>, saves_dir: &std::path::Path) -> bool {
+    use limerick_core::persistence::Database;
+    use limerick_core::persistence::SaveFileLock;
+    use limerick_core::persistence::picker::new_save_path;
+    use limerick_core::persistence::snapshot::GameSnapshot;
+
+    let saves_dir = saves_dir.to_path_buf();
+    let path = new_save_path(&saves_dir);
+    let Some(candidate_lock) = SaveFileLock::try_acquire(&path) else {
+        tracing::warn!(
+            path = %path.display(),
+            "failed to lock newly-selected save path",
+        );
+        return false;
+    };
+    match Database::open(&path) {
+        Ok(db) => {
+            if let Ok(Some(branch)) = db.find_branch("main") {
+                let world = state.world.lock().await;
+                let npc_mgr = state.npc_manager.lock().await;
+                let snap = GameSnapshot::capture(&world, &npc_mgr);
+                drop(npc_mgr);
+                drop(world);
+                if let Err(error) = db.save_snapshot(branch.id, &snap) {
+                    tracing::warn!(%error, "failed to seed newly-created save");
+                    return false;
+                }
+
+                let prepared_binding = match state.session_store.prepare_active_save("", &path) {
+                    Ok(binding) => binding,
+                    Err(error) => {
+                        tracing::warn!(
+                            %error,
+                            path = %path.display(),
+                            "failed to bind newly-created save"
+                        );
                         return false;
                     }
-                    prepared_binding.commit();
-                    let mut save_path = state.save_path.lock().await;
-                    let mut branch_id = state.current_branch_id.lock().await;
-                    let mut branch_name = state.current_branch_name.lock().await;
-                    *save_path = Some(path.clone());
-                    *branch_id = Some(branch.id);
-                    *branch_name = Some("main".to_string());
-                    drop(branch_name);
-                    drop(branch_id);
-                    drop(save_path);
-                    *state.save_lock.lock().await = Some(candidate_lock);
-                    tracing::info!("Created new save file");
-                    return true;
+                };
+                if let Err(error) = limerick_core::persistence::write_active_save_identity(
+                    &saves_dir, &path, branch.id, "main",
+                ) {
+                    tracing::warn!(%error, "failed to commit newly-created active save");
+                    return false;
                 }
+                prepared_binding.commit();
+                let mut save_path = state.save_path.lock().await;
+                let mut branch_id = state.current_branch_id.lock().await;
+                let mut branch_name = state.current_branch_name.lock().await;
+                *save_path = Some(path.clone());
+                *branch_id = Some(branch.id);
+                *branch_name = Some("main".to_string());
+                drop(branch_name);
+                drop(branch_id);
+                drop(save_path);
+                *state.save_lock.lock().await = Some(candidate_lock);
+                tracing::info!("Created new save file");
+                return true;
             }
-            Err(e) => {
-                tracing::warn!("Failed to create save file: {}", e);
-            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to create save file: {}", e);
         }
     }
     false
@@ -1784,5 +1803,39 @@ mod onboarding_choice_tests {
             resolve_onboarding_choice(inputs),
             OnboardingChoice::LocalUnavailable
         );
+    }
+}
+
+#[cfg(test)]
+mod launch_tests {
+    #[tokio::test]
+    async fn an_unreadable_save_at_launch_is_left_untouched_and_a_new_save_starts() {
+        let temp = tempfile::tempdir().unwrap();
+        let refused = temp.path().join("limerick_001.db");
+        std::fs::copy(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../limerick-persistence/tests/fixtures/unreadable_state_save.db"),
+            &refused,
+        )
+        .unwrap();
+        let before = std::fs::read(&refused).unwrap();
+        let mut state = crate::commands::cmd_tests::test_app_state();
+        let parts = std::sync::Arc::get_mut(&mut state).expect("fresh state is unique");
+        parts.saves_dir = temp.path().to_path_buf();
+        parts.session_store = std::sync::Arc::new(
+            limerick_core::session_store::DbSessionStore::new(temp.path().to_path_buf()),
+        );
+
+        assert!(super::init_persistence(&state).await, "a new game starts");
+
+        assert_eq!(std::fs::read(&refused).unwrap(), before, "byte-identical");
+        assert_eq!(
+            state.save_path.lock().await.clone(),
+            Some(temp.path().join("limerick_002.db"))
+        );
+        let marker = limerick_core::persistence::read_active_save_identity_candidate(temp.path())
+            .unwrap()
+            .unwrap();
+        assert_eq!(marker.save_path.file_name().unwrap(), "limerick_002.db");
     }
 }

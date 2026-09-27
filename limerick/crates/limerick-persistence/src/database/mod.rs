@@ -68,6 +68,17 @@ impl Database {
         Self::open_inspected(path, &inspection)
     }
 
+    /// Opens a save for reading only: it is inspected like [`Self::open`],
+    /// never migrated, and the connection cannot write to the file (see
+    /// `format::read_only_connection`).
+    pub fn open_read_only(path: &Path) -> Result<Self, LimerickError> {
+        format::inspect(path)?;
+        Ok(Self {
+            conn: format::read_only_connection(path)?,
+            fixed_timestamp: None,
+        })
+    }
+
     /// Opens a save that `inspection` (from [`inspect_save`] or
     /// [`inspect_save_with`] on the same path) found readable.
     pub fn open_inspected(path: &Path, inspection: &SaveInspection) -> Result<Self, LimerickError> {

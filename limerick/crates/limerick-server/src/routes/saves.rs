@@ -249,11 +249,12 @@ pub(crate) async fn open_turns(state: &Arc<AppState>) {
 
 /// Refuses a save this build cannot open before anything reads it for play
 /// or writes to it: the player is told, the file is left byte-identical,
-/// and the current game carries on. `Ok` when the save can be opened.
+/// and the current game carries on. Returns the inspection of a save that
+/// can be opened.
 pub(crate) async fn refuse_incompatible_save(
     state: &Arc<AppState>,
     path: &std::path::Path,
-) -> Result<(), (StatusCode, String)> {
+) -> Result<limerick_core::persistence::SaveInspection, (StatusCode, String)> {
     let content = state
         .game_mod
         .as_ref()
@@ -265,7 +266,7 @@ pub(crate) async fn refuse_incompatible_save(
     .await
     .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
     match checked {
-        Ok(_) => Ok(()),
+        Ok(inspection) => Ok(inspection),
         Err(error) if limerick_core::save_compat::is_incompatible(&error) => {
             let message = limerick_core::save_compat::refusal_message(path, &error);
             state
@@ -334,13 +335,14 @@ pub async fn do_load_branch_inner(
     body: LoadBranchRequest,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let (path, branch_id, candidate_lock) = validate_and_acquire_lock(state, &body).await?;
-    refuse_incompatible_save(state, &path).await?;
+    let inspection = refuse_incompatible_save(state, &path).await?;
 
     let path_clone = path.clone();
-    let branch_name = tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id))
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let branch_name =
+        tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id, &inspection))
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let recovery = limerick_core::session_store::load_recovery_bundle(
         state.session_store.as_ref(),
         &state.session_id,
@@ -471,11 +473,15 @@ pub async fn validate_and_acquire_lock(
     Ok((path, branch_id, candidate_lock))
 }
 
-/// Opens the database file and resolves the branch display name.
-pub fn load_branch_name(path: &std::path::Path, branch_id: i64) -> Result<String, String> {
+/// Opens the inspected database file and resolves the branch display name.
+pub fn load_branch_name(
+    path: &std::path::Path,
+    branch_id: i64,
+    inspection: &limerick_core::persistence::SaveInspection,
+) -> Result<String, String> {
     use limerick_core::persistence::Database;
 
-    let db = Database::open(path).map_err(|e| e.to_string())?;
+    let db = Database::open_inspected(path, inspection).map_err(|e| e.to_string())?;
     let branches = db.list_branches().map_err(|e| e.to_string())?;
     branches
         .iter()
