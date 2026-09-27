@@ -58,7 +58,7 @@ fn acquire_reenter_and_release() {
         "dropping one reentrant guard must keep the lock"
     );
     drop(second);
-    assert!(!lock_path.exists());
+    assert_eq!(lock_path.exists(), !REMOVES_LOCK_FILE_ON_RELEASE);
     assert!(!is_locked(&save));
 }
 
@@ -100,10 +100,14 @@ fn a_recorded_pid_without_the_kernel_lock_does_not_lock() {
         assert!(!is_locked(&save), "pid {pid}");
         let guard = SaveFileLock::try_acquire(&save).expect("stale file is reclaimed");
         drop(guard);
-        assert!(!SaveFileLock::lock_path_for(&save).exists());
+        assert_eq!(
+            SaveFileLock::lock_path_for(&save).exists(),
+            !REMOVES_LOCK_FILE_ON_RELEASE
+        );
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn a_replaced_lock_file_is_not_removed_by_the_previous_owner() {
     let dir = tempfile::tempdir().unwrap();
@@ -128,7 +132,7 @@ fn legacy_directory_with_a_dead_owner_is_replaced() {
     let guard = SaveFileLock::try_acquire(&save).expect("dead legacy owner is replaced");
     assert!(lock_path.is_file());
     drop(guard);
-    assert!(!lock_path.exists());
+    assert_eq!(lock_path.exists(), !REMOVES_LOCK_FILE_ON_RELEASE);
 }
 
 #[test]
@@ -188,6 +192,9 @@ fn concurrent_acquirers_in_one_process_share_one_lock() {
             .all(|guard| Arc::ptr_eq(&guard.file, &guards[0].file))
     );
     drop(guards);
-    assert!(!SaveFileLock::lock_path_for(&save).exists());
+    assert_eq!(
+        SaveFileLock::lock_path_for(&save).exists(),
+        !REMOVES_LOCK_FILE_ON_RELEASE
+    );
     assert!(!is_locked(&save));
 }

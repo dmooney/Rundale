@@ -7,6 +7,12 @@
 //! so a relaunch never depends on whether a recorded PID is still alive. The
 //! file records the owner's PID for diagnostics only. See ADR-026.
 //!
+//! On Unix the last guard removes the file, and a contender that locked a file
+//! just removed detects it by device and inode and retries. Windows has no
+//! stable way to compare file identity in std, so there the file is never
+//! removed: one file for the life of the save, and the lock on it is the whole
+//! protocol.
+//!
 //! Earlier builds locked with an owner directory at the same path. A leftover
 //! directory whose recorded owner is dead is removed on the next acquisition;
 //! a live or unreadable one keeps the save locked.
@@ -24,6 +30,8 @@ const LEGACY_OWNER_FILENAME: &str = "owner.json";
 const LEGACY_OWNER_VERSION: u8 = 1;
 /// Bounds retries when a released lock file is replaced while opening it.
 const MAX_OPEN_ATTEMPTS: usize = 8;
+/// Whether releasing the lock removes its file (see the module docs).
+const REMOVES_LOCK_FILE_ON_RELEASE: bool = cfg!(unix);
 
 /// Locks held by this process, by lock path. The kernel lock belongs to one
 /// open file, so a second acquisition in the same process shares it instead of
@@ -113,7 +121,8 @@ impl Drop for SaveFileLock {
         // still names our file, so a successor's lock file is never removed.
         // A contender that opened our file before the removal locks an
         // unlinked file, notices, and retries on a fresh one.
-        if same_file(&self.file, &self.lock_path)
+        if REMOVES_LOCK_FILE_ON_RELEASE
+            && same_file(&self.file, &self.lock_path)
             && let Err(error) = fs::remove_file(&self.lock_path)
             && error.kind() != std::io::ErrorKind::NotFound
         {
@@ -173,12 +182,11 @@ fn same_file(file: &File, path: &Path) -> bool {
     }
 }
 
-/// Windows cannot create a file at a path whose previous file is pending
-/// deletion while any handle to it is open, so the path always names the file
+/// Lock files are never removed off Unix, so the path always names the file
 /// that was opened.
 #[cfg(not(unix))]
-fn same_file(_file: &File, path: &Path) -> bool {
-    path.is_file()
+fn same_file(_file: &File, _path: &Path) -> bool {
+    true
 }
 
 #[derive(Deserialize)]
@@ -280,7 +288,7 @@ fn is_process_alive(pid: u32) -> bool {
     const STILL_ACTIVE: u32 = 259;
     const ERROR_ACCESS_DENIED: u32 = 5;
 
-    extern "system" {
+    unsafe extern "system" {
         fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
         fn CloseHandle(handle: *mut c_void) -> i32;
         fn GetExitCodeProcess(handle: *mut c_void, code: *mut u32) -> i32;

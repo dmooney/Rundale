@@ -1564,7 +1564,6 @@ async fn new_save_marker_failure_preserves_live_identity_cleans_candidate_and_re
     .unwrap();
     let marker_path = session_saves.join(".active-save.json");
     let marker_before = std::fs::read(&marker_path).unwrap();
-    let old_lock_path = limerick_core::persistence::SaveFileLock::lock_path_for(&old_path);
     let candidate_path = session_saves.join("limerick_002.db");
 
     let error = super::saves::do_new_save_file_inner(&state, |_, _, _, _| {
@@ -1583,7 +1582,10 @@ async fn new_save_marker_failure_preserves_live_identity_cleans_candidate_and_re
         Some(old_branch.id)
     );
     assert!(state.save_lock.lock().await.is_some());
-    assert!(old_lock_path.exists(), "old live lock must remain held");
+    assert!(
+        limerick_core::persistence::lock::is_locked(&old_path),
+        "old live lock must remain held"
+    );
     assert_eq!(std::fs::read(&marker_path).unwrap(), marker_before);
     assert!(
         !candidate_path.exists(),
@@ -1618,7 +1620,10 @@ async fn new_save_marker_failure_preserves_live_identity_cleans_candidate_and_re
         std::fs::canonicalize(committed.save_path).unwrap(),
         std::fs::canonicalize(&candidate_path).unwrap()
     );
-    assert!(!old_lock_path.exists(), "old lock is released after commit");
+    assert!(
+        !limerick_core::persistence::lock::is_locked(&old_path),
+        "old lock is released after commit"
+    );
     assert!(
         limerick_core::persistence::SaveFileLock::lock_path_for(&candidate_path).exists(),
         "new committed save lock must be retained"
