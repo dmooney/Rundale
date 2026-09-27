@@ -42,7 +42,7 @@ tests and the lock unit tests for `aarch64-apple-ios-sim`. It runs them with
 saves inside Safari's sandbox data container under
 `Library/Application Support/Rundale/`, where the iOS app keeps its save.
 
-Directory/PID lock on the simulator, 2026-09-27 (lock code as at `76dca6468`):
+Directory/PID lock on the simulator, 2026-09-27 (lock code as at `e3c1b8de0`):
 
 | Scenario                                                     | Result                |
 | ------------------------------------------------------------ | --------------------- |
