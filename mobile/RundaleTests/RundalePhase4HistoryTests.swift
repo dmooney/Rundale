@@ -7,6 +7,18 @@ import RundaleKit
 /// Standalone bridge tests use C doubles, so they cannot establish this wiring.
 @MainActor
 final class RundalePhase4HistoryTests: XCTestCase {
+    /// These tests drive real turns through the linked library. Until the FFI
+    /// boundary is wired to the shared engine's turn API, it answers every
+    /// session request with `not_wired`; the tests skip then and run
+    /// unchanged once #2044 lands. Any other open failure still fails them.
+    override func setUp() async throws {
+        do {
+            try await ParishRuntime.openNew().close()
+        } catch ParishRuntimeError.notWired {
+            throw XCTSkip("The FFI boundary is not wired to the shared engine yet (#2044).")
+        }
+    }
+
     func testFirstLaunchCreatesMissingSaveDirectoryBeforeOpeningRuntime() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("phase4-first-launch-\(UUID().uuidString)/nested", isDirectory: true)

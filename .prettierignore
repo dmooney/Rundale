@@ -44,10 +44,6 @@ promptfoo/leaderboard/
 # Intentionally-malformed mod content (loader test data)
 mods/
 
-# Plain-text exports of the Limerick Endpoints design documents, kept verbatim
-endpoints/docs/product-vision.md
-endpoints/docs/software-architecture.md
-
 # Data we don't want reflowed
 *.jsonl
 *.log

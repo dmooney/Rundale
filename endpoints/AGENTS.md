@@ -3,7 +3,7 @@
 ## Current State
 
 - This repository contains the executable TypeScript MVP monorepo as well as its product, architecture, deployment, and decision documents.
-- Treat `docs/product-vision.md` and `docs/software-architecture.md` as the product and architecture source of truth until implementation and decision records supersede specific sections. Use `docs/mvp-verification.md` for the requirement-by-requirement completion audit and evidence status.
+- Treat `docs/product-vision.txt` and `docs/software-architecture.txt` as the product and architecture source of truth until implementation and decision records supersede specific sections. Use `docs/mvp-verification.md` for the requirement-by-requirement completion audit and evidence status.
 - Repository evidence does not establish that a live deployment or provider credential smoke test succeeded; record those separately in the verification audit.
 - Do not claim that build, lint, test, migration, or deployment commands exist unless their configuration is present in the repository.
 
