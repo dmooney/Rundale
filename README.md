@@ -392,7 +392,7 @@ limerick/
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
-mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
+mods/rundale/          Rundale game content: the canonical tiny world (three places, three people)
 deploy/                Dockerfile
 docs/                  design, ADRs, plans, research, agent guides
 justfile               Top-level proxies for common tasks
