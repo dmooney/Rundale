@@ -3,7 +3,7 @@ import Foundation
 /// The version of the small semantic contract consumed by the native player.
 ///
 /// The contract is deliberately separate from the save format and from the
-/// future Parish Endpoint contract. A client can therefore reject a payload
+/// future Limerick Endpoint contract. A client can therefore reject a payload
 /// it cannot safely interpret without treating it as a new game.
 public struct PresentationContractVersion: Codable, Comparable, Hashable, Sendable {
     public let major: UInt16

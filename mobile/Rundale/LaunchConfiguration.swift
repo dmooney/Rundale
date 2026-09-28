@@ -31,7 +31,7 @@ struct LaunchConfiguration: Sendable {
     /// fixture-demo argument can select it while retaining automatic stepping.
     /// The simulator keyboard case retains coverage of Mac Return-to-send.
     let usesMultilineSimulatorComposer: Bool
-    /// The embedded Parish runtime is the normal product launch. Fixture
+    /// The embedded Limerick runtime is the normal product launch. Fixture
     /// launches remain available for the deterministic Phase 1 UI suite and
     /// for explicit fixture invocations.
     let phase2: Bool
@@ -43,7 +43,7 @@ struct LaunchConfiguration: Sendable {
     let draftFileURL: URL?
     let resetFixture: Bool
     let forceDarkAppearance: Bool
-    /// A trusted Parish Endpoints base URL supplied by deployment
+    /// A trusted Limerick Endpoints base URL supplied by deployment
     /// configuration. There is intentionally no baked-in production default.
     let endpointBaseURL: URL?
     let endpointOrganization: String

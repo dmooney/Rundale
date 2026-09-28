@@ -1,6 +1,6 @@
-import { definitionContentHash, type EndpointVersionSnapshot } from "@parish/domain";
-import type { InvocationInput, SemanticRuntime } from "@parish/runtime";
-import { RuntimeError } from "@parish/runtime";
+import { definitionContentHash, type EndpointVersionSnapshot } from "@limerick/domain";
+import type { InvocationInput, SemanticRuntime } from "@limerick/runtime";
+import { RuntimeError } from "@limerick/runtime";
 import {
   InvocationQuotaExceededError,
   type InvocationRepository,

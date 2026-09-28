@@ -20,7 +20,7 @@ ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
 ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
 ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
 RUN test -n "$NEXT_PUBLIC_API_URL" && test -n "$NEXT_PUBLIC_FIREBASE_API_KEY" && test -n "$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" && test -n "$NEXT_PUBLIC_FIREBASE_PROJECT_ID" && test -n "$NEXT_PUBLIC_FIREBASE_APP_ID"
-RUN pnpm --filter @parish/web build
+RUN pnpm --filter @limerick/web build
 RUN mkdir -p apps/web/.next/cache apps/web/.next/standalone/apps/web/.next/cache apps/web/.next/standalone/apps/web/.next \
   && cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
 ENV NODE_ENV=production

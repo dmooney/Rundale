@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
-import { createLoggerOptions } from "@parish/observability";
+import { createLoggerOptions } from "@limerick/observability";
 import type { ServerConfig } from "./config.js";
 import type { CreatorAuthenticator } from "./auth/creator-auth.js";
 import { registerControlRoutes } from "./control/routes.js";
@@ -46,7 +46,7 @@ export async function buildServer(
       "content-type",
       "x-request-id",
       "idempotency-key",
-      "x-parish-owner-id",
+      "x-limerick-owner-id",
       "x-firebase-appcheck",
       "x-attempt-id",
     ],

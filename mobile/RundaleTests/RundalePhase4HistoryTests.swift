@@ -13,8 +13,8 @@ final class RundalePhase4HistoryTests: XCTestCase {
     /// they run as written. Any other open failure still fails them.
     override func setUp() async throws {
         do {
-            try await ParishRuntime.openNew().close()
-        } catch ParishRuntimeError.notWired {
+            try await LimerickRuntime.openNew().close()
+        } catch LimerickRuntimeError.notWired {
             throw XCTSkip("The FFI boundary is not wired to the shared engine yet (#2044).")
         }
     }
@@ -43,7 +43,7 @@ final class RundalePhase4HistoryTests: XCTestCase {
         let payload = try JSONSerialization.data(withJSONObject: [
             "save_path": directory.appendingPathComponent("phase2.sqlite").path
         ])
-        let seed = try ParishRuntime.openResume(payload: payload)
+        let seed = try LimerickRuntime.openResume(payload: payload)
         _ = try await seed.submit(text: "/go Connolly Cottage", draftID: DraftID(), logicalRequestID: nil)
         let request = try await seed.submit(text: "ask Connolly about the household", draftID: DraftID(), logicalRequestID: nil)
         for _ in 0..<800 {
@@ -79,7 +79,7 @@ final class RundalePhase4HistoryTests: XCTestCase {
         let payload = try JSONSerialization.data(withJSONObject: [
             "save_path": directory.appendingPathComponent("phase2.sqlite").path
         ])
-        let seed = try ParishRuntime.openResume(payload: payload)
+        let seed = try LimerickRuntime.openResume(payload: payload)
         for _ in 0..<400 {
             _ = try await seed.submit(text: "/look", draftID: DraftID(), logicalRequestID: nil)
         }
@@ -126,7 +126,7 @@ final class RundalePhase4HistoryTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let save = directory.appendingPathComponent("phase2.sqlite")
         let payload = try JSONSerialization.data(withJSONObject: ["save_path": save.path])
-        let seed = try ParishRuntime.openResume(payload: payload)
+        let seed = try LimerickRuntime.openResume(payload: payload)
         for _ in 0..<400 {
             _ = try await seed.submit(text: "/look", draftID: DraftID(), logicalRequestID: nil)
         }

@@ -332,3 +332,7 @@ bottom; don't lengthen items past 2-3 lines.
 - **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
 - **Never decide save-lock ownership from a recorded PID.** On iOS every exit is a SIGKILL that leaves the record behind, and a relaunch can find that PID reused (by another process, one it may not signal, or itself). `SaveFileLock` is a kernel lock since #2039 (ADR-026); the PID in `<save>.lock` is diagnostic only.
 - **A GitHub milestone can hold issues outside its own theme.** "Mobile Phase 1 - Portable turn API" also carries proof-process issues (#2054-2057) filed mid-milestone; `gh issue list --milestone "..."` mixes them with the turn-API work, so a nonzero open count doesn't mean the phase's own feature work is unfinished. Check each issue's title/scope, not just the milestone's open-issue count.
+
+## Naming / mobile + Endpoints
+
+- **Product name is Limerick; geographic "parish" stays.** After #2007 the Swift/FFI/Endpoints product identifiers use `Limerick*` / `limerick_mobile_*` / `@limerick/*`. Leave Irish geography, ADR text, and cottage-d6dc9 revision URLs alone — those are intentional historical or world vocabulary, not the old engine name. The demo org slug is `limerick-demo`.

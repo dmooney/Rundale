@@ -14,9 +14,13 @@ import {
   organizationMembers,
   organizations,
   users,
-} from "@parish/database";
-import { FakeProvider, FixedPriceCostCalculator, StaticProviderRegistry } from "@parish/providers";
-import { DeterministicRuntime } from "@parish/runtime";
+} from "@limerick/database";
+import {
+  FakeProvider,
+  FixedPriceCostCalculator,
+  StaticProviderRegistry,
+} from "@limerick/providers";
+import { DeterministicRuntime } from "@limerick/runtime";
 import { ControlService } from "../src/control/service.js";
 import { PlaygroundService } from "../src/control/playground-service.js";
 import { PostgresControlRepository } from "../src/infrastructure/postgres-control-repository.js";

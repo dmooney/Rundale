@@ -215,7 +215,7 @@ function ConsoleWithToken({
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
       const token = await getToken();
       const headers = new Headers(init.headers);
-      if (token === null) headers.set("x-parish-owner-id", "user_synthetic_owner");
+      if (token === null) headers.set("x-limerick-owner-id", "user_synthetic_owner");
       else headers.set("authorization", `Bearer ${token}`);
       if (init.body !== undefined && !(init.body instanceof FormData)) {
         headers.set("content-type", "application/json");

@@ -11,8 +11,8 @@ packages:
     path: RundaleKit
   RundaleBridge:
     path: RundaleBridge
-  ParishEndpointKit:
-    path: ParishEndpointKit
+  LimerickEndpointKit:
+    path: LimerickEndpointKit
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     exactVersion: 12.18.0
@@ -27,8 +27,8 @@ targets:
     dependencies:
       - package: RundaleKit
       - package: RundaleBridge
-      - package: ParishEndpointKit
-      - framework: .build/rust-mobile/ParishMobileFFI.xcframework
+      - package: LimerickEndpointKit
+      - framework: .build/rust-mobile/LimerickMobileFFI.xcframework
         embed: false
       - package: Firebase
         product: FirebaseAuth

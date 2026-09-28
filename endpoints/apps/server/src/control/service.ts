@@ -1,4 +1,4 @@
-import { issueApiKey } from "@parish/auth";
+import { issueApiKey } from "@limerick/auth";
 import {
   definitionContentHash,
   DomainError,
@@ -6,8 +6,8 @@ import {
   type EndpointDraft,
   type EndpointVersionSnapshot,
   type Id,
-} from "@parish/domain";
-import { validateSchemaDefinition } from "@parish/schemas";
+} from "@limerick/domain";
+import { validateSchemaDefinition } from "@limerick/schemas";
 import type {
   ApiKeySummary,
   ControlRepository,

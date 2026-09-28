@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import ParishEndpointKit
+import LimerickEndpointKit
 import RundaleBridge
 import RundaleKit
 
@@ -17,10 +17,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     private let configuration: LaunchConfiguration
     private let projectionStore: Phase2ProjectionStore
-    private let endpointClient: ParishEndpointClient
+    private let endpointClient: LimerickEndpointClient
     private var completionRegistry: FixtureCompletionRegistry
     private var presentation: PresentationSession
-    private var runtime: ParishRuntime?
+    private var runtime: LimerickRuntime?
     private var bootstrapTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var endpointTask: Task<Void, Never>?
@@ -83,12 +83,12 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
         if configuration.phase2MockTransport {
             let credentials = StaticEndpointCredentialProvider(
-                ParishEndpointKit.EndpointCredentials(
+                LimerickEndpointKit.EndpointCredentials(
                     authorizationToken: "phase2-ui-test",
                     appCheckToken: "phase2-ui-test"
                 )
             )
-            endpointClient = ParishEndpointClient(
+            endpointClient = LimerickEndpointClient(
                 credentials: credentials,
                 transport: Phase2MockEndpointTransport(),
                 policy: EndpointURLPolicy(allowLoopbackHTTP: true)
@@ -97,7 +97,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             let credentials = FirebaseEndpointCredentialAdapter(
                 provider: FirebaseEndpointCredentialProvider()
             )
-            endpointClient = ParishEndpointClient(credentials: credentials)
+            endpointClient = LimerickEndpointClient(credentials: credentials)
         }
 
         if !configuration.resetFixture, let error = projectionStore.restoreError {
@@ -122,7 +122,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     // SQLite canonicalizes its parent before opening. Prepare
                     // it before bootstrap, not as a side effect of typing a draft.
                     try FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
-                    return try ParishRuntime.openResume(payload: openPayload)
+                    return try LimerickRuntime.openResume(payload: openPayload)
                 }.value
                 guard let self else {
                     try? await runtime.close()
@@ -131,7 +131,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 self.runtime = runtime
                 let data = try await runtime.snapshotJSON()
                 let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
-                var historyPage: ParishEventPage?
+                var historyPage: LimerickEventPage?
                 if !self.state.viewport.isFollowingNewest,
                    self.restoredSessionID == snapshot.sessionID,
                    let cursor = self.restoredHistoryCursor,
@@ -279,7 +279,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func submit(_ text: String) async throws -> SubmissionReceipt {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
         let receipt = try await runtime.submit(
             text: text,
             draftID: state.draft.id,
@@ -310,7 +310,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func retryLastFailed() async throws {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
         guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
             throw FixtureAdapterError.requestNotRetryable
         }
@@ -327,7 +327,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func answerClarification(choiceID: String) async throws {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
         guard let request = state.requests.last(where: { $0.phase == .awaitingClarification }) else {
             throw FixtureAdapterError.noClarificationPending
         }
@@ -350,7 +350,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         completionRegistry.applying(item, to: text)
     }
 
-    private func startEventSubscription(runtime: ParishRuntime) {
+    private func startEventSubscription(runtime: LimerickRuntime) {
         eventTask?.cancel()
         let cursor = state.eventCursor
         eventTask = Task { [weak self, runtime] in
@@ -384,7 +384,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = presentation.state
     }
 
-    private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: ParishEventPage? = nil) throws {
+    private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: LimerickEventPage? = nil) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
@@ -449,7 +449,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = reconciled
     }
 
-    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot, restoredHistoryPage: ParishEventPage? = nil) {
+    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot, restoredHistoryPage: LimerickEventPage? = nil) {
         historyExhausted = !snapshot.hasOlderEvents
         historyWindowShifted = false
         historyBeforeCursor = nil
@@ -544,7 +544,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             }
     }
 
-    private func pendingInvocation(runtime: ParishRuntime) async throws -> InvocationIdentity? {
+    private func pendingInvocation(runtime: LimerickRuntime) async throws -> InvocationIdentity? {
         let data = try await runtime.pendingEndpointJSON()
         guard try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) as? [String: Any] != nil else {
             return nil
@@ -554,7 +554,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         return invocation
     }
 
-    private func startEndpoint(_ invocation: InvocationIdentity, runtime: ParishRuntime) {
+    private func startEndpoint(_ invocation: InvocationIdentity, runtime: LimerickRuntime) {
         endpointTask?.cancel()
         let configuration = self.configuration
         let endpointClient = self.endpointClient
@@ -568,7 +568,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 let body = try invocation.requestBody()
                 guard let endpointURL = configuration.endpointURL
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
-                    throw ParishEndpointError.invalidURL
+                    throw LimerickEndpointError.invalidURL
                 }
                 let request = try EndpointRequest(
                     url: endpointURL,
@@ -608,11 +608,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         self.consumeOperation(response)
                     case .final:
                         guard let payload = frame.payload else {
-                            throw ParishEndpointError.malformedEvent("final output is missing")
+                            throw LimerickEndpointError.malformedEvent("final output is missing")
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
                         guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                            throw ParishEndpointError.malformedEvent("final dialogue is empty")
+                            throw LimerickEndpointError.malformedEvent("final dialogue is empty")
                         }
                         let operation = try EndpointOperation.candidate(
                             attemptID: invocation.attemptID,
@@ -654,7 +654,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
         }
-        guard let endpoint = error as? ParishEndpointError else {
+        guard let endpoint = error as? LimerickEndpointError else {
             return PlayerFacingFailure(
                 kind: .transport,
                 message: "The response service could not be reached. You can retry this request."
@@ -806,7 +806,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     static let notWiredMessage = "Not yet connected to the game engine (#2044)."
 
     static func playerFacingPersistenceError(_ error: Error) -> String {
-        if case .notWired? = error as? ParishRuntimeError {
+        if case .notWired? = error as? LimerickRuntimeError {
             return notWiredMessage
         }
         if let projectionError = error as? Phase2ProjectionStoreError,
@@ -945,7 +945,7 @@ private struct Phase2Projection: Codable, Sendable {
 }
 
 private struct PlayerFacingFailure: Sendable {
-    let kind: ParishRuntimeFailureKind
+    let kind: LimerickRuntimeFailureKind
     let message: String
 }
 
@@ -1034,16 +1034,16 @@ private enum Phase2ProjectionStoreError: LocalizedError {
 }
 
 @MainActor
-private final class FirebaseEndpointCredentialAdapter: ParishEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
+private final class FirebaseEndpointCredentialAdapter: LimerickEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
     private let provider: FirebaseEndpointCredentialProvider
 
     init(provider: FirebaseEndpointCredentialProvider) {
         self.provider = provider
     }
 
-    nonisolated func credentials() async throws -> ParishEndpointKit.EndpointCredentials {
+    nonisolated func credentials() async throws -> LimerickEndpointKit.EndpointCredentials {
         let credentials = try await provider.credentials()
-        return ParishEndpointKit.EndpointCredentials(
+        return LimerickEndpointKit.EndpointCredentials(
             authorizationToken: credentials.authorizationBearer,
             appCheckToken: credentials.appCheckToken
         )
@@ -1080,7 +1080,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             let task = Task {
                 do {
                     guard let requestURL else {
-                        throw ParishEndpointError.invalidURL
+                        throw LimerickEndpointError.invalidURL
                     }
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
@@ -1162,7 +1162,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let playerInput = input["playerInput"] as? String,
               let speaker = input["speaker"] as? [String: Any],
               let speakerName = speaker["displayName"] as? String else {
-            throw ParishEndpointError.malformedEvent("mock request input is invalid")
+            throw LimerickEndpointError.malformedEvent("mock request input is invalid")
         }
         return Identities(
             requestID: requestID,

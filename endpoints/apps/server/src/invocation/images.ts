@@ -1,4 +1,4 @@
-import { RuntimeError, type InvocationAttachment } from "@parish/runtime";
+import { RuntimeError, type InvocationAttachment } from "@limerick/runtime";
 
 function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
   return signature.every((value, index) => bytes[index] === value);

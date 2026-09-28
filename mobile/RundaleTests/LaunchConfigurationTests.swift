@@ -8,18 +8,18 @@ final class LaunchConfigurationTests: XCTestCase {
             environment: [:],
             bundle: [
                 "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
-                "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
+                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
                 "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
                 "RUNDALE_ENDPOINT_VERSION": "7"
             ]
         )
 
         XCTAssertEqual(configuration.endpointBaseURL?.absoluteString, "https://example.test")
-        XCTAssertEqual(configuration.endpointOrganization, "parish-demo")
+        XCTAssertEqual(configuration.endpointOrganization, "limerick-demo")
         XCTAssertEqual(configuration.endpointSlug, "rundale-dialogue")
         XCTAssertEqual(configuration.endpointVersion, 7)
         XCTAssertEqual(configuration.endpointURL?.absoluteString,
-                       "https://example.test/v1/endpoints/parish-demo/rundale-dialogue/versions/7/stream")
+                       "https://example.test/v1/endpoints/limerick-demo/rundale-dialogue/versions/7/stream")
     }
 
     func testEnvironmentOverridesBundledEndpointConfiguration() {
@@ -33,7 +33,7 @@ final class LaunchConfigurationTests: XCTestCase {
             ],
             bundle: [
                 "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
-                "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
+                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
                 "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
                 "RUNDALE_ENDPOINT_VERSION": "7"
             ]
