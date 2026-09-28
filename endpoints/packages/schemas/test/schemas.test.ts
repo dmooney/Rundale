@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { JsonSchema } from "@parish/domain";
+import type { JsonSchema } from "@limerick/domain";
 import {
   compileSchema,
   formatValidationErrors,

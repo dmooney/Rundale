@@ -1,4 +1,4 @@
-import type { ProviderId } from "@parish/domain";
+import type { ProviderId } from "@limerick/domain";
 import {
   RuntimeError,
   type ModelProvider,
@@ -6,7 +6,7 @@ import {
   type ProviderInvocation,
   type ProviderRegistry,
   type ProviderResult,
-} from "@parish/runtime";
+} from "@limerick/runtime";
 
 export interface FakeProviderBehavior {
   output?: unknown;

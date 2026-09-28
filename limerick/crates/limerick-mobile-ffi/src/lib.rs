@@ -2,7 +2,7 @@
 //! Limerick engine.
 //!
 //! The ABI carries only borrowed UTF-8 request bytes, owned JSON response
-//! bytes, and an opaque session handle (see `include/parish_mobile_ffi.h`).
+//! bytes, and an opaque session handle (see `include/limerick_mobile_ffi.h`).
 //! Every response is a JSON envelope: `{"ok": true, "value": ...}` or
 //! `{"ok": false, "error": {"code": ..., "message": ...}}`.
 //!
@@ -12,7 +12,7 @@
 //! (ADR-025), and wiring these entry points to the shared `TurnEngine` is
 //! #2044. Until then every session request answers with the structured
 //! `not_wired` error below, so the app can show an honest state instead of
-//! failing opaquely. The `parish_*` symbol names are renamed in #2007.
+//! failing opaquely. Symbol names use the `limerick_mobile_*` / `LIMERICK_MOBILE_*` prefix.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(non_camel_case_types)]
@@ -40,61 +40,61 @@ pub const NOT_WIRED_ISSUE: u32 = 2044;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct parish_mobile_bytes_t {
+pub struct limerick_mobile_bytes_t {
     pub ptr: *const u8,
     pub len: usize,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct parish_mobile_owned_bytes_t {
+pub struct limerick_mobile_owned_bytes_t {
     pub ptr: *mut u8,
     pub len: usize,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum parish_mobile_status_t {
-    PARISH_MOBILE_OK = 0,
-    PARISH_MOBILE_INVALID_ARGUMENT = 1,
-    PARISH_MOBILE_INVALID_UTF8 = 2,
-    PARISH_MOBILE_INVALID_HANDLE = 3,
-    PARISH_MOBILE_TOO_LARGE = 4,
-    PARISH_MOBILE_PROTOCOL_ERROR = 5,
-    PARISH_MOBILE_CLOSED = 6,
-    PARISH_MOBILE_INTERNAL_ERROR = 7,
+pub enum limerick_mobile_status_t {
+    LIMERICK_MOBILE_OK = 0,
+    LIMERICK_MOBILE_INVALID_ARGUMENT = 1,
+    LIMERICK_MOBILE_INVALID_UTF8 = 2,
+    LIMERICK_MOBILE_INVALID_HANDLE = 3,
+    LIMERICK_MOBILE_TOO_LARGE = 4,
+    LIMERICK_MOBILE_PROTOCOL_ERROR = 5,
+    LIMERICK_MOBILE_CLOSED = 6,
+    LIMERICK_MOBILE_INTERNAL_ERROR = 7,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum parish_mobile_open_kind_t {
-    PARISH_MOBILE_OPEN_NEW = 1,
-    PARISH_MOBILE_OPEN_RESUME = 2,
+pub enum limerick_mobile_open_kind_t {
+    LIMERICK_MOBILE_OPEN_NEW = 1,
+    LIMERICK_MOBILE_OPEN_RESUME = 2,
 }
 
-pub type parish_mobile_handle_t = u64;
+pub type limerick_mobile_handle_t = u64;
 
-fn panic_contained<F>(function: F) -> parish_mobile_status_t
+fn panic_contained<F>(function: F) -> limerick_mobile_status_t
 where
-    F: FnOnce() -> parish_mobile_status_t,
+    F: FnOnce() -> limerick_mobile_status_t,
 {
     catch_unwind(AssertUnwindSafe(function))
-        .unwrap_or(parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR)
+        .unwrap_or(limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR)
 }
 
-fn empty_owned() -> parish_mobile_owned_bytes_t {
-    parish_mobile_owned_bytes_t {
+fn empty_owned() -> limerick_mobile_owned_bytes_t {
+    limerick_mobile_owned_bytes_t {
         ptr: ptr::null_mut(),
         len: 0,
     }
 }
 
-fn read_utf8(bytes: parish_mobile_bytes_t) -> Result<String, parish_mobile_status_t> {
+fn read_utf8(bytes: limerick_mobile_bytes_t) -> Result<String, limerick_mobile_status_t> {
     if bytes.len != 0 && bytes.ptr.is_null() {
-        return Err(parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT);
+        return Err(limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT);
     }
     if bytes.len > MAX_REQUEST_BYTES {
-        return Err(parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE);
+        return Err(limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE);
     }
     if bytes.len == 0 {
         return Ok(String::new());
@@ -104,29 +104,29 @@ fn read_utf8(bytes: parish_mobile_bytes_t) -> Result<String, parish_mobile_statu
     let raw = unsafe { slice::from_raw_parts(bytes.ptr, bytes.len) };
     str::from_utf8(raw)
         .map(str::to_owned)
-        .map_err(|_| parish_mobile_status_t::PARISH_MOBILE_INVALID_UTF8)
+        .map_err(|_| limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8)
 }
 
-fn owned_bytes(bytes: Vec<u8>) -> parish_mobile_owned_bytes_t {
+fn owned_bytes(bytes: Vec<u8>) -> limerick_mobile_owned_bytes_t {
     if bytes.is_empty() {
         return empty_owned();
     }
     let boxed = bytes.into_boxed_slice();
     let len = boxed.len();
     let ptr = Box::into_raw(boxed) as *mut u8;
-    parish_mobile_owned_bytes_t { ptr, len }
+    limerick_mobile_owned_bytes_t { ptr, len }
 }
 
-fn status_code(status: parish_mobile_status_t) -> &'static str {
+fn status_code(status: limerick_mobile_status_t) -> &'static str {
     match status {
-        parish_mobile_status_t::PARISH_MOBILE_OK => "ok",
-        parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT => "invalid_argument",
-        parish_mobile_status_t::PARISH_MOBILE_INVALID_UTF8 => "invalid_utf8",
-        parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE => "invalid_handle",
-        parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE => "too_large",
-        parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR => "protocol_error",
-        parish_mobile_status_t::PARISH_MOBILE_CLOSED => "closed",
-        parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR => "internal_error",
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK => "ok",
+        limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT => "invalid_argument",
+        limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8 => "invalid_utf8",
+        limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE => "invalid_handle",
+        limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE => "too_large",
+        limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR => "protocol_error",
+        limerick_mobile_status_t::LIMERICK_MOBILE_CLOSED => "closed",
+        limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR => "internal_error",
     }
 }
 
@@ -158,16 +158,16 @@ fn not_wired_envelope(operation: &str) -> Vec<u8> {
 
 /// Writes `bytes` to a caller-owned output pointer that the caller has
 /// already checked for null.
-fn publish(out_response: *mut parish_mobile_owned_bytes_t, bytes: Vec<u8>) {
+fn publish(out_response: *mut limerick_mobile_owned_bytes_t, bytes: Vec<u8>) {
     // SAFETY: every caller checks `out_response` for null before calling.
     unsafe { ptr::write(out_response, owned_bytes(bytes)) };
 }
 
 fn fail(
-    out_response: *mut parish_mobile_owned_bytes_t,
-    status: parish_mobile_status_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+    status: limerick_mobile_status_t,
     message: &str,
-) -> parish_mobile_status_t {
+) -> limerick_mobile_status_t {
     publish(out_response, error_envelope(status_code(status), message));
     status
 }
@@ -184,15 +184,15 @@ fn json_object(request: &str, what: &str) -> Result<serde_json::Map<String, Valu
 /// Opens a session. Until #2044 this validates the request and then answers
 /// `not_wired` with a zero handle; no session is created.
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_open(
-    kind: parish_mobile_open_kind_t,
-    request_json: parish_mobile_bytes_t,
-    out_handle: *mut parish_mobile_handle_t,
-    out_response: *mut parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_open(
+    kind: limerick_mobile_open_kind_t,
+    request_json: limerick_mobile_bytes_t,
+    out_handle: *mut limerick_mobile_handle_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         if out_handle.is_null() || out_response.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
         }
         // Initialise both caller-owned outputs before any fallible work so a
         // caught panic leaves values the caller can safely inspect and free.
@@ -210,40 +210,43 @@ pub extern "C" fn parish_mobile_open(
             Err(message) => {
                 return fail(
                     out_response,
-                    parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                    limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                     &message,
                 );
             }
         };
-        if matches!(kind, parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME) && object.is_empty()
+        if matches!(
+            kind,
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME
+        ) && object.is_empty()
         {
             return fail(
                 out_response,
-                parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                 "resume payload cannot be empty",
             );
         }
         let operation = match kind {
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW => "open_new",
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME => "open_resume",
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW => "open_new",
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME => "open_resume",
         };
         publish(out_response, not_wired_envelope(operation));
-        parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR
+        limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
     })
 }
 
 /// Dispatches one JSON operation. No session can be open until #2044, so a
 /// well-formed operation answers `not_wired`.
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_dispatch(
-    handle: parish_mobile_handle_t,
-    operation_json: parish_mobile_bytes_t,
-    out_response: *mut parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_dispatch(
+    handle: limerick_mobile_handle_t,
+    operation_json: limerick_mobile_bytes_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     let _ = handle;
     panic_contained(|| {
         if out_response.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
         }
         // SAFETY: the pointer was checked for null above.
         unsafe { ptr::write(out_response, empty_owned()) };
@@ -256,7 +259,7 @@ pub extern "C" fn parish_mobile_dispatch(
             Err(message) => {
                 return fail(
                     out_response,
-                    parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                    limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                     &message,
                 );
             }
@@ -264,42 +267,44 @@ pub extern "C" fn parish_mobile_dispatch(
         let Some(op) = object.get("op").and_then(Value::as_str) else {
             return fail(
                 out_response,
-                parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                 "operation requires string field `op`",
             );
         };
         publish(out_response, not_wired_envelope(op));
-        parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR
+        limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
     })
 }
 
 /// Closes a session. No handle is ever issued until #2044, so every handle is
 /// invalid.
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_close(handle: parish_mobile_handle_t) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_close(
+    handle: limerick_mobile_handle_t,
+) -> limerick_mobile_status_t {
     let _ = handle;
-    parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE
+    limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE
 }
 
-/// Releases one response returned by `parish_mobile_open` or
-/// `parish_mobile_dispatch`.
+/// Releases one response returned by `limerick_mobile_open` or
+/// `limerick_mobile_dispatch`.
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_owned_bytes_free(
-    bytes: parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_owned_bytes_free(
+    bytes: limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         if bytes.ptr.is_null() {
             return if bytes.len == 0 {
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             } else {
-                parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT
+                limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
             };
         }
         let slice = ptr::slice_from_raw_parts_mut(bytes.ptr, bytes.len);
         // SAFETY: a non-null pair is only ever produced by `owned_bytes` from
         // a boxed slice of exactly this length, and the caller frees it once.
         unsafe { drop(Box::from_raw(slice)) };
-        parish_mobile_status_t::PARISH_MOBILE_OK
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK
     })
 }
 
@@ -307,38 +312,38 @@ pub extern "C" fn parish_mobile_owned_bytes_free(
 mod tests {
     use super::*;
 
-    fn borrowed(value: &str) -> parish_mobile_bytes_t {
-        parish_mobile_bytes_t {
+    fn borrowed(value: &str) -> limerick_mobile_bytes_t {
+        limerick_mobile_bytes_t {
             ptr: value.as_ptr(),
             len: value.len(),
         }
     }
 
     /// Copies an owned response into a JSON value and frees it.
-    fn take(response: parish_mobile_owned_bytes_t) -> Value {
+    fn take(response: limerick_mobile_owned_bytes_t) -> Value {
         assert!(!response.ptr.is_null(), "response must carry an envelope");
         // SAFETY: the pointer and length came from `owned_bytes`.
         let bytes = unsafe { slice::from_raw_parts(response.ptr, response.len) }.to_vec();
         assert_eq!(
-            parish_mobile_owned_bytes_free(response),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_owned_bytes_free(response),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         serde_json::from_slice(&bytes).expect("response is JSON")
     }
 
     fn open(
-        kind: parish_mobile_open_kind_t,
+        kind: limerick_mobile_open_kind_t,
         request: &str,
-    ) -> (parish_mobile_status_t, u64, Value) {
+    ) -> (limerick_mobile_status_t, u64, Value) {
         let mut handle = 99;
         let mut response = empty_owned();
-        let status = parish_mobile_open(kind, borrowed(request), &mut handle, &mut response);
+        let status = limerick_mobile_open(kind, borrowed(request), &mut handle, &mut response);
         (status, handle, take(response))
     }
 
-    fn dispatch(operation: &str) -> (parish_mobile_status_t, Value) {
+    fn dispatch(operation: &str) -> (limerick_mobile_status_t, Value) {
         let mut response = empty_owned();
-        let status = parish_mobile_dispatch(1, borrowed(operation), &mut response);
+        let status = limerick_mobile_dispatch(1, borrowed(operation), &mut response);
         (status, take(response))
     }
 
@@ -359,10 +364,13 @@ mod tests {
     #[test]
     fn open_new_answers_not_wired_without_a_handle() {
         let (status, handle, envelope) = open(
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
             r#"{"save_path":"/tmp/unused.sqlite"}"#,
         );
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR);
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        );
         assert_eq!(handle, 0, "no session is created");
         assert_not_wired(&envelope, "open_new");
     }
@@ -370,10 +378,13 @@ mod tests {
     #[test]
     fn open_resume_answers_not_wired() {
         let (status, handle, envelope) = open(
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
             r#"{"save_path":"/tmp/unused.sqlite"}"#,
         );
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR);
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        );
         assert_eq!(handle, 0);
         assert_not_wired(&envelope, "open_resume");
     }
@@ -382,17 +393,20 @@ mod tests {
     fn open_rejects_malformed_payloads_before_not_wired() {
         let cases = [
             (
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 "not json",
             ),
-            (parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW, "[]"),
-            (parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME, "{}"),
+            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW, "[]"),
+            (
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+                "{}",
+            ),
         ];
         for (kind, request) in cases {
             let (status, handle, envelope) = open(kind, request);
             assert_eq!(
                 status,
-                parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                 "{request}"
             );
             assert_eq!(handle, 0);
@@ -405,24 +419,27 @@ mod tests {
         let invalid = [0xff_u8, 0xfe];
         let mut handle = 0;
         let mut response = empty_owned();
-        let status = parish_mobile_open(
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
-            parish_mobile_bytes_t {
+        let status = limerick_mobile_open(
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
+            limerick_mobile_bytes_t {
                 ptr: invalid.as_ptr(),
                 len: invalid.len(),
             },
             &mut handle,
             &mut response,
         );
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_INVALID_UTF8);
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8
+        );
         assert_eq!(take(response)["error"]["code"], "invalid_utf8");
 
         let oversized = "x".repeat(MAX_REQUEST_BYTES + 1);
         let (status, _, envelope) = open(
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
             &oversized,
         );
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE);
+        assert_eq!(status, limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE);
         assert_eq!(envelope["error"]["code"], "too_large");
     }
 
@@ -431,30 +448,33 @@ mod tests {
         let request = "{}";
         let mut response = empty_owned();
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 borrowed(request),
                 ptr::null_mut(),
                 &mut response,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
         );
         let mut handle = 0;
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 borrowed(request),
                 &mut handle,
                 ptr::null_mut(),
             ),
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
         );
     }
 
     #[test]
     fn dispatch_answers_not_wired_for_well_formed_operations() {
         let (status, envelope) = dispatch(r#"{"op":"submit","text":"hello"}"#);
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR);
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        );
         assert_not_wired(&envelope, "submit");
     }
 
@@ -464,7 +484,7 @@ mod tests {
             let (status, envelope) = dispatch(operation);
             assert_eq!(
                 status,
-                parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                 "{operation}"
             );
             assert_eq!(envelope["error"]["code"], "protocol_error", "{operation}");
@@ -474,23 +494,23 @@ mod tests {
     #[test]
     fn close_reports_every_handle_invalid() {
         assert_eq!(
-            parish_mobile_close(1),
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE
+            limerick_mobile_close(1),
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE
         );
     }
 
     #[test]
     fn free_accepts_empty_and_rejects_dangling_lengths() {
         assert_eq!(
-            parish_mobile_owned_bytes_free(empty_owned()),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_owned_bytes_free(empty_owned()),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         assert_eq!(
-            parish_mobile_owned_bytes_free(parish_mobile_owned_bytes_t {
+            limerick_mobile_owned_bytes_free(limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 4,
             }),
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
         );
     }
 
@@ -498,7 +518,7 @@ mod tests {
     fn panics_are_contained_as_internal_errors() {
         assert_eq!(
             panic_contained(|| panic!("boom")),
-            parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
         );
     }
 
@@ -506,9 +526,9 @@ mod tests {
     /// map. The two copies must not drift.
     #[test]
     fn swift_bridge_header_matches_crate_header() {
-        let crate_header = include_str!("../include/parish_mobile_ffi.h");
+        let crate_header = include_str!("../include/limerick_mobile_ffi.h");
         let bridge_header = include_str!(
-            "../../../../mobile/RundaleBridge/Sources/ParishMobileFFI/include/parish_mobile_ffi.h"
+            "../../../../mobile/RundaleBridge/Sources/LimerickMobileFFI/include/limerick_mobile_ffi.h"
         );
         assert_eq!(crate_header, bridge_header);
     }

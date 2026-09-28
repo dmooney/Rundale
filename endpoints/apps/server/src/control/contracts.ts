@@ -4,7 +4,7 @@ import type {
   EndpointVersionSnapshot,
   Id,
   ProviderId,
-} from "@parish/domain";
+} from "@limerick/domain";
 
 export interface CreatorPrincipal {
   userId: Id;

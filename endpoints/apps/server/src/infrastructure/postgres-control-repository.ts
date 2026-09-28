@@ -9,8 +9,8 @@ import {
   invocations,
   organizations,
   type Database,
-} from "@parish/database";
-import type { EndpointDraft, EndpointVersionSnapshot } from "@parish/domain";
+} from "@limerick/database";
+import type { EndpointDraft, EndpointVersionSnapshot } from "@limerick/domain";
 import type {
   ApiKeySummary,
   ControlRepository,

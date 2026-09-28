@@ -1,6 +1,6 @@
 import AjvModule, { type ErrorObject, type ValidateFunction } from "ajv";
 import addFormatsModule from "ajv-formats";
-import type { JsonSchema } from "@parish/domain";
+import type { JsonSchema } from "@limerick/domain";
 
 const supportedKeywords = new Set([
   "$schema",

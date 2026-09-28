@@ -1,4 +1,4 @@
-import type { EndpointDefinition, JsonSchema } from "@parish/domain";
+import type { EndpointDefinition, JsonSchema } from "@limerick/domain";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { CreatorAuthenticator } from "../auth/creator-auth.js";
 import {

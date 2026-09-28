@@ -1,4 +1,4 @@
-import { aggregateUsage, sumEstimatedCosts, type RuntimeError } from "@parish/runtime";
+import { aggregateUsage, sumEstimatedCosts, type RuntimeError } from "@limerick/runtime";
 
 export interface FailureAccounting {
   providerRequestId?: string;

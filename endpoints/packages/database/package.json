@@ -1,5 +1,5 @@
 {
-  "name": "@parish/database",
+  "name": "@limerick/database",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -25,8 +25,8 @@
   },
   "dependencies": {
     "@opentelemetry/api": "1.9.1",
-    "@parish/auth": "workspace:*",
-    "@parish/domain": "workspace:*",
+    "@limerick/auth": "workspace:*",
+    "@limerick/domain": "workspace:*",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0"
   },

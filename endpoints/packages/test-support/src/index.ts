@@ -1,1 +1,1 @@
-export { FakeProvider } from "@parish/providers";
+export { FakeProvider } from "@limerick/providers";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
-import { RuntimeError, type ProviderInvocation } from "@parish/runtime";
+import { RuntimeError, type ProviderInvocation } from "@limerick/runtime";
 import {
   GoogleProvider,
   OpenAIProvider,

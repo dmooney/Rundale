@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import type { EndpointVersionSnapshot } from "@parish/domain";
-import { FixedPriceCostCalculator, StaticProviderRegistry } from "@parish/providers";
-import { DeterministicRuntime, RuntimeError, type ModelProvider } from "@parish/runtime";
-import { compileSchema } from "@parish/schemas";
+import type { EndpointVersionSnapshot } from "@limerick/domain";
+import { FixedPriceCostCalculator, StaticProviderRegistry } from "@limerick/providers";
+import { DeterministicRuntime, RuntimeError, type ModelProvider } from "@limerick/runtime";
+import { compileSchema } from "@limerick/schemas";
 import { FirebaseMobileAuthenticator } from "../src/auth/mobile-auth.js";
 import { buildServer } from "../src/app.js";
 import { readServerConfig } from "../src/config.js";
