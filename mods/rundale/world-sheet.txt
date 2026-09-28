@@ -1,0 +1,47 @@
+# Canonical world sheet for the Rundale tiny world (product spec §14).
+#
+# This is a test oracle: limerick-engine's `world_sheet` test loads
+# this mod, plays it from a new game, and fails on any contradiction.
+#
+# START block
+#   time, location:      where and when a new game begins
+# Location blocks
+#   exits:               every destination reachable from the location
+#   present at HH:MM:    who is present there at that time on the first day
+#                        (a location with no line for a listed time is empty)
+# NPC blocks (headed by first name)
+#   home:                where the NPC lives and starts the game
+#   knows:               the NPCs they have an authored relationship with
+#
+# Every location and NPC in the mod appears here, and nothing else does.
+
+START
+ time: 07:00
+ location: Kilteevan Village
+
+KILTEEVAN VILLAGE
+ exits: Letter Office, Connolly Cottage
+ present at 08:00: Peig
+ present at 15:00: Mícheál, Róisín
+
+LETTER OFFICE
+ exits: Kilteevan Village
+ present at 10:00: Peig
+ present at 15:00: Peig
+
+CONNOLLY COTTAGE
+ exits: Kilteevan Village
+ present at 08:00: Mícheál, Róisín
+ present at 10:00: Mícheál, Róisín
+
+PEIG
+ home: Letter Office
+ knows: Mícheál, Róisín
+
+MÍCHEÁL
+ home: Connolly Cottage
+ knows: Peig, Róisín
+
+RÓISÍN
+ home: Connolly Cottage
+ knows: Peig, Mícheál

@@ -29,7 +29,7 @@ test.describe('Real browser + limerick-server acceptance', () => {
 		await expect(page.getByTestId('status-bar')).toContainText('Kilteevan');
 
 		const input = page.getByRole('combobox', { name: 'Player input' });
-		await input.fill('go to the crossroads');
+		await input.fill('go to the letter office');
 		await input.press('Enter');
 
 		await expect
@@ -43,8 +43,8 @@ test.describe('Real browser + limerick-server acceptance', () => {
 					return state.location_name ?? '';
 				}),
 			)
-			.toContain('Crossroads');
-		await expect(page.getByTestId('status-bar')).toContainText('Crossroads');
+			.toContain('Letter Office');
+		await expect(page.getByTestId('status-bar')).toContainText('Letter Office');
 
 		const screenshot = await page.screenshot({ fullPage: true });
 		expect(screenshot.byteLength).toBeGreaterThan(10_000);
@@ -104,9 +104,9 @@ test.describe('Real browser + limerick-server acceptance', () => {
 			page.getByText("Created new branch 'alternate'."),
 		).toBeVisible();
 
-		await input.fill('go to the crossroads');
+		await input.fill('go to the letter office');
 		await input.press('Enter');
-		await expect(page.getByTestId('status-bar')).toContainText('Crossroads');
+		await expect(page.getByTestId('status-bar')).toContainText('Letter Office');
 
 		await input.fill('/load main');
 		await input.press('Enter');
@@ -137,6 +137,14 @@ test.describe('Real browser + limerick-server acceptance', () => {
 	test('nearby-person labels mirror authoritative server identity state', async ({
 		page,
 	}) => {
+		// The Connollys are at home in the morning (mods/rundale/world-sheet.txt).
+		const input = page.getByRole('combobox', { name: 'Player input' });
+		await input.fill('go to connolly cottage');
+		await input.press('Enter');
+		await expect(page.getByTestId('status-bar')).toContainText(
+			'Connolly Cottage',
+		);
+
 		const npcs = await page.evaluate(async () => {
 			const response = await fetch('/api/npcs-here');
 			if (!response.ok) throw new Error(`npcs-here failed: ${response.status}`);

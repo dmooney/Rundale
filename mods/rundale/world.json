@@ -2,703 +2,111 @@
     "locations": [
         {
             "id": 1,
-            "name": "The Crossroads",
-            "description_template": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.",
+            "name": "Kilteevan Village",
+            "description_template": "A muddy road runs between low stone walls and a handful of whitewashed cottages. Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen runs west to Connolly Cottage. The {weather} sky hangs over the road. It is {time}.",
+            "landmarks": [
+                "village road",
+                "low stone walls"
+            ],
             "indoor": false,
             "public": true,
             "connections": [
                 {
                     "target": 2,
-                    "path_description": "a short lane past a row of cottages"
+                    "path_description": "a short lane east to the whitewashed Letter Office"
                 },
                 {
                     "target": 3,
-                    "path_description": "a winding boreen lined with hawthorn"
-                },
-                {
-                    "target": 4,
-                    "path_description": "the road past a hand-lettered sign"
-                },
-                {
-                    "target": 6,
-                    "path_description": "a muddy path along the schoolmaster's wall"
-                },
-                {
-                    "target": 13,
-                    "path_description": "a few steps across the road"
-                },
-                {
-                    "target": 15,
-                    "path_description": "the Kilteevan road heading south past low fields"
-                },
-                {
-                    "target": 5,
-                    "path_description": "an old lane between settlements"
+                    "path_description": "a rutted boreen west to Connolly Cottage"
                 }
             ],
-            "lat": 53.63621173776622,
-            "lon": -8.115314764346493,
+            "lat": 53.632544989054054,
+            "lon": -8.102168938364912,
             "associated_npcs": [],
-            "mythological_significance": "At the meeting of four roads, the old people say, you stand between one place and another. After dark, the Good People may pass close by unseen.",
+            "mythological_significance": "Cill Taobháin means Taobhán's church. The old people say the saint kept his cell near where the road bends.",
             "aliases": [
-                "crossroads"
+                "village",
+                "kilteevan",
+                "the village",
+                "village road",
+                "road"
             ],
             "geo_kind": "manual",
-            "geo_source": "manually placed from modern Kilteevan crossroads coord"
+            "geo_source": "OS 6-inch First Edition, Roscommon sheet, ca. 1837 (Kilteevan village)"
         },
         {
             "id": 2,
-            "name": "Darcy's Pub",
-            "description_template": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is {time} and the weather outside is {weather}.",
+            "name": "Letter Office",
+            "description_template": "A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells of sealing wax, turf smoke, and damp wool. Through the window the weather is {weather}. It is {time}.",
+            "landmarks": [
+                "counter",
+                "pigeonholes"
+            ],
             "indoor": true,
             "public": true,
             "connections": [
                 {
                     "target": 1,
-                    "path_description": "the lane back to the crossroads"
+                    "path_description": "the lane back west to the village road"
                 }
             ],
-            "lat": 53.63613446772578,
-            "lon": -8.114934853790567,
+            "lat": 53.6330845820176,
+            "lon": -8.099438948939207,
             "associated_npcs": [
                 1
             ],
             "mythological_significance": null,
             "aliases": [
-                "pub",
-                "the pub",
-                "tavern"
+                "office",
+                "post office",
+                "letters",
+                "the letter office"
             ],
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": -8.601700901274398,
-                "deast_m": 25.075140805615625
-            }
+                "dnorth_m": 60.0,
+                "deast_m": 180.0
+            },
+            "geo_source": "180m east of the village road"
         },
         {
             "id": 3,
-            "name": "St. Brigid's Church",
-            "description_template": "A small stone church with a slate roof, its stained-glass windows catching the {time} light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is {weather}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 1,
-                    "path_description": "the boreen back to the crossroads"
-                },
-                {
-                    "target": 15,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.63793806161644,
-            "lon": -8.103992498132557,
-            "associated_npcs": [],
-            "mythological_significance": "Before the church was raised, a holy well stood on this ground under Brigid's care. Some still leave a rag or pin there on her feast day.",
-            "aliases": [
-                "church",
-                "the church",
-                "chapel"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 1,
-                "dnorth_m": 192.17437100659936,
-                "deast_m": 747.3006872920224
-            }
-        },
-        {
-            "id": 4,
-            "name": "The Letter Office",
-            "description_template": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is {time}. The weather is {weather}.",
-            "indoor": true,
-            "public": true,
-            "connections": [
-                {
-                    "target": 1,
-                    "path_description": "back across to the crossroads"
-                },
-                {
-                    "target": 15,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.634067421809334,
-            "lon": -8.11368891105749,
-            "associated_npcs": [
-                23
-            ],
-            "mythological_significance": null,
-            "aliases": [
-                "post office",
-                "post",
-                "letters",
-                "mail"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 1,
-                "dnorth_m": -238.70525232024303,
-                "deast_m": 107.3107854337992
-            }
-        },
-        {
-            "id": 5,
-            "name": "The Hurling Green",
-            "description_template": "An open field where men play hurling on fair days. Goalposts of ash wood stand at each end. Stone ditches mark the boundary, and a few spectators' stools sit along the edge. The {weather} sky hangs over the flat green. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 6,
-                    "path_description": "a beaten path back past the schoolmaster's cabin"
-                },
-                {
-                    "target": 1,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.63510887444414,
-            "lon": -8.119190715148449,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "pitch",
-                "the pitch",
-                "hurling field"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 6,
-            "name": "The Hedge School",
-            "description_template": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is {time}. The sky is {weather}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 1,
-                    "path_description": "the muddy path back to the crossroads"
-                },
-                {
-                    "target": 5,
-                    "path_description": "a beaten path down to the hurling green"
-                }
-            ],
-            "lat": 53.635478876253416,
-            "lon": -8.115063784498846,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "school",
-                "schoolhouse"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 1,
-                "dnorth_m": -81.58214360508737,
-                "deast_m": 16.565359716842824
-            }
-        },
-        {
-            "id": 7,
-            "name": "Lough Ree Shore",
-            "description_template": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the {weather} sky. Small islands dot the water in the distance. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 12,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.627485628457435,
-            "lon": -8.063465222584824,
-            "associated_npcs": [],
-            "mythological_significance": "The old people say a great serpent lives in Lough Ree. Boatmen cross themselves before taking the deepest water.",
-            "aliases": [
-                "coast",
-                "the coast",
-                "lakeside",
-                "the lake",
-                "shore",
-                "lakeshore"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 8,
-            "name": "Hodson Bay",
-            "description_template": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is {time} and the sky is {weather}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 20,
-                    "path_description": "a stony path along the waterline to a thatched cottage",
-                    "hazard": "lakeshore"
-                }
-            ],
-            "lat": 53.4667761235753,
-            "lon": -7.988621859797576,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "bay",
-                "the bay",
-                "harbour",
-                "harbor"
-            ],
-            "geo_kind": "real"
-        },
-        {
-            "id": 9,
-            "name": "Murphy's Farm",
-            "description_template": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is {time}. The sky is {weather}.",
-            "indoor": false,
-            "public": false,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 12,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.63579941155877,
-            "lon": -8.079662971357214,
-            "associated_npcs": [
-                18
-            ],
-            "mythological_significance": null,
-            "aliases": [
-                "murphy's",
-                "murphys"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 1,
-                "dnorth_m": -45.90015341365756,
-                "deast_m": 2353.1163197069695
-            }
-        },
-        {
-            "id": 10,
-            "name": "O'Brien's Farm",
-            "description_template": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is {time}. Weather: {weather}.",
-            "indoor": false,
-            "public": false,
-            "connections": [
-                {
-                    "target": 12,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.62329606869045,
-            "lon": -8.066286827184342,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "o'brien's",
-                "obriens"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 11,
-            "name": "The Fairy Fort",
-            "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 12,
-                    "path_description": "a barely visible path through gorse and bracken",
-                    "hazard": "exposed"
-                }
-            ],
-            "lat": 53.62831265298641,
-            "lon": -8.081709439766257,
-            "associated_npcs": [],
-            "mythological_significance": "This rath belongs to the sídhe. No farmer will put a plough within twenty yards of it, for terrible misfortune is said to follow those who disturb their forts.",
-            "aliases": [
-                "rath",
-                "ring fort",
-                "the rath",
-                "fort"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 12,
-            "name": "The Bog Road",
-            "description_template": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The {weather} sky presses down. Pools of dark water gleam between the heather. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 11,
-                    "path_description": "a barely visible path through gorse to the fort",
-                    "hazard": "exposed"
-                },
-                {
-                    "target": 10,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 9,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 7,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.62783820367662,
-            "lon": -8.07181578456263,
-            "associated_npcs": [],
-            "mythological_significance": "The bog keeps what it takes — bodies, butter, and old memories. On certain nights, people say, voices travel with the wind across it.",
-            "aliases": [
-                "the bog",
-                "turf bog",
-                "bog",
-                "bogland"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 13,
-            "name": "Connolly's Shop",
-            "description_template": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
-            "indoor": true,
-            "public": true,
-            "connections": [
-                {
-                    "target": 1,
-                    "path_description": "a few steps back across the road to the crossroads"
-                }
-            ],
-            "lat": 53.63629408681962,
-            "lon": -8.1157497504246,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "store",
-                "the store",
-                "general store",
-                "shop"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 1,
-                "dnorth_m": 9.167096624523763,
-                "deast_m": -28.710276634529905
-            }
-        },
-        {
-            "id": 14,
-            "name": "The Lime Kiln",
-            "description_template": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is {time}. The weather is {weather}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.63209033386352,
-            "lon": -8.101956398487857,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "kiln",
-                "the kiln",
-                "limekiln"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 15,
-            "name": "Kilteevan Village",
-            "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
+            "name": "Connolly Cottage",
+            "description_template": "A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth, and rain-dark coats by the door. Outside the weather is {weather}. It is {time}.",
             "landmarks": [
-                "old stone bridge",
-                "well",
-                "shallow stream"
+                "peat fire",
+                "spinning wheel"
             ],
-            "indoor": false,
-            "public": true,
+            "indoor": true,
+            "public": false,
             "connections": [
                 {
                     "target": 1,
-                    "path_description": "the road north past low fields to the crossroads"
-                },
-                {
-                    "target": 16,
-                    "path_description": "a lane toward the ring of the anvil"
-                },
-                {
-                    "target": 17,
-                    "path_description": "a mossy path south past the old ruins to the holy well",
-                    "hazard": "flood"
-                },
-                {
-                    "target": 18,
-                    "path_description": "a track west along the stream to the mill",
-                    "hazard": "flood"
-                },
-                {
-                    "target": 19,
-                    "path_description": "a short walk past the cottages to the weaver's door"
-                },
-                {
-                    "target": 22,
-                    "path_description": "the southern road toward Knockcroghery"
-                },
-                {
-                    "target": 3,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 9,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 14,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 4,
-                    "path_description": "an old lane between settlements"
+                    "path_description": "the boreen climbing east to the village road"
                 }
             ],
-            "lat": 53.632544989054054,
-            "lon": -8.102168938364912,
+            "lat": 53.63218526041169,
+            "lon": -8.106112256424263,
             "associated_npcs": [
-                19,
-                21,
-                22
-            ],
-            "mythological_significance": "Taobhán, an early holy man, is said to have kept his cell here; Cill Taobháin means Taobhán's church. The old church ruins stand in a nearby field, half-swallowed by ivy and elder.",
-            "aliases": [
-                "town",
-                "village",
-                "kilteevan"
-            ],
-            "geo_kind": "manual",
-            "geo_source": "OS 6-inch First Edition, Roscommon sheet, ca. 1837"
-        },
-        {
-            "id": 16,
-            "name": "The Forge",
-            "description_template": "A low stone building open at the front, where a bellows feeds a glowing hearth. The anvil sits dark and scarred in the centre. Horseshoes, tongs, and half-finished ironwork hang from hooks along the wall. Sparks drift in the {weather} air. It is {time}.",
-            "indoor": true,
-            "public": true,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "the lane south toward Kilteevan Village"
-                }
-            ],
-            "lat": 53.63318486094661,
-            "lon": -8.102232997701996,
-            "associated_npcs": [
-                9,
-                10,
-                11
+                2,
+                3
             ],
             "mythological_significance": null,
             "aliases": [
-                "forge",
-                "the forge",
-                "smithy",
-                "blacksmith"
+                "cottage",
+                "connollys",
+                "the connollys",
+                "connolly house",
+                "connolly's"
             ],
             "geo_kind": "fictional",
             "relative_to": {
-                "anchor": 15,
-                "dnorth_m": 71.23053907972803,
-                "deast_m": -4.228459792213757
-            }
-        },
-        {
-            "id": 17,
-            "name": "The Holy Well",
-            "description_template": "A small stone-lined well set among ancient ash trees, hung with rags and ribbons left as prayers. The water is dark and still. A worn stone cross stands beside it, half-covered in moss. The {weather} sky filters through the canopy. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "the mossy path north back to the village",
-                    "hazard": "flood"
-                }
-            ],
-            "lat": 53.6329651682621,
-            "lon": -8.102393252512787,
-            "associated_npcs": [],
-            "mythological_significance": "People leave rags and small offerings at the holy well of Kilteevan, asking for cures and blessings. Its water is said to ease sore eyes on the patron's feast day.",
-            "aliases": [
-                "holy well",
-                "the well",
-                "well"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 15,
-                "dnorth_m": 46.77434944005654,
-                "deast_m": -14.80663706951403
-            }
-        },
-        {
-            "id": 18,
-            "name": "The Mill",
-            "description_template": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is {time}. The weather is {weather}.",
-            "indoor": true,
-            "public": true,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "the track east along the stream back to the village",
-                    "hazard": "flood"
-                }
-            ],
-            "lat": 53.6329229156473,
-            "lon": -8.101864954810662,
-            "associated_npcs": [
-                12,
-                13,
-                14
-            ],
-            "mythological_significance": null,
-            "aliases": [
-                "mill",
-                "the mill"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 15,
-                "dnorth_m": 42.07078836004371,
-                "deast_m": 20.06549388666182
-            }
-        },
-        {
-            "id": 19,
-            "name": "The Weaver's Cottage",
-            "description_template": "A neat whitewashed cottage with a half-door and a garden of herbs and dye-plants. Inside, a great wooden loom takes up most of the front room. Skeins of dyed wool hang from the rafters in greens, browns, and deep reds. It is {time}. The sky is {weather}.",
-            "indoor": true,
-            "public": false,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "a short walk back through the cottages to the village"
-                }
-            ],
-            "lat": 53.63312735860117,
-            "lon": -8.100697364521832,
-            "associated_npcs": [
-                20
-            ],
-            "mythological_significance": null,
-            "aliases": [
-                "weaver's",
-                "weavers",
-                "weaver cottage"
-            ],
-            "geo_kind": "fictional",
-            "relative_to": {
-                "anchor": 15,
-                "dnorth_m": 64.82937798516218,
-                "deast_m": 97.13635997478424
-            }
-        },
-        {
-            "id": 20,
-            "name": "The Boatman's Cottage",
-            "description_template": "A small thatched cottage perched above the waterline, with nets drying on a stone wall and a currach pulled up on the shingle. The smell of turf smoke and fish mingles in the air. It is {time}. The lake stretches away under the {weather} sky.",
-            "indoor": true,
-            "public": false,
-            "connections": [
-                {
-                    "target": 8,
-                    "path_description": "the stony path back along the waterline to the bay",
-                    "hazard": "lakeshore"
-                },
-                {
-                    "target": 21,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.46782011849603,
-            "lon": -7.988983899475215,
-            "associated_npcs": [
-                15,
-                16,
-                17
-            ],
-            "mythological_significance": null,
-            "aliases": [
-                "boatman's",
-                "boatmans",
-                "boatman cottage"
-            ],
-            "geo_kind": "fictional"
-        },
-        {
-            "id": 21,
-            "name": "Curraghboy Village",
-            "description_template": "A winding road heading west through flat fields enclosed by low stone walls. In the distance, the scattered houses of Curraghboy are just visible through the haze. A magpie watches from a gatepost. The {weather} sky stretches wide. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 22,
-                    "path_description": "an old lane between settlements"
-                },
-                {
-                    "target": 20,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.484,
-            "lon": -8.11,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "curraghboy",
-                "west road"
-            ],
-            "geo_kind": "real"
-        },
-        {
-            "id": 22,
-            "name": "Knockcroghery Village",
-            "description_template": "The road south toward Knockcroghery, lined with blackthorn hedges. A milestone reads 'Knockcroghery 2 miles.' Beyond the hedge, cattle graze in sloping fields. The {weather} sky presses down on the quiet road. It is {time}.",
-            "indoor": false,
-            "public": true,
-            "connections": [
-                {
-                    "target": 15,
-                    "path_description": "the road north back to Kilteevan Village"
-                },
-                {
-                    "target": 21,
-                    "path_description": "an old lane between settlements"
-                }
-            ],
-            "lat": 53.57556,
-            "lon": -8.09472,
-            "associated_npcs": [],
-            "mythological_significance": null,
-            "aliases": [
-                "knockcroghery",
-                "south road"
-            ],
-            "geo_kind": "real"
+                "anchor": 1,
+                "dnorth_m": -40.0,
+                "deast_m": -260.0
+            },
+            "geo_source": "260m west of the village road"
         }
     ]
 }
