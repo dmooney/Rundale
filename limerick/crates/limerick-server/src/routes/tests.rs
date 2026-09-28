@@ -166,8 +166,8 @@ fn playwright_readiness_hides_identity_from_another_run_or_build() {
 
 /// Helper to build a minimal AppState from the real game data.
 pub fn test_app_state() -> Arc<crate::state::AppState> {
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world =
         WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
@@ -2518,8 +2518,8 @@ fn mods_root_no_game_mod_does_not_panic() {
 /// mod's parent directory — independent of the process cwd.
 #[test]
 fn mods_root_derives_from_game_mod_not_cwd() {
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world =
         WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();

@@ -36,7 +36,7 @@ const ENCOUNTER_LINE: &str = "A drover passes with two heifers and lifts his hat
 const REACTION_LINE: &str = "Ye're welcome in, stranger.";
 
 fn rundale_mod_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testing/fixtures/mods/rundale-legacy")
 }
 
 /// The runtime-owned live state a host borrows into each engine call.

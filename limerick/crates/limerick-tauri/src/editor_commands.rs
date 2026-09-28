@@ -229,7 +229,8 @@ mod tests {
     use std::path::Path;
 
     fn load_rundale() -> limerick_core::game_mod::GameMod {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
         limerick_core::game_mod::GameMod::load(&dir).expect("load rundale mod")
     }
 

@@ -1,0 +1,35 @@
+[sidebar]
+hints_label = "Focail (Irish Words)"
+
+[theme.palette]
+bg = "#fafad8"
+fg = "#31240f"
+accent = "#b08531"
+panel_bg = "#f5f5d3"
+input_bg = "#f0f0ce"
+border = "#cec293"
+muted = "#76663b"
+
+# Day/night keyframes — engine interpolates linearly between adjacent
+# anchors. Snap transitions: 1-game-minute windows at 05:59→06:00 and
+# 19:59→20:00 give effectively atomic palette swaps at each backend
+# tick. The visible fade duration is governed by the CSS transition
+# in app.css (2s). Day palette mirrors the static [theme.palette]
+# above. Omit this block in a base mod to fall back to that static
+# palette (as testbed does).
+
+[[theme.keyframes]]
+hour = 5.9999 # End of night — interpolation window to the next anchor is < 1 game-second
+palette = { bg = "#141928", fg = "#b4b4be", accent = "#646e8c", panel_bg = "#191e30", input_bg = "#1e2337", border = "#3c415a", muted = "#787887" }
+
+[[theme.keyframes]]
+hour = 6.0 # 06:00 — snap to day
+palette = { bg = "#fafad8", fg = "#31240f", accent = "#b08531", panel_bg = "#f5f5d3", input_bg = "#f0f0ce", border = "#cec293", muted = "#76663b" }
+
+[[theme.keyframes]]
+hour = 19.9999 # End of day — interpolation window to the next anchor is < 1 game-second
+palette = { bg = "#fafad8", fg = "#31240f", accent = "#b08531", panel_bg = "#f5f5d3", input_bg = "#f0f0ce", border = "#cec293", muted = "#76663b" }
+
+[[theme.keyframes]]
+hour = 20.0 # 20:00 — snap to night
+palette = { bg = "#141928", fg = "#b4b4be", accent = "#646e8c", panel_bg = "#191e30", input_bg = "#1e2337", border = "#3c415a", muted = "#787887" }

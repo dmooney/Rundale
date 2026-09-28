@@ -23,7 +23,7 @@ use limerick_core::npc::{LanguageSettings, NpcId};
 
 fn rundale_mod_dir() -> PathBuf {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    crate_dir.join("../../../mods/rundale")
+    crate_dir.join("../../testing/fixtures/mods/rundale-legacy")
 }
 
 /// Loads Rundale and returns (npc_manager, world) so a test can drive

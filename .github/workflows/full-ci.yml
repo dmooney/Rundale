@@ -264,7 +264,7 @@ jobs:
           cat > "$runner" <<'EOF'
           set -euo pipefail
             f="$1"
-            if ! out="$("$BIN" --script "$f" 2>&1)"; then
+            if ! out="$("$BIN" --script "$f" --game-mod testing/fixtures/mods/rundale-legacy 2>&1)"; then
               echo "=== FAIL: $f ==="
               printf "%s\n" "$out" | tail -n 20
               exit 1

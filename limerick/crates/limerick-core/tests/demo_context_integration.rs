@@ -13,7 +13,7 @@ use limerick_core::world::transport::TransportMode;
 
 fn rundale_mod_dir() -> PathBuf {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    crate_dir.join("../../../mods/rundale")
+    crate_dir.join("../../testing/fixtures/mods/rundale-legacy")
 }
 
 fn walking_mode() -> TransportMode {

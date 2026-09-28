@@ -21,8 +21,8 @@ use tokio_util::sync::CancellationToken;
 /// Builds a minimal [`AppState`] for unit tests — matches the structure
 /// used in `limerick-server` tests (`routes::tests::test_app_state`).
 pub fn test_app_state() -> Arc<AppState> {
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world =
         WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();

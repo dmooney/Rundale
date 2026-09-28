@@ -19,7 +19,7 @@ fn rundale_world_file() -> PathBuf {
         .join("../../..")
         .canonicalize()
         .expect("CARGO_MANIFEST_DIR resolves to repo root via ../../..")
-        .join("mods/rundale/world.json");
+        .join("limerick/testing/fixtures/mods/rundale-legacy/world.json");
     assert!(
         path.is_file(),
         "expected real Rundale world at {}; this test must fail loudly, not skip",

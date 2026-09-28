@@ -15,7 +15,9 @@ fn repo_root() -> PathBuf {
 }
 
 fn rundale_file(name: &str) -> PathBuf {
-    let path = repo_root().join("mods/rundale").join(name);
+    let path = repo_root()
+        .join("limerick/testing/fixtures/mods/rundale-legacy")
+        .join(name);
     assert!(
         path.is_file(),
         "expected real Rundale fixture at {}; this test must fail loudly instead of skipping",

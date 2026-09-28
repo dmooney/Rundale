@@ -21,7 +21,7 @@ use tokio::sync::Mutex;
 /// repo root.
 fn rundale_mod_dir() -> PathBuf {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    crate_dir.join("../../../mods/rundale")
+    crate_dir.join("../../testing/fixtures/mods/rundale-legacy")
 }
 
 /// A no-op EventEmitter for tests that don't need to inspect events.

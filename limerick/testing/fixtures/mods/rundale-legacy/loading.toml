@@ -1,0 +1,59 @@
+spinner_frames = ["✢", "✙", "✛", "✜", "✚", "✜", "✛", "✙"]
+spinner_colors = [
+    [72, 199, 142],
+    [255, 200, 87],
+    [100, 149, 237],
+    [255, 160, 100],
+    [180, 130, 255],
+    [120, 220, 180],
+]
+phrases = [
+    "Pondering the craic...",
+    "Consulting the sheep...",
+    "Brewing a thought...",
+    "Asking the wind...",
+    "Checking with the crows...",
+    "Reading the tea leaves...",
+    "Warming up by the fire...",
+    "Rummaging through the thatch...",
+    "Having a think...",
+    "Debating with the rain...",
+    "Summoning the storyteller...",
+    "Tuning the fiddle...",
+    "Waiting on the kettle...",
+    "Counting the stones...",
+    "Muttering in Irish...",
+    "Conferring with the bog...",
+    "Herding stray notions...",
+    "Stirring the porridge...",
+    "Listening to the river...",
+    "Polishing the words...",
+    "Untangling the yarn...",
+    "Feeding the donkey...",
+    "Sweeping the hearth...",
+    "Searching for the right word...",
+]
+
+# Atmospheric flavour text — moved here from limerick-core during the
+# rundale-extraction refactor. Both arrays are optional; mods that omit
+# them get the engine's minimal neutral fallback.
+
+inference_failure_messages = [
+    "A sudden fog rolls in and swallows the conversation whole.",
+    "A crow lands between you, caws loudly, and the moment is lost.",
+    "The wind picks up and carries their words clean away.",
+    "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
+    "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
+    "They stare at you blankly, as if the thought simply left their head.",
+    "A strange silence falls over the parish. Even the birds have stopped.",
+]
+
+idle_messages = [
+    "The wind stirs, but nothing else.",
+    "Only the sound of a distant crow.",
+    "A dog barks somewhere beyond the hill.",
+    "The clouds shift. The parish carries on.",
+    "Somewhere nearby, a door creaks shut.",
+    "A wren hops along the stone wall and vanishes.",
+    "The smell of turf smoke drifts from a cottage chimney.",
+]
