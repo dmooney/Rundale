@@ -1,0 +1,1371 @@
+import SwiftUI
+import UIKit
+import RundaleKit
+
+struct ContentView: View {
+    @ObservedObject var model: RundalePresentationModel
+    @FocusState private var composerFocused: Bool
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var followsNewest: Bool
+    @State private var hasNewText: Bool
+    @State private var hasAppeared = false
+    @State private var lastStreamRevision = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(model: RundalePresentationModel) {
+        self.model = model
+        _followsNewest = State(initialValue: model.initialFollowsNewest)
+        _hasNewText = State(
+            initialValue: model.initialUnreadCount > 0 && !model.initialFollowsNewest
+        )
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            // The keyboard reduces this geometry. At an accessibility size on
+            // a small iPhone, reserve reading space by collapsing only the
+            // duplicate visual chrome; its complete summary remains the
+            // header's accessibility label.
+            let constrained = dynamicTypeSize.isAccessibilitySize
+                && (model.isStreaming || !model.draft.isEmpty || composerFocused)
+            let compactStripVisible = !model.completions.isEmpty || model.clarification != nil
+
+            VStack(spacing: 0) {
+                StatusHeader(model: model, compact: constrained)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, constrained ? 6 : 10)
+
+                Divider()
+                    .overlay(RundaleTheme.rule)
+
+                TranscriptView(
+                    model: model,
+                    followsNewest: $followsNewest,
+                    hasNewText: $hasNewText
+                )
+                // A hosted UIKit view has no intrinsic height. Give the transcript
+                // the remaining vertical space before Dynamic Type can let the
+                // header and growing composer consume the whole small screen.
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: constrained ? (compactStripVisible ? 88 : 132) : 44,
+                    maxHeight: .infinity
+                )
+                .layoutPriority(1)
+
+                if let message = model.submissionMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(RundaleTheme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 6)
+                        .accessibilityIdentifier("composer.error")
+                }
+
+                CompletionStrip(model: model, compactLayout: constrained)
+                ClarificationStrip(model: model, compactLayout: constrained)
+                Composer(
+                    model: model,
+                    focused: $composerFocused,
+                    compactLayout: constrained
+                )
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+        }
+        .background(RundaleTheme.canvas)
+        .foregroundStyle(RundaleTheme.ink)
+        .tint(RundaleTheme.accent)
+        .onAppear {
+            guard !hasAppeared else { return }
+            hasAppeared = true
+            followsNewest = model.initialFollowsNewest
+            hasNewText = model.initialUnreadCount > 0 && !followsNewest
+            model.start()
+            if model.launch.autoFocusComposer {
+                composerFocused = true
+            }
+        }
+        .onChange(of: model.streamRevision) { _, revision in
+            guard revision != lastStreamRevision else { return }
+            lastStreamRevision = revision
+            if !followsNewest {
+                hasNewText = true
+            }
+        }
+        .onChange(of: model.isFollowingNewest) { _, following in
+            guard followsNewest != following else { return }
+            followsNewest = following
+            if following {
+                hasNewText = false
+            }
+        }
+        .onChange(of: model.accessibilityNotice) { _, notice in
+            guard let notice, !notice.isEmpty else { return }
+            UIAccessibility.post(notification: .announcement, argument: notice)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive {
+                model.persistDraft()
+                model.handleBackgrounding()
+            } else if phase == .active {
+                model.handleForegrounding()
+            }
+        }
+        .preferredColorScheme(model.launch.forceDarkAppearance ? .dark : nil)
+    }
+}
+
+private struct StatusHeader: View {
+    @ObservedObject var model: RundalePresentationModel
+    let compact: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Group {
+            if model.launch.isUITesting {
+                headerHost
+                    .accessibilityValue(testingAccessibilityValue)
+            } else {
+                headerHost
+            }
+        }
+    }
+
+    private var headerHost: some View {
+        headerContent
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Keep one stable host element for UI automation and VoiceOver while
+        // retaining the compact semantic summary for the header region.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Current place, \(model.header.location). \(model.header.timeOfDay). \(model.header.weather).")
+        .accessibilityIdentifier("status.header")
+    }
+
+    private var headerContent: some View {
+        Group {
+            if compact {
+                Text(model.header.location)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                fullHeaderContent
+            }
+        }
+    }
+
+    private var fullHeaderContent: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(model.header.location)
+                .font(.system(.headline, design: .serif, weight: .medium))
+                .accessibilityAddTraits(.isHeader)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    Label(model.header.timeOfDay, systemImage: "clock")
+                    Text("·")
+                        .accessibilityHidden(true)
+                    if let symbol = model.header.weatherSymbol {
+                        Label(model.header.weather, systemImage: symbol)
+                    } else {
+                        Text(model.header.weather)
+                    }
+                }
+                Text("\(model.header.timeOfDay) · \(model.header.weather)")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption)
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .labelStyle(.titleAndIcon)
+        }
+    }
+
+    private var testingAccessibilityValue: String {
+        "Dynamic type \(String(describing: dynamicTypeSize)); "
+            + "\(colorScheme == .dark ? "dark" : "light") appearance."
+    }
+}
+
+private struct TranscriptView: View {
+    @ObservedObject var model: RundalePresentationModel
+    @Binding var followsNewest: Bool
+    @Binding var hasNewText: Bool
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            NativeTranscriptScroller(
+                items: model.transcript,
+                initialFollowsNewest: model.initialFollowsNewest,
+                initialAnchor: model.initialTranscriptAnchor,
+                followsNewest: $followsNewest,
+                hasNewText: $hasNewText,
+                onRecall: model.recallCommand,
+                onReadHistory: model.readHistory,
+                onLoadOlder: model.loadOlderTranscript,
+                onFollowNewest: model.followNewest
+            )
+
+            if hasNewText && !followsNewest {
+                Button {
+                    followsNewest = true
+                    hasNewText = false
+                    model.followNewest()
+                } label: {
+                    Label("New text", systemImage: "arrow.down.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(.thinMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(RundaleTheme.rule, lineWidth: 0.7))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(RundaleTheme.accent)
+                .accessibilityHint("Scroll to the newest transcript entry")
+                .accessibilityIdentifier("transcript.new-text")
+                .padding(.trailing, 18)
+                .padding(.bottom, 15)
+            }
+        }
+    }
+}
+
+/// SwiftUI's lazy scroll geometry is intentionally not used as the source of
+/// truth for transcript position. The native scroll view owns content offset,
+/// viewport changes, and drag state while each reusable cell still renders the
+/// SwiftUI transcript row already used by the client.
+private struct NativeTranscriptScroller: UIViewControllerRepresentable {
+    let items: [PresentedTranscriptItem]
+    let initialFollowsNewest: Bool
+    let initialAnchor: TranscriptAnchor?
+    @Binding var followsNewest: Bool
+    @Binding var hasNewText: Bool
+    let onRecall: (String) -> Void
+    let onReadHistory: (TranscriptAnchor?) -> Void
+    let onLoadOlder: () -> Void
+    let onFollowNewest: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIViewController(context: Context) -> TranscriptCollectionViewController {
+        let controller = TranscriptCollectionViewController()
+        context.coordinator.parent = self
+        context.coordinator.connect(to: controller)
+        controller.update(
+            items: items,
+            followsNewest: followsNewest,
+            initialFollowsNewest: initialFollowsNewest,
+            initialAnchor: initialAnchor
+        )
+        return controller
+    }
+
+    func updateUIViewController(_ controller: TranscriptCollectionViewController,
+                                context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.connect(to: controller)
+        controller.update(
+            items: items,
+            followsNewest: followsNewest,
+            initialFollowsNewest: initialFollowsNewest,
+            initialAnchor: initialAnchor
+        )
+    }
+
+    static func dismantleUIViewController(_ controller: TranscriptCollectionViewController,
+                                          coordinator: Coordinator) {
+        coordinator.disconnect(from: controller)
+        controller.disconnect()
+    }
+
+    @MainActor
+    final class Coordinator {
+        var parent: NativeTranscriptScroller
+        private weak var connectedController: TranscriptCollectionViewController?
+
+        init(parent: NativeTranscriptScroller) {
+            self.parent = parent
+        }
+
+        func connect(to controller: TranscriptCollectionViewController) {
+            guard connectedController !== controller else { return }
+            connectedController?.disconnect()
+            connectedController = controller
+            controller.onFollowModeChanged = { [weak self, weak controller] follows, anchor in
+                guard let self, self.connectedController === controller else { return }
+                if self.parent.followsNewest != follows {
+                    self.parent.followsNewest = follows
+                }
+                if follows {
+                    self.parent.hasNewText = false
+                    self.parent.onFollowNewest()
+                } else {
+                    self.parent.onReadHistory(anchor)
+                }
+            }
+            controller.onReadingAnchorChanged = { [weak self, weak controller] anchor in
+                guard let self, self.connectedController === controller else { return }
+                self.parent.onReadHistory(anchor)
+            }
+            controller.onLoadOlder = { [weak self, weak controller] in
+                guard let self, self.connectedController === controller else { return }
+                self.parent.onLoadOlder()
+            }
+            controller.onRecall = { [weak self, weak controller] command in
+                guard let self, self.connectedController === controller else { return }
+                self.parent.onRecall(command)
+            }
+        }
+
+        func disconnect(from controller: TranscriptCollectionViewController) {
+            guard connectedController === controller else { return }
+            controller.disconnect()
+            connectedController = nil
+        }
+    }
+}
+
+@MainActor
+private final class TranscriptCollectionView: UICollectionView {
+    var accessibilityScrollDidFinish: (() -> Void)?
+    var contentSizeDidChange: (() -> Void)?
+
+    override var contentSize: CGSize {
+        didSet {
+            if contentSize != oldValue { contentSizeDidChange?() }
+        }
+    }
+
+    override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        let didScroll = super.accessibilityScroll(direction)
+        if didScroll {
+            accessibilityScrollDidFinish?()
+        }
+        return didScroll
+    }
+}
+
+@MainActor
+final class TranscriptCollectionViewController: UIViewController,
+                                                        UICollectionViewDataSource,
+                                                        UICollectionViewDelegate {
+    private struct LockedAnchor {
+        let id: String
+        let viewportOffset: CGFloat
+    }
+
+    private var items: [PresentedTranscriptItem] = []
+    private var hasLoadedInitialItems = false
+    private var isFollowingNewest = true
+    private var anchorLock: LockedAnchor?
+    private var isApplyingPosition = false
+    private var lastBoundsSize: CGSize = .zero
+    private var lastContentSize: CGSize = .zero
+    private var wasScrollable = false
+    // A drag is a user intent boundary. Content and bounds can change while a
+    // finger is down (streamed row sizing and keyboard transitions are common
+    // examples), so do not infer history mode from those intermediate offsets.
+    private var userScrollInProgress = false
+    private var userScrollReadHistory = false
+
+    var onFollowModeChanged: ((Bool, TranscriptAnchor?) -> Void)?
+    var onReadingAnchorChanged: ((TranscriptAnchor?) -> Void)?
+    var onRecall: ((String) -> Void)?
+    var onLoadOlder: (() -> Void)?
+
+    private lazy var collectionView: TranscriptCollectionView = {
+        let itemSize = NSCollectionLayoutSize(
+            widthDimension: .fractionalWidth(1),
+            heightDimension: .estimated(44)
+        )
+        let item = NSCollectionLayoutItem(layoutSize: itemSize)
+        let group = NSCollectionLayoutGroup.vertical(layoutSize: itemSize, subitems: [item])
+        let section = NSCollectionLayoutSection(group: group)
+        section.interGroupSpacing = 18
+        section.contentInsets = NSDirectionalEdgeInsets(
+            top: 20,
+            leading: 20,
+            bottom: 18,
+            trailing: 20
+        )
+        let layout = UICollectionViewCompositionalLayout(section: section)
+        let view = TranscriptCollectionView(frame: .zero, collectionViewLayout: layout)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = .clear
+        view.showsVerticalScrollIndicator = true
+        view.indicatorStyle = .default
+        view.verticalScrollIndicatorInsets = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 4)
+        view.alwaysBounceVertical = true
+        view.keyboardDismissMode = .interactive
+        view.accessibilityIdentifier = "transcript"
+        view.accessibilityLabel = "Transcript"
+        view.dataSource = self
+        view.delegate = self
+        // Hosting cells can finish measuring after the controller's layout
+        // pass. Observe the actual content extent so that later measurements
+        // also restore the bottom (or the reader's locked history anchor).
+        view.contentSizeDidChange = { [weak self] in
+            self?.view.setNeedsLayout()
+        }
+        view.accessibilityScrollDidFinish = { [weak self] in
+            self?.anchorLock = nil
+            self?.updateFollowModeFromCurrentPosition()
+            self?.persistReadingAnchor()
+        }
+        return view
+    }()
+
+    private lazy var cellRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> {
+        [weak self] cell, indexPath, _ in
+        guard let self, self.items.indices.contains(indexPath.item) else { return }
+        let transcriptItem = self.items[indexPath.item]
+        cell.contentConfiguration = UIHostingConfiguration {
+            TranscriptEntry(item: transcriptItem) { [weak self] command in
+                self?.onRecall?(command)
+            }
+        }
+        .margins(.all, 0)
+        .background(.clear)
+        cell.backgroundConfiguration = UIBackgroundConfiguration.clear()
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // UIKit requires registrations to be created before a cell request;
+        // evaluating this lazy value from inside `cellForItemAt` crashes.
+        _ = cellRegistration
+        view.backgroundColor = .clear
+        view.addSubview(collectionView)
+        NSLayoutConstraint.activate([
+            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        flashScrollIndicatorIfNeeded(after: .milliseconds(250))
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        collectionView.layoutIfNeeded()
+
+        let boundsChanged = collectionView.bounds.size != lastBoundsSize
+        let contentChanged = collectionView.contentSize != lastContentSize
+        lastBoundsSize = collectionView.bounds.size
+        lastContentSize = collectionView.contentSize
+
+        let isScrollable = collectionView.contentSize.height > collectionView.bounds.height + 1
+        if isScrollable, !wasScrollable {
+            flashScrollIndicatorIfNeeded()
+        }
+        wasScrollable = isScrollable
+
+        guard !isApplyingPosition else { return }
+        if isFollowingNewest {
+            if (boundsChanged || contentChanged || hasLoadedInitialItems),
+               !userScrollInProgress,
+               !collectionView.isTracking,
+               !collectionView.isDragging,
+               !collectionView.isDecelerating {
+                pinToNewest()
+            }
+        } else if let anchorLock {
+            if !collectionView.isTracking,
+               !collectionView.isDragging,
+               !collectionView.isDecelerating {
+                apply(anchorLock)
+            }
+        }
+    }
+
+    func update(items newItems: [PresentedTranscriptItem],
+                followsNewest: Bool,
+                initialFollowsNewest: Bool,
+                initialAnchor: TranscriptAnchor?) {
+        loadViewIfNeeded()
+
+        if hasLoadedInitialItems, followsNewest != isFollowingNewest {
+            if followsNewest {
+                // An explicit New text action wins over any remaining drag
+                // momentum. Cancel deceleration while delegate classification
+                // is suppressed, then enter follow mode and pin immediately;
+                // otherwise a final deceleration callback can flip the mode
+                // back to history before the next layout pass.
+                isApplyingPosition = true
+                collectionView.setContentOffset(collectionView.contentOffset, animated: false)
+                isApplyingPosition = false
+                isFollowingNewest = true
+                anchorLock = nil
+                pinToNewest()
+            } else {
+                isFollowingNewest = false
+            }
+        }
+
+        guard newItems != items || !hasLoadedInitialItems else {
+            if followsNewest {
+                view.setNeedsLayout()
+            }
+            return
+        }
+
+        let preservedAnchor = hasLoadedInitialItems && !isFollowingNewest
+            ? currentAnchor(preferFullyVisible: true)
+            : nil
+        items = newItems
+        collectionView.reloadData()
+        collectionView.collectionViewLayout.invalidateLayout()
+
+        if !hasLoadedInitialItems {
+            hasLoadedInitialItems = true
+            isFollowingNewest = initialFollowsNewest
+            if !initialFollowsNewest,
+               let initialAnchor,
+               let itemID = initialAnchor.itemID?.rawValue {
+                anchorLock = LockedAnchor(
+                    id: itemID,
+                    viewportOffset: CGFloat(initialAnchor.offset)
+                )
+            }
+        } else if !isFollowingNewest, let preservedAnchor {
+            if let itemID = preservedAnchor.itemID?.rawValue {
+                anchorLock = LockedAnchor(
+                    id: itemID,
+                    viewportOffset: CGFloat(preservedAnchor.offset)
+                )
+            }
+        }
+
+        view.setNeedsLayout()
+    }
+
+    func collectionView(_ collectionView: UICollectionView,
+                        numberOfItemsInSection section: Int) -> Int {
+        items.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView,
+                        cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        collectionView.dequeueConfiguredReusableCell(
+            using: cellRegistration,
+            for: indexPath,
+            item: items[indexPath.item].id
+        )
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        anchorLock = nil
+        userScrollInProgress = true
+        userScrollReadHistory = false
+        // Touching or bouncing at the bottom is not an intent to read history.
+        // Change follow mode only when the gesture actually leaves the tail.
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard !isApplyingPosition,
+              scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating else {
+            return
+        }
+
+        if userScrollInProgress {
+            // Pan translation is independent of content-size and viewport
+            // changes. This keeps a keyboard resize or a self-sizing streamed
+            // row from being mistaken for a deliberate history scroll.
+            let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+            if translation.y > 8 {
+                // Publish a history transition as soon as a downward finger
+                // pan has meaningfully moved away from the tail. Stream updates
+                // during a held gesture can surface New text immediately, while
+                // a stationary touch remains protected until it ends.
+                userScrollReadHistory = true
+                updateFollowModeFromCurrentPosition()
+            }
+        }
+
+        if scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 80 {
+            onLoadOlder?()
+        }
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView,
+                                  willDecelerate decelerate: Bool) {
+        if !decelerate {
+            finishUserScrolling()
+        }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        finishUserScrolling()
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        // This delegate callback is also emitted by programmatic layout and
+        // pinning. Those operations already establish their exact position;
+        // classifying their transient geometry can spuriously enable New text.
+        // VoiceOver scrolling uses accessibilityScrollDidFinish instead.
+    }
+
+    func disconnect() {
+        onFollowModeChanged = nil
+        onReadingAnchorChanged = nil
+        onRecall = nil
+        onLoadOlder = nil
+        collectionView.delegate = nil
+        collectionView.dataSource = nil
+        collectionView.accessibilityScrollDidFinish = nil
+        collectionView.contentSizeDidChange = nil
+    }
+
+    private var distanceFromNewest: CGFloat {
+        let maximumOffset = max(
+            -collectionView.adjustedContentInset.top,
+            collectionView.contentSize.height
+                - collectionView.bounds.height
+                + collectionView.adjustedContentInset.bottom
+        )
+        return max(0, maximumOffset - collectionView.contentOffset.y)
+    }
+
+    private func flashScrollIndicatorIfNeeded(after delay: DispatchTimeInterval = .milliseconds(0)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self,
+                  self.viewIfLoaded?.window != nil,
+                  self.collectionView.contentSize.height > self.collectionView.bounds.height + 1 else {
+                return
+            }
+            self.collectionView.flashScrollIndicators()
+        }
+    }
+
+    private func pinToNewest() {
+        guard !items.isEmpty else { return }
+        isApplyingPosition = true
+        collectionView.scrollToItem(
+            at: IndexPath(item: items.count - 1, section: 0),
+            at: .bottom,
+            animated: false
+        )
+        collectionView.layoutIfNeeded()
+        let maximumOffset = max(
+            -collectionView.adjustedContentInset.top,
+            collectionView.contentSize.height
+                - collectionView.bounds.height
+                + collectionView.adjustedContentInset.bottom
+        )
+        collectionView.setContentOffset(
+            CGPoint(x: collectionView.contentOffset.x, y: maximumOffset),
+            animated: false
+        )
+        isApplyingPosition = false
+        lastContentSize = collectionView.contentSize
+    }
+
+    private func apply(_ anchor: LockedAnchor) {
+        guard let itemIndex = items.firstIndex(where: { $0.id == anchor.id }) else {
+            anchorLock = nil
+            return
+        }
+
+        isApplyingPosition = true
+        let indexPath = IndexPath(item: itemIndex, section: 0)
+        collectionView.scrollToItem(at: indexPath, at: .top, animated: false)
+        collectionView.layoutIfNeeded()
+        if let attributes = collectionView.layoutAttributesForItem(at: indexPath) {
+            let y = attributes.frame.minY
+                - anchor.viewportOffset
+                - collectionView.adjustedContentInset.top
+            collectionView.setContentOffset(
+                CGPoint(x: collectionView.contentOffset.x, y: y),
+                animated: false
+            )
+            collectionView.layoutIfNeeded()
+        }
+        isApplyingPosition = false
+        lastContentSize = collectionView.contentSize
+    }
+
+    private func currentAnchor(preferFullyVisible: Bool) -> TranscriptAnchor? {
+        let visibleTop = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
+        let attributes = collectionView.indexPathsForVisibleItems.compactMap {
+            collectionView.layoutAttributesForItem(at: $0)
+        }
+        .sorted { $0.frame.minY < $1.frame.minY }
+
+        let selected = attributes.first(where: {
+            !preferFullyVisible || $0.frame.minY >= visibleTop - 0.5
+        }) ?? attributes.first
+        guard let selected,
+              items.indices.contains(selected.indexPath.item) else { return nil }
+        return TranscriptAnchor(
+            itemID: TranscriptItemID(items[selected.indexPath.item].id),
+            offset: Double(selected.frame.minY - visibleTop)
+        )
+    }
+
+    private func persistReadingAnchor() {
+        guard !isFollowingNewest else { return }
+        let anchor = currentAnchor(preferFullyVisible: true)
+        if let anchor, let itemID = anchor.itemID?.rawValue {
+            anchorLock = LockedAnchor(
+                id: itemID,
+                viewportOffset: CGFloat(anchor.offset)
+            )
+        }
+        onReadingAnchorChanged?(anchor)
+    }
+
+    private func finishUserScrolling() {
+        let preserveTailFollow = isFollowingNewest && !userScrollReadHistory
+        userScrollInProgress = false
+        userScrollReadHistory = false
+        if preserveTailFollow {
+            // A stationary touch or movement toward newest keeps following.
+            // Final geometry may still reflect keyboard or hosted-row resizing.
+            isFollowingNewest = true
+            pinToNewest()
+            return
+        }
+
+        updateFollowModeFromCurrentPosition()
+        if isFollowingNewest {
+            pinToNewest()
+        } else {
+            persistReadingAnchor()
+        }
+    }
+
+    private func updateFollowModeFromCurrentPosition() {
+        let nearNewest = distanceFromNewest <= 28
+        guard nearNewest != isFollowingNewest else { return }
+        isFollowingNewest = nearNewest
+        let anchor = nearNewest ? nil : currentAnchor(preferFullyVisible: true)
+        onFollowModeChanged?(nearNewest, anchor)
+    }
+}
+
+private struct TranscriptEntry: View {
+    let item: PresentedTranscriptItem
+    let onRecall: (String) -> Void
+
+    var body: some View {
+        Group {
+            if isPlayerCommand {
+                Button {
+                    onRecall(item.text)
+                } label: {
+                    renderedContent
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Copy this command into the draft for editing")
+            } else {
+                renderedContent
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier("transcript.item.\(item.id)")
+    }
+
+    private var isPlayerCommand: Bool {
+        item.kind == .playerCommand
+    }
+
+    @ViewBuilder
+    private var renderedContent: some View {
+        Group {
+            switch item.kind {
+            case .sceneChanged:
+                sceneTransition
+            case .playerCommand:
+                playerCommand
+            case .commandInterpreted:
+                interpretation
+            case .npcDialogue:
+                npcDialogue
+            case .actionResult:
+                deterministic
+            case .error:
+                errorLine
+            case .progress:
+                mutedLine
+            case .responseCompleted:
+                mutedLine
+            case .clarificationRequired:
+                clarificationPrompt
+            case .clarificationSelected:
+                clarificationSelection
+            default:
+                narration
+            }
+        }
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [kindLabel]
+        if let speaker = item.speaker, !speaker.isEmpty {
+            parts.append(speaker)
+        }
+        parts.append(displayText)
+        if item.isInterrupted {
+            parts.append("Interrupted; not applied")
+        } else if item.isProvisional {
+            parts.append("In progress")
+        }
+        return parts.joined(separator: ". ")
+    }
+
+    private var kindLabel: String {
+        switch item.kind {
+        case .playerCommand: return "Player command"
+        case .commandInterpreted: return "Interpretation"
+        case .npcDialogue: return "Dialogue"
+        case .actionResult: return "Result"
+        case .sceneChanged: return "Scene"
+        case .error: return "Error"
+        case .progress: return "Progress"
+        case .responseCompleted: return "Response"
+        case .clarificationRequired: return "Clarification"
+        case .clarificationSelected: return "Direction"
+        default: return "Narration"
+        }
+    }
+
+    private var displayText: String {
+        switch item.kind {
+        case .clarificationSelected:
+            return "Directed to \(item.text)."
+        default:
+            return item.text
+        }
+    }
+
+    private var sceneTransition: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Rectangle()
+                .fill(RundaleTheme.accent.opacity(0.55))
+                .frame(width: 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let sceneName = item.metadata["sceneName"], !sceneName.isEmpty {
+                    Text(sceneName)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(RundaleTheme.accent)
+                }
+                Text(item.text)
+                    .font(.system(.body, design: .serif))
+                    .italic()
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var narration: some View {
+        if item.metadata["source"] == "schedule" {
+            Text(item.text)
+                .font(.system(.body, design: .serif))
+                .italic()
+                .foregroundStyle(RundaleTheme.secondaryInk)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(item.text)
+                .font(.system(.body, design: .serif))
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var npcDialogue: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let speaker = item.speaker, !speaker.isEmpty {
+                Text(speaker)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(RundaleTheme.secondaryInk)
+            }
+            Text("“\(item.text)”")
+                .font(.system(.body, design: .serif))
+                .italic()
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var playerCommand: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("›")
+                .font(.body.weight(.medium))
+                .foregroundStyle(RundaleTheme.accent)
+                .accessibilityHidden(true)
+            Text(item.text)
+                .font(.system(.body, design: .serif, weight: .medium))
+                .foregroundStyle(RundaleTheme.ink)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var interpretation: some View {
+        Text(item.text)
+            .font(.system(.subheadline, design: .serif))
+            .italic()
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .padding(.leading, 20)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var deterministic: some View {
+        Text(item.text)
+            .font(.system(.body, design: .serif))
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .lineSpacing(4)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var clarificationPrompt: some View {
+        Text(item.text)
+            .font(.system(.body, design: .serif))
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var clarificationSelection: some View {
+        Text(displayText)
+            .font(.system(.subheadline, design: .serif))
+            .italic()
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .padding(.leading, 20)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var mutedLine: some View {
+        Text(item.text)
+            .font(.system(.footnote, design: .serif))
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var errorLine: some View {
+        (Text(Image(systemName: "exclamationmark.circle.fill"))
+            + Text("  ")
+            + Text(item.text))
+            .font(.system(.footnote, design: .serif))
+            .foregroundStyle(RundaleTheme.error)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct CompletionStrip: View {
+    @ObservedObject var model: RundalePresentationModel
+    let compactLayout: Bool
+
+    var body: some View {
+        if !model.completions.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(model.completions) { completion in
+                        Button {
+                            model.selectCompletion(completion)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(completion.label)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(compactLayout ? 1 : nil)
+                                if !compactLayout, let detail = completion.detail {
+                                    Text(detail)
+                                        .font(.caption)
+                                        .foregroundStyle(RundaleTheme.secondaryInk)
+                                }
+                            }
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, compactLayout ? 6 : 8)
+                            .frame(minHeight: compactLayout ? 44 : nil)
+                            .background(RundaleTheme.canvas.opacity(0.92), in: RoundedRectangle(cornerRadius: 9))
+                            .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("completion.\(completion.id)")
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 7)
+            }
+            .scrollIndicators(.hidden)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Completions")
+            .accessibilityIdentifier("composer.completions")
+        }
+    }
+}
+
+private struct ClarificationStrip: View {
+    @ObservedObject var model: RundalePresentationModel
+    let compactLayout: Bool
+
+    var body: some View {
+        if let clarification = model.clarification {
+            Group {
+                if compactLayout {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(clarification.options) { option in
+                                clarificationButton(option, compact: true)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                    }
+                    .scrollIndicators(.hidden)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(clarification.prompt)
+                            .font(.system(.subheadline, design: .serif))
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(clarification.options) { option in
+                            clarificationButton(option, compact: false)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                }
+            }
+            .background(RundaleTheme.rule.opacity(0.12))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Clarification. \(clarification.prompt)")
+            .accessibilityIdentifier("clarification")
+        }
+    }
+
+    private func clarificationButton(_ option: PresentedClarification.Option, compact: Bool) -> some View {
+        Button {
+            model.selectClarification(option)
+        } label: {
+            HStack {
+                Text(option.label)
+                    .lineLimit(compact ? 1 : nil)
+                    .font(.subheadline.weight(.medium))
+                if !compact {
+                    Spacer(minLength: 8)
+                }
+                if !compact, let detail = option.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(RundaleTheme.secondaryInk)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, compact ? 6 : 9)
+            .frame(minHeight: compact ? 44 : nil)
+            .background(RundaleTheme.canvas, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("clarification.option.\(option.id)")
+    }
+}
+
+private struct Composer: View {
+    @ObservedObject var model: RundalePresentationModel
+    @FocusState.Binding var focused: Bool
+    let compactLayout: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var canSubmitDraft: Bool {
+        !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if model.isStreaming && !compactLayout {
+                WaitingAnimation()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                commandField
+                    .font(.system(.body, design: .serif))
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, compactLayout ? 6 : 10)
+                    .background(RundaleTheme.canvas, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(RundaleTheme.rule, lineWidth: 0.9)
+                    )
+                    .accessibilityLabel("Command draft")
+                    .accessibilityHint(commandFieldHint)
+                    .accessibilityIdentifier("composer.input")
+                    .onChange(of: model.draft) { _, _ in
+                        model.noteDraftMutation()
+                        model.refreshCompletions()
+                    }
+
+                VStack(spacing: 7) {
+                    if model.isStreaming {
+                        Button {
+                            model.stop()
+                            focused = true
+                        } label: {
+                            HStack(spacing: 5) {
+                                if compactLayout {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .accessibilityHidden(true)
+                                }
+                                Image(systemName: "stop.fill")
+                                    .frame(width: 42, height: 42)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(RundaleTheme.error)
+                        .accessibilityLabel("Stop response")
+                        .accessibilityIdentifier("composer.stop")
+                    } else {
+                        Button {
+                            model.submitDraft()
+                            focused = true
+                        } label: {
+                            Image(systemName: "arrow.up")
+                                .frame(width: 42, height: 42)
+                        }
+                        .buttonStyle(ComposerSendButtonStyle())
+                        .disabled(!canSubmitDraft)
+                        .accessibilityLabel("Send command")
+                        .accessibilityValue(canSubmitDraft ? "Ready to send" : "Enter a command to enable")
+                        .accessibilityIdentifier("composer.send")
+                    }
+
+                }
+            }
+
+            HStack(spacing: 13) {
+                Button {
+                    model.browseCompletions("@")
+                    focused = true
+                } label: {
+                    shortcutLabel("People", systemImage: "person")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityHint("Choose a nearby person to address without typing an at sign")
+                .accessibilityIdentifier("composer.people")
+                Button {
+                    model.browseCompletions("/")
+                    focused = true
+                } label: {
+                    shortcutLabel("Commands", systemImage: "list.bullet")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityHint("Choose a command to put in the draft")
+                .accessibilityIdentifier("composer.commands")
+                Spacer()
+                if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
+                    Button {
+                        model.advanceFixture()
+                    } label: {
+                        if compactLayout {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                        } else {
+                            Text("Next")
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Advance fixture stream")
+                    .accessibilityValue(model.uiTestCheckpoint)
+                    .accessibilityIdentifier("fixture.step")
+                }
+                if model.canRetry && !model.isStreaming {
+                    Button("Retry") {
+                        model.retryLastFailed()
+                        focused = true
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Retry failed response")
+                    .accessibilityIdentifier("composer.retry")
+                }
+            }
+            .font(.caption)
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .padding(.horizontal, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, compactLayout ? 4 : 10)
+        .padding(.bottom, compactLayout ? 4 : 10)
+        .background(RundaleTheme.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer")
+    }
+
+    @ViewBuilder
+    private func shortcutLabel(_ title: String, systemImage: String) -> some View {
+        if compactLayout {
+            Image(systemName: systemImage)
+                .font(.system(size: 20))
+                .accessibilityLabel(title)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Label(title, systemImage: systemImage)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                Text(title).fixedSize(horizontal: true, vertical: false)
+                Image(systemName: systemImage).accessibilityLabel(title)
+            }
+            .accessibilityLabel(title)
+        }
+    }
+
+    @ViewBuilder
+    private var commandField: some View {
+        #if targetEnvironment(simulator)
+        // The Simulator is primarily driven from a Mac keyboard. A single-line
+        // field gives Return its native submit semantics instead of relying on
+        // a multiline draft mutation that can differ between input methods.
+        if model.launch.usesMultilineSimulatorComposer {
+            // Exercise the physical-device multiline control in native UI
+            // tests, including newlines, editing, and keyboard resizing.
+            multilineCommandField
+        } else {
+            SimulatorCommandTextField(text: $model.draft) {
+                guard !model.isStreaming, canSubmitDraft else { return false }
+                model.submitDraft()
+                focused = true
+                return true
+            }
+        }
+        #else
+        // Physical devices retain the growing multiline composer used for
+        // selection, dictation, paste, and explicit line breaks.
+        multilineCommandField
+        #endif
+    }
+
+    private var multilineCommandField: some View {
+        // Keep multiline editing possible while the native field scrolls
+        // within one visible line above a constrained keyboard. A single view
+        // identity avoids dropping first responder as the keyboard resizes.
+        TextField("What do you do?", text: $model.draft, axis: .vertical)
+            .lineLimit(compactLayout ? 1...1 : 1...5)
+    }
+
+    private var commandFieldHint: String {
+        #if targetEnvironment(simulator)
+        model.launch.usesMultilineSimulatorComposer ? "Enter a multiline command" : "Press Return or activate Send to submit"
+        #else
+        "Enter a multiline command"
+        #endif
+    }
+}
+
+#if targetEnvironment(simulator)
+private struct SimulatorCommandTextField: UIViewRepresentable {
+    @Binding var text: String
+    let onSubmit: () -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.delegate = context.coordinator
+        field.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textChanged(_:)),
+            for: .editingChanged
+        )
+        field.returnKeyType = .send
+        field.adjustsFontForContentSizeCategory = true
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+        field.font = UIFont(descriptor: descriptor.withDesign(.serif) ?? descriptor, size: 0)
+        field.placeholder = "What do you do?"
+        field.backgroundColor = .clear
+        field.accessibilityLabel = "Command draft"
+        field.accessibilityHint = "Press Return or activate Send to submit"
+        field.accessibilityIdentifier = "composer.input"
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        context.coordinator.parent = self
+        if field.text != text {
+            field.text = text
+        }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        return CGSize(width: width, height: max(22, ceil(uiView.font?.lineHeight ?? 22)))
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SimulatorCommandTextField
+
+        init(parent: SimulatorCommandTextField) {
+            self.parent = parent
+        }
+
+        @objc func textChanged(_ field: UITextField) {
+            parent.text = field.text ?? ""
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            guard !(textField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            let submit = parent.onSubmit
+            // UIKit delivers shouldReturn before SwiftUI's observation of the
+            // final edit is guaranteed to settle. Submit on the next main turn
+            // so the model captures the correct revision for its acceptance
+            // guard and can safely clear the durable draft.
+            DispatchQueue.main.async {
+                _ = submit()
+            }
+            return false
+        }
+    }
+}
+#endif
+
+private struct ComposerSendButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(10)
+            .foregroundStyle(isEnabled ? RundaleTheme.canvas : RundaleTheme.secondaryInk)
+            .background(
+                Circle().fill(isEnabled ? RundaleTheme.accent : Color.clear)
+            )
+            .overlay(
+                Circle().stroke(
+                    isEnabled ? Color.clear : RundaleTheme.rule,
+                    lineWidth: 1.2
+                )
+            )
+            .contentShape(Circle())
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.96 : 1)
+            .opacity(configuration.isPressed && isEnabled ? 0.82 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: isEnabled)
+    }
+}

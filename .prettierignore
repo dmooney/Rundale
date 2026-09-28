@@ -28,6 +28,7 @@ pnpm-lock.yaml
 limerick/crates/limerick-tauri/gen/
 promptfoo/bench-site/
 **/graphify-out/
+endpoints/packages/database/migrations/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)

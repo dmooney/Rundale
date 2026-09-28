@@ -1,0 +1,378 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "variety": {
+      "type": "string"
+    },
+    "brand": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["Vegetable", "Herb", "Flower", "Fruit", "Cover crop", "Other"]
+    },
+    "description": {
+      "type": "string"
+    },
+    "plantingInstructions": {
+      "type": "string"
+    },
+    "regionalTiming": {
+      "type": "string"
+    },
+    "regionalMapCrop": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "side": {
+              "type": "string",
+              "enum": ["front", "back"]
+            },
+            "left": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "top": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "right": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "bottom": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": ["side", "left", "top", "right", "bottom"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "plantImageCrop": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "side": {
+              "type": "string",
+              "enum": ["front", "back"]
+            },
+            "left": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "top": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "right": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "bottom": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": ["side", "left", "top", "right", "bottom"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "packetIdentifiers": {
+      "type": "string"
+    },
+    "packetNotes": {
+      "type": "string"
+    },
+    "containerSuitability": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["recommended", "suitable", "notRecommended"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "daysToMaturityMin": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "daysToMaturityMax": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "plantingWindows": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "frostAnchor": {
+            "type": "string",
+            "enum": ["lastFrost", "firstFrost"]
+          },
+          "startIndoorsOffsetDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "directSowOffsetDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transplantOffsetDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "frostAnchor",
+          "startIndoorsOffsetDays",
+          "directSowOffsetDays",
+          "transplantOffsetDays"
+        ]
+      }
+    },
+    "seedSpacingInches": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "thinningSpacingInches": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rowSpacingInches": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "depthInches": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sun": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["Full sun", "Part sun", "Shade"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "packetEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "enum": [2]
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "identity",
+                  "timing",
+                  "method",
+                  "duration",
+                  "spacing",
+                  "environment",
+                  "care",
+                  "warning",
+                  "harvest",
+                  "bloom",
+                  "identifier",
+                  "other"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "side": {
+                "type": "string",
+                "enum": ["front", "back", "both", "unknown"]
+              },
+              "normalized": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["text", "min", "max", "unit"]
+              },
+              "confidence": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["id", "kind", "text", "side", "normalized", "confidence"]
+          }
+        }
+      },
+      "required": ["schemaVersion", "facts"]
+    }
+  },
+  "required": [
+    "name",
+    "variety",
+    "brand",
+    "category",
+    "description",
+    "plantingInstructions",
+    "regionalTiming",
+    "regionalMapCrop",
+    "plantImageCrop",
+    "packetIdentifiers",
+    "packetNotes",
+    "containerSuitability",
+    "daysToMaturityMin",
+    "daysToMaturityMax",
+    "plantingWindows",
+    "seedSpacingInches",
+    "thinningSpacingInches",
+    "rowSpacingInches",
+    "depthInches",
+    "sun",
+    "confidence",
+    "packetEvidence"
+  ]
+}

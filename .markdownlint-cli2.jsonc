@@ -46,5 +46,8 @@
     "**/graphify-out/**",
     ".opencode/**",
     ".codex/**",
+    "mobile/DerivedData/**",
+    "mobile/.build/**",
+    "mobile/**/.build/**",
   ],
 }

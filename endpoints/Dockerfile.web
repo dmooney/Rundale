@@ -1,0 +1,27 @@
+FROM node:22-alpine
+ENV PNPM_HOME=/pnpm
+ENV COREPACK_HOME=/pnpm/corepack
+ENV HOME=/home/node
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /app
+RUN mkdir -p "$PNPM_HOME" "$COREPACK_HOME" && chown -R node:node /app "$PNPM_HOME"
+COPY --chown=node:node . .
+USER node
+RUN pnpm install --frozen-lockfile
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
+RUN test -n "$NEXT_PUBLIC_API_URL" && test -n "$NEXT_PUBLIC_FIREBASE_API_KEY" && test -n "$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" && test -n "$NEXT_PUBLIC_FIREBASE_PROJECT_ID" && test -n "$NEXT_PUBLIC_FIREBASE_APP_ID"
+RUN pnpm --filter @parish/web build
+RUN mkdir -p apps/web/.next/cache apps/web/.next/standalone/apps/web/.next/cache apps/web/.next/standalone/apps/web/.next \
+  && cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+ENV NODE_ENV=production
+CMD ["node", "apps/web/.next/standalone/apps/web/server.js"]
