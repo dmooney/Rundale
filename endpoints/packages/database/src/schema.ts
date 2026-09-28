@@ -15,7 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { InferenceConfig, JsonSchema, ProviderConfig } from "@parish/domain";
+import type { InferenceConfig, JsonSchema, ProviderConfig } from "@limerick/domain";
 
 export const organizationStatus = pgEnum("organization_status", ["active", "suspended"]);
 export const memberRole = pgEnum("member_role", ["owner", "admin", "developer", "viewer"]);

@@ -1,10 +1,10 @@
 {
-  "name": "@parish/node-cli-example",
+  "name": "@limerick/node-cli-example",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "bin": {
-    "parish-invoke-image": "./dist/cli.js"
+    "limerick-invoke-image": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -12,8 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@parish/domain": "workspace:*",
-    "@parish/schemas": "workspace:*"
+    "@limerick/domain": "workspace:*",
+    "@limerick/schemas": "workspace:*"
   },
   "devDependencies": {
     "tsx": "4.23.12"

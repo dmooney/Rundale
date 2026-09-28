@@ -2,7 +2,7 @@
 
 [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) is the version 1
 Endpoint definition for the Phase 2 NPC dialogue role. It is the
-`EndpointDefinition` body consumed by Parish Endpoints: `inputSchema`,
+`EndpointDefinition` body consumed by Limerick Endpoints: `inputSchema`,
 `outputSchema`, `instructions`, `providerConfig`, and `inferenceConfig`.
 [`example-engine-invocation.json`](example-engine-invocation.json) is a
 secret-free serialization produced by the Rust `EndpointInvocation` DTO and
@@ -52,7 +52,7 @@ partial text is provisional and never changes game state.
 ## Publication and invocation notes
 
 Publish this definition as an immutable Endpoint version and bind the Rundale
-Firebase App Check app ID to its organization and slug in the deployed Parish
+Firebase App Check app ID to its organization and slug in the deployed Limerick
 Endpoints configuration. The JSON request body is exactly
 `{ "input": <EndpointInvocation> }`. The mobile worker sends the engine's stable
 request and attempt identities as bounded correlation headers. The server
@@ -77,7 +77,7 @@ the authorized service/configuration path when the Endpoint is provisioned.
 Run the shared transport and schema checks from the repository root:
 
 ```sh
-swift test --package-path mobile/ParishEndpointKit
+swift test --package-path mobile/LimerickEndpointKit
 cd limerick && cargo test -p limerick-core --features mobile --test mobile_endpoint_fixture
 cd ../endpoints && pnpm exec vitest run apps/server/test/mobile-invocation.test.ts
 ```

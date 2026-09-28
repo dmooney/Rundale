@@ -12,7 +12,7 @@ the app. No production origin is compiled into normal app configuration.
 ## Trusted boundary
 
 The native client sends its Firebase Auth ID token and mandatory App Check token
-directly to the configured Parish Endpoints origin. Parish verifies both tokens
+directly to the configured Limerick Endpoints origin. Limerick verifies both tokens
 with the Firebase Admin SDK, resolves the App Check app ID through the strict
 `MOBILE_APP_BINDINGS_JSON` allowlist, and checks organization UUID/slug,
 Endpoint slug, status, provider/model switches, per-principal rate limits, and
@@ -20,9 +20,9 @@ the minimum applicable daily quota before invoking a provider. A failed mobile
 check does not fall through to creator authorization. Existing Endpoint API-key
 invocation and creator authentication remain separate paths.
 
-No provider credential or shared invocation secret ships in the app. Parish
+No provider credential or shared invocation secret ships in the app. Limerick
 Endpoints owns Vertex/OpenAI credentials and provider dispatch; the embedded
-Parish engine remains authoritative for gameplay validation and commit.
+Limerick engine remains authoritative for gameplay validation and commit.
 
 ## Streaming delivery
 
@@ -32,7 +32,7 @@ The pinned route is
 `X-Attempt-Id` correlation, and responds as `text/event-stream`. Contract v1
 uses ordered, bounded `progress`, `text_delta`, `final`, and `error` frames.
 Each frame carries the request, attempt, invocation, event, sequence, Endpoint
-version, and terminal metadata validated by `ParishEndpointKit`.
+version, and terminal metadata validated by `LimerickEndpointKit`.
 
 Google is the first native streaming provider. The server incrementally decodes
 only the configured top-level `dialogue` JSON string, never exposes unrelated

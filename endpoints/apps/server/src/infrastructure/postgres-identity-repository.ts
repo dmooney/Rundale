@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { organizationMembers, users, type Database } from "@parish/database";
+import { organizationMembers, users, type Database } from "@limerick/database";
 import type { CreatorIdentityRepository } from "../auth/creator-auth.js";
 import type { CreatorPrincipal } from "../control/contracts.js";
 

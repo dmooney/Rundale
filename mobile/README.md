@@ -54,7 +54,7 @@ origin is baked into the app.
   presentation fixtures, with unit tests (`swift test --package-path mobile/RundaleKit`).
 - `RundaleBridge`: the actor-isolated Swift owner of the C boundary and its
   module map.
-- `ParishEndpointKit`: the Endpoint streaming client (renamed in #2007).
+- `LimerickEndpointKit`: the Endpoint streaming client (renamed in #2007).
 - `endpoint`: the Endpoint contract files and SSE fixtures that the
   `endpoints/` service tests read.
 - `RundaleTests` and `RundaleUITests`: app unit and UI tests. The engine-mode

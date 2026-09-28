@@ -13,27 +13,27 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../RundaleKit"),
-        .package(path: "../ParishEndpointKit")
+        .package(path: "../LimerickEndpointKit")
     ],
     targets: [
         .target(
-            name: "ParishMobileFFI",
-            path: "Sources/ParishMobileFFI",
+            name: "LimerickMobileFFI",
+            path: "Sources/LimerickMobileFFI",
             publicHeadersPath: "include"
         ),
         .target(
             name: "RundaleBridge",
-            dependencies: ["RundaleKit", "ParishMobileFFI", "ParishEndpointKit"],
+            dependencies: ["RundaleKit", "LimerickMobileFFI", "LimerickEndpointKit"],
             path: "Sources/RundaleBridge"
         ),
         .target(
-            name: "ParishMobileFFITestSupport",
-            path: "Tests/ParishMobileFFITestSupport",
+            name: "LimerickMobileFFITestSupport",
+            path: "Tests/LimerickMobileFFITestSupport",
             publicHeadersPath: "include"
         ),
         .testTarget(
             name: "RundaleBridgeTests",
-            dependencies: ["RundaleBridge", "ParishMobileFFITestSupport"],
+            dependencies: ["RundaleBridge", "LimerickMobileFFITestSupport"],
             path: "Tests/RundaleBridgeTests"
         )
     ]

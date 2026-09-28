@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "Parish Endpoints",
+  title: "Limerick Endpoints",
   description: "Define, publish, and observe typed AI API behavior.",
 };
 

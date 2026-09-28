@@ -3,7 +3,7 @@ import {
   type EndpointDefinition,
   type EndpointDraft,
   type EndpointVersionSnapshot,
-} from "@parish/domain";
+} from "@limerick/domain";
 import type {
   ApiKeySummary,
   ControlRepository,
