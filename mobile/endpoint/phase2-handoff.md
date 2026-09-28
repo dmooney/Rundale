@@ -6,7 +6,7 @@ The repository contract is [rundale-dialogue-v1.json](rundale-dialogue-v1.json).
 The embedded `endpoints/` service implements its pinned streaming route and the
 shared Swift/Rust/TypeScript fixture freezes the public wire shape. The deployed
 origin is `https://parish-server-24861210203.us-east1.run.app`; organization
-`parish-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
+`limerick-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
 the app. No production origin is compiled into normal app configuration.
 
 ## Trusted boundary
@@ -53,7 +53,7 @@ alone may accept and commit the final candidate.
 - The published immutable v1 snapshot matches the checked-in definition at
   `sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`
   and is promoted to `production`. The mobile allowlist binds only the registered
-  Rundale iOS app to `parish-demo/rundale-dialogue@1`.
+  Rundale iOS app to `limerick-demo/rundale-dialogue@1`.
 - Missing credentials were rejected with 401 on the tagged revision before
   traffic moved. The canonical live and ready checks returned 200 afterward.
 - Native iOS simulator test 01 used real anonymous Firebase Auth, a privately

@@ -335,4 +335,4 @@ bottom; don't lengthen items past 2-3 lines.
 
 ## Naming / mobile + Endpoints
 
-- **Product name is Limerick; geographic "parish" stays.** After #2007 the Swift/FFI/Endpoints product identifiers use `Limerick*` / `limerick_mobile_*` / `@limerick/*`. Leave Irish geography, org slug `parish-demo`, ADR text, and cottage-d6dc9 revision URLs alone — those are intentional historical or world vocabulary, not the old engine name.
+- **Product name is Limerick; geographic "parish" stays.** After #2007 the Swift/FFI/Endpoints product identifiers use `Limerick*` / `limerick_mobile_*` / `@limerick/*`. Leave Irish geography, ADR text, and cottage-d6dc9 revision URLs alone — those are intentional historical or world vocabulary, not the old engine name. The demo org slug is `limerick-demo`.

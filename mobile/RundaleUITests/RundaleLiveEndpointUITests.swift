@@ -65,7 +65,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         if reset { app.launchArguments.append("--reset-fixture") }
         app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = baseURL
         app.launchEnvironment["RUNDALE_ENDPOINT_ORGANIZATION"] =
-            environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "parish-demo"
+            environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "limerick-demo"
         app.launchEnvironment["RUNDALE_ENDPOINT_SLUG"] =
             environment["RUNDALE_LIVE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
         app.launchEnvironment["RUNDALE_ENDPOINT_VERSION"] =

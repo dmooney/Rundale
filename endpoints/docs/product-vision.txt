@@ -152,7 +152,7 @@ Output
 
 [ Publish ]
 The platform returns:
-POST /v1/endpoints/parish-demo/seed-packet-parser
+POST /v1/endpoints/limerick-demo/seed-packet-parser
 Authorization: Bearer <caller-api-key>
 Content-Type: multipart/form-data
 The caller sends an image.
@@ -353,7 +353,7 @@ A minimal public API might expose:
 POST /v1/endpoints/{organizationSlug}/{endpointSlug}
 POST /v1/endpoints/{organizationSlug}/{endpointSlug}/versions/{version}
 Example:
-POST /v1/endpoints/parish-demo/seed-packet-parser
+POST /v1/endpoints/limerick-demo/seed-packet-parser
 Authorization: Bearer sfk_live_...
 The default endpoint invokes the currently promoted production version.
 Explicit version invocation allows callers to pin behavior.

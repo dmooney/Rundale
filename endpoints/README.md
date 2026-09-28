@@ -37,7 +37,7 @@ From the Rundale repository root, the equivalent command is
 export LIMERICK_API_KEY='the-one-time-key'
 pnpm --filter @limerick/node-cli invoke -- \
   --image ./packet.png \
-  --endpoint https://api.example/v1/endpoints/parish-demo/generic-image-extractor \
+  --endpoint https://api.example/v1/endpoints/limerick-demo/generic-image-extractor \
   --schema ./output-schema.json
 ```
 

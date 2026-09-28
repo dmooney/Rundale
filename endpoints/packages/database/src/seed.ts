@@ -56,12 +56,12 @@ try {
 
     await transaction
       .insert(organizations)
-      .values({ name: "Limerick Demo", slug: "parish-demo" })
+      .values({ name: "Limerick Demo", slug: "limerick-demo" })
       .onConflictDoNothing({ target: organizations.slug });
     const [organization] = await transaction
       .select()
       .from(organizations)
-      .where(eq(organizations.slug, "parish-demo"));
+      .where(eq(organizations.slug, "limerick-demo"));
     if (organization === undefined) throw new Error("Could not resolve seeded organization.");
     await transaction
       .insert(organizationMembers)
