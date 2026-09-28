@@ -629,8 +629,8 @@ mod tests {
         // it into a Box. This is intentional test-only simplification.
         Box::leak(Box::new(dir));
 
-        let data_dir =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
         // Use a temp path for saves; leak the TempDir handle so it lives for
         // the duration of this test binary.
         let saves_tmp = Box::new(tempdir().unwrap());

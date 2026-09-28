@@ -7,9 +7,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use limerick_core::game_loop::load_fresh_world_and_npcs;
 use limerick_core::game_mod::GameMod;
 use limerick_core::npc::manager::NpcManager;
-use limerick_core::world::{DEFAULT_START_LOCATION, WorldState};
+use limerick_core::world::WorldState;
 
 use crate::session_store_impl::DbSessionStore;
 use crate::state::{AppStateParts, build_app_state};
@@ -204,21 +205,17 @@ async fn create_session(
     let session_saves = global.saves_dir.join(session_id);
     std::fs::create_dir_all(&session_saves).map_err(|error| error.to_string())?;
 
-    let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
+    let startup_mod = global.game_mod.clone();
     let content = content_identity(global);
     let (world, npc_manager) = tokio::task::spawn_blocking(move || {
-        let mut world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
-            .unwrap_or_else(|e| {
-                tracing::warn!("Session init: failed to load world: {}. Using default.", e);
-                WorldState::new()
+        // The mod's own start location and date, as Tauri and `/new-game` use.
+        let (mut world, mut npc_manager) =
+            load_fresh_world_and_npcs(startup_mod.as_ref(), &data_dir).unwrap_or_else(|e| {
+                tracing::warn!("Session init: {}. Using default world.", e);
+                (WorldState::new(), NpcManager::new())
             });
         world.content = content;
-        let mut npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
-            .unwrap_or_else(|e| {
-                tracing::warn!("Session init: failed to load npcs.json: {}. No NPCs.", e);
-                NpcManager::new()
-            });
         npc_manager.assign_tiers(&world, &[]);
         (world, npc_manager)
     })
@@ -432,15 +429,13 @@ async fn restore_session(
     .ok_or_else(|| "no snapshots".to_string())?;
 
     // Load fresh static world data, then apply the saved snapshot.
-    let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
+    let startup_mod = global.game_mod.clone();
     let content = content_identity(global);
     let (mut world, mut npc_manager) = tokio::task::spawn_blocking(move || {
-        let mut world = WorldState::from_world_file(&world_path, DEFAULT_START_LOCATION)
-            .unwrap_or_else(|_| WorldState::new());
+        let (mut world, npc_manager) = load_fresh_world_and_npcs(startup_mod.as_ref(), &data_dir)
+            .unwrap_or_else(|_| (WorldState::new(), NpcManager::new()));
         world.content = content;
-        let npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
-            .unwrap_or_else(|_| NpcManager::new());
         (world, npc_manager)
     })
     .await
@@ -581,14 +576,21 @@ mod resume_identity_tests {
     }
 
     fn test_global_state(saves_dir: &std::path::Path) -> Arc<GlobalState> {
+        test_global_state_with_mod(saves_dir, None)
+    }
+
+    fn test_global_state_with_mod(
+        saves_dir: &std::path::Path,
+        game_mod: Option<GameMod>,
+    ) -> Arc<GlobalState> {
         std::fs::create_dir_all(saves_dir).unwrap();
         let sessions = SessionRegistry::open(saves_dir).unwrap();
         let identity_conn = crate::session_store_impl::open_sessions_db(saves_dir).unwrap();
         let identity_store: Arc<dyn limerick_core::identity::IdentityStore> = Arc::new(
             crate::session_store_impl::SqliteIdentityStore::new(identity_conn),
         );
-        let data_dir =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
         let ui_config = crate::state::UiConfigSnapshot {
             hints_label: "test".to_string(),
             default_accent: "#000".to_string(),
@@ -642,7 +644,7 @@ mod resume_identity_tests {
             data_dir: data_dir.clone(),
             world_path: data_dir.join("world.json"),
             saves_dir: saves_dir.to_path_buf(),
-            game_mod: None,
+            game_mod,
             pronunciations: Vec::new(),
             ui_config,
             theme_palette: limerick_core::game_mod::default_theme_palette(),
@@ -804,6 +806,31 @@ mod resume_identity_tests {
             "the new save is the one resumed next"
         );
 
+        entry._shutdown_token.cancel();
+        global.sessions.sessions.remove(session_id);
+    }
+
+    /// A new session starts where the active mod says, not at the legacy
+    /// default location (#2040).
+    #[tokio::test]
+    async fn a_new_session_starts_at_the_mod_start_location_and_time() {
+        use chrono::Timelike;
+
+        let temp = tempfile::tempdir().unwrap();
+        let mod_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let game_mod = GameMod::load(&mod_dir).expect("load mods/rundale");
+        let start = limerick_core::world::LocationId(game_mod.start_location());
+        let global = test_global_state_with_mod(temp.path(), Some(game_mod));
+        let session_id = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+
+        let entry = create_session(&global, session_id).await.unwrap();
+
+        let world = entry.app_state.world.lock().await;
+        assert_eq!(world.player_location, start);
+        assert_eq!(world.current_location().name, "Kilteevan Village");
+        assert_eq!(world.clock.now().hour(), 7);
+        drop(world);
         entry._shutdown_token.cancel();
         global.sessions.sessions.remove(session_id);
     }

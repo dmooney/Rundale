@@ -610,8 +610,8 @@ fn test_pronunciation_entry_matches_via_word_fallback() {
 
 #[test]
 fn test_load_real_default_mod() {
-    let rundale_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     if rundale_dir.exists() {
         let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
         assert!(!gm.manifest.meta.name.is_empty());
@@ -627,8 +627,8 @@ fn test_load_real_default_mod() {
 
 #[test]
 fn test_real_mod_npc_name_hints() {
-    let rundale_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let rundale_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     if rundale_dir.exists() {
         let gm = GameMod::load(&rundale_dir).expect("should load rundale mod");
 

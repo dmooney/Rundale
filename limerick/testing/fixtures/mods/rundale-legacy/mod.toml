@@ -1,3 +1,6 @@
+# Rundale 1820 large world, kept as test-only data (#2040).
+# mods/rundale ships the canonical tiny world; engine tests that need a
+# large cast and many places load this copy instead.
 # Rundale — Game Mod Manifest
 # Manifest schema version understood by this engine release (#1366).
 schema_version = 1
@@ -9,14 +12,13 @@ id = "rundale"
 # Per-user data folder name (saves + tile cache). Explicit so a future
 # rename of `name` doesn't silently relocate everyone's saves.
 save_root = "Rundale"
-version = "2.0.0"
-description = "Rural Ireland, 1820: the canonical tiny world of Kilteevan, three places and three people"
+version = "1.0.0"
+description = "Rural Ireland, 1820 — a living world of land, labour, and community"
 kind = "base"
 
 [setting]
-# Starts before 08:00 so Peig's walk to the village road is part of play.
-start_date = "1820-03-20T07:00:00Z"
-start_location = 1
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
 period_year = 1820
 player_language = "en-IE"
 native_language = "ga-IE"

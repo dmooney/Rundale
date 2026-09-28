@@ -1,0 +1,34 @@
+# Plays the canonical tiny world (mods/rundale) from a new game.
+# Run from limerick/:
+#   cargo run -p limerick-engine -- --script testing/fixtures/rundale/tiny_world.txt
+# (`just game-test`)
+# Checked by limerick-engine/tests/world_sheet.rs.
+#
+# A long /wait moves the clock in one step, so NPCs set off for their next
+# scheduled place when it ends; a short second wait lets them arrive.
+
+# 07:00 in the village. Peig is still walking up from the Letter Office.
+look
+/npcs
+
+# 08:00: Peig waits on the village road for the morning post.
+/wait 60
+/npcs
+
+# The Connollys are at home in the morning.
+go to connolly cottage
+/npcs
+
+# After 09:00 Peig goes back behind her counter.
+go to village
+go to letter office
+/wait 50
+/wait 10
+/npcs
+
+# From 13:00 the Connollys come up to the village road.
+go to kilteevan village
+/wait 230
+/wait 10
+/npcs
+/status

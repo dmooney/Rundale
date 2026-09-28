@@ -20,7 +20,7 @@ fn fixture(name: &str) -> Vec<ScriptResult> {
 
 /// Loads the world graph from the canonical fixture path.
 fn load_world_graph() -> WorldGraph {
-    let path = Path::new("../../../mods/rundale/world.json");
+    let path = Path::new("../../testing/fixtures/mods/rundale-legacy/world.json");
     WorldGraph::load_from_file(path).expect("mods/rundale/world.json should load")
 }
 

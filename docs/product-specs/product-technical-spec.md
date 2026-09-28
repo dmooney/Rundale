@@ -495,35 +495,43 @@ Existing content can later be selectively reintroduced after the foundation is p
 
 During early development, maintain a concise human-readable representation of the entire test world.
 
-**Example:**
+The sheet lives with the world at `mods/rundale/world-sheet.txt`, and
+`limerick-engine/tests/world_sheet.rs` checks it against a new game. Presence
+is stated at clock times rather than parts of the day, so each line can be checked.
+
+**Example (the sheet's body):**
 
 ```text
+START
+ time: 07:00
+ location: Kilteevan Village
+
 KILTEEVAN VILLAGE
  exits: Letter Office, Connolly Cottage
  present at 08:00: Peig
+ present at 15:00: Mícheál, Róisín
 
 LETTER OFFICE
  exits: Kilteevan Village
- occupant: Peig
+ present at 10:00: Peig
+ present at 15:00: Peig
 
 CONNOLLY COTTAGE
  exits: Kilteevan Village
- residents: Mícheál, Róisín
+ present at 08:00: Mícheál, Róisín
+ present at 10:00: Mícheál, Róisín
 
 PEIG
  home: Letter Office
- morning: Letter Office
  knows: Mícheál, Róisín
 
 MÍCHEÁL
  home: Connolly Cottage
- morning: fields
- afternoon: village
+ knows: Peig, Róisín
 
 RÓISÍN
  home: Connolly Cottage
- morning: cottage
- afternoon: village
+ knows: Peig, Mícheál
 ```
 
 The sheet is a development oracle. Unexpected contradiction between authoritative game state and the sheet indicates either a bug or an intentional change that requires the sheet to be updated.

@@ -23,7 +23,7 @@ limerick --list-mods                                  # available mods (if expos
 
 ## What belongs here
 
-**1 game mod:** `rundale/` — Irish living world, 1820. Kind = `base`. Full game content (world, NPCs, prompts, schedules, festivals, encounters, transport).
+**1 game mod:** `rundale/` — Kilteevan, 1820: the canonical tiny world (product spec §14), three locations and three NPCs. Kind = `base`. `world-sheet.txt` is a test oracle checked by `limerick-engine/tests/world_sheet.rs`; change the sheet with any intentional world change. The earlier large world is test data at `limerick/testing/fixtures/mods/rundale-legacy/`, used by `GameTestHarness::new()` and the `test_*.txt` fixtures.
 
 **1 test mod:** `testbed/` — minimal engine test harness (5-location grid). Kind = `base`. Used by integration tests; pig Latin code-switch for dialogue testing.
 

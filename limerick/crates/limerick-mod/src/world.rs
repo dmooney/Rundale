@@ -28,8 +28,8 @@ mod tests {
 
     #[test]
     fn rundale_world_carries_authored_dialogue_anachronisms() {
-        let mod_path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let mod_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
         let game_mod = GameMod::load(&mod_path).expect("load Rundale mod");
         let world = world_state_from_mod(&game_mod).expect("build Rundale world");
         assert_eq!(

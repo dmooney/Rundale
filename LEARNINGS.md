@@ -15,10 +15,13 @@ bottom; don't lengthen items past 2-3 lines.
 - **`LIMERICK_USER_DATA_DIR` env var IS the full path.** No app-name suffix is appended. `/tmp/x` → all apps use `/tmp/x`, not `/tmp/x/Rundale`. Resolution is in `limerick-persistence/src/paths.rs::resolve_user_data_dir`.
 - **`limerick-flags.json` is not loaded by `GameTestHarness`.** Runtime `/flag enable/disable` doesn't persist across script runs in the harness. For test-time flag behaviour, set `app.flags` directly.
 - **`DayType` has three variants** (`Weekday`, `Sunday`, `MarketDay`). No `Holiday`. See `limerick-types/src/time.rs`.
-- **`limerick --script` uses the active mod from `mods/mod-list.toml`.** `GameTestHarness::new()` loads Rundale, but live script mode currently follows `active_setting`; use a Rundale-only `LIMERICK_MODS_DIR` for Rundale-specific proof runs when the active setting is `testbed`.
+- **`limerick --script` uses the active mod from `mods/mod-list.toml`.** Live script mode follows `active_setting` (`mods/rundale`, the tiny world); pass `--game-mod` to play anything else.
+- **`GameTestHarness::new()` and the `test_*.txt` fixtures play the large 1820 world in `limerick/testing/fixtures/mods/rundale-legacy/`, not `mods/rundale` (#2040).** Run those fixtures with `--game-mod testing/fixtures/mods/rundale-legacy`; tests of the shipped world use `GameTestHarness::new_with_mod_dir`.
 - **`mods/mod-list.toml` selects the default setting mod when both Rundale and testbed exist.** Keep the checked-in value at `active_setting = "rundale"` unless a test explicitly switches it.
 - **Demo profiling must isolate `LIMERICK_USER_CONFIG_DIR`.** Tauri reapplies saved wizard/category overrides from the user config dir after base env resolution, which can bypass a proxy unless the profiling run points config/data/saves at a temp directory.
 - **Tauri demo reads per-category routing from user config, not category env vars.** `LIMERICK_INTENT_MODEL` works for the CLI config path, but Tauri startup hydrates category overrides from `LIMERICK_USER_CONFIG_DIR/limerick.toml`.
+- **`relative_to` in `world.json` is not resolved at runtime.** Travel time uses each location's `lat`/`lon`; a location with only `relative_to` sits at (0, 0) and every trip to it takes the capped 120 minutes. Resolve offsets with `realign_rundale_coords --world <mod>/world.json --no-geocode --in-place --set-coord "<anchor>=lat,lon"`.
+- **A long `/wait` in `--script` moves the clock in one step, then pumps schedules once.** NPCs only set off for their next scheduled place when the wait ends, so follow it with a short `/wait` (or step `advance_time(1)`) before checking presence.
 
 ## Character logs (`limerick-chronicle/src/character_log.rs`, re-exported as `limerick_core::character_log`)
 

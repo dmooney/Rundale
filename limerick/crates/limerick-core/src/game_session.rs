@@ -1009,12 +1009,14 @@ pub async fn stream_reaction_texts_via(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game_mod::{GameMod, find_default_mod};
+    use crate::game_mod::GameMod;
     use crate::npc::reactions::reaction_threshold;
     use crate::world::transport::TransportMode;
 
+    /// Loads the large 1820 world kept as test data (#2040).
     fn setup() -> Option<(WorldState, NpcManager, ReactionTemplates, TransportMode)> {
-        let mod_dir = find_default_mod()?;
+        let mod_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
         let game_mod = GameMod::load(&mod_dir).ok()?;
         let world = crate::game_mod::world_state_from_mod(&game_mod).ok()?;
         let npc_manager = NpcManager::load_from_file(&mod_dir.join("npcs.json")).ok()?;
