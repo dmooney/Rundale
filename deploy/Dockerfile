@@ -2,7 +2,7 @@
 # Build:  docker build -f deploy/Dockerfile -t limerick .
 #
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
-FROM node:24-slim AS frontend
+FROM node:26-slim AS frontend
 WORKDIR /build/limerick/apps/ui
 COPY limerick/apps/ui/package*.json ./
 RUN npm ci
