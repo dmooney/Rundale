@@ -2,3 +2,10 @@ packages:
   - apps/*
   - packages/*
   - examples/*
+
+# Security floors for transitive dependencies flagged by OSV-Scanner.
+overrides:
+  sharp@<0.35.4: ^0.35.4
+  js-yaml@<4.3.2: ^4.3.2
+  uuid@<11.1.1: ^11.1.1
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0
