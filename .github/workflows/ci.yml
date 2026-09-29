@@ -43,9 +43,12 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     outputs:
-      runtime: ${{ steps.filter.outputs.runtime || 'true' }}
-      differential: ${{ steps.filter.outputs.differential || 'true' }}
-      promptfoo: ${{ steps.filter.outputs.promptfoo || 'true' }}
+      # A lane runs unless the path filter or the docs-only check says it can be
+      # skipped. Empty outputs (non-PR events, where both steps are skipped)
+      # mean "run".
+      runtime: ${{ steps.filter.outputs.runtime == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      differential: ${{ steps.filter.outputs.differential == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -85,6 +88,22 @@ jobs:
             promptfoo:
               - 'promptfoo/**'
               - '.github/workflows/ci.yml'
+      # Documentation-only pull requests never need the runtime lanes, even when
+      # the Markdown sits inside a runtime directory (crates, mods, scripts).
+      # `every` requires a changed file to match all patterns, so nondoc is true
+      # only when at least one changed file is neither Markdown nor under docs/.
+      # Mixed pull requests therefore still run every lane.
+      - name: Docs-only detector
+        id: nondoc
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: every
+          filters: |
+            nondoc:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
 
   agent-check:
     name: Agent proof gate

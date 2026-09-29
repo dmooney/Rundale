@@ -34,8 +34,8 @@ echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
 # check that CI would never see. Prettier + markdownlint still apply their own
 # ignore configs on top of the explicit list.
 # NUL-delimited read loop (works on macOS's bash 3.2, which lacks `mapfile`).
-# Skip symlinks: CLAUDE.md / GEMINI.md are symlinks to AGENTS.md — CI's glob
-# silently skips them, but passing them explicitly makes Prettier error.
+# Skip symlinks: CI's glob silently skips them, but passing them explicitly
+# makes Prettier error.
 fmt_files=()
 while IFS= read -r -d '' f; do [ -L "$f" ] || fmt_files+=("$f"); done \
     < <(git ls-files -z -- '*.md' '*.json' '*.jsonc' '*.yml' '*.yaml')

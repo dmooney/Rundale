@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Stop hook — warn when any CLAUDE.md is older than the cadence threshold.
+# Stop hook — warn when any AGENTS.md is older than the cadence threshold.
 #
 # Anthropic's "Claude Code in Large Codebases" article recommends reviewing
-# CLAUDE.md every 3-6 months — instructions written for older models can
+# agent instruction files (AGENTS.md here) every 3-6 months — instructions written for older models can
 # constrain newer ones. We surface the oldest stale file so the user can
 # refresh on their schedule.
 
@@ -40,7 +40,7 @@ while IFS= read -r f; do
         oldest_age="$age"
         oldest_path="$f"
     fi
-done < <(find . -name CLAUDE.md \
+done < <(find . -name AGENTS.md \
     -not -path "./.claude/worktrees/*" \
     -not -path "./node_modules/*" \
     -not -path "*/node_modules/*" \
@@ -48,7 +48,7 @@ done < <(find . -name CLAUDE.md \
     -not -path "./target/*" 2>/dev/null)
 
 if [ "$oldest_age" -gt "$THRESHOLD_DAYS" ] && [ -n "$oldest_path" ]; then
-    msg="CLAUDE.md cadence: ${oldest_path#./} is ${oldest_age} days old (threshold ${THRESHOLD_DAYS}). Anthropic recommends a 3-6mo review — newer models may benefit from refreshed guidance."
+    msg="AGENTS.md cadence: ${oldest_path#./} is ${oldest_age} days old (threshold ${THRESHOLD_DAYS}). Anthropic recommends a 3-6mo review — newer models may benefit from refreshed guidance."
     [ -n "${MARKER:-}" ] && : >"$MARKER"
     jq -nc --arg m "$msg" '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:$m}}'
 fi

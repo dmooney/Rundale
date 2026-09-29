@@ -1,6 +1,6 @@
 # Rundale Documentation — Limerick Engine
 
-> Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) (agent quick reference)
+> Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) (agent quick reference)
 
 This is the documentation hub for **Rundale**, an Irish Living World Text
 Adventure set in 1820, built on the **Limerick** engine. Start here to find the
@@ -294,12 +294,12 @@ cross-reference matrix, and suggested reading order.
 
 ## Agent & contributor reference
 
-| Document                                              | Description                                                                   |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [Agent Docs Hub](agent/README.md)                     | Build, architecture, code style, gotchas, harness, scaling, skills            |
-| [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) | Top-level agent quick reference                                               |
-| [README.md](../README.md)                             | Project overview, quick start                                                 |
-| [DESIGN.md](archive/DESIGN.md)                        | Original monolithic design document (archival — superseded by `docs/design/`) |
+| Document                          | Description                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| [Agent Docs Hub](agent/README.md) | Build, architecture, code style, gotchas, harness, scaling, skills            |
+| [AGENTS.md](../AGENTS.md)         | Top-level agent quick reference                                               |
+| [README.md](../README.md)         | Project overview, quick start                                                 |
+| [DESIGN.md](archive/DESIGN.md)    | Original monolithic design document (archival — superseded by `docs/design/`) |
 
 ### Agent skills
 
