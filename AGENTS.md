@@ -105,3 +105,26 @@ For visible changes include appropriate visual and interaction evidence.
 Follow [git workflow](docs/agent/git-workflow.md) and [proof requirements](docs/agent/agent-check.md).
 Keep the README, documentation, and canonical world sheet consistent with changes
 where applicable. Run `just notices` when dependencies change.
+
+### Keep the iPhone beta current
+
+The owner wants to try new features and fixes on their iPhone. Whenever a change
+provides something new to try in the iOS app, publish an updated internal
+TestFlight build after the applicable checks pass. This is standing authorization
+to build, sign, upload, and distribute to the existing Internal Beta group; do
+not ask for routine release confirmation. Documentation-only changes do not need
+a build.
+
+The release tooling (`just mobile-build`, `just testflight-update`, and its
+runbook) is being ported from `ios-port` in #2045. Until it lands, say in the PR
+and to the owner that no build was published and why. Once it exists: complete
+export compliance, confirm the build is **Testing** in **Internal Beta** (upload
+success alone is not delivery), and report the build number App Store Connect
+received, what to try, checks run, and any remaining device gates. If signing,
+Apple processing, or another blocker prevents delivery, report it explicitly.
+
+### Phase-end demonstrations
+
+Conclude every phase with a demonstration in the running app, following the
+[phase demo plan](docs/product-specs/phase-demo-plan.md). Never present a
+simulator demo as physical-iPhone validation or a fixture as live gameplay.

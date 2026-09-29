@@ -133,9 +133,10 @@ Behaviour to port as tests (not code):
 
 Deliberate divergences from the oracle:
 
-- Provisional stream text is not shown as dialogue. `ios-port` displayed raw
-  frames; Rule 33 forbids publishing candidate text before the canonical apply
-  validator accepts it. Frames are accepted for liveness and sequencing only.
+- Provisional stream text is not shown as dialogue on desktop. `ios-port`
+  displayed raw frames; Rule 33 forbids publishing candidate text before the
+  canonical apply validator accepts it. Superseded for mobile on 2026-09-28
+  (§9): the mobile Endpoint path streams provisional text, as `ios-port` did.
 - No single-location `WorldGraph` exception, no content bundle, no
   `DefaultHasher` fingerprints, no second parser or resolver.
 - Slash-command handling (`deterministic_capability`) is not ported; see §9 Q3.
@@ -746,3 +747,16 @@ Decided in review:
   inference; mobile runs without them until the background inference seam
   (plan item, #2025) lands.
 - No iOS target build in CI; `rust-mobile-build` stays a host-target check.
+
+Decided by the owner on 2026-09-28, for the mobile Endpoint path (#2044):
+
+- Stream as it comes. Endpoint text deltas are shown in the transcript as
+  provisional text while the reply arrives, as the product spec requires
+  (§8: partial content is distinguishable from committed content). The final
+  reply replaces it when committed; Stop or a failure leaves it visibly
+  uncommitted with no state effects.
+- No post-generation content guards on this path. The engine commits the final
+  reply after structural checks only; invented people or places are fixed
+  through the Endpoint definition and model. The Endpoint definition, not the
+  mod's desktop prompt templates, is the prompt source. See the scope note in
+  [inference rules](../agent/inference-rules.md). Desktop is unchanged.
