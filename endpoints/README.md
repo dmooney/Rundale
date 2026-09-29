@@ -56,6 +56,23 @@ DATABASE_URL=... pnpm operator disable endpoint 00000000-0000-0000-0000-00000000
 DATABASE_URL=... pnpm operator enable global
 ```
 
+Endpoint definitions authored as `<slug>.v<version>.json` files are published
+and checked against the database with the definitions command
+([ADR 013](docs/adr/013-publish-definitions-from-files.md)). It acts for the
+organization owned by `LIMERICK_OWNER_FIREBASE_UID` and validates new files
+against the `PROVIDER_MODE` and `*_ALLOWED_MODELS` allowlist:
+
+```sh
+DATABASE_URL=... pnpm definitions verify limerick-demo ../mods/rundale/endpoints
+DATABASE_URL=... pnpm definitions publish limerick-demo ../mods/rundale/endpoints
+DATABASE_URL=... pnpm definitions export limerick-demo ../mods/rundale/endpoints
+```
+
+`verify` exits non-zero unless every file matches its published copy by content
+hash and every published version of those slugs has a file. `publish` adds the
+missing versions and writes nothing if anything disagrees. `export` writes
+published versions that have no file.
+
 The runtime also enforces organization and Endpoint switches, daily organization quotas, per-process rate limits, request and decoded-image limits, provider timeouts, model allowlists, output-token limits, and independently validates every successful output.
 
 ## Google Cloud deployment

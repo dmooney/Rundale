@@ -45,6 +45,26 @@ function requiredEnvironmentValue(
   return value;
 }
 
+/** The `provider/model` keys a deployment may run, from its allowlist settings. */
+export function readAllowedModels(
+  environment: NodeJS.ProcessEnv,
+  providerMode: ServerConfig["providerMode"],
+): ReadonlySet<string> {
+  if (providerMode === "fake") return new Set(["fake/fake-v1"]);
+  return new Set([
+    ...(environment.OPENAI_ALLOWED_MODELS ?? "")
+      .split(",")
+      .map((model) => model.trim())
+      .filter(Boolean)
+      .map((model) => `openai/${model}`),
+    ...(environment.GOOGLE_ALLOWED_MODELS ?? "")
+      .split(",")
+      .map((model) => model.trim())
+      .filter(Boolean)
+      .map((model) => `google/${model}`),
+  ]);
+}
+
 export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): ServerConfig {
   const providerMode = environment.PROVIDER_MODE ?? "fake";
   if (providerMode !== "fake" && providerMode !== "live") {
@@ -178,19 +198,7 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
         "for Firebase or production deployment",
       )
     : (environment.LIMERICK_OWNER_FIREBASE_UID ?? "user_synthetic_owner");
-  const configuredLiveModels = [
-    ...(environment.OPENAI_ALLOWED_MODELS ?? "")
-      .split(",")
-      .map((model) => model.trim())
-      .filter(Boolean)
-      .map((model) => `openai/${model}`),
-    ...(environment.GOOGLE_ALLOWED_MODELS ?? "")
-      .split(",")
-      .map((model) => model.trim())
-      .filter(Boolean)
-      .map((model) => `google/${model}`),
-  ];
-  const allowedModels = new Set(providerMode === "fake" ? ["fake/fake-v1"] : configuredLiveModels);
+  const allowedModels = readAllowedModels(environment, providerMode);
   const modelPrices: ServerConfig["modelPrices"] = {};
   if (environment.MODEL_PRICES_JSON !== undefined) {
     const parsed: unknown = JSON.parse(environment.MODEL_PRICES_JSON);

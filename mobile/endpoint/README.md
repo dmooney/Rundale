@@ -29,8 +29,7 @@ file is exactly that publication, and the Endpoints suite checks its content
 hash: published versions are immutable, so a change ships as a new
 `<slug>.v<version>.json`. That is why its `inputSchema` description still names
 `parish_core::mobile::EndpointInvocation`, the pre-rename source of the shape;
-the engine now builds it with `EndpointCall::invocation`. The intent definition
-is new and not yet published; publishing from the files is #2042. Both target
+the engine now builds it with `EndpointCall::invocation`. Both target
 `google/gemini-3.5-flash-lite` with no retry. Dialogue allows 1,024 output
 tokens and streams the `dialogue` field; intent allows 256, as the desktop
 Intent profile does.
@@ -87,6 +86,21 @@ call's rendered prompt, so desktop provider requests are unchanged. The mobile
 host that sends these invocations is #2044.
 
 ## Publication and invocation notes
+
+The files are published, and the deployment checked against them, with the
+Endpoints definitions command
+([ADR 013](../../endpoints/docs/adr/013-publish-definitions-from-files.md)):
+
+```sh
+cd endpoints
+DATABASE_URL=... PROVIDER_MODE=live GOOGLE_ALLOWED_MODELS=gemini-3.5-flash-lite \
+  pnpm definitions verify <organization-slug> ../mods/rundale/endpoints
+```
+
+`verify` passes only when every file's content hash equals its published copy
+and every published version of these slugs has a file; `publish` adds the
+missing versions and writes nothing on any disagreement; `export` writes a
+published version that has no file into this directory.
 
 Publish each definition as an immutable Endpoint version and bind the Rundale
 Firebase App Check app ID to its organization and slug in the deployed Limerick
