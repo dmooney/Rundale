@@ -19,8 +19,9 @@ cargo test -p limerick-core --test mod_loading   # schema validation
 - **Keep JSON in the editor's on-disk format** (4-space indent). Editor round-trip tests re-save this mod and require identical bytes.
 - **`anachronisms.json` is consumed by `limerick-npc::anachronism`.** Adding a banned word/phrase requires checking the dialogue corpus doesn't already use it (would generate spurious flags).
 - **`prompts/` templates** are loaded by `limerick-core::prompts`. Variable names are case-sensitive — `{player_name}` not `{playerName}`.
+- **`endpoints/` holds Limerick Endpoint definitions**, declared in `mod.toml` `[endpoints]` and named `<slug>.v<version>.json`. A published version is immutable: change the file only as a new version, never in place. `rundale-intent`'s `instructions` must equal the engine intent prompt (test-enforced). See `mobile/endpoint/README.md`.
 - **`festivals.json` + `encounters.json`** trigger by date/location — coordinate names must exist in `world.json`.
 
 ## Files
 
-`mod.toml` manifest, `world-sheet.txt` canonical world sheet, `world.json` geography, `npcs.json` NPC catalog, `prompts/` templates, `loading.toml` boot config, `anachronisms.json`+`festivals.json`+`encounters.json`+`pronunciations.json`+`transport.toml`+`ui.toml` content.
+`mod.toml` manifest, `world-sheet.txt` canonical world sheet, `endpoints/` Endpoint definitions, `world.json` geography, `npcs.json` NPC catalog, `prompts/` templates, `loading.toml` boot config, `anachronisms.json`+`festivals.json`+`encounters.json`+`pronunciations.json`+`transport.toml`+`ui.toml` content.

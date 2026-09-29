@@ -51,7 +51,7 @@ use crate::game_loop::{
     AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
     handle_game_input_settled,
 };
-use crate::game_mod::PronunciationEntry;
+use crate::game_mod::{EndpointCatalog, PronunciationEntry};
 use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
 use crate::ipc::{GameConfig, StreamEndPayload, text_log};
 use crate::npc::reactions::ReactionTemplates;
@@ -334,6 +334,7 @@ struct AttemptEnv {
     cloud_client: Mutex<Option<AnyClient>>,
     inference_config: InferenceConfig,
     pronunciations: Vec<PronunciationEntry>,
+    endpoints: EndpointCatalog,
     language: LanguageSettings,
     inference_failure_messages: Vec<String>,
     idle_messages: Vec<String>,
@@ -352,6 +353,7 @@ impl AttemptEnv {
             emitter: self.candidate.emitter(),
             inference_config: &self.inference_config,
             pronunciations: &self.pronunciations,
+            endpoints: &self.endpoints,
             client: &self.client,
             cloud_client: &self.cloud_client,
             language: self.language.clone(),
@@ -956,6 +958,7 @@ impl TurnEngine {
             cloud_client: Mutex::new(None),
             inference_config: live.inference_config.clone(),
             pronunciations: live.pronunciations.to_vec(),
+            endpoints: live.endpoints.clone(),
             language: live.language.clone(),
             inference_failure_messages: live.inference_failure_messages.to_vec(),
             idle_messages: live.idle_messages.to_vec(),
@@ -1416,6 +1419,7 @@ mod tests {
             prompt: "greet the newcomer".to_string(),
             response: ResponseShape::Text,
             correlation_id: None,
+            endpoint: None,
         }
     }
 

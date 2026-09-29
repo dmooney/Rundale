@@ -273,11 +273,12 @@ line `recover` records against a request an earlier process left open.
 // limerick_core::turn_inference
 
 pub struct InferenceCall {
-    pub subrole: InferenceSubrole,   // existing limerick-config type; Intent | Dialogue | TravelEncounter | ArrivalReaction here
+    pub subrole: InferenceSubrole,   // limerick-config type; Intent | Dialogue | TravelEncounter | ArrivalReaction here
     pub system: Option<String>,
     pub prompt: String,
     pub response: ResponseShape,     // Text | IntentJson | NpcDialogue
     pub correlation_id: Option<u64>, // dialogue turn id, for queue and audit correlation
+    pub endpoint: Option<EndpointCall>, // endpoint_input::EndpointCall; intent and dialogue only (#2041)
 }
 
 pub enum ResponseShape { Text, IntentJson, NpcDialogue }
@@ -352,9 +353,19 @@ Option<Arc<dyn TurnInference>>` field fulfils it when set, otherwise it builds
   drive the engine with `drive_in_process(engine, live, input,
 &InProcessInference)`, which loops `AwaitingInference` → `resume`.
 
-Mobile Phase 3 adds an Endpoint reference (#2041) (role name and version) and structured inputs
-to `InferenceCall`, so an Endpoint host can execute the published definition.
-Mobile Phase 1 carries the rendered prompt, which is what desktop needs.
+The call also carries its published Endpoint (#2041, ADR-025 §5). The mod's
+manifest declares one definition file per role (`[endpoints]` in `mod.toml`,
+files named `<slug>.v<version>.json`, loaded by `limerick_mod::endpoints`), and
+`GameLoopContext::endpoints` holds the loaded catalog. Intent and dialogue calls
+set `endpoint` to an `EndpointCall` (`limerick_core::endpoint_input`): the
+reference (role, slug, version) and the role's structured input. The dialogue
+input is built from the same locked world state as the rendered prompt. Travel
+encounters and reactions have no Endpoint role and leave it `None`, as does a
+runtime with no mod. An Endpoint host sends
+`EndpointCall::invocation(&envelope)`, which adds the request identities it
+owns; `InProcessInference` ignores `endpoint` and sends `system` and `prompt`,
+so desktop provider requests are unchanged (`tests/endpoint_calls.rs` compares
+them over HTTP). The wire shape is documented in `mobile/endpoint/README.md`.
 
 Per-role failure policy is unchanged from desktop and shared by all hosts:
 

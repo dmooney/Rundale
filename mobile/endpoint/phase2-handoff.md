@@ -2,7 +2,9 @@
 
 ## Current agreement (2026-09-09)
 
-The repository contract is [rundale-dialogue-v1.json](rundale-dialogue-v1.json).
+The repository contract is
+[rundale-dialogue.v1.json](../../mods/rundale/endpoints/rundale-dialogue.v1.json),
+authored in the world's mod (see the [README](README.md)).
 The embedded `endpoints/` service implements its pinned streaming route and the
 shared Swift/Rust/TypeScript fixture freezes the public wire shape. The deployed
 origin is `https://parish-server-24861210203.us-east1.run.app`; organization
