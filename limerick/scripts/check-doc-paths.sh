@@ -22,15 +22,13 @@ cd "$(git rev-parse --show-toplevel)"
 
 ROOT_ALT='(limerick|crates|apps|docs|mods|testing|deploy|assets|scripts|\.agents|\.claude|\.codex)'
 
-# Source docs: docs/agent/*.md plus the repo-root agent files (CLAUDE.md is a
-# symlink to AGENTS.md so we deduplicate by checking it isn't a symlink).
+# Source docs: docs/agent/*.md plus the repo-root AGENTS.md.
 sources=()
 while IFS= read -r line; do
     sources+=("$line")
 done < <(
     find docs/agent -type f -name '*.md' 2>/dev/null
     [[ -f AGENTS.md ]] && echo AGENTS.md
-    [[ -f CLAUDE.md && ! -L CLAUDE.md ]] && echo CLAUDE.md
 )
 
 missing=0
