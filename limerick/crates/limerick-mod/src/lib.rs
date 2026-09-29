@@ -17,6 +17,8 @@ mod assets;
 
 pub(crate) mod discovery;
 
+pub mod endpoints;
+
 pub mod manifest;
 
 #[cfg(test)]
@@ -34,6 +36,12 @@ pub use types::*;
 
 // Re-export world bridge
 pub use world::world_state_from_mod;
+
+// Re-export Endpoint definition types
+pub use endpoints::{
+    EndpointCatalog, EndpointDefinition, EndpointFile, EndpointRef, EndpointRole, NO_ENDPOINTS,
+    endpoints_of,
+};
 
 // Re-export discovery items. `find_mods_root` is consumed by
 // `limerick_core::mod_source`, so it must be `pub` now that this loader lives in
@@ -76,6 +84,8 @@ pub struct GameMod {
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
     pub reactions: limerick_npc::reactions::ReactionTemplates,
+    /// Endpoint definitions declared in the manifest's `[endpoints]` table.
+    pub endpoints: EndpointCatalog,
 }
 
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
@@ -249,6 +259,17 @@ impl GameMod {
             limerick_npc::reactions::ReactionTemplates::default()
         };
 
+        // -- Endpoint definitions (optional) -----------------------------------
+        let load_endpoint = |role: EndpointRole, rel: &Option<String>| {
+            rel.as_deref()
+                .map(|rel| endpoints::load_definition(role, rel, read_text))
+                .transpose()
+        };
+        let endpoints = EndpointCatalog {
+            dialogue: load_endpoint(EndpointRole::Dialogue, &manifest.endpoints.dialogue)?,
+            intent: load_endpoint(EndpointRole::Intent, &manifest.endpoints.intent)?,
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -261,6 +282,7 @@ impl GameMod {
             pronunciations,
             transport,
             reactions,
+            endpoints,
         })
     }
 

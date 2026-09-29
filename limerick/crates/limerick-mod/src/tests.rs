@@ -948,3 +948,196 @@ tier2_system = "prompts/tier2_system.txt"
     assert_eq!(gm.player_language(), "en-IE");
     assert_eq!(gm.native_language(), Some("ga-IE"));
 }
+
+// ---------------------------------------------------------------------------
+// Endpoint definitions
+// ---------------------------------------------------------------------------
+
+const MINIMAL_DEFINITION: &str = r#"{
+    "inputSchema": {"type": "object"},
+    "outputSchema": {"type": "object"},
+    "instructions": "Answer.",
+    "providerConfig": {"provider": "fake", "model": "fake-model"},
+    "inferenceConfig": {"maxOutputTokens": 64, "retryCount": 0}
+}"#;
+
+/// The minimal test mod with an `[endpoints]` table and the given files.
+fn create_test_mod_with_endpoints(table: &str, files: &[(&str, &str)]) -> TempDir {
+    let tmp = create_test_mod();
+    let root = tmp.path();
+    for (rel, body) in files {
+        let path = root.join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, body).unwrap();
+    }
+    let manifest = fs::read_to_string(root.join("mod.toml")).unwrap();
+    fs::write(
+        root.join("mod.toml"),
+        format!("{manifest}\n[endpoints]\n{table}\n"),
+    )
+    .unwrap();
+    tmp
+}
+
+#[test]
+fn a_mod_without_endpoints_declares_none() {
+    let tmp = create_test_mod();
+    let game_mod = GameMod::load(tmp.path()).unwrap();
+    assert_eq!(game_mod.endpoints, EndpointCatalog::default());
+    assert!(
+        game_mod
+            .endpoints
+            .reference(EndpointRole::Dialogue)
+            .is_none()
+    );
+    assert_eq!(endpoints_of(&None), &NO_ENDPOINTS);
+}
+
+#[test]
+fn endpoint_identity_comes_from_the_file_name() {
+    let tmp = create_test_mod_with_endpoints(
+        r#"dialogue = "endpoints/test-dialogue.v3.json""#,
+        &[("endpoints/test-dialogue.v3.json", MINIMAL_DEFINITION)],
+    );
+    let game_mod = GameMod::load(tmp.path()).unwrap();
+    assert_eq!(
+        game_mod.endpoints.reference(EndpointRole::Dialogue),
+        Some(&EndpointRef {
+            role: EndpointRole::Dialogue,
+            slug: "test-dialogue".to_string(),
+            version: 3,
+        })
+    );
+    assert!(game_mod.endpoints.intent.is_none());
+    let file = game_mod.endpoints.dialogue.as_ref().unwrap();
+    assert_eq!(file.path, "endpoints/test-dialogue.v3.json");
+    assert_eq!(file.definition.instructions, "Answer.");
+    let game_mod = Some(game_mod);
+    assert_eq!(
+        endpoints_of(&game_mod)
+            .reference(EndpointRole::Dialogue)
+            .map(|reference| reference.version),
+        Some(3)
+    );
+}
+
+#[test]
+fn definition_file_names_must_carry_slug_and_version() {
+    for bad in [
+        "dialogue.json",
+        "Rundale-dialogue.v1.json",
+        "rundale-dialogue.v0.json",
+        "rundale-dialogue.v01.json",
+        "rundale-dialogue.vx.json",
+        "rundale--dialogue.v1.json",
+        "rundale-dialogue-.v1.json",
+        "-dialogue.v1.json",
+        "rundale-dialogue.v1.toml",
+    ] {
+        assert!(
+            endpoints::parse_definition_file_name(bad).is_err(),
+            "{bad} should be rejected"
+        );
+    }
+    assert_eq!(
+        endpoints::parse_definition_file_name("rundale-intent.v12.json").unwrap(),
+        ("rundale-intent".to_string(), 12)
+    );
+
+    let tmp = create_test_mod_with_endpoints(
+        r#"intent = "endpoints/intent.json""#,
+        &[("endpoints/intent.json", MINIMAL_DEFINITION)],
+    );
+    let err = GameMod::load(tmp.path()).unwrap_err().to_string();
+    assert!(err.contains("endpoints.intent"), "{err}");
+}
+
+#[test]
+fn malformed_definitions_are_rejected_at_load() {
+    let cases = [
+        (
+            "unknown field",
+            MINIMAL_DEFINITION.replace("\"instructions\"", "\"extra\": 1, \"instructions\""),
+        ),
+        (
+            "empty instructions",
+            MINIMAL_DEFINITION.replace("\"Answer.\"", "\"  \""),
+        ),
+        (
+            "retry count",
+            MINIMAL_DEFINITION.replace("\"retryCount\": 0", "\"retryCount\": 2"),
+        ),
+        (
+            "provider",
+            MINIMAL_DEFINITION.replace("\"fake\"", "\"anthropic\""),
+        ),
+        (
+            "streaming version",
+            MINIMAL_DEFINITION.replace(
+                "\"retryCount\": 0",
+                "\"retryCount\": 0, \"streaming\": {\"version\": 2, \"textField\": \"dialogue\"}",
+            ),
+        ),
+        (
+            "schema type",
+            MINIMAL_DEFINITION.replace(
+                "\"inputSchema\": {\"type\": \"object\"}",
+                "\"inputSchema\": []",
+            ),
+        ),
+    ];
+    for (label, body) in cases {
+        let tmp = create_test_mod_with_endpoints(
+            r#"dialogue = "endpoints/test-dialogue.v1.json""#,
+            &[("endpoints/test-dialogue.v1.json", body.as_str())],
+        );
+        let err = GameMod::load(tmp.path()).unwrap_err().to_string();
+        assert!(
+            err.contains("endpoints/test-dialogue.v1.json"),
+            "{label}: {err}"
+        );
+    }
+}
+
+#[test]
+fn unknown_endpoint_roles_are_rejected() {
+    let tmp = create_test_mod_with_endpoints(
+        r#"reaction = "endpoints/test-reaction.v1.json""#,
+        &[("endpoints/test-reaction.v1.json", MINIMAL_DEFINITION)],
+    );
+    let err = GameMod::load(tmp.path()).unwrap_err().to_string();
+    assert!(err.contains("reaction"), "{err}");
+}
+
+#[test]
+fn endpoint_paths_cannot_escape_the_mod_directory() {
+    let outer = TempDir::new().unwrap();
+    fs::write(outer.path().join("stolen.v1.json"), MINIMAL_DEFINITION).unwrap();
+    let inner = create_test_mod_with_endpoints(r#"dialogue = "../stolen.v1.json""#, &[]);
+    let mod_dir = outer.path().join("mod");
+    fs::rename(inner.path(), &mod_dir).unwrap();
+    let err = GameMod::load(&mod_dir).unwrap_err().to_string();
+    assert!(err.contains("escapes mod directory"), "{err}");
+}
+
+#[test]
+fn the_canonical_world_declares_dialogue_and_intent_endpoints() {
+    let mod_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let game_mod = GameMod::load(&mod_dir).unwrap();
+    let reference = |role| {
+        let reference = game_mod.endpoints.reference(role).expect("declared");
+        (reference.slug.as_str(), reference.version)
+    };
+    assert_eq!(reference(EndpointRole::Dialogue), ("rundale-dialogue", 1));
+    assert_eq!(reference(EndpointRole::Intent), ("rundale-intent", 1));
+    let dialogue = &game_mod.endpoints.dialogue.as_ref().unwrap().definition;
+    assert_eq!(
+        dialogue
+            .inference_config
+            .streaming
+            .as_ref()
+            .map(|streaming| streaming.text_field.as_str()),
+        Some("dialogue")
+    );
+}

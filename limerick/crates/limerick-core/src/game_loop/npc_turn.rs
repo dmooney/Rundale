@@ -164,6 +164,7 @@ pub async fn run_npc_turn(
 ) -> Option<TurnOutcome> {
     let (
         setup,
+        endpoint,
         person_guard_enabled,
         verbosity_guard_enabled,
         mood_sentence_cap_enabled,
@@ -240,8 +241,18 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
+        // Built from the same locked state as the prompt, so both describe
+        // one world snapshot.
+        let endpoint = crate::endpoint_input::dialogue_endpoint(
+            ctx.endpoints,
+            &world,
+            &npc_manager,
+            speaker_id,
+            prompt_input,
+        );
         (
             setup,
+            endpoint,
             person_guard,
             verbosity_guard,
             mood_sentence_cap,
@@ -297,6 +308,7 @@ pub async fn run_npc_turn(
             prompt: setup.context,
             response: ResponseShape::NpcDialogue,
             correlation_id: Some(req_id),
+            endpoint,
         })
         .await;
 
@@ -1199,6 +1211,7 @@ pub mod tests {
                 emitter: $emitter,
                 inference_config: $inference_config,
                 pronunciations: &[],
+                endpoints: &crate::game_mod::NO_ENDPOINTS,
                 client: $client,
                 cloud_client: $cloud_client,
                 language: crate::npc::LanguageSettings::english_only(),
@@ -1376,6 +1389,7 @@ pub mod tests {
             emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
             inference_config: &inference_config,
             pronunciations: &[],
+            endpoints: &crate::game_mod::NO_ENDPOINTS,
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
@@ -1473,6 +1487,7 @@ pub mod tests {
             emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
             inference_config: &inference_config,
             pronunciations: &[],
+            endpoints: &crate::game_mod::NO_ENDPOINTS,
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
@@ -1549,6 +1564,7 @@ pub mod tests {
             emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
             inference_config: &inference_config,
             pronunciations: &[],
+            endpoints: &crate::game_mod::NO_ENDPOINTS,
             client: &client,
             cloud_client: &cloud_client,
             language: crate::npc::LanguageSettings::english_only(),
@@ -1603,6 +1619,7 @@ pub mod tests {
                 emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
                 inference_config: &inference_config,
                 pronunciations: &[],
+                endpoints: &crate::game_mod::NO_ENDPOINTS,
                 client: &client,
                 cloud_client: &cloud_client,
                 language: crate::npc::LanguageSettings::english_only(),

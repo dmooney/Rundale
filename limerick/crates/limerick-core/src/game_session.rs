@@ -569,6 +569,7 @@ pub async fn enrich_travel_encounter_via(
             prompt: context,
             response: crate::turn_inference::ResponseShape::Text,
             correlation_id: None,
+            endpoint: None,
         })
         .await;
     match outcome.text() {
@@ -900,6 +901,7 @@ pub async fn stream_reaction_texts_via(
                     prompt: context.clone(),
                     response: ResponseShape::Text,
                     correlation_id: None,
+                    endpoint: None,
                 };
                 // The provider call and the paced token pump run concurrently;
                 // the host closes `tx` when the call ends.

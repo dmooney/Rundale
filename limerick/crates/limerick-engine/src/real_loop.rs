@@ -248,6 +248,12 @@ impl GameTestHarness {
             ),
             None => (Vec::new(), Vec::new(), Vec::new()),
         };
+        let endpoints = self
+            .app
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.endpoints.clone())
+            .unwrap_or_default();
         let config_snapshot = self.app.snapshot_config();
         let active_branch_id = self.app.active_branch_id;
         let db: LentDatabase = Arc::new(std::sync::Mutex::new(self.db_sync.take()));
@@ -308,6 +314,7 @@ impl GameTestHarness {
                     emitter: Arc::clone(&dyn_emitter),
                     inference_config: &inference_config,
                     pronunciations: &pronunciations,
+                    endpoints: &endpoints,
                     client: &client,
                     cloud_client: &cloud_client,
                     language,

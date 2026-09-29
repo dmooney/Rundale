@@ -339,3 +339,5 @@ bottom; don't lengthen items past 2-3 lines.
 ## Naming / mobile + Endpoints
 
 - **Product name is Limerick; geographic "parish" stays.** After #2007 the Swift/FFI/Endpoints product identifiers use `Limerick*` / `limerick_mobile_*` / `@limerick/*`. Leave Irish geography, ADR text, and cottage-d6dc9 revision URLs alone — those are intentional historical or world vocabulary, not the old engine name. The demo org slug is `limerick-demo`.
+- **A published Endpoint definition file is immutable, including rename sweeps.** `mods/rundale/endpoints/<slug>.v<version>.json` must keep the content hash of the version Limerick Endpoints published; the Parish-to-Limerick rename (9029b827d) edited one schema description and silently broke `rundale-dialogue` v1's hash until #2041. Change a published definition only as a new `.v<N+1>.json`; the Endpoints suite pins the published hash.
+- **`WorldGraph::location_ids()` comes from a `HashMap`, so its order changes per process.** Sort it before it reaches prompts or payloads; the dialogue prompt's `CURRENT AUTHORED FACTS` landmark lines varied between runs until #2041, which made request-body differentials flaky.

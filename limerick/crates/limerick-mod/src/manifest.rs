@@ -29,6 +29,23 @@ pub struct ModManifest {
     pub files: FileRefs,
     /// Relative paths to prompt template text files.
     pub prompts: PromptRefs,
+    /// Relative paths to Endpoint definition files, by role. Optional: a mod
+    /// without the table declares no Endpoints.
+    #[serde(default)]
+    pub endpoints: EndpointRefs,
+}
+
+/// Relative paths to Endpoint definition files (`<slug>.v<version>.json`),
+/// one per inference role.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndpointRefs {
+    /// NPC dialogue definition.
+    #[serde(default)]
+    pub dialogue: Option<String>,
+    /// Intent classification definition.
+    #[serde(default)]
+    pub intent: Option<String>,
 }
 
 /// Identity metadata for a mod.

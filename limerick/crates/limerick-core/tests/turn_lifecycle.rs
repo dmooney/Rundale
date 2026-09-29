@@ -87,6 +87,7 @@ impl Live {
             emitter: self.emitter.clone() as Arc<dyn EventEmitter>,
             inference_config: &self.inference_config,
             pronunciations: &[],
+            endpoints: &limerick_core::game_mod::NO_ENDPOINTS,
             client: &self.client,
             cloud_client: &self.cloud_client,
             language: limerick_core::npc::LanguageSettings::english_only(),

@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import type { EndpointVersionSnapshot } from "@limerick/domain";
+import {
+  definitionContentHash,
+  type EndpointDefinition,
+  type EndpointVersionSnapshot,
+} from "@limerick/domain";
 import { FixedPriceCostCalculator, StaticProviderRegistry } from "@limerick/providers";
 import { DeterministicRuntime, RuntimeError, type ModelProvider } from "@limerick/runtime";
 import { compileSchema } from "@limerick/schemas";
@@ -379,7 +383,7 @@ describe("mobile invocation authentication", () => {
 
     const definition = JSON.parse(
       await readFile(
-        new URL("../../../../mobile/endpoint/rundale-dialogue-v1.json", import.meta.url),
+        new URL("../../../../mods/rundale/endpoints/rundale-dialogue.v1.json", import.meta.url),
         "utf8",
       ),
     ) as { inputSchema: Record<string, unknown> };
@@ -393,6 +397,45 @@ describe("mobile invocation authentication", () => {
     expect(validate(input)).toBe(true);
     input.knownPeople = Array.from({ length: 33 }, () => structuredClone(input.speaker));
     expect(validate(input)).toBe(false);
+  });
+
+  it("keeps the published dialogue definition unchanged", async () => {
+    // rundale-dialogue version 1 was published from this content on
+    // 2026-09-09. Published versions are immutable: a change to the file
+    // must ship as a new <slug>.v<version>.json instead.
+    const definition = JSON.parse(
+      await readFile(
+        new URL("../../../../mods/rundale/endpoints/rundale-dialogue.v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as EndpointDefinition;
+    expect(definitionContentHash(definition)).toBe(
+      "sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1",
+    );
+  });
+
+  it("accepts the engine's intent invocation and rejects unknown fields", async () => {
+    const definition = JSON.parse(
+      await readFile(
+        new URL("../../../../mods/rundale/endpoints/rundale-intent.v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> };
+    const input = JSON.parse(
+      await readFile(
+        new URL("../../../../mobile/endpoint/example-intent-invocation.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const validateInput = compileSchema(definition.inputSchema);
+    expect(validateInput(input)).toBe(true);
+    expect(validateInput({ ...input, speaker: "Peig" })).toBe(false);
+    const validateOutput = compileSchema(definition.outputSchema);
+    expect(validateOutput({ intent: "move", target: "the Letter Office", dialogue: null })).toBe(
+      true,
+    );
+    expect(validateOutput({ intent: "fly", target: null })).toBe(false);
+    expect(validateOutput({ intent: "talk", extra: true })).toBe(false);
   });
 
   it("emits exactly one terminal error and records provider failure", async () => {

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::config::InferenceConfig;
-use crate::game_mod::PronunciationEntry;
+use crate::game_mod::{EndpointCatalog, PronunciationEntry};
 use crate::inference::{AnyClient, InferenceQueue};
 use crate::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
 use crate::npc::LanguageSettings;
@@ -48,6 +48,10 @@ pub struct GameLoopContext<'a> {
     pub inference_config: &'a InferenceConfig,
     /// Name pronunciation hints from the loaded game mod.
     pub pronunciations: &'a [PronunciationEntry],
+    /// Endpoint definitions from the loaded game mod; the intent and dialogue
+    /// calls carry their role's reference. [`crate::game_mod::NO_ENDPOINTS`]
+    /// when no mod is loaded.
+    pub endpoints: &'a EndpointCatalog,
     /// Base LLM client (None if no provider is configured).
     pub client: &'a Mutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
