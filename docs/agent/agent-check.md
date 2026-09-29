@@ -73,8 +73,6 @@ When the diff touches a runtime-shipping path — `limerick-tauri/**`, `limerick
 
 Accepted live signals: `mcp__limerick__*`, `mcp__claude-in-chrome__*`, the `/limerick-engine` skill (its `prove` / `play` / `demo` / `browser` modes), or a Bash invocation of `just demo` / `just play` / `just run` / `just run-headless` / `just web` / `cargo tauri dev` / `cargo run -p limerick-{engine,tauri,server,client}`.
 
-The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with the same matrix.
-
 ## Differential Proof
 
 `just prove-diff [SCENARIO] [--intended FILE]` runs the same scenarios on

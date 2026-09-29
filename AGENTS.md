@@ -12,7 +12,6 @@ Rundale is the game. Limerick is the Rust game engine.
 4. Read applicable directory-level instructions before editing.
 
 Append a concise learning when you discover a reusable, non-obvious trap.
-The `Stop--learnings-reminder` hook nudges this review after non-trivial sessions.
 Do not load every reference for every task.
 
 ## Current product direction
