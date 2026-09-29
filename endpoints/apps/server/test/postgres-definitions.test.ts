@@ -13,6 +13,7 @@ import {
   users,
 } from "@limerick/database";
 import {
+  parseDefinitionFile,
   planDefinitions,
   publishDefinitions,
   readDefinitionFiles,
@@ -115,5 +116,44 @@ suite("PostgreSQL Endpoint definition publishing", () => {
         : file,
     );
     expect(planDefinitions(edited, stored, allowedModels).problems).toHaveLength(1);
+
+    const intent = files.find((file) => file.slug === "rundale-intent")!;
+    const changed = parseDefinitionFile(
+      intent.fileName,
+      JSON.stringify({ ...intent.definition, instructions: "Classify the player's intent." }),
+    );
+    const replacedFiles = files.map((file) => (file === intent ? changed : file));
+    const replaced = await publishDefinitions(repository, principal, replacedFiles, allowedModels, {
+      replace: true,
+    });
+    expect(replaced.problems).toEqual([]);
+    expect(replaced.entries.find((entry) => entry.slug === "rundale-intent")!.action).toBe(
+      "replace",
+    );
+    const [intentEndpoint] = await database.db
+      .select()
+      .from(endpoints)
+      .where(and(eq(endpoints.organizationId, organizationId), eq(endpoints.slug, intent.slug)));
+    const version = await control.getVersion(organizationId, intentEndpoint!.id, intent.version);
+    expect(version).toMatchObject({
+      contentHash: changed.contentHash,
+      instructions: "Classify the player's intent.",
+    });
+    const versions = await control.listVersions(organizationId, intentEndpoint!.id);
+    expect(versions.map((row) => row.version)).toEqual([intent.version]);
+    const replacedAudit = await database.db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organizationId, organizationId),
+          eq(auditEvents.action, "endpoint.version.replaced"),
+        ),
+      );
+    expect(replacedAudit).toHaveLength(1);
+    expect(replacedAudit[0]!.metadata).toMatchObject({
+      previousContentHash: intent.contentHash,
+      contentHash: changed.contentHash,
+    });
   });
 });

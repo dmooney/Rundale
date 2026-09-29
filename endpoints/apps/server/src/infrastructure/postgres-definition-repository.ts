@@ -125,20 +125,84 @@ export class PostgresDefinitionRepository implements DefinitionPublishRepository
               .limit(1)
           : [inserted];
       if (row === undefined) throw new Error("Version did not resolve after insert.");
-      return {
-        id: row.id,
-        endpointId: row.endpointId,
-        organizationId: principal.organizationId,
-        version: row.version,
-        contentHash: row.contentHash,
-        inputSchema: row.inputSchema,
-        outputSchema: row.outputSchema,
-        instructions: row.instructions,
-        providerConfig: row.providerConfig,
-        inferenceConfig: row.inferenceConfig,
-        publishedBy: row.publishedBy,
-        publishedAt: row.publishedAt,
-      };
+      return snapshot(row, principal.organizationId);
     });
   }
+
+  async replaceFile(
+    principal: CreatorPrincipal,
+    file: DefinitionFile,
+  ): Promise<EndpointVersionSnapshot> {
+    return this.database.transaction(async (transaction) => {
+      const [endpoint] = await transaction
+        .select({ id: endpoints.id })
+        .from(endpoints)
+        .where(
+          and(
+            eq(endpoints.organizationId, principal.organizationId),
+            eq(endpoints.slug, file.slug),
+          ),
+        )
+        .limit(1);
+      if (endpoint === undefined) throw new Error(`${file.slug} is not published.`);
+      const [previous] = await transaction
+        .select({ id: endpointVersions.id, contentHash: endpointVersions.contentHash })
+        .from(endpointVersions)
+        .where(
+          and(
+            eq(endpointVersions.endpointId, endpoint.id),
+            eq(endpointVersions.version, file.version),
+          ),
+        )
+        .for("update")
+        .limit(1);
+      if (previous === undefined) throw new Error(`${file.slug}@${file.version} is not published.`);
+      const [row] = await transaction
+        .update(endpointVersions)
+        .set({
+          contentHash: file.contentHash,
+          ...file.definition,
+          publishedBy: principal.userId,
+          publishedAt: new Date(),
+        })
+        .where(eq(endpointVersions.id, previous.id))
+        .returning();
+      if (row === undefined) throw new Error("Version did not resolve after update.");
+      await transaction.insert(auditEvents).values({
+        organizationId: principal.organizationId,
+        actorUserId: principal.userId,
+        action: "endpoint.version.replaced",
+        resourceType: "endpoint_version",
+        resourceId: row.id,
+        metadata: {
+          endpointId: endpoint.id,
+          version: file.version,
+          previousContentHash: previous.contentHash,
+          contentHash: file.contentHash,
+          source: file.fileName,
+        },
+      });
+      return snapshot(row, principal.organizationId);
+    });
+  }
+}
+
+function snapshot(
+  row: typeof endpointVersions.$inferSelect,
+  organizationId: string,
+): EndpointVersionSnapshot {
+  return {
+    id: row.id,
+    endpointId: row.endpointId,
+    organizationId,
+    version: row.version,
+    contentHash: row.contentHash,
+    inputSchema: row.inputSchema,
+    outputSchema: row.outputSchema,
+    instructions: row.instructions,
+    providerConfig: row.providerConfig,
+    inferenceConfig: row.inferenceConfig,
+    publishedBy: row.publishedBy,
+    publishedAt: row.publishedAt,
+  };
 }

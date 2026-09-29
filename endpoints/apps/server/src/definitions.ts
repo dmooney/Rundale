@@ -12,18 +12,20 @@ import {
 import { PostgresDefinitionRepository } from "./infrastructure/postgres-definition-repository.js";
 import { PostgresCreatorIdentityRepository } from "./infrastructure/postgres-identity-repository.js";
 
-// Publishes Endpoint definition files as immutable versions of the owner's
-// organization and verifies the published copies against the files.
+// Publishes Endpoint definition files as versions of the owner's organization
+// and verifies the published copies against the files.
 //
 //   verify   report the plan; exit non-zero if anything disagrees or is unpublished
 //   publish  publish the files that have no version yet; write nothing on disagreement
+//   replace  publish, and overwrite published versions whose file changed (pre-release:
+//            definitions stay at v1 until the game ships, then change as new versions)
 //   export   write published versions that have no file into the directory
 
 const usage =
-  "Usage: pnpm definitions <verify|publish|export> <organization-slug> <definitions-directory>";
+  "Usage: pnpm definitions <verify|publish|replace|export> <organization-slug> <definitions-directory>";
 const [action, organizationSlug, suppliedDirectory] = process.argv.slice(2);
 if (
-  (action !== "verify" && action !== "publish" && action !== "export") ||
+  (action !== "verify" && action !== "publish" && action !== "replace" && action !== "export") ||
   organizationSlug === undefined ||
   suppliedDirectory === undefined
 ) {
@@ -68,14 +70,17 @@ try {
   const files = await readDefinitionFiles(directory);
   const slugs = [...new Set(files.map((file) => file.slug))];
 
-  if (action === "publish") {
-    const plan = await publishDefinitions(repository, principal, files, allowedModels);
+  if (action === "publish" || action === "replace") {
+    const plan = await publishDefinitions(repository, principal, files, allowedModels, {
+      replace: action === "replace",
+    });
     report(plan);
     if (plan.problems.length > 0) {
       process.exitCode = 1;
     } else {
+      const count = (kind: string) => plan.entries.filter((entry) => entry.action === kind).length;
       process.stdout.write(
-        `published ${plan.entries.filter((entry) => entry.action === "publish").length} version(s)\n`,
+        `published ${count("publish")} version(s), replaced ${count("replace")}\n`,
       );
     }
   } else {

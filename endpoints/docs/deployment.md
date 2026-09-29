@@ -49,7 +49,8 @@ not contain them, so run the definitions command from a Rundale checkout with a
 Cloud SQL Auth Proxy). Set `LIMERICK_OWNER_FIREBASE_UID`, `PROVIDER_MODE=live`,
 and the deployed `*_ALLOWED_MODELS` so new files are validated against the
 deployment's allowlist. Run `verify` first; `export` any published version it
-reports without a file and commit it; then `publish` and `verify` again, which
+reports without a file and commit it; then `publish` (before release,
+`replace`, which overwrites changed versions in place) and `verify` again, which
 must exit 0. After publishing a new version, add it to
 `MOBILE_APP_BINDINGS_JSON` before a client pins it.
 

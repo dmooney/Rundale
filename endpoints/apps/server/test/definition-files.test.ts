@@ -78,17 +78,31 @@ class MemoryDefinitionRepository implements DefinitionPublishRepository {
       this.rows.push(row);
       this.publishedFiles.push(input.fileName);
     }
-    return {
-      id: `${row.slug}@${row.version}`,
-      endpointId: row.slug,
-      organizationId: principal.organizationId,
-      version: row.version,
-      contentHash: row.contentHash,
-      ...row.definition,
-      publishedBy: principal.userId,
-      publishedAt: new Date(0),
-    } satisfies EndpointVersionSnapshot;
+    return snapshot(row);
   }
+
+  async replaceFile(_principal: CreatorPrincipal, input: DefinitionFile) {
+    const row = this.rows.find((r) => r.slug === input.slug && r.version === input.version)!;
+    row.contentHash = input.contentHash;
+    row.definition = input.definition;
+    this.replacedFiles.push(input.fileName);
+    return snapshot(row);
+  }
+
+  readonly replacedFiles: string[] = [];
+}
+
+function snapshot(row: PublishedDefinition): EndpointVersionSnapshot {
+  return {
+    id: `${row.slug}@${row.version}`,
+    endpointId: row.slug,
+    organizationId: principal.organizationId,
+    version: row.version,
+    contentHash: row.contentHash,
+    ...row.definition,
+    publishedBy: principal.userId,
+    publishedAt: new Date(0),
+  };
 }
 
 describe("Endpoint definition files", () => {
@@ -192,6 +206,45 @@ describe("Endpoint definition files", () => {
     expect(blocked.publishedFiles).toEqual([]);
   });
 
+  it("replaces a changed version in place before release", async () => {
+    const repository = new MemoryDefinitionRepository([published("a", 1)]);
+    const edited = file("a", 1, definition("Edited."));
+    const plan = await publishDefinitions(repository, principal, [edited, file("b", 1)], fake, {
+      replace: true,
+    });
+    expect(plan.problems).toEqual([]);
+    expect(plan.entries.map((entry) => [entry.slug, entry.action])).toEqual([
+      ["a", "replace"],
+      ["b", "publish"],
+    ]);
+    expect(repository.replacedFiles).toEqual(["a.v1.json"]);
+    expect(repository.publishedFiles).toEqual(["b.v1.json"]);
+    expect(repository.rows.find((row) => row.slug === "a")!.contentHash).toBe(edited.contentHash);
+    expect(planDefinitions([edited, file("b", 1)], repository.rows, fake).problems).toEqual([]);
+  });
+
+  it("still validates and still refuses unfiled or tampered rows when replacing", async () => {
+    const body = definition("Edited.");
+    body.providerConfig = { provider: "google", model: "not-allowed" };
+    const invalid = new MemoryDefinitionRepository([published("a", 1)]);
+    const rejected = await publishDefinitions(invalid, principal, [file("a", 1, body)], fake, {
+      replace: true,
+    });
+    expect(rejected.problems).toEqual(["a.v1.json: Model 'google/not-allowed' is not allowed."]);
+    expect(invalid.replacedFiles).toEqual([]);
+
+    const unfiled = new MemoryDefinitionRepository([published("a", 1), published("a", 2)]);
+    const blocked = await publishDefinitions(
+      unfiled,
+      principal,
+      [file("a", 1, definition("Edited."))],
+      fake,
+      { replace: true },
+    );
+    expect(blocked.problems).toHaveLength(1);
+    expect(unfiled.replacedFiles).toEqual([]);
+  });
+
   it("fails when a version was published concurrently with other content", async () => {
     const repository = new MemoryDefinitionRepository();
     repository.listPublished = async () => [];
@@ -220,9 +273,6 @@ describe("Endpoint definition files", () => {
     const plan = planDefinitions(files, [], new Set(["google/gemini-3.5-flash-lite"]));
     expect(plan.problems).toEqual([]);
     const dialogue = files.find((f) => f.slug === "rundale-dialogue" && f.version === 1)!;
-    expect(dialogue.contentHash).toBe(
-      "sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1",
-    );
     expect(dialogue.definition).toEqual(
       JSON.parse(await readFile(join(rundaleEndpoints, "rundale-dialogue.v1.json"), "utf8")),
     );

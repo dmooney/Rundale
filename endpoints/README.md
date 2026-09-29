@@ -65,13 +65,15 @@ against the `PROVIDER_MODE` and `*_ALLOWED_MODELS` allowlist:
 ```sh
 DATABASE_URL=... pnpm definitions verify limerick-demo ../mods/rundale/endpoints
 DATABASE_URL=... pnpm definitions publish limerick-demo ../mods/rundale/endpoints
+DATABASE_URL=... pnpm definitions replace limerick-demo ../mods/rundale/endpoints
 DATABASE_URL=... pnpm definitions export limerick-demo ../mods/rundale/endpoints
 ```
 
 `verify` exits non-zero unless every file matches its published copy by content
 hash and every published version of those slugs has a file. `publish` adds the
-missing versions and writes nothing if anything disagrees. `export` writes
-published versions that have no file.
+missing versions and writes nothing if anything disagrees. Before release,
+`replace` also overwrites changed versions in place, so definitions stay at v1.
+`export` writes published versions that have no file.
 
 The runtime also enforces organization and Endpoint switches, daily organization quotas, per-process rate limits, request and decoded-image limits, provider timeouts, model allowlists, output-token limits, and independently validates every successful output.
 

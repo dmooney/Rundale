@@ -46,6 +46,8 @@ export interface DefinitionPublishRepository {
    * version; if the version already exists, returns it unchanged.
    */
   publishFile(principal: CreatorPrincipal, file: DefinitionFile): Promise<EndpointVersionSnapshot>;
+  /** Overwrites an existing version's content with the file (pre-release only). */
+  replaceFile(principal: CreatorPrincipal, file: DefinitionFile): Promise<EndpointVersionSnapshot>;
 }
 
 export function definitionFileName(slug: string, version: number): string {
@@ -101,7 +103,7 @@ export async function readDefinitionFiles(directory: string): Promise<Definition
   return files.sort(compareVersions);
 }
 
-export type DefinitionAction = "unchanged" | "publish" | "differs";
+export type DefinitionAction = "unchanged" | "publish" | "replace" | "differs";
 
 export interface DefinitionPlanEntry {
   slug: string;
@@ -125,16 +127,25 @@ function compareVersions(
   return left.slug.localeCompare(right.slug) || left.version - right.version;
 }
 
+export interface DefinitionPlanOptions {
+  /**
+   * Before release, a changed file replaces its published version in place
+   * instead of being refused, so definitions stay at v1 until the game ships.
+   */
+  replace?: boolean;
+}
+
 /**
  * Compares the files with the published copies. A published version must
- * equal its file byte-for-byte in canonical form; a file with no published
- * version is to be published; a published version with no file is reported,
- * since the database may only hold copies of files.
+ * equal its file in canonical form, unless `replace` is set; a file with no
+ * published version is to be published; a published version with no file is
+ * reported, since the database may only hold copies of files.
  */
 export function planDefinitions(
   files: readonly DefinitionFile[],
   published: readonly PublishedDefinition[],
   allowedModels: ReadonlySet<string>,
+  options: DefinitionPlanOptions = {},
 ): DefinitionPlan {
   const problems: string[] = [];
   const entries: DefinitionPlanEntry[] = [];
@@ -150,23 +161,28 @@ export function planDefinitions(
   }
   for (const file of files) {
     const row = stored.get(key(file.slug, file.version));
-    if (row === undefined) {
+    const validate = () => {
       try {
         validateDefinition(file.definition, allowedModels);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         problems.push(`${file.fileName}: ${reason}`);
       }
+    };
+    if (row === undefined) {
+      validate();
       entries.push({ ...pick(file), action: "publish" });
-      continue;
-    }
-    const differs = row.contentHash !== file.contentHash;
-    if (differs) {
+    } else if (row.contentHash === file.contentHash) {
+      entries.push({ ...pick(file), action: "unchanged" });
+    } else if (options.replace === true) {
+      validate();
+      entries.push({ ...pick(file), action: "replace" });
+    } else {
       problems.push(
-        `${file.fileName}: published ${row.contentHash} differs from the file's ${file.contentHash}; published versions are immutable, so ship the change as a new version file.`,
+        `${file.fileName}: published ${row.contentHash} differs from the file's ${file.contentHash}; replace it in place before release, or ship the change as a new version file after.`,
       );
+      entries.push({ ...pick(file), action: "differs" });
     }
-    entries.push({ ...pick(file), action: differs ? "differs" : "unchanged" });
   }
   const filed = new Set(files.map((file) => key(file.slug, file.version)));
   const unfiled = published
@@ -185,28 +201,34 @@ function pick(file: DefinitionFile): Omit<DefinitionPlanEntry, "action"> {
 }
 
 /**
- * Publishes the files that have no published version, after the whole plan
- * checks out. Nothing is written when any file or published copy disagrees.
+ * Publishes the files that have no published version, and with `replace`
+ * overwrites changed ones, after the whole plan checks out. Nothing is
+ * written when any file or published copy disagrees.
  */
 export async function publishDefinitions(
   repository: DefinitionPublishRepository,
   principal: CreatorPrincipal,
   files: readonly DefinitionFile[],
   allowedModels: ReadonlySet<string>,
+  options: DefinitionPlanOptions = {},
 ): Promise<DefinitionPlan> {
   const slugs = [...new Set(files.map((file) => file.slug))];
   const plan = planDefinitions(
     files,
     await repository.listPublished(principal.organizationId, slugs),
     allowedModels,
+    options,
   );
   if (plan.problems.length > 0) return plan;
   for (const entry of plan.entries) {
-    if (entry.action !== "publish") continue;
+    if (entry.action !== "publish" && entry.action !== "replace") continue;
     const file = files.find(
       (candidate) => candidate.slug === entry.slug && candidate.version === entry.version,
     )!;
-    const version = await repository.publishFile(principal, file);
+    const version =
+      entry.action === "publish"
+        ? await repository.publishFile(principal, file)
+        : await repository.replaceFile(principal, file);
     if (version.contentHash !== file.contentHash) {
       throw new ControlError(
         "CONFLICT",

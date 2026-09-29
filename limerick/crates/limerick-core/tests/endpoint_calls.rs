@@ -179,7 +179,7 @@ fn the_intent_endpoint_instructions_are_the_engine_intent_prompt() {
         intent.definition.instructions,
         limerick_core::input::intent_system_prompt(),
         "the intent Endpoint must publish the engine's intent prompt verbatim; \
-         regenerate mods/rundale/endpoints/rundale-intent.v1.json after changing it"
+         regenerate mods/rundale/endpoints/rundale-intent.v1.json after changing it (before release, v1 is replaced in place)"
     );
 }
 
