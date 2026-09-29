@@ -837,9 +837,11 @@ pub fn dialogue_grounding_snapshot(
                 .map(|location| location.name.clone()),
         })
         .collect();
-    let location_facts: Vec<crate::npc::GroundedLocationFact> = world
-        .graph
-        .location_ids()
+    // The graph stores locations in a HashMap; sort so the prompt's fact
+    // lines keep one order across runs.
+    let mut location_ids = world.graph.location_ids();
+    location_ids.sort();
+    let location_facts: Vec<crate::npc::GroundedLocationFact> = location_ids
         .into_iter()
         .filter_map(|id| world.graph.get(id))
         .map(|location| {
