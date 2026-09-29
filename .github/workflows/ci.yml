@@ -49,6 +49,7 @@ jobs:
       runtime: ${{ steps.filter.outputs.runtime == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       differential: ${{ steps.filter.outputs.differential == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -87,6 +88,10 @@ jobs:
               - '.github/workflows/ci.yml'
             promptfoo:
               - 'promptfoo/**'
+              - '.github/workflows/ci.yml'
+            bench_site:
+              - 'promptfoo/bench-site/**'
+              - 'promptfoo/leaderboard/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
       # the Markdown sits inside a runtime directory (crates, mods, scripts).
@@ -250,6 +255,43 @@ jobs:
 
       - name: Run keyless promptfoo dialogue
         run: npm run test:keyless
+
+  # Builds the rundale-bench results site exactly as publish-bench-site.yml does
+  # (without deploying), so a dependency bump that breaks the site fails here
+  # instead of after merge.
+  bench-site-build:
+    name: Bench site build (astro check + build)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.bench_site == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: promptfoo/bench-site
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: promptfoo/bench-site/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
 
   shell-quality:
     name: Shell quality (shellcheck + shfmt)
@@ -426,6 +468,7 @@ jobs:
       [
         changes,
         agent-check,
+        bench-site-build,
         docs-consistency,
         format-quality,
         python-quality,
