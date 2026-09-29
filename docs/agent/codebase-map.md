@@ -2,14 +2,13 @@
 
 One-page navigation index for the repository. It lists checked-in top-level
 directories, the Limerick workspace roots, and local/generated directories agents
-are likely to see. Scoped instructions live in `AGENTS.md`; `CLAUDE.md` is a
-symlink where present.
+are likely to see. Scoped instructions live in `AGENTS.md`.
 
 ## Repository Layout
 
 | Path                                              | Purpose                                                                      | Entry / key file                        | Scope doc                                     |
 | ------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                  |
+| `AGENTS.md`                                       | Repo-wide agent instructions                                                 | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                  |
 | `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)      | -                                             |
 | `limerick/`                                       | Main Rust workspace and frontend workspace for the Limerick engine           | [Cargo.toml](../../limerick/Cargo.toml) | -                                             |
 | `limerick/crates/`                                | 24 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Limerick crates](#limerick-crates) | per crate                                     |
@@ -71,7 +70,7 @@ The Limerick workspace currently has 24 crates under `limerick/crates/`.
 | `limerick/crates/limerick-mcp/`         | MCP server bridging Claude/Codex to a running Limerick backend                                                                                                                                                    | `src/main.rs`, [README](../../limerick/crates/limerick-mcp/README.md)        | -                                                               |
 | `limerick/crates/limerick-geo-tool/`    | Geo CLI used by the `/rundale-geo-tool` skill                                                                                                                                                                     | `src/main.rs`                                                                | -                                                               |
 | `limerick/crates/limerick-npc-tool/`    | NPC editing and validation CLI                                                                                                                                                                                    | `src/main.rs`                                                                | -                                                               |
-| `limerick/crates/limerick-harness/`     | Game quality-control harness: LLM-driven N-turn playtests, gate+axes scoring, findings, SQLite telemetry                                                                                                          | `src/run/runner.rs`, `src/score/`, `src/client/`                             | `limerick/crates/limerick-harness/CLAUDE.md`                    |
+| `limerick/crates/limerick-harness/`     | Game quality-control harness: LLM-driven N-turn playtests, gate+axes scoring, findings, SQLite telemetry                                                                                                          | `src/run/runner.rs`, `src/score/`, `src/client/`                             | `limerick/crates/limerick-harness/AGENTS.md`                    |
 | `limerick/crates/limerick-scenario/`    | Versioned YAML scenario runner over the shipping game loop; deterministic inference mocks and machine assertions                                                                                                  | `src/lib.rs`, `src/main.rs`                                                  | [AGENTS.md](../../limerick/crates/limerick-scenario/AGENTS.md)  |
 
 ## Local / Generated Paths
@@ -117,5 +116,5 @@ git ls-files | cut -d/ -f1 | sort -u
 find limerick -maxdepth 1 -mindepth 1 -type d | sort
 find limerick/crates -maxdepth 1 -mindepth 1 -type d | sort
 find mods -maxdepth 1 -mindepth 1 -type d | sort
-git ls-files '*AGENTS.md' '*CLAUDE.md'
+git ls-files '*AGENTS.md'
 ```
