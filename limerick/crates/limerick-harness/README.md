@@ -8,7 +8,7 @@ deduped GitHub issues for the `/backlog` drain, and serves a live dashboard.
 It is a standalone tool (binary `limerick-harness`) that drives a **running** Limerick backend
 over HTTP. It never links the game runtime.
 
-> Agent-facing scope + hard rules live in [`CLAUDE.md`](./CLAUDE.md). Design of record:
+> Agent-facing scope + hard rules live in [`AGENTS.md`](./AGENTS.md). Design of record:
 > [`docs/design/game-quality-harness.md`](../../../docs/design/game-quality-harness.md);
 > full architecture: [`docs/design/game-quality-harness-architecture.md`](../../../docs/design/game-quality-harness-architecture.md).
 
