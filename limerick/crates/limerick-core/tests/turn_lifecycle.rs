@@ -1218,9 +1218,24 @@ async fn full_travel_suspends_for_encounter_and_arrival_reactions_and_commits_on
         .filter(|event| event.event.kind == TranscriptEventKind::SceneChanged)
         .collect();
     assert_eq!(scenes.len(), 1, "{:?}", kinds(&events));
+    // The scene is titled with the destination and carries its description
+    // in place of the logged arrival text, which also listed the exits.
     assert_eq!(
-        scenes[0].event.content.as_deref(),
-        Some(destination.as_str())
+        scenes[0].event.metadata.get("sceneName"),
+        Some(&destination)
+    );
+    let scene = scenes[0].event.content.as_deref().unwrap_or_default();
+    assert!(
+        !scene.is_empty() && !scene.contains("You can go to"),
+        "{scene}"
+    );
+    assert!(
+        !events.iter().any(|event| event
+            .event
+            .content
+            .as_deref()
+            .is_some_and(|text| text.contains("You can go to"))),
+        "no exits list is journaled on arrival"
     );
     assert!(
         events.iter().any(|event| event

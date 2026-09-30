@@ -147,7 +147,8 @@ final class RundaleEngineLifecycleTests: XCTestCase {
     func testRestoredAdapterSuppressesOpeningReplayAndInterruptsActiveAttempt() async throws {
         let first = try await Game.open(directory: directory)
         let opening = try XCTUnwrap(first.state.transcript.first)
-        XCTAssertEqual(opening.kind, .narration)
+        XCTAssertEqual(opening.kind, .sceneChanged)
+        XCTAssertEqual(opening.metadata["sceneName"], "Kilteevan Village")
         let (request, _) = try await first.talkToMicheal()
         try await first.close()
 
