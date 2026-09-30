@@ -14,6 +14,23 @@ Identify the device or simulator, build revision or working-tree state,
 verification results, and any pending gates. Do not present a simulator demo
 as physical-iPhone validation or a fixture as live gameplay.
 
+### Recordings
+
+A recording is for a person to watch, not for a test runner to pass. Pace it
+so each state can be read at normal speed:
+
+- Hold at least 3 seconds on the app after launch, before the first input.
+- After each result settles (a reply finishes streaming, a scene changes, a
+  Stop or error appears), hold long enough to read it: at least 3 seconds, and
+  about 1 second per line of new text.
+- Hold at least 5 seconds on the final state. Do not end on, or cut to, the
+  test runner, the home screen, or the app closing.
+- Do not speed up footage. Trim dead time between steps instead.
+
+A UI-test run (XCUITest) moves faster than a person can follow and tears the
+app down as soon as it passes. Add explicit holds in a demo run, or edit the
+footage to freeze on each settled state, before sharing it.
+
 An implementation preview may be demonstrated before acceptance is complete.
 Label it as an interim demo and keep the phase open until the full Exit
 Criteria and Definition of Done have been met.

@@ -119,7 +119,8 @@ commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
 Use conventional commits and one logical change per commit. PRs explain changed
 behavior, link requirements/issues, and list actual verification and remaining gates.
-For visible changes include appropriate visual and interaction evidence.
+For visible changes include appropriate visual and interaction evidence; pace
+recordings for a human viewer as the [phase demo plan](docs/product-specs/phase-demo-plan.md#recordings) describes.
 Follow [git workflow](docs/agent/git-workflow.md) and [proof requirements](docs/agent/agent-check.md).
 Keep the README, documentation, and canonical world sheet consistent with changes
 where applicable. Run `just notices` when dependencies change.
