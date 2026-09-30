@@ -124,6 +124,17 @@ final class EndpointKitTests: XCTestCase {
         XCTAssertEqual(try response.validatedDialogue(), "The rain has eased.")
     }
 
+    func testCompletedResponseAcceptsAnyJSONObjectOutput() async throws {
+        let body = Data(#"{"intent":"move","target":"Letter Office","dialogue":null,"atmosphere":null}"#.utf8)
+        let client = LimerickEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token")),
+            transport: CompletedMockTransport(status: 200, contentType: "application/json", body: body, delay: 0)
+        )
+        let response = try await client.complete(try completedRequest())
+        XCTAssertEqual(try response.validatedJSON()["intent"] as? String, "move")
+        XCTAssertThrowsError(try response.validatedDialogue())
+    }
+
     func testCompletedRequestUsesJSONHeadersAndCorrelation() async throws {
         let transport = RecordingCompletedTransport(response: Data(#"{"dialogue":"ok"}"#.utf8))
         let client = LimerickEndpointClient(
@@ -209,7 +220,7 @@ final class EndpointKitTests: XCTestCase {
                 _ = try await LimerickEndpointClient(
                     credentials: credentials,
                     transport: CompletedMockTransport(status: 200, contentType: "application/json", body: body, delay: 0)
-                ).complete(try completedRequest())
+                ).complete(try completedRequest()).validatedDialogue()
                 XCTFail("invalid dialogue output must be rejected")
             } catch {
                 XCTAssertEqual(error as? LimerickEndpointError, .malformedResponse("output does not match the dialogue schema"))

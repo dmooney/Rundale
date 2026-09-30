@@ -1160,16 +1160,18 @@ private struct Composer: View {
                 }
                 .accessibilityHint("Choose a nearby person to address without typing an at sign")
                 .accessibilityIdentifier("composer.people")
-                Button {
-                    model.browseCompletions("/")
-                    focused = true
-                } label: {
-                    shortcutLabel("Commands", systemImage: "list.bullet")
-                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
+                if model.offersCommands {
+                    Button {
+                        model.browseCompletions("/")
+                        focused = true
+                    } label: {
+                        shortcutLabel("Commands", systemImage: "list.bullet")
+                            .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityHint("Choose a command to put in the draft")
+                    .accessibilityIdentifier("composer.commands")
                 }
-                .accessibilityHint("Choose a command to put in the draft")
-                .accessibilityIdentifier("composer.commands")
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
                     Button {

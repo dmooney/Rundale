@@ -36,7 +36,9 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::BoxFuture;
-use super::ids::{ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision};
+use super::ids::{
+    ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision, TranscriptEventId,
+};
 use super::journal::{JournalError, TurnCommit, TurnJournal};
 use super::lifecycle::{
     ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
@@ -521,6 +523,30 @@ impl TurnEngine {
                     .find(|record| record.phase.is_open())
                     .map(|record| &record.id)
             })
+    }
+
+    /// Journals a narration line that belongs to no request, such as the
+    /// scene that opens a new game. `id` names the event: journaling the same
+    /// id and text again is a no-op that returns the stored event.
+    pub async fn narrate(
+        &self,
+        id: TranscriptEventId,
+        text: impl Into<String>,
+    ) -> Result<Vec<TranscriptEvent>, TurnError> {
+        let event = PendingEvent {
+            id,
+            request_id: None,
+            attempt_id: None,
+            item_id: None,
+            kind: TranscriptEventKind::Narration,
+            speaker: None,
+            content: Some(text.into()),
+            terminal_outcome: None,
+            state_revision: None,
+            clarification: None,
+            metadata: Default::default(),
+        };
+        Ok(self.journal.record(vec![event]).await?)
     }
 
     /// Accepts `input` as a new logical request and starts its first

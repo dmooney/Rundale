@@ -95,8 +95,8 @@ public struct FirebaseEndpointCredentialConfiguration: Equatable, Sendable {
 
     public init(
         googleServiceInfoURL: URL? = nil,
-        expectedGoogleAppID: String? = "1:24861210203:ios:2df6bf4ed8c4828253b17e",
-        expectedProjectID: String? = "cottage-d6dc9",
+        expectedGoogleAppID: String? = "1:877612517009:ios:586f98a2cc3e7d0c676130",
+        expectedProjectID: String? = "limerick-prod",
         expectedBundleID: String? = "com.rundale.mobile"
     ) {
         self.googleServiceInfoURL = googleServiceInfoURL

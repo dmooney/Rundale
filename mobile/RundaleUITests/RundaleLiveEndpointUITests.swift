@@ -15,16 +15,18 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     func test01LiveEndpointStreamsAValidatedTerminalDialogue() throws {
         try launch(reset: true)
         waitForInitialScene()
-        let sentAt = submit("ask Peig what she can tell me about this crossroads")
+        goToTheCottage()
+        let sentAt = submit("Mícheál, how are the cattle this week?")
 
+        // Free-form speech goes to rundale-intent v1, then rundale-dialogue v1.
         let completed = dialogueRow(inProgress: false)
-        XCTAssertTrue(completed.waitForExistence(timeout: 30), "Expected validated live dialogue")
+        XCTAssertTrue(completed.waitForExistence(timeout: 45), "Expected validated live dialogue")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(completed.label.contains("In progress"))
         let timing: [String: Any] = [
             "transport": "live-endpoint",
             "send_to_final_ui_seconds": Date().timeIntervalSince(sentAt),
-            "note": "Includes tap injection, authentication, network, model work, and UI polling; not isolated provider latency"
+            "note": "Includes tap injection, authentication, network, intent and dialogue model work, and UI polling; not isolated provider latency"
         ]
         let data = try JSONSerialization.data(withJSONObject: timing, options: [.prettyPrinted, .sortedKeys])
         let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
@@ -36,49 +38,68 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     func test02LiveEndpointStopCancelsWithoutCommittingLateDialogue() throws {
         try launch(reset: true)
         waitForInitialScene()
+        goToTheCottage()
+        _ = submit("Mícheál, how are the cattle this week?")
 
-        let input = commandInput
-        XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap()
-        input.typeText("ask Peig for a careful answer about this crossroads")
-        app.buttons["composer.send"].tap()
-
+        // Stop while the turn is in flight: the intent call, then the
+        // dialogue call, each take a moment against the deployed Endpoints.
         let stop = app.buttons["composer.stop"]
-        // The deployed Flash endpoint can finish in under a second. Query the
-        // already-rendered control immediately so this test exercises the
-        // in-flight cancellation path instead of racing the terminal frame.
-        guard stop.exists || stop.waitForExistence(timeout: 0.2) else {
-            throw XCTSkip("The live response completed before Stop could exercise cancellation")
+        guard stop.exists || stop.waitForExistence(timeout: 0.5) else {
+            throw XCTSkip("The live turn completed before Stop could exercise cancellation")
         }
+        let streamed = dialogueRow(inProgress: true).exists
         stop.tap()
 
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
-        XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
-        XCTAssertFalse(dialogueRow(inProgress: false).exists)
+        if streamed {
+            XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
+        }
+        // A reply the Endpoint finishes after Stop is ignored by the engine.
+        XCTAssertFalse(
+            dialogueRow(inProgress: false).waitForExistence(timeout: 8),
+            "A stopped turn must not commit a late reply"
+        )
+    }
+
+    /// Free-form movement the local parser does not recognise is classified
+    /// by rundale-intent v1; the engine then moves the player.
+    func test03LiveIntentEndpointClassifiesFreeFormMovement() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        _ = submit("Let's make for the Letter Office")
+        XCTAssertTrue(
+            waitForTranscriptText("A narrow counter, pigeonholes of folded paper", timeout: 45),
+            "Expected the Letter Office after the intent Endpoint classified the move"
+        )
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
     }
 
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
-            ?? "https://parish-server-24861210203.us-east1.run.app"
+            ?? "https://limerick-endpoints-877612517009.us-east1.run.app"
         app.launchArguments = ["--ui-tests", "--phase2", "--no-auto-focus"]
         if reset { app.launchArguments.append("--reset-fixture") }
         app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = baseURL
         app.launchEnvironment["RUNDALE_ENDPOINT_ORGANIZATION"] =
             environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "limerick-demo"
-        app.launchEnvironment["RUNDALE_ENDPOINT_SLUG"] =
-            environment["RUNDALE_LIVE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
-        app.launchEnvironment["RUNDALE_ENDPOINT_VERSION"] =
-            environment["RUNDALE_LIVE_ENDPOINT_VERSION"] ?? "1"
         if let debugToken = environment["AppCheckDebugToken"], !debugToken.isEmpty {
             app.launchEnvironment["AppCheckDebugToken"] = debugToken
         }
         app.launch()
     }
 
+    /// The engine's opening scene on the canonical world.
     private func waitForInitialScene() {
-        XCTAssertTrue(waitForTranscriptText("Morning gathers over Kilteevan", timeout: 8))
+        XCTAssertTrue(waitForTranscriptText("A muddy road runs between low stone walls", timeout: 15))
         XCTAssertTrue(app.otherElements["status.header"].waitForExistence(timeout: 3))
+    }
+
+    /// Mícheál and Róisín are at home all morning. The local parser handles
+    /// this, so no Endpoint call is made.
+    private func goToTheCottage() {
+        _ = submit("go to Connolly Cottage")
+        XCTAssertTrue(waitForTranscriptText("A peat fire warms the single room", timeout: 15))
     }
 
     private func submit(_ command: String) -> Date {
@@ -88,7 +109,8 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         input.typeText(command)
         let sentAt = Date()
         app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText(command, timeout: 8))
+        // Each test asserts what the command produced. The command row itself
+        // can scroll out of the lazy transcript under a long reply.
         return sentAt
     }
 

@@ -11,6 +11,11 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 # The shared engine in its portable configuration. There is no mobile-only
-# runtime: #2044 re-points this boundary at `limerick_core::turn::TurnEngine`.
+# runtime: the boundary drives `limerick_core::turn::TurnEngine`.
 limerick-core = { path = "../limerick-core", default-features = false, features = ["mobile"] }
 serde_json = { workspace = true }
+tokio = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -88,6 +88,13 @@ pub trait TurnJournal: Send + Sync {
         commit: TurnCommit,
     ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
 
+    /// Journals events that belong to no request, such as the narration that
+    /// opens a new game. Same atomicity and idempotence as every other write.
+    fn record(
+        &self,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
+
     /// Requests that are not terminal (for restart recovery).
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
 
@@ -117,6 +124,17 @@ enum WriteKind {
     Accept,
     Update,
     Commit { tasks: Vec<PlayerTask>, state: bool },
+}
+
+/// Events that name no request have no record to validate or store.
+pub(super) fn without_request(events: &[PendingEvent]) -> Result<(), JournalError> {
+    match events.iter().find(|event| event.request_id.is_some()) {
+        Some(event) => Err(JournalError::Storage(format!(
+            "event {} names a request; journal it with that request",
+            event.id
+        ))),
+        None => Ok(()),
+    }
 }
 
 impl MemoryTurnJournal {
@@ -190,7 +208,7 @@ impl MemoryTurnJournal {
         Ok(Self::append(
             &mut state,
             Some(commit.task_mutations),
-            commit.record,
+            Some(commit.record),
             commit.events,
         ))
     }
@@ -217,6 +235,11 @@ impl MemoryTurnJournal {
         if !accept && !known {
             return Err(JournalError::UnknownRequest(record.id.clone()));
         }
+        Self::validate_events(state, events)
+    }
+
+    /// Checks that no event reuses a stored id with different content.
+    fn validate_events(state: &MemoryState, events: &[PendingEvent]) -> Result<(), JournalError> {
         for event in events {
             if let Some(&index) = state.event_index.get(&event.id)
                 && state.events[index].event != *event
@@ -231,7 +254,7 @@ impl MemoryTurnJournal {
     fn append(
         state: &mut MemoryState,
         tasks: Option<Vec<PlayerTask>>,
-        record: RequestRecord,
+        record: Option<RequestRecord>,
         events: Vec<PendingEvent>,
     ) -> Vec<TranscriptEvent> {
         let mut next = state.events.last().map_or(1, |last| last.sequence.0 + 1);
@@ -254,12 +277,14 @@ impl MemoryTurnJournal {
         if let Some(tasks) = tasks {
             state.task_batches.push(tasks);
         }
-        let order = state.accepted_order.len();
-        state
-            .accepted_order
-            .entry(record.id.clone())
-            .or_insert(order);
-        state.requests.insert(record.id.clone(), record);
+        if let Some(record) = record {
+            let order = state.accepted_order.len();
+            state
+                .accepted_order
+                .entry(record.id.clone())
+                .or_insert(order);
+            state.requests.insert(record.id.clone(), record);
+        }
         stored
     }
 
@@ -282,7 +307,18 @@ impl MemoryTurnJournal {
             }
             WriteKind::Accept | WriteKind::Update => None,
         };
-        Ok(Self::append(&mut state, tasks, record, events))
+        Ok(Self::append(&mut state, tasks, Some(record), events))
+    }
+
+    fn write_unowned(
+        &self,
+        events: Vec<PendingEvent>,
+    ) -> Result<Vec<TranscriptEvent>, JournalError> {
+        without_request(&events)?;
+        let mut state = self.state.lock().expect("journal lock");
+        Self::inject_failure(&mut state)?;
+        Self::validate_events(&state, &events)?;
+        Ok(Self::append(&mut state, None, None, events))
     }
 }
 
@@ -317,6 +353,14 @@ impl TurnJournal for MemoryTurnJournal {
             commit.record,
             commit.events,
         );
+        Box::pin(async move { result })
+    }
+
+    fn record(
+        &self,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        let result = self.write_unowned(events);
         Box::pin(async move { result })
     }
 

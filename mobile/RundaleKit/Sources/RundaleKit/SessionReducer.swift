@@ -142,8 +142,10 @@ public struct SessionReducer: Sendable {
 
         // The adapter's cursor is the latest consumed sequence, so a unique
         // older callback is still acknowledged but cannot be appended after
-        // newer transcript content.
-        guard event.sequence.rawValue > state.eventCursor.rawValue else {
+        // newer transcript content. Provisional stream text is not journaled:
+        // it carries the durable cursor it was produced at and is ordered by
+        // its stream sequence below instead.
+        guard event.provisional || event.sequence.rawValue > state.eventCursor.rawValue else {
             acknowledge(event, in: &state)
             return .ignoredObsoleteEvent
         }
@@ -235,6 +237,8 @@ public struct SessionReducer: Sendable {
     private func acknowledge(_ event: SemanticEvent, in state: inout SessionState) {
         state.recordProcessedEvent(event.eventID)
         state.trimProcessedEvents(to: maxProcessedEventIDs)
+        // Monotonic: a provisional frame that carries the current durable
+        // cursor leaves it where it is.
         state.updateCursor(EventCursor(event.sequence.rawValue))
     }
 

@@ -25,9 +25,7 @@ and attaches each role's reference and structured input to the calls it makes
 Until the game is released, each definition stays at version 1: a change edits
 the `.v1.json` file and replaces the published copy in place (`pnpm definitions
 replace`). After release, published versions become immutable and a change
-ships as a new `<slug>.v<version>.json`. The dialogue file's `inputSchema`
-description still names `parish_core::mobile::EndpointInvocation`, the
-pre-rename source of the shape; the engine now builds it with
+ships as a new `<slug>.v<version>.json`. The engine builds each input with
 `EndpointCall::invocation`.
 
 Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
@@ -85,8 +83,11 @@ Streaming may expose only the top-level `dialogue` text projection; partial
 text is provisional and never changes game state.
 
 Desktop in-process inference ignores the Endpoint reference and sends the
-call's rendered prompt, so desktop provider requests are unchanged. The mobile
-host that sends these invocations is #2044.
+call's rendered prompt, so desktop provider requests are unchanged. The iPhone
+app is the Endpoint host: the FFI hands it each pending call's reference and
+`input` (`pending_endpoint`), and the app posts the request body to that
+version's `/stream` route (see the
+[FFI README](../../limerick/crates/limerick-mobile-ffi/README.md#inference)).
 
 ## Publication and invocation notes
 
@@ -141,3 +142,28 @@ between Swift, Rust, and TypeScript. The separate live evidence in
 [phase2-handoff.md](phase2-handoff.md) establishes publication, simulator
 Firebase/App Check, Google delivery, and Stop accounting; physical-iPhone App
 Attest remains unverified.
+
+## Live Endpoint suite
+
+`RundaleLiveEndpointUITests` plays the app against a deployed Limerick
+Endpoints service: a dialogue turn (`rundale-intent` v1, then
+`rundale-dialogue` v1), Stop during a streamed reply, and free-form movement
+classified by `rundale-intent` v1. It is opt-in and needs a Firebase App Check
+debug token registered for the Rundale iOS app. Against `limerick-prod`:
+
+```sh
+bash mobile/scripts/build-rust-mobile.sh
+xcodegen generate --spec mobile/project.yml
+TOKEN=$(endpoints/deploy/limerick-prod.sh appcheck-token create <name>)
+TEST_RUNNER_AppCheckDebugToken=$TOKEN \
+TEST_RUNNER_RUNDALE_LIVE_ENDPOINT_BASE_URL=https://limerick-endpoints-877612517009.us-east1.run.app \
+  xcodebuild -project mobile/Rundale.xcodeproj -scheme Rundale \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:RundaleUITests/RundaleLiveEndpointUITests test
+endpoints/deploy/limerick-prod.sh appcheck-token delete <name>
+```
+
+The base URL defaults to that `limerick-prod` origin and the organization to
+`limerick-demo` (`RUNDALE_LIVE_ENDPOINT_BASE_URL`,
+`RUNDALE_LIVE_ENDPOINT_ORGANIZATION` override them). The Firebase
+`GoogleService-Info.plist` is supplied privately and is ignored.

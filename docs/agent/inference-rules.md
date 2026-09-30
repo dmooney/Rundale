@@ -19,7 +19,8 @@ invented-place detection. Grounding quality is fixed through the Endpoint
 definition and model, not engine rewrites. Stop or a failed call leaves the
 partial text visibly uncommitted, with no state effects. Rule 37 still applies:
 only a successful terminal result is committed. Desktop keeps its guards
-unchanged.
+unchanged. The switch is the `dialogue-content-guards` flag
+(`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`), which the mobile host disables.
 
 <a id="rule-15"></a>
 

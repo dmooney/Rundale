@@ -288,6 +288,59 @@ pub(super) fn events(
     rows.collect::<Result<Vec<_>, _>>().db_err()
 }
 
+/// At most `limit` events of `branch_id` with a sequence above `after`, in
+/// sequence order.
+pub(super) fn events_page(
+    conn: &Connection,
+    branch_id: i64,
+    after: u64,
+    limit: usize,
+) -> Result<Vec<TranscriptEventRow>, LimerickError> {
+    let after = i64::try_from(after)
+        .map_err(|_| LimerickError::Database("event sequence out of range".into()))?;
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let mut stmt = conn
+        .prepare(
+            "SELECT sequence, event_id, branch_id, request_id, kind, event
+             FROM transcript_events
+             WHERE branch_id = ?1 AND sequence > ?2
+             ORDER BY sequence ASC
+             LIMIT ?3",
+        )
+        .db_err()?;
+    let rows = stmt
+        .query_map(params![branch_id, after, limit], event_row)
+        .db_err()?;
+    rows.collect::<Result<Vec<_>, _>>().db_err()
+}
+
+/// The newest `limit` events of `branch_id` with a sequence below `before`,
+/// in sequence order.
+pub(super) fn events_before(
+    conn: &Connection,
+    branch_id: i64,
+    before: u64,
+    limit: usize,
+) -> Result<Vec<TranscriptEventRow>, LimerickError> {
+    let before = i64::try_from(before).unwrap_or(i64::MAX);
+    let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+    let mut stmt = conn
+        .prepare(
+            "SELECT sequence, event_id, branch_id, request_id, kind, event
+             FROM transcript_events
+             WHERE branch_id = ?1 AND sequence < ?2
+             ORDER BY sequence DESC
+             LIMIT ?3",
+        )
+        .db_err()?;
+    let rows = stmt
+        .query_map(params![branch_id, before, limit], event_row)
+        .db_err()?;
+    let mut rows = rows.collect::<Result<Vec<_>, _>>().db_err()?;
+    rows.reverse();
+    Ok(rows)
+}
+
 fn sequence(raw: i64) -> Result<u64, LimerickError> {
     u64::try_from(raw).map_err(|_| LimerickError::Database("negative event sequence".into()))
 }

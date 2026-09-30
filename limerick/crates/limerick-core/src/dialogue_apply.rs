@@ -1039,7 +1039,11 @@ pub fn apply_npc_dialogue_turn_with_validation(
         .find(|e| e.speaker_id == speaker_id)
         .map(|e| e.npc_dialogue.clone());
     let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
-    let deduped_dialogue = if accepted_candidate {
+    // With the content guards off (the Endpoint path), the accepted reply is
+    // committed as the model wrote it: no repetition rewrite, display cap, or
+    // obligation fallback.
+    let content_guards = validation_policy.content_guards;
+    let deduped_dialogue = if accepted_candidate && content_guards {
         crate::npc::guard_against_repetition(
             &canonical_response.dialogue,
             previous_line.as_deref(),
@@ -1055,29 +1059,38 @@ pub fn apply_npc_dialogue_turn_with_validation(
         guard_reasons.push("canonical_repetition_guard".to_string());
     }
 
-    let capped_dialogue = cap_dialogue_for_display_with_trim(
-        &canonical_response.dialogue,
-        npc_cfg.dialogue_display_max_chars,
-        npc_cfg.dialogue_sentence_boundary_trim,
-    )
-    .into_owned();
+    let capped_dialogue = if content_guards {
+        cap_dialogue_for_display_with_trim(
+            &canonical_response.dialogue,
+            npc_cfg.dialogue_display_max_chars,
+            npc_cfg.dialogue_sentence_boundary_trim,
+        )
+        .into_owned()
+    } else {
+        canonical_response.dialogue.clone()
+    };
     let final_dialogue_was_capped = capped_dialogue != canonical_response.dialogue;
     if final_dialogue_was_capped {
         canonical_response.dialogue = capped_dialogue;
     }
-    if accepted_candidate && (candidate_requires_display_cap || final_dialogue_was_capped) {
+    if accepted_candidate
+        && content_guards
+        && (candidate_requires_display_cap || final_dialogue_was_capped)
+    {
         guard_reasons.push("display_cap".to_string());
     }
 
     // Recheck after repetition and display transforms. The final player-visible
     // text, not merely the originally accepted model candidate, must fulfill
     // every explicit current-turn facet before any metadata or state effect.
-    if !crate::npc::dialogue_fulfills_obligations(
-        &canonical_response.dialogue,
-        &grounding.dialogue_obligations,
-        player_input,
-        &grounding.work_roster,
-    ) {
+    if content_guards
+        && !crate::npc::dialogue_fulfills_obligations(
+            &canonical_response.dialogue,
+            &grounding.dialogue_obligations,
+            player_input,
+            &grounding.work_roster,
+        )
+    {
         canonical_response = crate::npc::NpcStreamResponse {
             dialogue: crate::npc::dialogue_obligation_fallback(
                 &grounding.dialogue_obligations,
