@@ -24,6 +24,8 @@ acceptance, and production remote inference uses Limerick Endpoints. The shorter
 case wording does not waive those requirements.
 
 Use [build/test](../agent/build-test.md) to distinguish existing commands from
-the required mobile verification entry point. Deterministic regression checks,
-opt-in real-inference integration, and physical-iPhone acceptance remain separate;
-passing one does not establish the others.
+the required mobile verification entry point. Swift lint/package/Xcode gates are
+documented in [swift-quality-gates.md](../agent/swift-quality-gates.md)
+(`just swift-quality`). Deterministic regression checks, opt-in real-inference
+integration, and physical-iPhone acceptance remain separate; passing one does
+not establish the others.

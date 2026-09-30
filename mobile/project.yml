@@ -43,6 +43,8 @@ targets:
         CURRENT_PROJECT_VERSION: "8"
         CODE_SIGN_ENTITLEMENTS: Rundale/Rundale.entitlements
         SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: Rundale/Info.plist
@@ -61,6 +63,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile.uitests
         SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: true
 
@@ -76,6 +80,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile.tests
         SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
         GENERATE_INFOPLIST_FILE: true
 
 schemes:
@@ -86,7 +92,9 @@ schemes:
         RundaleUITests: [test]
         RundaleTests: [test]
     test:
-      gatherCoverageData: false
+      # Coverage collection is on; the regression floor lives in
+      # mobile/coverage-baseline.json and must be measured on macOS (#2103).
+      gatherCoverageData: true
       targets:
         - name: RundaleUITests
           parallelizable: false

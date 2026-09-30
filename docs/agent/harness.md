@@ -44,6 +44,7 @@ CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths + repository-artifacts
         format/python/shell/toml quality
+        swift-quality         # macOS; mobile path filter — lint/format/packages/Xcode
         runtime-suite         # reusable full-ci.yml, runtime-change PRs only
         ci-gate               # stable required status; aggregates conditional runtime proof
 

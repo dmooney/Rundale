@@ -1,0 +1,25 @@
+# SwiftFormat configuration for the native Rundale client (#2103).
+# Pinned CLI version: mobile/tool-versions.toml
+#
+# Matches the existing hand-authored style: 4-space indent, Xcode-like wrapping,
+# and Swift 6 language mode. Prefer this tool for layout; SwiftLint owns smells.
+
+--swiftversion 6.0
+--indent 4
+--tabwidth 4
+--indentcase false
+--trimwhitespace always
+--emptybraces spaced
+--elseposition same-line
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--commas inline
+--semicolons never
+--header strip
+--self remove
+--importgrouping testable-bottom
+--stripunusedargs closure-only
+--disable blankLinesAtStartOfScope,blankLinesAtEndOfScope,wrapMultilineStatementBraces
+--exclude .build,DerivedData,RundaleKit/.build,RundaleBridge/.build,LimerickEndpointKit/.build,RundaleKit/.swiftpm,RundaleBridge/.swiftpm,LimerickEndpointKit/.swiftpm,Rundale.xcodeproj

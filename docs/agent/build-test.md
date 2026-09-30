@@ -6,18 +6,31 @@ The [product specs](../product-specs/README.md) define the required mobile gates
 The [Phase 1 and Phase 2 test plans](../test-plans/README.md) provide the companion
 case lists; they are test instructions, not completed verification reports.
 The technical vision requires a phase-selectable repository entry point such as
-`./verify --phase 1`, extended for Phase 2. At this reorganization (2026-09-07),
-this checkout has no root `./verify` or Swift/iOS project. These are implementation
-requirements, not commands this documentation change supplies or claims to pass.
-The existing `just verify` below runs the existing engine harness; it is not an
-equivalent iPhone acceptance gate.
+`./verify --phase 1`, extended for Phase 2. That phase runner is still tracked
+by [#2045](https://github.com/dmooney/Rundale/issues/2045) and is not present on
+`main` yet. The existing `just verify` below runs the existing engine harness;
+it is not an equivalent iPhone acceptance gate.
+
+The native Swift client lives under [`mobile/`](../../mobile/). Swift lint,
+format, package tests, and the macOS Xcode lane are documented in
+[swift-quality-gates.md](swift-quality-gates.md) and run via:
+
+```sh
+just swift-quality            # lint + format + RundaleKit/Bridge/EndpointKit tests
+just swift-quality-xcode      # also Rust FFI, app build, app-unit, deterministic UI
+```
+
+Reports distinguish `passed`, `failed`, `skipped`, and `unavailable`. Missing
+Swift tooling is `unavailable` (blocking for required gates), never a silent
+pass. Live Endpoint, performance, and soak suites stay opt-in. Physical-iPhone
+acceptance is recorded separately in [`mobile/acceptance.md`](../../mobile/acceptance.md);
+simulator and fixture success do not establish it.
 
 Phase 1 must report deterministic fixture/UI checks; Phase 2 adds portable Rust,
 persistence fault injection, binding contracts, device/simulator builds, and
-Endpoint protocol checks. Reports must distinguish pass, fail, skipped,
-unavailable, and human/device gates. Keep real-inference integration opt-in and
-separate from deterministic regression tests. Physical-iPhone interaction and
-VoiceOver judgment require recorded evidence, even when automated checks pass.
+Endpoint protocol checks. Keep real-inference integration opt-in and separate
+from deterministic regression tests. Physical-iPhone interaction and VoiceOver
+judgment require recorded evidence, even when automated checks pass.
 
 ## Existing engine and client commands
 
