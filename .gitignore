@@ -156,11 +156,9 @@ index.lock
 !/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 /mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
 !/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-/mobile/RundaleKit/.build/
-/mobile/RundaleKit/.swiftpm/
-/mobile/RundaleBridge/.build/
-/mobile/RundaleBridge/.swiftpm/
-/mobile/ParishEndpointKit/.build/
-/mobile/ParishEndpointKit/.swiftpm/
+# Every Swift package under mobile/ (RundaleKit, RundaleBridge,
+# LimerickEndpointKit, ...), so renames and new packages stay covered.
+/mobile/*/.build/
+/mobile/*/.swiftpm/
 # Firebase client configuration is supplied privately for local and CI builds.
 /mobile/Rundale/Resources/GoogleService-Info.plist
