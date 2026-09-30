@@ -34,7 +34,9 @@ The open request is `{"save_path": ..., "mod_dir": ...}`: the SQLite save and
 the world's mod directory (the app bundles `mods/rundale`). `OPEN_NEW` refuses
 a save that exists (`save_exists`); `OPEN_RESUME` continues the save, or starts
 a new game there when the file does not exist. A new game journals the opening
-scene (the engine's look text) as its first transcript event. Opening a save
+scene as its first transcript event: a `scene_changed` event titled by
+`metadata.sceneName`, whose content is the location's description and who is
+there (time of day and weather are the header's; exits are `/exits`'s). Opening a save
 restores the main branch's latest state, and a request an earlier process left
 open ends `Interrupted`, never re-run. A save the engine cannot read
 (ADR-025 §4) is moved aside unchanged (`<name>.refused-<unix seconds>.<ext>`,

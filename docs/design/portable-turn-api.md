@@ -404,7 +404,12 @@ pub enum TranscriptEventKind {
 Transcript events are projected from the committed wire emissions by one
 function, `project_emissions`. `text-log` payloads map by source and subtype;
 a completed `stream-turn-end` becomes `NpcDialogue`; a `world-update` with a new
-location becomes `SceneChanged`. A test enumerates every event name the
+location becomes `SceneChanged`. A scene event is titled by `metadata.sceneName`
+(with `sceneID`) and its content is the scene as a client with a status header
+shows it (`portable_look::render_scene`): the location's description without
+the template sentences that restate time or weather, then who is present. It
+replaces the attempt's logged arrival description, so exits are left to
+`/exits`. A new game's opening scene is journaled the same way. A test enumerates every event name the
 pipeline can emit and requires each to be either mapped or listed as
 presentation-only (`stream-token`, `travel-start`, `dialogue-quality`, and
 similar), so a new emission cannot silently bypass the transcript. The wire

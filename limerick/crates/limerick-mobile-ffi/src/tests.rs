@@ -184,11 +184,12 @@ impl Game {
     }
 
     /// Walks to Connolly Cottage, where Mícheál and Róisín are all morning.
-    fn go_to_the_cottage(&self) {
+    fn go_to_the_cottage(&self) -> Value {
         let moved = self.submit("go to Connolly Cottage");
         assert_eq!(moved["terminalOutcome"], "succeeded", "{moved}");
         let names = people(&self.snapshot());
         assert!(names.len() >= 2, "both Connollys are home: {names:?}");
+        moved
     }
 
     /// Answers intent calls until the attempt waits on a dialogue call, and
@@ -281,13 +282,15 @@ fn a_new_game_opens_on_the_journaled_opening_scene_and_resumes_without_repeating
     assert_eq!(opening["readModel"]["timeOfDay"], "Morning");
     let events = opening["events"].as_array().unwrap();
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0]["kind"], "narration");
+    assert_eq!(events[0]["kind"], "scene_changed");
+    assert_eq!(events[0]["metadata"]["sceneName"], "Kilteevan Village");
+    assert_eq!(events[0]["metadata"]["sceneID"], "1");
     let text = events[0]["content"].as_str().unwrap();
     assert!(
         text.starts_with("A muddy road runs between low stone walls"),
         "{text}"
     );
-    assert!(text.contains("You can go to: Letter Office"), "{text}");
+    assert_scene_body(text, &people(&opening));
 
     let (status, _, refused) = open_raw(
         limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
@@ -302,6 +305,48 @@ fn a_new_game_opens_on_the_journaled_opening_scene_and_resumes_without_repeating
         resumed["events"], opening["events"],
         "the opening is not journaled twice"
     );
+}
+
+/// A scene body is the standing description and who is present: the time of
+/// day, weather, and exits are the header's and `/exits`'s.
+fn assert_scene_body(text: &str, present: &[String]) {
+    for restated in ["It is morning", "weather is", "sky hangs", "You can go to"] {
+        assert!(!text.contains(restated), "{restated:?} in {text}");
+    }
+    let presence = match present {
+        [] => None,
+        [one] => Some(format!("{one} is here.")),
+        [rest @ .., last] => Some(format!("{} and {last} are here.", rest.join(", "))),
+    };
+    match presence {
+        None => assert!(!text.contains(" here."), "{text}"),
+        Some(line) => {
+            let line = limerick_core::ipc::capitalize_first(&line);
+            assert!(text.ends_with(&format!("\n\n{line}")), "{text}");
+        }
+    }
+}
+
+#[test]
+fn arriving_somewhere_shows_one_scene_with_its_name_description_and_who_is_there() {
+    let (game, _) = Game::new();
+    let moved = game.go_to_the_cottage();
+    let scenes = events_of_kind(&moved, "scene_changed");
+    assert_eq!(scenes.len(), 1, "{moved}");
+    let scene = scenes[0];
+    assert_eq!(scene["metadata"]["sceneName"], "Connolly Cottage");
+    assert_eq!(scene["metadata"]["sceneID"], "3");
+    let text = scene["content"].as_str().unwrap();
+    assert!(
+        text.starts_with("A peat fire warms the single room."),
+        "{text}"
+    );
+    assert_scene_body(text, &people(&game.snapshot()));
+    for narration in events_of_kind(&moved, "narration") {
+        let line = narration["content"].as_str().unwrap();
+        assert!(!line.contains("A peat fire"), "described twice: {moved}");
+        assert!(!line.contains("You can go to"), "exits listed: {moved}");
+    }
 }
 
 // Oracle: `successful_candidate_commits_one_exchange_and_retry_is_rejected`,

@@ -810,6 +810,9 @@ private struct TranscriptEntry: View {
 
     private var accessibilityLabel: String {
         var parts = [kindLabel]
+        if item.kind == .sceneChanged, let sceneName = item.metadata["sceneName"], !sceneName.isEmpty {
+            parts.append(sceneName)
+        }
         if let speaker = item.speaker, !speaker.isEmpty {
             parts.append(speaker)
         }
