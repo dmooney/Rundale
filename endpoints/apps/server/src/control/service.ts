@@ -35,7 +35,7 @@ export interface ControlServiceOptions {
   allowedModels: ReadonlySet<string>;
 }
 
-function validateDefinition(
+export function validateDefinition(
   definition: EndpointDefinition,
   allowedModels: ReadonlySet<string>,
 ): void {

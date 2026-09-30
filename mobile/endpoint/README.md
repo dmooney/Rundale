@@ -22,18 +22,20 @@ and attaches each role's reference and structured input to the calls it makes
 | Dialogue | [`rundale-dialogue.v1.json`](../../mods/rundale/endpoints/rundale-dialogue.v1.json) | `{ "dialogue": "..." }`, streamed as text          |
 | Intent   | [`rundale-intent.v1.json`](../../mods/rundale/endpoints/rundale-intent.v1.json)     | `{ "intent", "target", "dialogue", "atmosphere" }` |
 
-The dialogue definition is the one published as organization `limerick-demo`,
-slug `rundale-dialogue`, version `1` on 2026-09-09; its deployed content hash is
-`sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`. The
-file is exactly that publication, and the Endpoints suite checks its content
-hash: published versions are immutable, so a change ships as a new
-`<slug>.v<version>.json`. That is why its `inputSchema` description still names
-`parish_core::mobile::EndpointInvocation`, the pre-rename source of the shape;
-the engine now builds it with `EndpointCall::invocation`. The intent definition
-is new and not yet published; publishing from the files is #2042. Both target
-`google/gemini-3.5-flash-lite` with no retry. Dialogue allows 1,024 output
-tokens and streams the `dialogue` field; intent allows 256, as the desktop
-Intent profile does.
+Until the game is released, each definition stays at version 1: a change edits
+the `.v1.json` file and replaces the published copy in place (`pnpm definitions
+replace`). After release, published versions become immutable and a change
+ships as a new `<slug>.v<version>.json`. The dialogue file's `inputSchema`
+description still names `parish_core::mobile::EndpointInvocation`, the
+pre-rename source of the shape; the engine now builds it with
+`EndpointCall::invocation`.
+
+Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
+contract (acquired knowledge, player memory, task offers) was published to
+`limerick-prod` as v2 and has been removed; when the engine builds those fields,
+they land by replacing v1. Both files target `google/gemini-3.5-flash-lite` with no retry. Dialogue
+allows 1,024 output tokens and streams the `dialogue` field; intent allows 256,
+as the desktop Intent profile does.
 
 The intent definition's `instructions` are the engine's intent prompt
 (`limerick_input::intent_system_prompt()`) verbatim. A test fails if they drift;
@@ -88,7 +90,23 @@ host that sends these invocations is #2044.
 
 ## Publication and invocation notes
 
-Publish each definition as an immutable Endpoint version and bind the Rundale
+The files are published, and the deployment checked against them, with the
+Endpoints definitions command
+([ADR 013](../../endpoints/docs/adr/013-publish-definitions-from-files.md)):
+
+```sh
+cd endpoints
+DATABASE_URL=... PROVIDER_MODE=live GOOGLE_ALLOWED_MODELS=gemini-3.5-flash-lite \
+  pnpm definitions verify <organization-slug> ../mods/rundale/endpoints
+```
+
+`verify` passes only when every file's content hash equals its published copy
+and every published version of these slugs has a file; `publish` adds the
+missing versions and writes nothing on any disagreement; `replace` also
+overwrites changed versions in place (pre-release only); `export` writes a
+published version that has no file into this directory.
+
+Publish each definition as an Endpoint version and bind the Rundale
 Firebase App Check app ID to its organization and slug in the deployed Limerick
 Endpoints configuration. The mobile worker sends the engine's stable
 request and attempt identities as bounded correlation headers. The server
