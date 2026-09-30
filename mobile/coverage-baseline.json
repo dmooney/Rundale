@@ -1,0 +1,22 @@
+{
+  "schema": "rundale.swift-coverage-baseline.v1",
+  "status": "unmeasured",
+  "issue": 2103,
+  "policy": {
+    "collect_on_xcode_lane": true,
+    "invent_percentage": false,
+    "regression": "Once status is measured, fail required coverage-regression when line coverage drops by more than absolute_tolerance_pp from line_coverage_percent.",
+    "absolute_tolerance_pp": 1.0,
+    "notes": [
+      "Do not set line_coverage_percent until a real macOS Xcode run produces it.",
+      "Package test counts are inventory, not coverage.",
+      "Simulator coverage is not physical-device acceptance."
+    ]
+  },
+  "line_coverage_percent": null,
+  "function_coverage_percent": null,
+  "measured_at": null,
+  "source_revision": null,
+  "toolchain": null,
+  "result_bundle": null
+}

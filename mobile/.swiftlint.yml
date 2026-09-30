@@ -1,0 +1,71 @@
+# SwiftLint configuration for the native Rundale client (#2103).
+# Pinned CLI version: mobile/tool-versions.toml
+#
+# Exclusions below are intentional: generated SPM/Xcode build trees, private
+# Firebase config, and vendored binary frameworks are not hand-authored Swift.
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - joined_default_parameter
+  - last_where
+  - modifier_order
+  - overridden_super_call
+  - pattern_matching_keywords
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - yoda_condition
+
+disabled_rules:
+  # File length is useful locally but noisy for SwiftUI view files that keep
+  # related presentation logic together; revisit once views are split further.
+  - file_length
+  - type_body_length
+  - function_body_length
+  - line_length
+  # Prefer SwiftFormat for trailing-comma and indentation consistency.
+  - trailing_comma
+
+included:
+  - Rundale
+  - RundaleKit
+  - RundaleBridge
+  - LimerickEndpointKit
+  - RundaleTests
+  - RundaleUITests
+
+excluded:
+  - .build
+  - DerivedData
+  - RundaleKit/.build
+  - RundaleBridge/.build
+  - LimerickEndpointKit/.build
+  - RundaleKit/.swiftpm
+  - RundaleBridge/.swiftpm
+  - LimerickEndpointKit/.swiftpm
+  - Rundale.xcodeproj
+
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  excluded:
+    - id
+    - x
+    - y
+    - ok
+
+nesting:
+  type_level:
+    warning: 3
+
+reporter: xcode

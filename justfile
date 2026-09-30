@@ -92,6 +92,24 @@ attach-proof TASK_ID *ARGS:
 verify:
     cd limerick && just verify
 
+# Swift lint/format + RundaleKit, LimerickEndpointKit, RundaleBridge package tests.
+# macOS + Swift toolchain required; without them required gates report unavailable
+# and the recipe exits non-zero (never a silent pass). See docs/agent/swift-quality-gates.md.
+swift-quality:
+    python3 mobile/scripts/swift_quality.py --fast
+
+# Fast Swift lane plus Rust FFI, Xcode build, app-unit, and deterministic simulator UI.
+swift-quality-xcode:
+    python3 mobile/scripts/swift_quality.py --xcode --coverage
+
+# Install pinned SwiftLint / SwiftFormat (macOS Homebrew).
+swift-tools:
+    bash mobile/scripts/install-swift-tools.sh
+
+# Unit tests for the Swift quality runner (no Swift toolchain required).
+swift-quality-unit:
+    python3 -m unittest discover -s mobile/scripts -p 'test_swift_quality.py'
+
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
 train-rundale-dialect:
     uv run --project training python training/scripts/orchestrate.py

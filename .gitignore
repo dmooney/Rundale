@@ -147,6 +147,7 @@ index.lock
 # Native mobile generated projects and build products. The XcodeGen spec
 # (mobile/project.yml) and the pinned Swift package resolution are the inputs.
 /mobile/.build/
+/mobile/.verification/
 /mobile/DerivedData/
 /mobile/Rundale.xcodeproj/*
 !/mobile/Rundale.xcodeproj/project.xcworkspace/
@@ -160,6 +161,9 @@ index.lock
 /mobile/RundaleKit/.swiftpm/
 /mobile/RundaleBridge/.build/
 /mobile/RundaleBridge/.swiftpm/
+/mobile/LimerickEndpointKit/.build/
+/mobile/LimerickEndpointKit/.swiftpm/
+# Retired rename; keep ignored so leftover local trees stay out of git status.
 /mobile/ParishEndpointKit/.build/
 /mobile/ParishEndpointKit/.swiftpm/
 # Firebase client configuration is supplied privately for local and CI builds.

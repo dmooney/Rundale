@@ -20,8 +20,10 @@ The app builds and launches on the iOS Simulator. It does not play yet:
   deterministic presentation fixtures in `RundaleKit`, which exercise the UI
   without the engine.
 
-Verification tooling (`./verify`, release, UI recording) is #2045. Physical-device
-and TestFlight gates are #2046.
+Swift lint/format/package/Xcode quality gates are #2103
+([docs/agent/swift-quality-gates.md](../docs/agent/swift-quality-gates.md)).
+Phase verification tooling (`./verify`, release, UI recording) remains #2045.
+Physical-device and TestFlight gates remain #2046.
 
 ## Build and run
 
@@ -47,6 +49,28 @@ Firebase configuration file is supplied privately and is ignored.
 `RUNDALE_ENDPOINT_BASE_URL` configures the Endpoints origin; no production
 origin is baked into the app.
 
+## Quality gates (macOS)
+
+```sh
+bash mobile/scripts/install-swift-tools.sh   # pinned SwiftLint + SwiftFormat
+just swift-quality                           # lint, format check, three package suites
+just swift-quality-xcode                     # + FFI, Xcode build, app-unit, deterministic UI
+```
+
+Reports land under `mobile/.verification/swift-quality/` with separate
+`passed` / `failed` / `skipped` / `unavailable` counts. Live Endpoint,
+performance, and soak suites are opt-in and never implied by the fast lane.
+Physical-device evidence is recorded in [acceptance.md](acceptance.md).
+
+Compiler policy: Swift 6, complete strict concurrency, warnings as errors
+(see `project.yml`). Coverage collection is enabled; the regression baseline in
+`coverage-baseline.json` stays `unmeasured` until a real macOS Xcode run fills
+it in — do not invent a percentage.
+
+On Linux, `just swift-quality` exits non-zero with `unavailable` required gates
+rather than reporting a pass. GitHub-hosted macOS Actions are not required for
+this gate; use a local Mac, or later a self-hosted runner via `swift-ci.yml`.
+
 ## Layout
 
 - `Rundale`: SwiftUI rendering, native input, accessibility, and app lifecycle.
@@ -59,3 +83,4 @@ origin is baked into the app.
   `endpoints/` service tests read.
 - `RundaleTests` and `RundaleUITests`: app unit and UI tests. The engine-mode
   suites need #2044 to pass.
+- `scripts`: Rust FFI build, Swift quality runner, and tool install helpers.

@@ -1,0 +1,7 @@
+# Pinned Swift quality tooling for local checks and the macOS CI lane.
+# Install with: bash mobile/scripts/install-swift-tools.sh
+# Bump versions in a dedicated PR after verifying `just swift-quality` on macOS.
+
+[tools]
+swiftlint = "0.65.1"
+swiftformat = "0.63.0"

@@ -1,0 +1,87 @@
+# Swift / iOS quality gates for the native client (#2103).
+#
+# Not a required PR check on GitHub-hosted macOS runners (cost). Run locally
+# with `just swift-quality` / `just swift-quality-xcode`, or dispatch this
+# workflow on a self-hosted macOS runner when one is available. Does not
+# replace #2045 ./verify or #2046 device/TestFlight.
+
+name: Swift quality
+
+on:
+  workflow_dispatch:
+    inputs:
+      xcode_lane:
+        description: "Also run Rust FFI + Xcode app-unit + deterministic UI"
+        type: boolean
+        default: true
+
+concurrency:
+  group: swift-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swift-quality:
+    name: Swift lint, packages, and optional Xcode lane
+    # Prefer a self-hosted macOS runner when labelled; otherwise this job is
+    # only started by manual dispatch on whatever runner the org assigns.
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version || true
+          swift --version || true
+          swiftlint version || true
+          swiftformat --version || true
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          cache: false
+
+      - name: Add iOS Rust targets
+        run: |
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain "$channel"
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+          shared-key: swift-mobile-ffi
+
+      - name: Runner unit tests (no simulator)
+        run: python3 -m unittest discover -s mobile/scripts -p 'test_swift_quality.py'
+
+      - name: Fast Swift quality (lint, format, packages)
+        run: python3 mobile/scripts/swift_quality.py --fast
+
+      - name: Xcode app build, app-unit, deterministic UI, coverage collect
+        if: ${{ inputs.xcode_lane }}
+        run: |
+          set -euo pipefail
+          simulator="$(python3 mobile/scripts/pick-ios-simulator.py)"
+          echo "Using simulator $simulator"
+          python3 mobile/scripts/swift_quality.py \
+            --no-lint --no-format-check --no-packages \
+            --xcode --coverage \
+            --simulator "$simulator"
+
+      - name: Upload Swift quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-quality-report
+          path: |
+            mobile/.verification/swift-quality/
+          if-no-files-found: warn
+          retention-days: 14
