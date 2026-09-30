@@ -54,6 +54,14 @@ reports without a file and commit it; then `publish` (before release,
 must exit 0. After publishing a new version, add it to
 `MOBILE_APP_BINDINGS_JSON` before a client pins it.
 
+For `limerick-prod`, `endpoints/deploy/limerick-prod.sh` wraps this: it starts
+the Cloud SQL Auth Proxy, reads `DATABASE_URL` from Secret Manager without
+printing it, and takes the owner UID and allowed models from the live Cloud Run
+service. `limerick-prod.sh definitions <verify|publish|export|replace>` runs the
+command above; `limerick-prod.sh sql < query.sql` runs an operator query; and
+`limerick-prod.sh appcheck-token <create|delete> <name>` manages the App Check
+debug token the live Endpoint suite needs.
+
 ## Release verification
 
 1. Confirm `GET /health/live` and `GET /health/ready` return 200 on the generated server hostname.

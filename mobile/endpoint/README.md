@@ -7,7 +7,7 @@ per inference role, and the mod manifest declares them (ADR-025 §5):
 # mods/rundale/mod.toml
 [endpoints]
 dialogue = "endpoints/rundale-dialogue.v1.json"
-intent = "endpoints/rundale-intent.v2.json"
+intent = "endpoints/rundale-intent.v1.json"
 ```
 
 Each file is named `<slug>.v<version>.json`; the name is the Endpoint's
@@ -20,7 +20,7 @@ and attaches each role's reference and structured input to the calls it makes
 | Role     | File                                                                                | Output                                             |
 | -------- | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
 | Dialogue | [`rundale-dialogue.v1.json`](../../mods/rundale/endpoints/rundale-dialogue.v1.json) | `{ "dialogue": "..." }`, streamed as text          |
-| Intent   | [`rundale-intent.v2.json`](../../mods/rundale/endpoints/rundale-intent.v2.json)     | `{ "intent", "target", "dialogue", "atmosphere" }` |
+| Intent   | [`rundale-intent.v1.json`](../../mods/rundale/endpoints/rundale-intent.v1.json)     | `{ "intent", "target", "dialogue", "atmosphere" }` |
 
 Until the game is released, each definition stays at version 1: a change edits
 the `.v1.json` file and replaces the published copy in place (`pnpm definitions
@@ -30,11 +30,10 @@ description still names `parish_core::mobile::EndpointInvocation`, the
 pre-rename source of the shape; the engine now builds it with
 `EndpointCall::invocation`.
 
-`rundale-dialogue.v2.json` is exported from `limerick-prod`, where `ios-port`
-published it: the richer contract with acquired knowledge, player memory, and
-task offers, which the engine on `main` does not build. It is kept so the
-database holds only copies of files; the manifest does not select it. Both
-selected files target `google/gemini-3.5-flash-lite` with no retry. Dialogue
+Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
+contract (acquired knowledge, player memory, task offers) was published to
+`limerick-prod` as v2 and has been removed; when the engine builds those fields,
+they land by replacing v1. Both files target `google/gemini-3.5-flash-lite` with no retry. Dialogue
 allows 1,024 output tokens and streams the `dialogue` field; intent allows 256,
 as the desktop Intent profile does.
 
