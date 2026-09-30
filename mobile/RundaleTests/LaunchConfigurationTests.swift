@@ -8,18 +8,18 @@ final class LaunchConfigurationTests: XCTestCase {
             environment: [:],
             bundle: [
                 "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
-                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
-                "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
-                "RUNDALE_ENDPOINT_VERSION": "7"
+                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo"
             ]
         )
 
         XCTAssertEqual(configuration.endpointBaseURL?.absoluteString, "https://example.test")
         XCTAssertEqual(configuration.endpointOrganization, "limerick-demo")
-        XCTAssertEqual(configuration.endpointSlug, "rundale-dialogue")
-        XCTAssertEqual(configuration.endpointVersion, 7)
-        XCTAssertEqual(configuration.endpointURL?.absoluteString,
-                       "https://example.test/v1/endpoints/limerick-demo/rundale-dialogue/versions/7/stream")
+        // Each model call names its own Endpoint; the app supplies the origin
+        // and organization.
+        XCTAssertEqual(configuration.endpointURL(slug: "rundale-dialogue", version: 1)?.absoluteString,
+                       "https://example.test/v1/endpoints/limerick-demo/rundale-dialogue/versions/1/stream")
+        XCTAssertEqual(configuration.endpointURL(slug: "rundale-intent", version: 1, stream: false)?.absoluteString,
+                       "https://example.test/v1/endpoints/limerick-demo/rundale-intent/versions/1")
     }
 
     func testEnvironmentOverridesBundledEndpointConfiguration() {
@@ -27,29 +27,23 @@ final class LaunchConfigurationTests: XCTestCase {
             arguments: [],
             environment: [
                 "RUNDALE_ENDPOINT_BASE_URL": "http://localhost:8000",
-                "RUNDALE_ENDPOINT_ORGANIZATION": "test-org",
-                "RUNDALE_ENDPOINT_SLUG": "fixture-dialogue",
-                "RUNDALE_ENDPOINT_VERSION": "2"
+                "RUNDALE_ENDPOINT_ORGANIZATION": "test-org"
             ],
             bundle: [
                 "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
-                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
-                "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
-                "RUNDALE_ENDPOINT_VERSION": "7"
+                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo"
             ]
         )
 
         XCTAssertEqual(configuration.endpointBaseURL?.absoluteString, "http://localhost:8000")
         XCTAssertEqual(configuration.endpointOrganization, "test-org")
-        XCTAssertEqual(configuration.endpointSlug, "fixture-dialogue")
-        XCTAssertEqual(configuration.endpointVersion, 2)
     }
 
     func testMissingBundledEndpointRemainsUnconfigured() {
         let configuration = LaunchConfiguration(arguments: [], environment: [:], bundle: [:])
 
         XCTAssertNil(configuration.endpointBaseURL)
-        XCTAssertNil(configuration.endpointURL)
+        XCTAssertNil(configuration.endpointURL(slug: "rundale-dialogue", version: 1))
     }
 
     func testUITestingUsesAnIsolatedApplicationSupportDraftByDefault() {

@@ -21,7 +21,7 @@ use limerick_types::PlayerTask;
 
 use super::BoxFuture;
 use super::ids::{EventSequence, LogicalRequestId};
-use super::journal::{JournalError, TurnCommit, TurnJournal};
+use super::journal::{JournalError, TurnCommit, TurnJournal, without_request};
 use super::lifecycle::RequestRecord;
 use super::transcript::{PendingEvent, TranscriptEvent};
 use crate::error::LimerickError;
@@ -54,6 +54,8 @@ pub struct SqliteTurnJournal {
 enum Write {
     Accept,
     Update,
+    /// Events that belong to no request; the write has no record.
+    Record,
     Commit {
         tasks: Vec<PlayerTask>,
         state: Option<Box<GameSnapshot>>,
@@ -108,6 +110,47 @@ impl SqliteTurnJournal {
             .collect()
     }
 
+    /// At most `limit` events of the branch with a sequence above `after`,
+    /// in sequence order, and whether more follow. Blocking.
+    pub fn events_after(
+        &self,
+        after: u64,
+        limit: usize,
+    ) -> Result<(Vec<TranscriptEvent>, bool), JournalError> {
+        let db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut rows = db.transcript_events_page(self.branch_id, after, limit + 1)?;
+        let more = rows.len() > limit;
+        rows.truncate(limit);
+        Ok((
+            rows.into_iter()
+                .map(transcript_event)
+                .collect::<Result<_, _>>()?,
+            more,
+        ))
+    }
+
+    /// At most `limit` events of the branch with a sequence below `before`
+    /// (the newest of them), in sequence order, and whether older ones
+    /// remain. Blocking.
+    pub fn events_before(
+        &self,
+        before: u64,
+        limit: usize,
+    ) -> Result<(Vec<TranscriptEvent>, bool), JournalError> {
+        let db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut rows = db.transcript_events_before(self.branch_id, before, limit + 1)?;
+        let older = rows.len() > limit;
+        if older {
+            rows.remove(0);
+        }
+        Ok((
+            rows.into_iter()
+                .map(transcript_event)
+                .collect::<Result<_, _>>()?,
+            older,
+        ))
+    }
+
     /// The journaled record of `id` on this branch. Blocking.
     pub fn request(&self, id: &LogicalRequestId) -> Result<Option<RequestRecord>, JournalError> {
         let db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
@@ -146,13 +189,13 @@ impl SqliteTurnJournal {
     fn write(
         &self,
         kind: Write,
-        record: RequestRecord,
+        record: Option<RequestRecord>,
         events: Vec<PendingEvent>,
     ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
         let fail = Arc::clone(&self.fail_next_writes);
         self.run(move |db, branch_id| {
             db.turn_journal_transaction(|writer| {
-                let stored = write_in(writer, branch_id, kind, &record, events)?;
+                let stored = write_in(writer, branch_id, kind, record.as_ref(), events)?;
                 let injected = fail
                     .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
                         left.checked_sub(1)
@@ -173,18 +216,24 @@ fn write_in(
     writer: &TurnJournalWriter<'_>,
     branch_id: i64,
     kind: Write,
-    record: &RequestRecord,
+    record: Option<&RequestRecord>,
     events: Vec<PendingEvent>,
 ) -> Result<Vec<TranscriptEvent>, JournalError> {
-    let known = writer
-        .request(record.id.as_str())?
-        .filter(|row| matches!(kind, Write::Accept) || row.branch_id == branch_id);
-    match (&kind, known) {
-        (Write::Accept, Some(_)) => return Err(JournalError::DuplicateRequest(record.id.clone())),
-        (Write::Update | Write::Commit { .. }, None) => {
-            return Err(JournalError::UnknownRequest(record.id.clone()));
+    if let Some(record) = record {
+        let known = writer
+            .request(record.id.as_str())?
+            .filter(|row| matches!(kind, Write::Accept) || row.branch_id == branch_id);
+        match (&kind, known) {
+            (Write::Accept, Some(_)) => {
+                return Err(JournalError::DuplicateRequest(record.id.clone()));
+            }
+            (Write::Update | Write::Commit { .. }, None) => {
+                return Err(JournalError::UnknownRequest(record.id.clone()));
+            }
+            _ => {}
         }
-        _ => {}
+    } else {
+        without_request(&events)?;
     }
 
     let mut stored = Vec::with_capacity(events.len());
@@ -230,6 +279,9 @@ fn write_in(
         }
     }
 
+    let Some(record) = record else {
+        return Ok(stored);
+    };
     writer.put_request(&TurnRequestRow {
         request_id: record.id.as_str().to_string(),
         branch_id,
@@ -263,7 +315,7 @@ impl TurnJournal for SqliteTurnJournal {
         record: RequestRecord,
         events: Vec<PendingEvent>,
     ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
-        self.write(Write::Accept, record, events)
+        self.write(Write::Accept, Some(record), events)
     }
 
     fn update(
@@ -271,7 +323,7 @@ impl TurnJournal for SqliteTurnJournal {
         record: RequestRecord,
         events: Vec<PendingEvent>,
     ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
-        self.write(Write::Update, record, events)
+        self.write(Write::Update, Some(record), events)
     }
 
     fn commit(
@@ -283,9 +335,16 @@ impl TurnJournal for SqliteTurnJournal {
                 tasks: commit.task_mutations,
                 state: commit.state.map(Box::new),
             },
-            commit.record,
+            Some(commit.record),
             commit.events,
         )
+    }
+
+    fn record(
+        &self,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        self.write(Write::Record, None, events)
     }
 
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
@@ -370,6 +429,38 @@ mod tests {
             })
             .unwrap()
         })
+    }
+
+    #[tokio::test]
+    async fn event_pages_are_bounded_in_both_directions() {
+        let journal = in_memory();
+        for n in 0..5 {
+            let (record, command) = accepted(&format!("r{n}"));
+            journal.accept(record, vec![command]).await.unwrap();
+        }
+        let all: Vec<u64> = journal
+            .events()
+            .unwrap()
+            .iter()
+            .map(|e| e.sequence.0)
+            .collect();
+        let seqs = |events: &[TranscriptEvent]| -> Vec<u64> {
+            events.iter().map(|e| e.sequence.0).collect()
+        };
+
+        let (first, more) = journal.events_after(0, 2).unwrap();
+        assert_eq!(seqs(&first), all[..2]);
+        assert!(more);
+        let (rest, more) = journal.events_after(all[1], 10).unwrap();
+        assert_eq!(seqs(&rest), all[2..]);
+        assert!(!more);
+
+        let (newest, older) = journal.events_before(u64::MAX, 2).unwrap();
+        assert_eq!(seqs(&newest), all[3..]);
+        assert!(older);
+        let (oldest, older) = journal.events_before(all[3], 10).unwrap();
+        assert_eq!(seqs(&oldest), all[..3]);
+        assert!(!older);
     }
 
     #[tokio::test]

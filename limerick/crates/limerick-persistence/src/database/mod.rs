@@ -324,6 +324,28 @@ impl Database {
     ) -> Result<Vec<TranscriptEventRow>, LimerickError> {
         turn_journal::events(&self.conn, branch_id, after)
     }
+
+    /// At most `limit` transcript events of `branch_id` with a sequence
+    /// above `after`, in sequence order.
+    pub fn transcript_events_page(
+        &self,
+        branch_id: i64,
+        after: u64,
+        limit: usize,
+    ) -> Result<Vec<TranscriptEventRow>, LimerickError> {
+        turn_journal::events_page(&self.conn, branch_id, after, limit)
+    }
+
+    /// The newest `limit` transcript events of `branch_id` with a sequence
+    /// below `before`, in sequence order.
+    pub fn transcript_events_before(
+        &self,
+        branch_id: i64,
+        before: u64,
+        limit: usize,
+    ) -> Result<Vec<TranscriptEventRow>, LimerickError> {
+        turn_journal::events_before(&self.conn, branch_id, before, limit)
+    }
 }
 
 impl std::fmt::Debug for Database {

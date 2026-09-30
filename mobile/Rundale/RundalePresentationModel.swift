@@ -343,6 +343,10 @@ final class RundalePresentationModel: ObservableObject {
         }
     }
 
+    /// Whether the session offers any slash commands (the engine offers
+    /// none on the phone; the fixtures do).
+    var offersCommands: Bool { !session.suggestions(for: "/").isEmpty }
+
     func browseCompletions(_ trigger: String) {
         completionBrowser = completionBrowser == trigger ? nil : trigger
         completions = completionBrowser.map { query in

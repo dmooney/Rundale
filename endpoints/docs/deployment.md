@@ -40,6 +40,28 @@ continues to use the checked-in `pnpm db:migrate` command, which invokes `tsx`.
 5. Deploy `limerick-endpoints-web` (historically `parish-web` in cottage-d6dc9) from the image digest with `limerick-endpoints` (historically `parish-server` in cottage-d6dc9) as its API origin.
 6. Keep the previous healthy Cloud Run revisions available until release verification completes.
 
+## File-authored definitions
+
+Rundale's Endpoint definitions are files in its mod
+([ADR 013](adr/013-publish-definitions-from-files.md)). The server image does
+not contain them, so run the definitions command from a Rundale checkout with a
+`DATABASE_URL` reaching the deployment's database (for example through the
+Cloud SQL Auth Proxy). Set `LIMERICK_OWNER_FIREBASE_UID`, `PROVIDER_MODE=live`,
+and the deployed `*_ALLOWED_MODELS` so new files are validated against the
+deployment's allowlist. Run `verify` first; `export` any published version it
+reports without a file and commit it; then `publish` (before release,
+`replace`, which overwrites changed versions in place) and `verify` again, which
+must exit 0. After publishing a new version, add it to
+`MOBILE_APP_BINDINGS_JSON` before a client pins it.
+
+For `limerick-prod`, `endpoints/deploy/limerick-prod.sh` wraps this: it starts
+the Cloud SQL Auth Proxy, reads `DATABASE_URL` from Secret Manager without
+printing it, and takes the owner UID and allowed models from the live Cloud Run
+service. `limerick-prod.sh definitions <verify|publish|export|replace>` runs the
+command above; `limerick-prod.sh sql < query.sql` runs an operator query; and
+`limerick-prod.sh appcheck-token <create|delete> <name>` manages the App Check
+debug token the live Endpoint suite needs.
+
 ## Release verification
 
 1. Confirm `GET /health/live` and `GET /health/ready` return 200 on the generated server hostname.

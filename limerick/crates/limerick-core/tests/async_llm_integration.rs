@@ -384,6 +384,7 @@ async fn in_process_seam_streams_arrival_reaction_from_the_context_client() {
         emitter: Arc::new(CapturingEmitter::new()),
         inference_config: &inference_config,
         pronunciations: &[],
+        endpoints: &limerick_core::game_mod::NO_ENDPOINTS,
         client: &client_slot,
         cloud_client: &cloud_client,
         language: LanguageSettings::english_only(),

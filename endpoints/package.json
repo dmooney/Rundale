@@ -20,6 +20,7 @@
     "db:migrate": "pnpm --filter @limerick/database db:migrate",
     "db:seed": "pnpm --filter @limerick/database db:seed",
     "operator": "pnpm --filter @limerick/database operator",
+    "definitions": "pnpm --filter @limerick/server definitions",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {

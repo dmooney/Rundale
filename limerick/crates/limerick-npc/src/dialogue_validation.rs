@@ -239,10 +239,23 @@ pub fn render_dialogue_grounding_contract(snapshot: &DialogueGroundingSnapshot) 
     block
 }
 
+/// Feature flag that turns every dialogue content guard off, leaving only
+/// the structural response contract (a complete, non-empty JSON reply).
+///
+/// The mobile Endpoint path runs with it disabled: the Endpoint definition
+/// and model own grounding, and the engine commits the reply after
+/// structural checks only (owner decision 2026-09-28,
+/// `docs/agent/inference-rules.md`). Desktop keeps it on.
+pub const DIALOGUE_CONTENT_GUARDS_FLAG: &str = "dialogue-content-guards";
+
 /// Default-on semantic guard policy. Callers may preserve existing kill
-/// switches, but cannot bypass response-contract or anachronism rejection.
+/// switches, but cannot bypass response-contract rejection. With
+/// `content_guards` off, nothing but the response contract is checked.
 #[derive(Debug, Clone, Copy)]
 pub struct DialogueValidationPolicy {
+    /// Every content guard below and the always-on ones (anachronism,
+    /// grounding, register, obligations). Off only on the Endpoint path.
+    pub content_guards: bool,
     pub person_confirmation: bool,
     pub person_routing: bool,
     pub wrong_location: bool,
@@ -259,6 +272,7 @@ pub struct DialogueValidationPolicy {
 impl Default for DialogueValidationPolicy {
     fn default() -> Self {
         Self {
+            content_guards: true,
             person_confirmation: true,
             person_routing: true,
             wrong_location: true,
@@ -1121,6 +1135,15 @@ pub fn validate_dialogue_candidate(
         };
     }
 
+    if !policy.content_guards {
+        return DialogueValidationOutcome {
+            response: candidate.clone(),
+            contract_valid: true,
+            accepted: true,
+            guard_reasons: Vec::new(),
+        };
+    }
+
     if candidate_contains_forbidden_term(candidate, &snapshot.forbidden_output_terms) {
         return DialogueValidationOutcome {
             response: rejected_response(),
@@ -1345,6 +1368,59 @@ mod tests {
             ],
             ..Default::default()
         }
+    }
+
+    /// The Endpoint path (content guards off) accepts a well-formed reply as
+    /// written, even one the content guards would reject or rewrite; the
+    /// structural contract still applies.
+    #[test]
+    fn content_guards_off_checks_only_the_response_contract() {
+        let mut snap = snapshot();
+        snap.canonical_mood = "suspicious".to_string();
+        let candidate = NpcStreamResponse {
+            dialogue: "Good morning! The planning board meets at the chapel.".to_string(),
+            metadata: None,
+        };
+        let validate = |candidate: &NpcStreamResponse, disposition, policy| {
+            validate_dialogue_candidate(candidate, disposition, "hello", &snap, policy, 7)
+        };
+        let guarded = validate(
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            DialogueValidationPolicy::default(),
+        );
+        assert!(
+            !guarded.accepted,
+            "the anachronism is rejected with guards on"
+        );
+
+        let structural = DialogueValidationPolicy {
+            content_guards: false,
+            ..Default::default()
+        };
+        let accepted = validate(
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            structural,
+        );
+        assert!(accepted.accepted);
+        assert_eq!(accepted.response.dialogue, candidate.dialogue);
+        assert!(accepted.guard_reasons.is_empty());
+
+        let empty = NpcStreamResponse {
+            dialogue: "  ".to_string(),
+            metadata: None,
+        };
+        assert!(!validate(&empty, NpcResponseParseDisposition::FullJson, structural).accepted);
+        assert!(
+            !validate(
+                &candidate,
+                NpcResponseParseDisposition::RecoveredDialogue,
+                structural
+            )
+            .accepted,
+            "a reply that is not complete JSON fails the contract"
+        );
     }
 
     fn typed_snapshot() -> DialogueGroundingSnapshot {
