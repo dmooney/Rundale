@@ -106,6 +106,22 @@ so failing-gate behaviour cannot regress without a Mac. The optional workflow
 `workflow_dispatch` only and targets a **self-hosted** `macOS` runner when you
 add one later.
 
+### Later: self-hosted macOS runner
+
+When a machine is ready:
+
+1. Install the GitHub Actions runner and register it with labels `self-hosted` and
+   `macOS` (matches `runs-on: [self-hosted, macOS]` in `swift-ci.yml`).
+2. On that host: Xcode (app README baseline), XcodeGen, Rust from
+   `rust-toolchain.toml` plus the two `aarch64-apple-ios*` targets, and
+   `bash mobile/scripts/install-swift-tools.sh`.
+3. Dispatch **Swift quality** from the Actions UI (optional Xcode lane input).
+   Do not make it a required branch-protection check until you want that cost
+   and capacity deliberately.
+
+Until then, local `just swift-quality` is enough; the workflow will sit idle
+with no runner online and will not affect the required `CI gate`.
+
 Live Endpoint, performance, soak, and physical-device suites stay opt-in / human
 as in the matrix above.
 
