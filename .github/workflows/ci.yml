@@ -50,7 +50,6 @@ jobs:
       differential: ${{ steps.filter.outputs.differential == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
-      mobile: ${{ steps.filter.outputs.mobile == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -93,11 +92,6 @@ jobs:
             bench_site:
               - 'promptfoo/bench-site/**'
               - 'promptfoo/leaderboard/**'
-              - '.github/workflows/ci.yml'
-            mobile:
-              - 'mobile/**'
-              - 'docs/agent/swift-quality-gates.md'
-              - '.github/workflows/swift-ci.yml'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
       # the Markdown sits inside a runtime directory (crates, mods, scripts).
@@ -364,16 +358,6 @@ jobs:
     uses: ./.github/workflows/full-ci.yml
     secrets: inherit
 
-  swift-quality:
-    name: Swift quality suite
-    needs: changes
-    # Pull requests that touch mobile/** (or the Swift gate wiring) must run the
-    # macOS lane. Main/develop pushes keep the same backstop as other suites:
-    # the changes job reports mobile=true when the path filter is skipped.
-    if: github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true'
-    uses: ./.github/workflows/swift-ci.yml
-    secrets: inherit
-
   # Builds main and this PR, runs the same live scenario (limerick-server
   # against a scripted model server) and every --script fixture on both, and
   # fails on any difference the PR body does not declare in a
@@ -493,7 +477,6 @@ jobs:
         shell-quality,
         toml-quality,
         runtime-suite,
-        swift-quality,
         differential-proof,
       ]
     if: always()
@@ -514,6 +497,4 @@ jobs:
           RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
           DIFFERENTIAL_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true' }}
           DIFFERENTIAL_RESULT: ${{ needs.differential-proof.result }}
-          SWIFT_QUALITY_REQUIRED: ${{ github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true' }}
-          SWIFT_QUALITY_RESULT: ${{ needs.swift-quality.result }}
         run: bash .github/scripts/ci-gate.sh

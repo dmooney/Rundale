@@ -14,8 +14,6 @@ function runGate({
 	runtimeResult,
 	differentialRequired = 'false',
 	differentialResult = 'skipped',
-	swiftQualityRequired = 'false',
-	swiftQualityResult = 'skipped',
 }) {
 	return spawnSync('bash', [gate], {
 		encoding: 'utf8',
@@ -27,8 +25,6 @@ function runGate({
 			RUNTIME_SUITE_RESULT: runtimeResult,
 			DIFFERENTIAL_REQUIRED: differentialRequired,
 			DIFFERENTIAL_RESULT: differentialResult,
-			SWIFT_QUALITY_REQUIRED: swiftQualityRequired,
-			SWIFT_QUALITY_RESULT: swiftQualityResult,
 		},
 	});
 }
@@ -165,40 +161,6 @@ test('the differential proof must succeed when selected and be skipped otherwise
 			);
 			if (expectedStatus === 1) {
 				assert.match(result.stdout, /differential proof/);
-			}
-		});
-	}
-});
-
-test('the Swift quality suite must succeed when selected and be skipped otherwise', async (t) => {
-	const cases = [
-		['true', 'success', 0],
-		['true', 'skipped', 1],
-		['true', 'failure', 1],
-		['false', 'skipped', 0],
-		['false', 'success', 1],
-	];
-
-	for (const [
-		swiftQualityRequired,
-		swiftQualityResult,
-		expectedStatus,
-	] of cases) {
-		await t.test(`${swiftQualityRequired}/${swiftQualityResult}`, () => {
-			const result = runGate({
-				gatedResults: 'success skipped',
-				runtimeRequired: 'false',
-				runtimeResult: 'skipped',
-				swiftQualityRequired,
-				swiftQualityResult,
-			});
-			assert.equal(
-				result.status,
-				expectedStatus,
-				result.stdout + result.stderr,
-			);
-			if (expectedStatus === 1) {
-				assert.match(result.stdout, /Swift quality suite/);
 			}
 		});
 	}

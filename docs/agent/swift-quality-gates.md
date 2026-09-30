@@ -92,17 +92,22 @@ gates.
 
 ## CI
 
-Pull requests that touch `mobile/**` or the Swift quality workflow run the
-`swift-quality` job on `macos-15`. That job:
+GitHub-hosted macOS Actions are **not** required for this gate (cost). The
+authoritative fast path is local macOS:
 
-1. Installs the pinned SwiftLint / SwiftFormat versions when Homebrew provides them.
-2. Runs the fast lane (lint, format, three package suites).
-3. Builds the Rust mobile FFI, regenerates the Xcode project, and runs app-unit
-   plus deterministic simulator UI tests.
-4. Uploads logs / `.xcresult` artifacts on failure.
+```sh
+just swift-quality
+just swift-quality-xcode
+```
 
-The aggregate `CI gate` requires that job when the mobile path filter selects
-it, and requires it to be skipped otherwise.
+Linux CI still runs the quality-runner unit tests via pytest (`mobile/scripts`)
+so failing-gate behaviour cannot regress without a Mac. The optional workflow
+[`.github/workflows/swift-ci.yml`](../../.github/workflows/swift-ci.yml) is
+`workflow_dispatch` only and targets a **self-hosted** `macOS` runner when you
+add one later.
+
+Live Endpoint, performance, soak, and physical-device suites stay opt-in / human
+as in the matrix above.
 
 ## Failing-gate demonstration (Linux-safe)
 

@@ -44,9 +44,11 @@ CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths + repository-artifacts
         format/python/shell/toml quality
-        swift-quality         # macOS; mobile path filter — lint/format/packages/Xcode
         runtime-suite         # reusable full-ci.yml, runtime-change PRs only
         ci-gate               # stable required status; aggregates conditional runtime proof
+
+Swift quality (`just swift-quality`, optional self-hosted `swift-ci.yml`):
+        lint/format/package tests on a local Mac; not a GitHub-hosted macOS bill
 
 CI full suite (`full-ci.yml`, workflow_call / merge_group / main push / nightly / manual):
         rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)

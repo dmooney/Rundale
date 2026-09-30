@@ -1,14 +1,19 @@
 # Swift / iOS quality gates for the native client (#2103).
 #
-# Required when a pull request touches mobile/** or this workflow. Wired into
-# the aggregate CI gate as a conditional job (success when selected, skipped
-# otherwise). Does not replace #2045 ./verify or #2046 device/TestFlight.
+# Not a required PR check on GitHub-hosted macOS runners (cost). Run locally
+# with `just swift-quality` / `just swift-quality-xcode`, or dispatch this
+# workflow on a self-hosted macOS runner when one is available. Does not
+# replace #2045 ./verify or #2046 device/TestFlight.
 
 name: Swift quality
 
 on:
-  workflow_call:
   workflow_dispatch:
+    inputs:
+      xcode_lane:
+        description: "Also run Rust FFI + Xcode app-unit + deterministic UI"
+        type: boolean
+        default: true
 
 concurrency:
   group: swift-ci-${{ github.workflow }}-${{ github.ref }}
@@ -19,8 +24,10 @@ permissions:
 
 jobs:
   swift-quality:
-    name: Swift lint, packages, and Xcode lane
-    runs-on: macos-15
+    name: Swift lint, packages, and optional Xcode lane
+    # Prefer a self-hosted macOS runner when labelled; otherwise this job is
+    # only started by manual dispatch on whatever runner the org assigns.
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 120
     defaults:
       run:
@@ -29,11 +36,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Select Xcode
+      - name: Show toolchain
         run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          xcodebuild -version
-          swift --version
+          xcodebuild -version || true
+          swift --version || true
+          swiftlint version || true
+          swiftformat --version || true
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
@@ -51,18 +59,6 @@ jobs:
           workspaces: limerick -> target
           shared-key: swift-mobile-ffi
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Install pinned SwiftLint and SwiftFormat
-        run: |
-          set -euo pipefail
-          swiftlint_v="$(sed -n 's/^swiftlint *= *"\([^"]*\)".*/\1/p' mobile/tool-versions.toml | head -n1)"
-          swiftformat_v="$(sed -n 's/^swiftformat *= *"\([^"]*\)".*/\1/p' mobile/tool-versions.toml | head -n1)"
-          brew install swiftlint swiftformat
-          echo "pinned swiftlint=${swiftlint_v} installed=$(swiftlint version)"
-          echo "pinned swiftformat=${swiftformat_v} installed=$(swiftformat --version)"
-
       - name: Runner unit tests (no simulator)
         run: python3 -m unittest discover -s mobile/scripts -p 'test_swift_quality.py'
 
@@ -70,6 +66,7 @@ jobs:
         run: python3 mobile/scripts/swift_quality.py --fast
 
       - name: Xcode app build, app-unit, deterministic UI, coverage collect
+        if: ${{ inputs.xcode_lane }}
         run: |
           set -euo pipefail
           simulator="$(python3 mobile/scripts/pick-ios-simulator.py)"

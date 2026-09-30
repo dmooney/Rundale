@@ -44,16 +44,16 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, conditional reusable `swift-quality`, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
-- **Swift contract:** `swift-quality` calls `swift-ci.yml` for pull requests with `changes.mobile == true` (and on main/develop pushes). Missing Swift tooling must not report as a pass; see [swift-quality-gates.md](../../docs/agent/swift-quality-gates.md).
+- **Swift contract:** not a required GitHub-hosted macOS job. Local `just swift-quality` is the authoritative lane; `python-quality` still runs `mobile/scripts` unit tests on Linux. Optional self-hosted dispatch lives in `swift-ci.yml` — see [swift-quality-gates.md](../../docs/agent/swift-quality-gates.md).
 - **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
-### `swift-ci.yml` — Native Swift / Xcode lane
+### `swift-ci.yml` — Optional self-hosted Swift / Xcode lane
 
-- **Triggers:** reusable `workflow_call`, `workflow_dispatch`.
-- **Runner:** `macos-15`. Installs pinned SwiftLint/SwiftFormat, runs package tests for `RundaleKit`, `LimerickEndpointKit`, and `RundaleBridge`, builds the Rust mobile FFI, regenerates the Xcode project, and runs app-unit plus deterministic simulator UI tests (live/perf/soak excluded).
+- **Triggers:** `workflow_dispatch` only (not a required PR check; avoids GitHub-hosted macOS cost).
+- **Runner:** `[self-hosted, macOS]`. Runs package tests and optionally the Xcode app-unit + deterministic UI lane.
 - **Artifacts:** `mobile/.verification/swift-quality/` report and logs.
 - Does **not** claim physical-device acceptance (#2046) or replace phase `./verify` (#2045).
 

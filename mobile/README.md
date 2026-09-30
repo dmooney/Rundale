@@ -68,7 +68,8 @@ Compiler policy: Swift 6, complete strict concurrency, warnings as errors
 it in — do not invent a percentage.
 
 On Linux, `just swift-quality` exits non-zero with `unavailable` required gates
-rather than reporting a pass.
+rather than reporting a pass. GitHub-hosted macOS Actions are not required for
+this gate; use a local Mac, or later a self-hosted runner via `swift-ci.yml`.
 
 ## Layout
 
