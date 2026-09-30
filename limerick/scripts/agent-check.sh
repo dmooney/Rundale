@@ -158,6 +158,12 @@ is_runtime_path() {
         graphify-out/* | */graphify-out/*)
             return 1
             ;;
+        # Markdown under a runtime tree (mods/AGENTS.md, a mod README) is
+        # documentation, not shipped behavior. .txt stays runtime: mods ship
+        # prompt templates as .txt.
+        *.md)
+            return 1
+            ;;
         limerick/crates/limerick-tauri/* | \
             limerick/crates/limerick-server/* | \
             limerick/crates/limerick-engine/* | \
