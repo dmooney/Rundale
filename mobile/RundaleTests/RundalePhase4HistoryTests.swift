@@ -7,15 +7,21 @@ import RundaleKit
 /// Standalone bridge tests use C doubles, so they cannot establish this wiring.
 @MainActor
 final class RundalePhase4HistoryTests: XCTestCase {
-    /// These tests drive real turns through the linked library. Until the FFI
-    /// boundary is wired to the shared engine's turn API, it answers every
-    /// session request with `not_wired`, so the tests skip. Once #2044 lands
-    /// they run as written. Any other open failure still fails them.
-    override func setUp() async throws {
-        do {
-            try await LimerickRuntime.openNew().close()
-        } catch LimerickRuntimeError.notWired {
-            throw XCTSkip("The FFI boundary is not wired to the shared engine yet (#2044).")
+    /// The open payload for a save in `directory`, on the bundled world (or
+    /// `world`).
+    private func payload(_ directory: URL, world: URL? = nil) throws -> Data {
+        let mod = try world ?? XCTUnwrap(Bundle.main.url(forResource: "rundale", withExtension: nil, subdirectory: "Mods"))
+        return try JSONSerialization.data(withJSONObject: [
+            "save_path": directory.appendingPathComponent("phase2.sqlite").path,
+            "mod_dir": mod.path
+        ])
+    }
+
+    /// Plays `count` turns the local parser resolves, so no Endpoint is
+    /// involved.
+    private func seedLooks(_ runtime: LimerickRuntime, count: Int) async throws {
+        for _ in 0..<count {
+            _ = try await runtime.submit(text: "look", draftID: DraftID(), logicalRequestID: nil)
         }
     }
 
@@ -35,21 +41,37 @@ final class RundalePhase4HistoryTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("phase2.sqlite").path))
     }
 
-    func testClarificationSurvivesBeyondTheRetainedEventTail() async throws {
+    /// A question the engine asked survives relaunch (it is journaled with
+    /// its request, not only in the transcript tail), and answering it
+    /// continues the same request. New input would cancel the question
+    /// (portable-turn-api.md §5.1), so nothing is played in between.
+    func testPendingClarificationSurvivesRelaunchAndContinuesTheRequest() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("phase4-clarification-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let payload = try JSONSerialization.data(withJSONObject: [
-            "save_path": directory.appendingPathComponent("phase2.sqlite").path
-        ])
-        let seed = try LimerickRuntime.openResume(payload: payload)
-        _ = try await seed.submit(text: "/go Connolly Cottage", draftID: DraftID(), logicalRequestID: nil)
-        let request = try await seed.submit(text: "ask Connolly about the household", draftID: DraftID(), logicalRequestID: nil)
-        for _ in 0..<800 {
-            _ = try await seed.submit(text: "/look", draftID: DraftID(), logicalRequestID: nil)
+        // Róisín is a drover too in this copy of the world, so "Drover" is
+        // ambiguous in the cottage.
+        let world = directory.appendingPathComponent("rundale", isDirectory: true)
+        try FileManager.default.copyItem(
+            at: try XCTUnwrap(Bundle.main.url(forResource: "rundale", withExtension: nil, subdirectory: "Mods")), to: world
+        )
+        let npcs = world.appendingPathComponent("npcs.json")
+        try String(contentsOf: npcs, encoding: .utf8)
+            .replacingOccurrences(of: "Spinner and household bookkeeper", with: "Smallholder and cattle drover")
+            .write(to: npcs, atomically: true, encoding: .utf8)
+
+        let seed = try LimerickRuntime.openResume(payload: payload(directory, world: world))
+        _ = try await seed.submit(text: "go to Connolly Cottage", draftID: DraftID(), logicalRequestID: nil)
+        let request = try await seed.submit(text: "Drover, is it a good day for the fair?",
+                                            draftID: DraftID(), logicalRequestID: nil)
+        while let pending = try await seed.pendingInvocation(), pending.role == "intent" {
+            _ = try await seed.resolve(
+                pending, output: Data(#"{"intent":"talk","target":null,"dialogue":null,"atmosphere":null}"#.utf8)
+            )
         }
         try await seed.close()
+
         let controller = RundaleEngineController(configuration: LaunchConfiguration(
             arguments: ["--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus",
                         "--draft-file=\(directory.appendingPathComponent("projection.json").path)"],
@@ -60,8 +82,8 @@ final class RundalePhase4HistoryTests: XCTestCase {
         XCTAssertNil(controller.persistenceError, controller.persistenceDiagnostic ?? "")
         let clarification = try XCTUnwrap(controller.state.pendingClarification)
         XCTAssertEqual(clarification.requestID, request.logicalRequestID)
-        XCTAssertTrue(clarification.prompt.choices.contains { $0.id == "choose-npc-roisin" })
-        try await controller.answerClarification(choiceID: "choose-npc-roisin")
+        let roisin = try XCTUnwrap(clarification.prompt.choices.first { $0.entityID == "3" })
+        try await controller.answerClarification(choiceID: roisin.id)
         XCTAssertNil(controller.state.pendingClarification)
         try await waitUntil {
             controller.state.request(for: request.logicalRequestID)?.phase == .completed
@@ -76,13 +98,8 @@ final class RundalePhase4HistoryTests: XCTestCase {
             .appendingPathComponent("phase4-anchor-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let payload = try JSONSerialization.data(withJSONObject: [
-            "save_path": directory.appendingPathComponent("phase2.sqlite").path
-        ])
-        let seed = try LimerickRuntime.openResume(payload: payload)
-        for _ in 0..<400 {
-            _ = try await seed.submit(text: "/look", draftID: DraftID(), logicalRequestID: nil)
-        }
+        let seed = try LimerickRuntime.openResume(payload: payload(directory))
+        try await seedLooks(seed, count: 400)
         try await seed.close()
         let configuration = LaunchConfiguration(
             arguments: ["--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus",
@@ -124,12 +141,8 @@ final class RundalePhase4HistoryTests: XCTestCase {
             .appendingPathComponent("phase4-history-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let save = directory.appendingPathComponent("phase2.sqlite")
-        let payload = try JSONSerialization.data(withJSONObject: ["save_path": save.path])
-        let seed = try LimerickRuntime.openResume(payload: payload)
-        for _ in 0..<400 {
-            _ = try await seed.submit(text: "/look", draftID: DraftID(), logicalRequestID: nil)
-        }
+        let seed = try LimerickRuntime.openResume(payload: payload(directory))
+        try await seedLooks(seed, count: 400)
         try await seed.close()
 
         let controller = RundaleEngineController(configuration: LaunchConfiguration(
@@ -164,7 +177,7 @@ final class RundalePhase4HistoryTests: XCTestCase {
         )
         model.start()
         let previousStreamRevision = model.streamRevision
-        _ = try await controller.submit("/look")
+        _ = try await controller.submit("look")
         try await waitUntil { model.streamRevision > previousStreamRevision }
         XCTAssertEqual(controller.state.transcript.map(\.id), readingIDs,
                        "Live acceptance and completion must not displace the older window")

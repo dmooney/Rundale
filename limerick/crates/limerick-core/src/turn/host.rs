@@ -219,6 +219,13 @@ impl TurnJournal for UnsavedTurnJournal {
         self.memory.commit(commit)
     }
 
+    fn record(
+        &self,
+        events: Vec<PendingEvent>,
+    ) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>> {
+        self.memory.record(events)
+    }
+
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>> {
         self.memory.open_requests()
     }

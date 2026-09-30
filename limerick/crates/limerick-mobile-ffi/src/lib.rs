@@ -6,13 +6,12 @@
 //! Every response is a JSON envelope: `{"ok": true, "value": ...}` or
 //! `{"ok": false, "error": {"code": ..., "message": ...}}`.
 //!
-//! This crate keeps the boundary shape from the `ios-port` branch and links
-//! the shared engine (`limerick-core` with the `mobile` feature). It does not
-//! run gameplay yet: `ios-port`'s mobile-only runtime was not carried over
-//! (ADR-025), and wiring these entry points to the shared `TurnEngine` is
-//! #2044. Until then every session request answers with the structured
-//! `not_wired` error below, so the app can show an honest state instead of
-//! failing opaquely. Symbol names use the `limerick_mobile_*` / `LIMERICK_MOBILE_*` prefix.
+//! A session runs the shared turn API (`limerick_core::turn::TurnEngine`)
+//! over the save's journal; see [`session`]. The Swift host submits player
+//! input, fulfils each pending model call through Limerick Endpoints, and
+//! resumes the engine with the result, a failure, or Stop. The operations
+//! and their JSON are listed in `README.md`. Symbol names use the
+//! `limerick_mobile_*` / `LIMERICK_MOBILE_*` prefix.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(non_camel_case_types)]
@@ -21,22 +20,25 @@
 // without improving the checked contract.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use limerick_core::persistence::SAVE_FORMAT_VERSION;
-use serde_json::{Value, json};
+pub mod session;
+pub mod wire;
+
+use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::PathBuf;
 use std::ptr;
 use std::slice;
 use std::str;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+
+use limerick_core::turn_inference::InferenceFailureKind;
+use serde_json::{Map, Value, json};
+
+use session::{OpError, OpenMode, OpenOptions, Session};
 
 /// Largest request payload the boundary copies.
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
-
-/// Error code for requests the shared engine does not serve through this
-/// boundary yet. Swift maps it to a dedicated "not yet wired" state.
-pub const NOT_WIRED_CODE: &str = "not_wired";
-
-/// Issue that wires the boundary to the shared turn API.
-pub const NOT_WIRED_ISSUE: u32 = 2044;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +75,19 @@ pub enum limerick_mobile_open_kind_t {
 }
 
 pub type limerick_mobile_handle_t = u64;
+
+/// Open sessions by handle. Each session is serialized by its own lock; the
+/// Swift owner is an actor, so contention is only a safety net.
+fn sessions() -> &'static Mutex<HashMap<limerick_mobile_handle_t, Arc<Mutex<Session>>>> {
+    static SESSIONS: OnceLock<Mutex<HashMap<limerick_mobile_handle_t, Arc<Mutex<Session>>>>> =
+        OnceLock::new();
+    SESSIONS.get_or_init(Default::default)
+}
+
+fn next_handle() -> limerick_mobile_handle_t {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
 
 fn panic_contained<F>(function: F) -> limerick_mobile_status_t
 where
@@ -138,22 +153,9 @@ fn error_envelope(code: &str, message: &str) -> Vec<u8> {
     .unwrap_or_else(|_| b"{\"ok\":false,\"error\":{\"code\":\"internal_error\"}}".to_vec())
 }
 
-/// The envelope returned for every session request until #2044 lands. The
-/// `engine` object is read from the linked shared engine, so a caller can see
-/// which save format the engine it is linked against writes.
-fn not_wired_envelope(operation: &str) -> Vec<u8> {
-    serde_json::to_vec(&json!({
-        "ok": false,
-        "error": {
-            "code": NOT_WIRED_CODE,
-            "message": format!(
-                "`{operation}` is not yet wired to the shared Limerick engine (#{NOT_WIRED_ISSUE})."
-            ),
-            "issue": NOT_WIRED_ISSUE,
-            "engine": { "save_format_version": SAVE_FORMAT_VERSION },
-        }
-    }))
-    .unwrap_or_else(|_| error_envelope(NOT_WIRED_CODE, "not yet wired"))
+fn value_envelope(value: Value) -> Vec<u8> {
+    serde_json::to_vec(&json!({ "ok": true, "value": value }))
+        .unwrap_or_else(|_| error_envelope("internal_error", "response is not serializable"))
 }
 
 /// Writes `bytes` to a caller-owned output pointer that the caller has
@@ -172,8 +174,29 @@ fn fail(
     status
 }
 
+/// The status an operation error is reported with.
+fn op_status(error: &OpError) -> limerick_mobile_status_t {
+    match error.code {
+        "protocol_error" => limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
+        "internal_error" | "storage_error" | "content_unavailable" => {
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        }
+        // Rejections of a well-formed request (a request still open, a save
+        // that cannot be opened): the envelope's code says which.
+        _ => limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
+    }
+}
+
+fn fail_op(
+    out_response: *mut limerick_mobile_owned_bytes_t,
+    error: &OpError,
+) -> limerick_mobile_status_t {
+    publish(out_response, error_envelope(error.code, &error.message));
+    op_status(error)
+}
+
 /// Parses a request payload as a JSON object.
-fn json_object(request: &str, what: &str) -> Result<serde_json::Map<String, Value>, String> {
+fn json_object(request: &str, what: &str) -> Result<Map<String, Value>, String> {
     match serde_json::from_str::<Value>(request) {
         Ok(Value::Object(object)) => Ok(object),
         Ok(_) => Err(format!("{what} must be a JSON object")),
@@ -181,8 +204,126 @@ fn json_object(request: &str, what: &str) -> Result<serde_json::Map<String, Valu
     }
 }
 
-/// Opens a session. Until #2044 this validates the request and then answers
-/// `not_wired` with a zero handle; no session is created.
+fn string_field(object: &Map<String, Value>, field: &str) -> Result<String, OpError> {
+    object
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| OpError::new("protocol_error", format!("`{field}` must be a string")))
+}
+
+fn optional_string(object: &Map<String, Value>, field: &str) -> Result<Option<String>, OpError> {
+    match object.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value.clone())),
+        Some(_) => Err(OpError::new(
+            "protocol_error",
+            format!("`{field}` must be a string"),
+        )),
+    }
+}
+
+/// A sequence, revision, or cursor: a number or `{"rawValue": n}`.
+fn raw_number(object: &Map<String, Value>, field: &str) -> Result<Option<u64>, OpError> {
+    let value = match object.get(field) {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::Object(inner)) => inner.get("rawValue"),
+        Some(other) => Some(other),
+    };
+    value
+        .and_then(Value::as_u64)
+        .map(Some)
+        .ok_or_else(|| OpError::new("protocol_error", format!("`{field}` must be a number")))
+}
+
+fn required_number(object: &Map<String, Value>, field: &str) -> Result<u64, OpError> {
+    raw_number(object, field)?
+        .ok_or_else(|| OpError::new("protocol_error", format!("`{field}` is required")))
+}
+
+fn limit(object: &Map<String, Value>) -> Result<usize, OpError> {
+    match raw_number(object, "limit")? {
+        None => Ok(session::MAX_PAGE),
+        Some(limit) if (1..=session::MAX_PAGE as u64).contains(&limit) => Ok(limit as usize),
+        Some(_) => Err(OpError::new(
+            "protocol_error",
+            format!("`limit` must be between 1 and {}", session::MAX_PAGE),
+        )),
+    }
+}
+
+fn failure_kind(raw: &str) -> Result<InferenceFailureKind, OpError> {
+    match raw {
+        "transport" | "missing_terminal" => Ok(InferenceFailureKind::Transport),
+        "protocol" => Ok(InferenceFailureKind::Protocol),
+        "timed_out" => Ok(InferenceFailureKind::TimedOut),
+        "interrupted" => Ok(InferenceFailureKind::Interrupted),
+        other => Err(OpError::new(
+            "protocol_error",
+            format!("unknown failure kind `{other}`"),
+        )),
+    }
+}
+
+/// Runs one operation on a session.
+fn run_operation(session: &mut Session, object: &Map<String, Value>) -> Result<Value, OpError> {
+    let op = string_field(object, "op")?;
+    match op.as_str() {
+        "snapshot" => session.snapshot(),
+        "submit" => session.submit(
+            string_field(object, "text")?,
+            optional_string(object, "draft_id")?,
+            optional_string(object, "logical_request_id")?,
+        ),
+        "retry" => session.retry(&string_field(object, "logical_request_id")?),
+        "answer_clarification" => session.answer_clarification(
+            &string_field(object, "logical_request_id")?,
+            &string_field(object, "choice_id")?,
+        ),
+        "stop" => session.stop(),
+        "pending_endpoint" => Ok(session.pending_endpoint()),
+        "resolve" => {
+            let output = object
+                .get("output")
+                .ok_or_else(|| OpError::new("protocol_error", "`output` is required"))?;
+            session.resolve(
+                &string_field(object, "call_id")?,
+                &string_field(object, "attempt_id")?,
+                required_number(object, "base_revision")?,
+                output,
+            )
+        }
+        "fail" => session.fail(
+            &string_field(object, "call_id")?,
+            &string_field(object, "attempt_id")?,
+            required_number(object, "base_revision")?,
+            failure_kind(&string_field(object, "error_kind")?)?,
+            optional_string(object, "message")?.unwrap_or_default(),
+        ),
+        "frame" => Ok(session.frame(
+            &string_field(object, "call_id")?,
+            &string_field(object, "attempt_id")?,
+            required_number(object, "sequence")?,
+            &string_field(object, "text")?,
+        )),
+        "read_events" => {
+            session.events_after(raw_number(object, "after")?.unwrap_or(0), limit(object)?)
+        }
+        "read_event_page_before" => {
+            session.events_before(required_number(object, "before")?, limit(object)?)
+        }
+        other => Err(OpError::new(
+            "protocol_error",
+            format!("unknown operation `{other}`"),
+        )),
+    }
+}
+
+/// Opens a session and returns its handle and opening snapshot.
+///
+/// The request is `{"save_path": ..., "mod_dir": ...}`. `OPEN_NEW` refuses a
+/// save that already exists; `OPEN_RESUME` continues the save, or starts a
+/// new game there when it does not exist.
 #[unsafe(no_mangle)]
 pub extern "C" fn limerick_mobile_open(
     kind: limerick_mobile_open_kind_t,
@@ -215,35 +356,47 @@ pub extern "C" fn limerick_mobile_open(
                 );
             }
         };
-        if matches!(
-            kind,
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME
-        ) && object.is_empty()
-        {
-            return fail(
-                out_response,
-                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
-                "resume payload cannot be empty",
-            );
-        }
-        let operation = match kind {
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW => "open_new",
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME => "open_resume",
+        let options = match (
+            string_field(&object, "save_path"),
+            string_field(&object, "mod_dir"),
+        ) {
+            (Ok(save_path), Ok(mod_dir)) => OpenOptions {
+                save_path: PathBuf::from(save_path),
+                mod_dir: PathBuf::from(mod_dir),
+            },
+            (Err(error), _) | (_, Err(error)) => return fail_op(out_response, &error),
         };
-        publish(out_response, not_wired_envelope(operation));
-        limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        let mode = match kind {
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW => OpenMode::New,
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME => OpenMode::Resume,
+        };
+        let session = match Session::open(mode, options) {
+            Ok(session) => session,
+            Err(error) => return fail_op(out_response, &error),
+        };
+        let snapshot = match session.snapshot() {
+            Ok(snapshot) => snapshot,
+            Err(error) => return fail_op(out_response, &error),
+        };
+        let handle = next_handle();
+        sessions()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(handle, Arc::new(Mutex::new(session)));
+        // SAFETY: checked for null above.
+        unsafe { ptr::write(out_handle, handle) };
+        publish(out_response, value_envelope(snapshot));
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK
     })
 }
 
-/// Dispatches one JSON operation. No session can be open until #2044, so a
-/// well-formed operation answers `not_wired`.
+/// Dispatches one JSON operation (`{"op": ...}`) on a session.
 #[unsafe(no_mangle)]
 pub extern "C" fn limerick_mobile_dispatch(
     handle: limerick_mobile_handle_t,
     operation_json: limerick_mobile_bytes_t,
     out_response: *mut limerick_mobile_owned_bytes_t,
 ) -> limerick_mobile_status_t {
-    let _ = handle;
     panic_contained(|| {
         if out_response.is_null() {
             return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
@@ -264,26 +417,57 @@ pub extern "C" fn limerick_mobile_dispatch(
                 );
             }
         };
-        let Some(op) = object.get("op").and_then(Value::as_str) else {
+        if !matches!(object.get("op"), Some(Value::String(_))) {
             return fail(
                 out_response,
                 limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
                 "operation requires string field `op`",
             );
+        }
+        let session = sessions()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&handle)
+            .cloned();
+        let Some(session) = session else {
+            return fail(
+                out_response,
+                limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE,
+                "invalid or closed session handle",
+            );
         };
-        publish(out_response, not_wired_envelope(op));
-        limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        let mut session = session.lock().unwrap_or_else(PoisonError::into_inner);
+        match run_operation(&mut session, &object) {
+            Ok(value) => {
+                publish(out_response, value_envelope(value));
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
+            }
+            Err(error) => fail_op(out_response, &error),
+        }
     })
 }
 
-/// Closes a session. No handle is ever issued until #2044, so every handle is
-/// invalid.
+/// Closes a session: waits for any operation in progress, then releases
+/// the session and its save lock.
 #[unsafe(no_mangle)]
 pub extern "C" fn limerick_mobile_close(
     handle: limerick_mobile_handle_t,
 ) -> limerick_mobile_status_t {
-    let _ = handle;
-    limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE
+    panic_contained(|| {
+        let session = sessions()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&handle);
+        match session {
+            Some(session) => {
+                // Drain the session's lane before dropping it.
+                drop(session.lock().unwrap_or_else(PoisonError::into_inner));
+                drop(session);
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
+            }
+            None => limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE,
+        }
+    })
 }
 
 /// Releases one response returned by `limerick_mobile_open` or
@@ -309,227 +493,4 @@ pub extern "C" fn limerick_mobile_owned_bytes_free(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn borrowed(value: &str) -> limerick_mobile_bytes_t {
-        limerick_mobile_bytes_t {
-            ptr: value.as_ptr(),
-            len: value.len(),
-        }
-    }
-
-    /// Copies an owned response into a JSON value and frees it.
-    fn take(response: limerick_mobile_owned_bytes_t) -> Value {
-        assert!(!response.ptr.is_null(), "response must carry an envelope");
-        // SAFETY: the pointer and length came from `owned_bytes`.
-        let bytes = unsafe { slice::from_raw_parts(response.ptr, response.len) }.to_vec();
-        assert_eq!(
-            limerick_mobile_owned_bytes_free(response),
-            limerick_mobile_status_t::LIMERICK_MOBILE_OK
-        );
-        serde_json::from_slice(&bytes).expect("response is JSON")
-    }
-
-    fn open(
-        kind: limerick_mobile_open_kind_t,
-        request: &str,
-    ) -> (limerick_mobile_status_t, u64, Value) {
-        let mut handle = 99;
-        let mut response = empty_owned();
-        let status = limerick_mobile_open(kind, borrowed(request), &mut handle, &mut response);
-        (status, handle, take(response))
-    }
-
-    fn dispatch(operation: &str) -> (limerick_mobile_status_t, Value) {
-        let mut response = empty_owned();
-        let status = limerick_mobile_dispatch(1, borrowed(operation), &mut response);
-        (status, take(response))
-    }
-
-    fn assert_not_wired(envelope: &Value, operation: &str) {
-        assert_eq!(envelope["ok"], false);
-        let error = &envelope["error"];
-        assert_eq!(error["code"], NOT_WIRED_CODE);
-        assert_eq!(error["issue"], NOT_WIRED_ISSUE);
-        assert_eq!(
-            error["engine"]["save_format_version"], SAVE_FORMAT_VERSION,
-            "the envelope reports the linked shared engine's save format"
-        );
-        let message = error["message"].as_str().expect("message");
-        assert!(message.contains(operation), "{message}");
-        assert!(message.contains("#2044"), "{message}");
-    }
-
-    #[test]
-    fn open_new_answers_not_wired_without_a_handle() {
-        let (status, handle, envelope) = open(
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-            r#"{"save_path":"/tmp/unused.sqlite"}"#,
-        );
-        assert_eq!(
-            status,
-            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
-        );
-        assert_eq!(handle, 0, "no session is created");
-        assert_not_wired(&envelope, "open_new");
-    }
-
-    #[test]
-    fn open_resume_answers_not_wired() {
-        let (status, handle, envelope) = open(
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
-            r#"{"save_path":"/tmp/unused.sqlite"}"#,
-        );
-        assert_eq!(
-            status,
-            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
-        );
-        assert_eq!(handle, 0);
-        assert_not_wired(&envelope, "open_resume");
-    }
-
-    #[test]
-    fn open_rejects_malformed_payloads_before_not_wired() {
-        let cases = [
-            (
-                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-                "not json",
-            ),
-            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW, "[]"),
-            (
-                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
-                "{}",
-            ),
-        ];
-        for (kind, request) in cases {
-            let (status, handle, envelope) = open(kind, request);
-            assert_eq!(
-                status,
-                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
-                "{request}"
-            );
-            assert_eq!(handle, 0);
-            assert_eq!(envelope["error"]["code"], "protocol_error", "{request}");
-        }
-    }
-
-    #[test]
-    fn open_rejects_invalid_utf8_and_oversized_payloads() {
-        let invalid = [0xff_u8, 0xfe];
-        let mut handle = 0;
-        let mut response = empty_owned();
-        let status = limerick_mobile_open(
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-            limerick_mobile_bytes_t {
-                ptr: invalid.as_ptr(),
-                len: invalid.len(),
-            },
-            &mut handle,
-            &mut response,
-        );
-        assert_eq!(
-            status,
-            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8
-        );
-        assert_eq!(take(response)["error"]["code"], "invalid_utf8");
-
-        let oversized = "x".repeat(MAX_REQUEST_BYTES + 1);
-        let (status, _, envelope) = open(
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-            &oversized,
-        );
-        assert_eq!(status, limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE);
-        assert_eq!(envelope["error"]["code"], "too_large");
-    }
-
-    #[test]
-    fn open_rejects_null_outputs() {
-        let request = "{}";
-        let mut response = empty_owned();
-        assert_eq!(
-            limerick_mobile_open(
-                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-                borrowed(request),
-                ptr::null_mut(),
-                &mut response,
-            ),
-            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
-        );
-        let mut handle = 0;
-        assert_eq!(
-            limerick_mobile_open(
-                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
-                borrowed(request),
-                &mut handle,
-                ptr::null_mut(),
-            ),
-            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
-        );
-    }
-
-    #[test]
-    fn dispatch_answers_not_wired_for_well_formed_operations() {
-        let (status, envelope) = dispatch(r#"{"op":"submit","text":"hello"}"#);
-        assert_eq!(
-            status,
-            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
-        );
-        assert_not_wired(&envelope, "submit");
-    }
-
-    #[test]
-    fn dispatch_rejects_malformed_operations() {
-        for operation in ["", "nope", "[]", r#"{"text":"no op"}"#, r#"{"op":7}"#] {
-            let (status, envelope) = dispatch(operation);
-            assert_eq!(
-                status,
-                limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
-                "{operation}"
-            );
-            assert_eq!(envelope["error"]["code"], "protocol_error", "{operation}");
-        }
-    }
-
-    #[test]
-    fn close_reports_every_handle_invalid() {
-        assert_eq!(
-            limerick_mobile_close(1),
-            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE
-        );
-    }
-
-    #[test]
-    fn free_accepts_empty_and_rejects_dangling_lengths() {
-        assert_eq!(
-            limerick_mobile_owned_bytes_free(empty_owned()),
-            limerick_mobile_status_t::LIMERICK_MOBILE_OK
-        );
-        assert_eq!(
-            limerick_mobile_owned_bytes_free(limerick_mobile_owned_bytes_t {
-                ptr: ptr::null_mut(),
-                len: 4,
-            }),
-            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT
-        );
-    }
-
-    #[test]
-    fn panics_are_contained_as_internal_errors() {
-        assert_eq!(
-            panic_contained(|| panic!("boom")),
-            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
-        );
-    }
-
-    /// The Swift package vendors a copy of the C header next to its module
-    /// map. The two copies must not drift.
-    #[test]
-    fn swift_bridge_header_matches_crate_header() {
-        let crate_header = include_str!("../include/limerick_mobile_ffi.h");
-        let bridge_header = include_str!(
-            "../../../../mobile/RundaleBridge/Sources/LimerickMobileFFI/include/limerick_mobile_ffi.h"
-        );
-        assert_eq!(crate_header, bridge_header);
-    }
-}
+mod tests;

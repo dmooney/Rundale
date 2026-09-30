@@ -3,7 +3,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "rundale-dialogue-input-v1",
     "title": "Rundale Endpoint invocation v1",
-    "description": "The camelCase JSON form of parish_core::mobile::EndpointInvocation. Arrays are bounded by the engine before dispatch; the schema keeps every scalar field bounded and rejects unknown fields.",
+    "description": "The camelCase JSON input built by limerick_core::endpoint_input::EndpointCall::invocation. Arrays are bounded by the engine before dispatch; the schema keeps every scalar field bounded and rejects unknown fields.",
     "type": "object",
     "additionalProperties": false,
     "properties": {

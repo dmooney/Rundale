@@ -502,6 +502,9 @@ pub trait TurnJournal: Send + Sync {
     fn update(&self, record: RequestRecord, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     /// A committed turn, atomically.
     fn commit(&self, commit: TurnCommit) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
+    /// Events that belong to no request (a new game's opening scene), same
+    /// contract; `TurnEngine::narrate` writes one narration line.
+    fn record(&self, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
     /// Every record, in the order first accepted (restores an engine).
     fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
@@ -768,6 +771,23 @@ Decided by the owner on 2026-09-28, for the mobile Endpoint path (#2044):
   uncommitted with no state effects.
 - No post-generation content guards on this path. The engine commits the final
   reply after structural checks only; invented people or places are fixed
-  through the Endpoint definition and model. The Endpoint definition, not the
+  through the Endpoint definition and model. As built (#2044), the mobile host
+  disables the `dialogue-content-guards` flag
+  (`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`): validation stops after the
+  response contract, and the apply step skips its repetition rewrite, display
+  cap, and obligation fallback. The Endpoint definition, not the
   mod's desktop prompt templates, is the prompt source. See the scope note in
   [inference rules](../agent/inference-rules.md). Desktop is unchanged.
+
+## 10. Mobile host (#2044)
+
+`limerick-mobile-ffi` is the mobile host of the turn engine: one session per
+open save, a `TurnEngine` over the save's `SqliteTurnJournal`, and the shared
+live state loaded from the bundled mod. Each call with an Endpoint is handed to
+the Swift app (`pending_endpoint`), which posts the invocation to that
+Endpoint version and resumes the engine (`resolve` / `fail`). Travel encounters
+and arrival reactions are routed `Unavailable`, so the pipeline uses its canned
+lines. Dialogue text deltas are projected as provisional, unjournaled events
+that carry the durable cursor; the committed line takes over the streamed row's
+`transcriptItemID`. The operation contract is in the crate's
+[README](../../limerick/crates/limerick-mobile-ffi/README.md).

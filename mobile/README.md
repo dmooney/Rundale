@@ -8,20 +8,28 @@ in which the mobile work lands on `main`.
 
 ## Status
 
-The app builds and launches on the iOS Simulator. It does not play yet:
+The app plays the canonical world on the shared engine:
 
-- A normal launch opens the engine session, and the boundary answers
-  `not_wired` until #2044 connects it to the shared `TurnEngine`. The app shows
-  "Not yet connected to the game engine (#2044)." above the composer.
-- The world comes from the normal mod pipeline once the boundary is wired. The
-  canonical tiny world is authored as its own mod in Mobile Phase 3 (#2040).
-  The app bundles no world content of its own.
+- A normal launch opens the save through the FFI boundary, which runs the
+  shared turn API (`TurnEngine`): the same parser, intent inference, travel,
+  dialogue, and save database as desktop. The world is `mods/rundale`, bundled
+  as game data. The app bundles no world content of its own.
+- Every model call goes to the Limerick Endpoint the engine names:
+  `rundale-intent` for input the local parser does not recognise, then
+  `rundale-dialogue` for the reply. Dialogue streams into the transcript as
+  provisional text and the committed line replaces it. Stop, a failure, or a
+  relaunch leave no state effects; the request can be retried.
+- Slash commands are not available on the phone; the player says what they
+  want to do.
 - `--fixture=<name>` (or `--ui-tests` without `--phase2`) selects the
   deterministic presentation fixtures in `RundaleKit`, which exercise the UI
   without the engine.
 
-Verification tooling (`./verify`, release, UI recording) is #2045. Physical-device
-and TestFlight gates are #2046.
+Background simulation that needs inference (NPC reactions, banter, tier 2–4)
+waits for #2025. Verification tooling (`./verify`, release, UI recording)
+is #2045. The Phase 2–4 engine-mode UI suites still assert `ios-port` fixture text
+and are brought onto the canonical world with the `./verify` gates (#2046).
+Physical-device and TestFlight gates are #2046.
 
 ## Build and run
 
@@ -57,5 +65,8 @@ origin is baked into the app.
 - `LimerickEndpointKit`: the Endpoint streaming client (renamed in #2007).
 - `endpoint`: the Endpoint contract files and SSE fixtures that the
   `endpoints/` service tests read.
-- `RundaleTests` and `RundaleUITests`: app unit and UI tests. The engine-mode
-  suites need #2044 to pass.
+- `RundaleTests` and `RundaleUITests`: app unit and UI tests.
+  `RundaleEngineLifecycleTests` runs the RundaleKit request-lifecycle tests
+  against the real engine through the FFI. `RundaleLiveEndpointUITests` is an
+  opt-in live suite against a deployed Limerick Endpoints service; see
+  [the endpoint README](endpoint/README.md#live-endpoint-suite).

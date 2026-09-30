@@ -7,8 +7,6 @@ struct LaunchConfiguration: Sendable {
     private enum BundleKey {
         static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
-        static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
-        static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -46,9 +44,10 @@ struct LaunchConfiguration: Sendable {
     /// A trusted Limerick Endpoints base URL supplied by deployment
     /// configuration. There is intentionally no baked-in production default.
     let endpointBaseURL: URL?
+    /// The organization that owns the game's Endpoints. Each model call names
+    /// its own Endpoint slug and version (the engine reads them from the
+    /// world's Endpoint definitions).
     let endpointOrganization: String
-    let endpointSlug: String
-    let endpointVersion: Int
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
          environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -92,12 +91,6 @@ struct LaunchConfiguration: Sendable {
         endpointOrganization = Self.configuredValue(BundleKey.endpointOrganization,
                                                      environment: environment,
                                                      bundle: bundle) ?? "rundale"
-        endpointSlug = Self.configuredValue(BundleKey.endpointSlug,
-                                             environment: environment,
-                                             bundle: bundle) ?? "rundale-dialogue"
-        endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
-                                                           environment: environment,
-                                                           bundle: bundle) ?? "1") ?? 1)
     }
 
     private static func configuredValue(_ key: String,
@@ -114,15 +107,17 @@ struct LaunchConfiguration: Sendable {
         return nil
     }
 
-    var endpointURL: URL? {
+    /// The URL of one Endpoint version: its `/stream` route, or the JSON
+    /// route for an Endpoint that does not stream.
+    func endpointURL(slug: String, version: Int, stream: Bool = true) -> URL? {
         guard let endpointBaseURL else { return nil }
-        return endpointBaseURL
+        let url = endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)
-            .appendingPathComponent(endpointSlug)
+            .appendingPathComponent(slug)
             .appendingPathComponent("versions")
-            .appendingPathComponent(String(endpointVersion))
-            .appendingPathComponent("stream")
+            .appendingPathComponent(String(version))
+        return stream ? url.appendingPathComponent("stream") : url
     }
 }

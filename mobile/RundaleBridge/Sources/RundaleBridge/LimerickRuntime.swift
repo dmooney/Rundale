@@ -13,10 +13,10 @@ public enum LimerickRuntimeError: Error, LocalizedError, Sendable, Equatable {
     case internalError(String)
     case operationFailed(status: Int32, message: String)
     case eventBufferOverflow
-    /// The linked engine does not serve this request through the boundary
-    /// yet. The boundary answers every session request this way until it is
-    /// wired to the shared engine's turn API (#2044).
-    case notWired(String)
+    /// The engine refused a well-formed request (for example, a request is
+    /// still open, or a save cannot be opened). `code` is the engine's
+    /// stable reason.
+    case rejected(code: String, message: String)
 
     public var errorDescription: String? {
         switch self {
@@ -29,7 +29,7 @@ public enum LimerickRuntimeError: Error, LocalizedError, Sendable, Equatable {
         case let .internalError(message): return message
         case let .operationFailed(_, message): return message
         case .eventBufferOverflow: return "The Limerick event stream fell behind; the session was refreshed."
-        case let .notWired(message): return message
+        case let .rejected(_, message): return message
         }
     }
 }
@@ -41,7 +41,61 @@ public enum LimerickRuntimeFailureKind: String, Sendable {
     case transport
     case protocolViolation = "protocol"
     case missingTerminal = "missing_terminal"
+    case timedOut = "timed_out"
     case interrupted
+}
+
+/// A model call the engine is waiting for, to be fulfilled through the
+/// Limerick Endpoint it names. `input` is the Endpoint request's `input`
+/// object, built by the engine.
+public struct LimerickPendingInvocation: Sendable {
+    public let callID: String
+    public let logicalRequestID: LogicalRequestID
+    public let attemptID: ExecutionAttemptID
+    public let baseRevision: StateRevision
+    public let role: String
+    public let slug: String
+    public let version: Int
+    /// Whether the Endpoint version streams its reply (use its `/stream`
+    /// route); otherwise the JSON route returns the output object.
+    public let streams: Bool
+    public let input: Data
+
+    /// The Endpoint request body: `{"input": <invocation>}`.
+    public func requestBody() throws -> Data {
+        let object = try JSONSerialization.jsonObject(with: input)
+        return try JSONSerialization.data(withJSONObject: ["input": object], options: [.sortedKeys])
+    }
+
+    /// Whether this call's reply is NPC dialogue (streamed provisionally).
+    public var isDialogue: Bool { role == "dialogue" }
+
+    static func decode(_ data: Data) throws -> LimerickPendingInvocation? {
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        guard let root = object as? [String: Any] else { return nil }
+        guard let callID = root["callID"] as? String,
+              let request = root["logicalRequestID"] as? String,
+              let attempt = root["attemptID"] as? String,
+              let revision = (root["baseRevision"] as? [String: Any])?["rawValue"] as? NSNumber,
+              let endpoint = root["endpoint"] as? [String: Any],
+              let role = endpoint["role"] as? String,
+              let slug = endpoint["slug"] as? String,
+              let version = endpoint["version"] as? NSNumber,
+              let input = root["input"] as? [String: Any] else {
+            throw LimerickRuntimeError.protocolError("The pending Endpoint invocation is malformed.")
+        }
+        return LimerickPendingInvocation(
+            callID: callID,
+            logicalRequestID: LogicalRequestID(request),
+            attemptID: ExecutionAttemptID(attempt),
+            baseRevision: StateRevision(revision.uint64Value),
+            role: role,
+            slug: slug,
+            version: version.intValue,
+            streams: root["stream"] as? Bool ?? false,
+            input: try JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])
+        )
+    }
 }
 
 /// The actor-isolated Swift owner for one embedded Limerick session.
@@ -214,19 +268,59 @@ public actor LimerickRuntime: SessionAdapter {
         )
     }
 
-    /// Terminates the current attempt as a failed, uncommitted request. Rust
-    /// owns the terminal transition; Swift supplies only the transport error
-    /// message for player-facing diagnostics.
-    public func fail(attemptID: ExecutionAttemptID, message: String) throws -> Data {
-        let response = try dispatch([
+    /// The model call the engine is waiting for, or `nil`.
+    public func pendingInvocation() throws -> LimerickPendingInvocation? {
+        try LimerickPendingInvocation.decode(pendingEndpointJSON())
+    }
+
+    /// Resumes the engine with an Endpoint's validated terminal output (the
+    /// `final` frame's `output` object). The engine validates it and, when
+    /// the attempt finishes, commits it. A result for any call but the
+    /// awaited one is ignored.
+    public func resolve(_ invocation: LimerickPendingInvocation, output: Data) throws -> Data {
+        let object = try JSONSerialization.jsonObject(with: output)
+        return try dispatchJSON(try JSONSerialization.data(withJSONObject: [
+            "op": "resolve",
+            "call_id": invocation.callID,
+            "attempt_id": invocation.attemptID.rawValue,
+            "base_revision": invocation.baseRevision.rawValue,
+            "output": object
+        ], options: [.sortedKeys]))
+    }
+
+    /// Resumes the engine with a transport, authentication, or protocol
+    /// failure of the awaited call. The engine applies the role's failure
+    /// policy (an intent failure continues; a dialogue failure ends the
+    /// attempt failed and retryable).
+    public func fail(
+        _ invocation: LimerickPendingInvocation,
+        kind: LimerickRuntimeFailureKind,
+        message: String
+    ) throws -> Data {
+        try dispatchJSON(try JSONSerialization.data(withJSONObject: [
             "op": "fail",
-            "attempt_id": attemptID.rawValue,
+            "call_id": invocation.callID,
+            "attempt_id": invocation.attemptID.rawValue,
+            "base_revision": invocation.baseRevision.rawValue,
+            "error_kind": kind.rawValue,
             "message": message
-        ])
-        if let result = try? decodeValue(MobileOperationResult.self, from: response) {
-            publish(result.events)
-        }
-        return response
+        ], options: [.sortedKeys]))
+    }
+
+    /// Shows a streamed text delta of the awaited dialogue call as
+    /// provisional transcript text. Nothing is committed.
+    public func frame(
+        _ invocation: LimerickPendingInvocation,
+        sequence: UInt64,
+        text: String
+    ) throws -> Data {
+        try dispatchJSON(try JSONSerialization.data(withJSONObject: [
+            "op": "frame",
+            "call_id": invocation.callID,
+            "attempt_id": invocation.attemptID.rawValue,
+            "sequence": sequence,
+            "text": text
+        ], options: [.sortedKeys]))
     }
 
     /// Sends one raw, versioned mobile operation and returns its value JSON.
@@ -257,7 +351,7 @@ public actor LimerickRuntime: SessionAdapter {
         limit: Int = 100
     ) throws -> LimerickEventPage {
         var operation: [String: Any] = [
-            "op": "read_event_page",
+            "op": "read_events",
             "limit": max(1, min(limit, 100))
         ]
         if let cursor { operation["after"] = cursor.rawValue }
@@ -277,26 +371,6 @@ public actor LimerickRuntime: SessionAdapter {
             "limit": max(1, min(limit, 100))
         ]
         return try decodeValue(LimerickEventPage.self, from: dispatch(operation))
-    }
-
-    /// Records a bounded transport/authentication/protocol failure against the
-    /// current attempt. The engine turns it into a durable failed terminal
-    /// event; it is never represented as an invalid candidate response.
-    public func receiveFailure(
-        attemptID: ExecutionAttemptID,
-        baseRevision: StateRevision,
-        kind: LimerickRuntimeFailureKind,
-        message: String
-    ) throws -> Data {
-        let operation: [String: Any] = [
-            "op": "receive_failure",
-            "attemptID": attemptID.rawValue,
-            "baseRevision": ["rawValue": baseRevision.rawValue],
-            "errorKind": kind.rawValue,
-            "message": message
-        ]
-        let data = try JSONSerialization.data(withJSONObject: operation, options: [.sortedKeys])
-        return try dispatchJSON(data)
     }
 
     private func dispatch(_ operation: [String: Any]) throws -> Data {
@@ -371,10 +445,9 @@ public actor LimerickRuntime: SessionAdapter {
             "answer_clarification",
             "retry",
             "stop",
+            "resolve",
             "fail",
-            "receive_failure",
-            "receive_frame",
-            "receive_candidate"
+            "frame"
         ].contains(name)
     }
 
@@ -442,28 +515,28 @@ public actor LimerickRuntime: SessionAdapter {
         let error: Body
     }
 
-    static let notWiredCode = "not_wired"
-
     static func statusError(_ status: limerick_mobile_status_t, response: Data) -> LimerickRuntimeError {
-        if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: response),
-           envelope.error.code == notWiredCode {
-            return .notWired(envelope.error.message ?? "The game engine is not yet wired to this app.")
-        }
+        let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: response)
+        let raw = String(data: response, encoding: .utf8)
+        let message = envelope?.error.message ?? raw
         switch status {
         case LIMERICK_MOBILE_INVALID_ARGUMENT:
-            return .invalidArgument("The Limerick mobile operation was invalid.")
+            return .invalidArgument(message ?? "The Limerick mobile operation was invalid.")
         case LIMERICK_MOBILE_INVALID_UTF8:
             return .invalidUTF8
         case LIMERICK_MOBILE_INVALID_HANDLE:
             return .invalidHandle
         case LIMERICK_MOBILE_TOO_LARGE:
-            return .tooLarge("The Limerick mobile payload exceeded its bound.")
+            return .tooLarge(message ?? "The Limerick mobile payload exceeded its bound.")
         case LIMERICK_MOBILE_PROTOCOL_ERROR:
-            return .protocolError(String(data: response, encoding: .utf8) ?? "Invalid Limerick response.")
+            if let envelope, envelope.error.code != "protocol_error" {
+                return .rejected(code: envelope.error.code, message: message ?? envelope.error.code)
+            }
+            return .protocolError(message ?? "Invalid Limerick response.")
         case LIMERICK_MOBILE_CLOSED:
             return .closed
         case LIMERICK_MOBILE_INTERNAL_ERROR:
-            return .internalError(String(data: response, encoding: .utf8) ?? "Limerick internal error.")
+            return .internalError(message ?? "Limerick internal error.")
         case LIMERICK_MOBILE_OK:
             return .operationFailed(status: statusCode(status), message: "Unexpected successful status.")
         default:

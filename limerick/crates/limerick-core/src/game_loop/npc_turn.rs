@@ -372,6 +372,9 @@ pub async fn run_npc_turn(
             parse_disposition,
             &setup.grounding,
             crate::npc::DialogueValidationPolicy {
+                // Off on the mobile Endpoint path: structural checks only.
+                content_guards: !progression_flags
+                    .is_disabled(limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG),
                 person_confirmation: person_guard_enabled,
                 person_routing: routing_guard_enabled,
                 wrong_location: wrong_location_guard_enabled,
