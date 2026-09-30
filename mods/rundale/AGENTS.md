@@ -19,7 +19,7 @@ cargo test -p limerick-core --test mod_loading   # schema validation
 - **Keep JSON in the editor's on-disk format** (4-space indent). Editor round-trip tests re-save this mod and require identical bytes.
 - **`anachronisms.json` is consumed by `limerick-npc::anachronism`.** Adding a banned word/phrase requires checking the dialogue corpus doesn't already use it (would generate spurious flags).
 - **`prompts/` templates** are loaded by `limerick-core::prompts`. Variable names are case-sensitive — `{player_name}` not `{playerName}`.
-- **`endpoints/` holds Limerick Endpoint definitions**, declared in `mod.toml` `[endpoints]` and named `<slug>.v<version>.json`. Until release, change the `.v1.json` file in place and republish with `pnpm definitions replace`; after release, published versions are immutable and a change ships as a new version file. `rundale-intent`'s `instructions` must equal the engine intent prompt (test-enforced). See `mobile/endpoint/README.md`.
+- **`endpoints/` holds Limerick Endpoint definitions**, declared in `mod.toml` `[endpoints]` and named `<slug>.v<version>.json`. Until release, each Endpoint has only a `.v1.json` file: change it in place and republish with `endpoints/deploy/limerick-prod.sh definitions replace`, then `definitions verify` must exit 0; after release, published versions are immutable and a change ships as a new version file. `rundale-intent`'s `instructions` must equal the engine intent prompt (test-enforced). See `mobile/endpoint/README.md`.
 - **`festivals.json` + `encounters.json`** trigger by date/location — coordinate names must exist in `world.json`.
 
 ## Files

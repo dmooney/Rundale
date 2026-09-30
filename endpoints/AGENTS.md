@@ -23,7 +23,8 @@
 - Keep control-plane and data-plane concepts separate even if they share one deployment.
 - Make the runtime depend on provider interfaces, not directly on provider SDKs. The MVP must support OpenAI and Google through adapters without leaking provider-specific concepts into public contracts.
 - Use PostgreSQL as the system of record and JSON Schema as the canonical input/output contract. Support a deliberately constrained JSON Schema subset and reject unsupported constructs at publish time.
-- Published Endpoint Versions are immutable. Production promotion and rollback happen through aliases; never mutate a published version in place.
+- Published Endpoint Versions are immutable after release. Production promotion and rollback happen through aliases. Before release (ADR 013), Rundale keeps exactly one published version of each Endpoint, v1, and a definition change replaces it in place with `pnpm definitions replace`; do not publish v2 or later until the game ships.
+- Operate `limerick-prod` through `endpoints/deploy/limerick-prod.sh` (`definitions`, `sql`, `appcheck-token`); it reads credentials without printing them. The game is unreleased with no users, so publishing and promoting there is authorized; if the permission classifier blocks a prod action, give the owner the exact command and wait for approval.
 - Establish organization ownership and tenant isolation from the first schema, even if the initial UI behaves as single-user.
 
 ## API and Security Invariants
