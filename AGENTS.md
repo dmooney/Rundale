@@ -75,6 +75,25 @@ Inspect existing tooling before creating new tools. Carry authorized work throug
 implementation and relevant verification; distinguish a completed coding task from
 a milestone that still requires live integration or physical-device acceptance.
 
+When instructions conflict (an issue criterion, plan order, a gate, and a delivery
+rule cannot all be satisfied), stop and ask the owner which gives way, naming the
+conflict. Do not circle between them. Standing answers:
+
+- **Criterion blocked by a later issue:** if an issue's acceptance criterion cannot
+  be met until a later plan issue lands (for example, a live app suite before the app
+  is wired to the engine), move the criterion to that later issue, note it on both
+  issues, and close the current one on the criteria it can meet.
+- **Gate misclassification:** if a gate fails because it classifies a change wrongly
+  (for example, Markdown under `mods/` treated as runtime code), fix the gate's
+  classification with a regression test in its own PR. Do not satisfy it with
+  mislabeled evidence, and do not route around it.
+- **Mobile-plan PRs:** squash-merge once required checks pass and review comments are
+  addressed, then start the next plan issue.
+- **`limerick-prod`:** the game is unreleased and has no users, so publishing and
+  promoting Endpoints there is authorized. If the permission classifier blocks an
+  authorized prod action, stop, give the owner the exact command, and wait for their
+  approval; do not look for another route to the same action.
+
 ## Standard commands
 
 These are existing repository commands, not proof of mobile milestone completion.
