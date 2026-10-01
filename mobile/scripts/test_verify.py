@@ -557,7 +557,8 @@ class VerificationRunnerTests(unittest.TestCase):
             # The whole portable configuration, not a filtered subset: it
             # includes the turn API and the Endpoint call tests.
             self.assertEqual(
-                core_call["argv"][-3:], ("--no-default-features", "--features", "mobile")
+                core_call["argv"][-5:],
+                ("--no-default-features", "--features", "mobile", "--lib", "--tests"),
             )
             packaging_call = next(
                 call
@@ -615,6 +616,37 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertIn(
                 "did not report test-result counts", by_id["limerick-core-mobile-tests"]["reason"]
             )
+
+    def test_rust_gate_passes_named_ignored_test_and_skips_any_other(self):
+        measurement = (
+            "test measure_candidate_capture_cost_on_rundale ... ignored, measurement\n"
+            "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n"
+        )
+        for extra, expected in (
+            ("", "passed"),
+            ("test newly_ignored ... ignored\n", "skipped"),
+        ):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "mobile").mkdir()
+                create_phase2_fixture(root)
+                fake = FakeRunner()
+                fake.rust_output = extra + measurement
+                if extra:
+                    fake.rust_output = fake.rust_output.replace("1 ignored", "2 ignored")
+                report = VerificationRun(root, command_runner=fake, use_cache=False).run(2)
+
+                by_id = {suite["id"]: suite for suite in report["suites"]}
+                core = by_id["limerick-core-mobile-tests"]
+                self.assertEqual(core["status"], expected)
+                self.assertEqual(
+                    core["details"]["expected_ignored"],
+                    ["measure_candidate_capture_cost_on_rundale"],
+                )
+                if extra:
+                    self.assertIn("newly_ignored", core["reason"])
+                # Gates that name no expected ignore treat any ignore as a skip.
+                self.assertEqual(by_id["limerick-mobile-ffi-tests"]["status"], "skipped")
 
     def test_phase2_dependency_gate_rejects_forbidden_crate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -703,6 +735,30 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["ios-simulator-tests"]["status"], "failed")
             self.assertEqual(by_id["ios-simulator-test-results"]["status"], "failed")
             self.assertIn("do not reconcile", by_id["ios-simulator-tests"]["reason"])
+
+    def test_expected_failures_reconcile_and_are_named_in_a_passing_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            fake = FakeRunner()
+            fake.xcresult_output = json.dumps(
+                {
+                    "result": "Passed",
+                    "totalTestCount": 8,
+                    "passedTests": 7,
+                    "failedTests": 0,
+                    "skippedTests": 0,
+                    "expectedFailures": 1,
+                }
+            )
+            report = VerificationRun(root, command_runner=fake).run(1)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            suite = by_id["ios-simulator-tests"]
+            self.assertEqual(suite["status"], "passed")
+            self.assertEqual(suite["details"]["expectedFailures"], 1)
+            self.assertIn("1 expected failure", suite["reason"])
 
     def test_successful_swift_command_without_executed_count_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -805,8 +805,15 @@ class VerificationRun:
             status, reason = PASSED, None
         self._change(test_record, status, reason, details)
 
-    def _validate_rust_result(self, test_record: dict[str, Any]) -> None:
-        """Require cargo's test harness to report a non-empty test result."""
+    def _validate_rust_result(
+        self, test_record: dict[str, Any], expected_ignored: Sequence[str] = ()
+    ) -> None:
+        """Require cargo's test harness to report a non-empty test result.
+
+        An ignored test makes the suite a skip unless the gate names it in
+        `expected_ignored` (an opt-in measurement, say), so a newly ignored
+        test still blocks.
+        """
 
         output = self.results[test_record["id"]].output
         matches = list(
@@ -825,12 +832,17 @@ class VerificationRun:
         passed = sum(int(match.group(1)) for match in matches)
         failed = sum(int(match.group(2)) for match in matches)
         ignored = sum(int(match.group(3)) for match in matches)
+        ignored_names = re.findall(r"^test (\S+) \.\.\. ignored", output, re.M)
+        unexpected = [name for name in ignored_names if name not in expected_ignored]
+        if len(ignored_names) != ignored:
+            unexpected.append(f"{ignored - len(ignored_names)} unnamed")
         executed = passed + failed
         details = {
             "executed_tests": executed,
             "passed_tests": passed,
             "failed_tests": failed,
             "ignored_tests": ignored,
+            "expected_ignored": [name for name in ignored_names if name in expected_ignored],
             "result_lines": len(matches),
             "toolchain": RUST_TOOLCHAIN,
         }
@@ -838,8 +850,11 @@ class VerificationRun:
             status, reason = UNAVAILABLE, "cargo test executed no tests"
         elif failed:
             status, reason = FAILED, f"cargo test reports {failed} failed test(s)"
-        elif ignored:
-            status, reason = SKIPPED, f"cargo test reports {ignored} ignored test(s)"
+        elif unexpected:
+            status, reason = (
+                SKIPPED,
+                f"cargo test reports {ignored} ignored test(s): {', '.join(unexpected)}",
+            )
         else:
             status, reason = PASSED, None
         self._change(test_record, status, reason, details)
@@ -852,6 +867,7 @@ class VerificationRun:
         package: str,
         cargo_args: Sequence[str] = (),
         phase: int = 2,
+        expected_ignored: Sequence[str] = (),
     ) -> None:
         command = [
             "rustup",
@@ -886,7 +902,7 @@ class VerificationRun:
             },
         )
         if record["status"] == PASSED:
-            self._validate_rust_result(record)
+            self._validate_rust_result(record, expected_ignored)
 
     def _mobile_dependency_graph(self) -> None:
         command = [
@@ -1503,7 +1519,14 @@ class VerificationRun:
                     key: value
                     for key, value in test_record["details"].items()
                     if key
-                    in {"totalTestCount", "passedTests", "failedTests", "skippedTests", "cache"}
+                    in {
+                        "totalTestCount",
+                        "passedTests",
+                        "failedTests",
+                        "skippedTests",
+                        "expectedFailures",
+                        "cache",
+                    }
                 },
             )
             return
@@ -1547,8 +1570,22 @@ class VerificationRun:
             self._change(summary_record, FAILED, reason, raw_counts)
             return
         counts = cast(dict[str, int], raw_counts)
+        # A test wrapped in XCTExpectFailure for a tracked defect (#2081) is
+        # its own bucket. Older xcresulttool versions omit the key.
+        expected_failures = summary.get("expectedFailures", 0)
+        if type(expected_failures) is not int or expected_failures < 0:
+            reason = "xcresulttool summary reported a non-integer expectedFailures count"
+            self._change(test_record, FAILED, reason, counts)
+            self._change(summary_record, FAILED, reason, counts)
+            return
+        counts["expectedFailures"] = expected_failures
         total = counts["totalTestCount"]
-        counted = counts["passedTests"] + counts["failedTests"] + counts["skippedTests"]
+        counted = (
+            counts["passedTests"]
+            + counts["failedTests"]
+            + counts["skippedTests"]
+            + expected_failures
+        )
         if total != counted:
             reason = (
                 f"xcresult test counts do not reconcile: totalTestCount={total}, counted={counted}"
@@ -1568,7 +1605,7 @@ class VerificationRun:
                 SKIPPED,
                 f"xcresult reports {counts['skippedTests']} skipped test(s)",
             )
-        elif counts["passedTests"] != total:
+        elif counts["passedTests"] + expected_failures != total:
             result_status, result_reason = (
                 FAILED,
                 f"xcresult reports {counts['passedTests']} of {total} test(s) passed",
@@ -1577,6 +1614,12 @@ class VerificationRun:
             result_status, result_reason = (
                 FAILED,
                 f"xcresult reports result {summary.get('result')!r}",
+            )
+        elif expected_failures:
+            # Passing, but name the known defects so the report never hides them.
+            result_status, result_reason = (
+                PASSED,
+                f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
             )
         else:
             result_status, result_reason = PASSED, None
@@ -1844,7 +1887,10 @@ class VerificationRun:
             identifier="limerick-core-mobile-tests",
             name="Limerick core portable (mobile feature) tests",
             package="limerick-core",
-            cargo_args=("--no-default-features", "--features", "mobile"),
+            # Unit and integration tests; the crate's doc examples are not
+            # tests of the portable engine.
+            cargo_args=("--no-default-features", "--features", "mobile", "--lib", "--tests"),
+            expected_ignored=("measure_candidate_capture_cost_on_rundale",),
         )
         self._cargo_test(
             identifier="limerick-persistence-tests",
