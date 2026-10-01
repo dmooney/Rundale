@@ -66,7 +66,7 @@ it with tools such as `limerick_submit_input`, `limerick_world_snapshot`, and
 `limerick_npcs_here`. The `/limerick-engine` skill builds its live-proof workflows on
 that bridge. The mobile runtime is an embedded Rust engine under a Swift host with no
 HTTP server, so the bridge cannot attach to it today. The mobile plan verifies through
-`./verify`, simulator XCTest/XCUITest suites, Swift/Rust binding contract tests, and
+`just mobile-verify`, simulator XCTest/XCUITest suites, Swift/Rust binding contract tests, and
 physical-iPhone acceptance. None of those give an agent an interactive, MCP-style view
 of a running mobile session.
 
@@ -99,7 +99,6 @@ Constraints any option must respect:
 - Desktop `limerick-mcp` keeps working while this is decided.
 - Do not claim physical-iPhone validation from a simulator or desktop-host run.
 
-Related: `./verify` (the phase-selectable gate in the
-[technical vision](../product-specs/software-technical-vision.md)) exists on the
-`ios-port` branch and is not on `main`. The [convergence plan](../plans/mobile-engine-convergence.md)
-sets when it lands. Record the choice above in an ADR before writing driver code.
+Related: `just mobile-verify` is the phase-selectable gate in the
+[technical vision](../product-specs/software-technical-vision.md). Record the
+choice above in an ADR before writing driver code.
