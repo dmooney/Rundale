@@ -28,7 +28,7 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
-exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs', 'mobile/DerivedData', 'mobile/.*/\.build']
+exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs', 'mobile/DerivedData', 'mobile/\.verification', 'mobile/.*/\.build']
 
 [tool.pytest.ini_options]
 # The bench has bespoke phase tests; the scheduled player agent has transport
