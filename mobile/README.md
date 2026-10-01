@@ -26,9 +26,8 @@ The app plays the canonical world on the shared engine:
   without the engine.
 
 Background simulation that needs inference (NPC reactions, banter, tier 2–4)
-waits for #2025. Verification tooling (`./verify`, release, UI recording)
-is #2045. The Phase 2–4 engine-mode UI suites still assert `ios-port` fixture text
-and are brought onto the canonical world with the `./verify` gates (#2046).
+waits for #2025. The Phase 2–4 engine-mode UI suites still assert `ios-port` fixture text
+and are brought onto the canonical world with the `just mobile-verify` gates (#2046).
 Physical-device and TestFlight gates are #2046.
 
 ## Build and run
@@ -54,6 +53,20 @@ Remote inference uses Limerick Endpoints with Firebase Auth and App Check. The
 Firebase configuration file is supplied privately and is ignored.
 `RUNDALE_ENDPOINT_BASE_URL` configures the Endpoints origin; no production
 origin is baked into the app.
+
+## Verify and release
+
+```sh
+just mobile-verify --phase 1   # or 2, 3, 4; no flag (or `all`) runs them all
+just mobile-build              # unsigned Release build
+just testflight-update         # verify, sign, and upload an internal beta
+```
+
+`just mobile-verify` writes its JSON, JUnit, and summary reports under
+`mobile/.verification/` and reuses suites that passed with identical inputs.
+The [scripts README](scripts/README.md) covers its gates and options, recording
+one UI test, and frame analysis of a streamed reply. The
+[TestFlight runbook](testflight.md) covers signing, upload, and export compliance.
 
 ## Layout
 

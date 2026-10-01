@@ -148,6 +148,9 @@ index.lock
 # (mobile/project.yml) and the pinned Swift package resolution are the inputs.
 /mobile/.build/
 /mobile/DerivedData/
+# `just mobile-verify` evidence, logs, result bundles, and the pass cache.
+/mobile/.verification/
+/mobile/.verification-*/
 /mobile/Rundale.xcodeproj/*
 !/mobile/Rundale.xcodeproj/project.xcworkspace/
 /mobile/Rundale.xcodeproj/project.xcworkspace/*
