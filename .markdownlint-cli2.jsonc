@@ -47,6 +47,7 @@
     ".opencode/**",
     ".codex/**",
     "mobile/DerivedData/**",
+    "mobile/.verification*/**",
     "mobile/.build/**",
     "mobile/**/.build/**",
   ],

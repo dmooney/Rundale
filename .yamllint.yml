@@ -33,5 +33,6 @@ ignore: |
   **/pnpm-lock.yaml
   limerick/testing/
   mobile/DerivedData/
+  mobile/.verification*/
   mobile/.build/
   mobile/*/.build/

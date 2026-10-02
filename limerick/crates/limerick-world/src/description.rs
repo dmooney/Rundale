@@ -33,6 +33,47 @@ pub fn render_description(
         .replace("{npcs_present}", &npcs_str)
 }
 
+/// Renders a location's standing description for a client that shows the
+/// time of day and weather on its own (the phone's status header).
+///
+/// Template sentences that interpolate `{time}` or `{weather}` only restate
+/// that header, so they are left out; the rest of the template is rendered as
+/// [`render_description`] would. The full template still reaches places that
+/// have no header, such as a model's view of the location.
+pub fn render_setting(location: &LocationData, npc_names: &[&str]) -> String {
+    let npcs_str = if npc_names.is_empty() {
+        "no one".to_string()
+    } else {
+        npc_names.join(", ")
+    };
+    template_sentences(&location.description_template)
+        .filter(|sentence| !sentence.contains("{time}") && !sentence.contains("{weather}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace("{npcs_present}", &npcs_str)
+}
+
+/// The sentences of a description template, trimmed: each ends at `.`, `!`
+/// or `?` followed by whitespace or the end of the template.
+fn template_sentences(template: &str) -> impl Iterator<Item = &str> {
+    let mut rest = template.trim();
+    std::iter::from_fn(move || {
+        if rest.is_empty() {
+            return None;
+        }
+        let bytes = rest.as_bytes();
+        let end = (0..bytes.len())
+            .find(|&i| {
+                matches!(bytes[i], b'.' | b'!' | b'?')
+                    && bytes.get(i + 1).is_none_or(u8::is_ascii_whitespace)
+            })
+            .map_or(rest.len(), |i| i + 1);
+        let (sentence, tail) = rest.split_at(end);
+        rest = tail.trim_start();
+        Some(sentence.trim())
+    })
+}
+
 /// Formats the list of exits (neighboring locations) from a given location.
 ///
 /// Travel time for each exit is computed from coordinates at the given speed.
@@ -183,6 +224,33 @@ mod tests {
                 result
             );
         }
+    }
+
+    #[test]
+    fn the_setting_leaves_out_sentences_that_restate_time_or_weather() {
+        let data = loc(
+            "Cottage",
+            "A peat fire warms the room. Outside the weather is {weather}. It is {time}! \
+             {npcs_present} sit by the hearth? The {weather} sky is grey.",
+            vec![],
+        );
+        assert_eq!(
+            render_setting(&data, &["Mary", "Padraig"]),
+            "A peat fire warms the room. Mary, Padraig sit by the hearth?"
+        );
+    }
+
+    #[test]
+    fn the_setting_keeps_decimal_points_and_a_final_unpunctuated_sentence() {
+        let data = loc(
+            "Road",
+            "The milestone reads 3.5 miles. It is {time}. A lane runs east",
+            vec![],
+        );
+        assert_eq!(
+            render_setting(&data, &[]),
+            "The milestone reads 3.5 miles. A lane runs east"
+        );
     }
 
     #[test]

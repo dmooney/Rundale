@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 import LimerickEndpointKit
 import RundaleBridge
 import RundaleKit
@@ -75,11 +76,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         )
         state = initialState
         presentation = PresentationSession(state: initialState)
-        // The Rust read model is not available until the runtime opens. Keep
-        // slash commands ready for the composer, then replace this empty NPC
-        // projection with the authoritative nearby-person list during the
-        // first snapshot refresh.
-        completionRegistry = FixtureCompletionRegistry(nearbyNPCs: [])
+        // The Rust read model is not available until the runtime opens. The
+        // first snapshot refresh replaces this empty projection with the
+        // authoritative nearby-person list.
+        completionRegistry = FixtureCompletionRegistry(slashCommands: [], nearbyNPCs: [])
 
         if configuration.phase2MockTransport {
             let credentials = StaticEndpointCredentialProvider(
@@ -388,7 +388,9 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
+        // The engine has no slash commands on the phone; offer only people.
         completionRegistry = FixtureCompletionRegistry(
+            slashCommands: [],
             nearbyNPCs: snapshot.readModel.nearbyPeople.map {
                 FixtureNPCReference(id: $0.id, displayName: $0.displayName)
             }
@@ -544,17 +546,15 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             }
     }
 
-    private func pendingInvocation(runtime: LimerickRuntime) async throws -> InvocationIdentity? {
-        let data = try await runtime.pendingEndpointJSON()
-        guard try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) as? [String: Any] != nil else {
-            return nil
-        }
-        var invocation = try FixtureJSON.decode(InvocationIdentity.self, from: data)
-        invocation.payload = data
-        return invocation
+    private func pendingInvocation(runtime: LimerickRuntime) async throws -> LimerickPendingInvocation? {
+        try await runtime.pendingInvocation()
     }
 
-    private func startEndpoint(_ invocation: InvocationIdentity, runtime: LimerickRuntime) {
+    /// Fulfils one model call through the Limerick Endpoint it names. Dialogue
+    /// text deltas are shown provisionally; the terminal output (or the
+    /// failure) resumes the engine, which may then ask for the next call of
+    /// the same turn (intent, then dialogue).
+    private func startEndpoint(_ invocation: LimerickPendingInvocation, runtime: LimerickRuntime) {
         endpointTask?.cancel()
         let configuration = self.configuration
         let endpointClient = self.endpointClient
@@ -566,22 +566,38 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
-                guard let endpointURL = configuration.endpointURL
-                    ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
+                let mockURL = "http://127.0.0.1/mock/\(invocation.slug)/versions/\(invocation.version)"
+                    + (invocation.streams ? "/stream" : "")
+                guard let endpointURL = configuration.endpointURL(
+                    slug: invocation.slug, version: invocation.version, stream: invocation.streams
+                ) ?? (configuration.phase2MockTransport ? URL(string: mockURL) : nil) else {
                     throw LimerickEndpointError.invalidURL
                 }
                 let request = try EndpointRequest(
                     url: endpointURL,
                     requestID: invocation.logicalRequestID.rawValue,
                     attemptID: invocation.attemptID.rawValue,
-                    idempotencyKey: invocation.idempotencyKey,
-                    endpointVersion: configuration.endpointVersion,
+                    idempotencyKey: invocation.callID,
+                    endpointVersion: invocation.version,
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
                 guard self.allowsInference,
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
+                // An Endpoint that does not stream (intent) answers with its
+                // output object on the JSON route. Stop cancels the task,
+                // which cancels the request.
+                guard invocation.streams else {
+                    let completed = try await endpointClient.complete(request)
+                    try Task.checkCancellation()
+                    let response = try await runtime.resolve(invocation, output: completed.body)
+                    guard !Task.isCancelled else { return }
+                    self.consumeOperation(response)
+                    try await self.continueInference(runtime: runtime, generation: generation)
+                    return
+                }
+                // A stream is also cancelled server-side on Stop.
                 self.activeEndpointRequest = request
                 defer {
                     if self.activeEndpointRequest?.attemptID == request.attemptID {
@@ -594,36 +610,19 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     case .progress:
                         continue
                     case .textDelta:
-                        guard let text = frame.text, !text.isEmpty else { continue }
-                        let operation = try EndpointOperation.frame(
-                            attemptID: invocation.attemptID,
-                            baseRevision: invocation.baseRevision,
-                            sequence: frame.sequence,
-                            text: text,
-                            update: .append,
-                            done: false
-                        )
-                        let response = try await runtime.dispatchJSON(operation)
+                        guard invocation.isDialogue, let text = frame.text, !text.isEmpty else { continue }
+                        let response = try await runtime.frame(invocation, sequence: frame.sequence, text: text)
                         guard !Task.isCancelled else { return }
                         self.consumeOperation(response)
                     case .final:
                         guard let payload = frame.payload else {
                             throw LimerickEndpointError.malformedEvent("final output is missing")
                         }
-                        let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
-                        guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                            throw LimerickEndpointError.malformedEvent("final dialogue is empty")
-                        }
-                        let operation = try EndpointOperation.candidate(
-                            attemptID: invocation.attemptID,
-                            baseRevision: invocation.baseRevision,
-                            dialogue: output.dialogue,
-                            metadata: [:],
-                            structured: true
-                        )
-                        let response = try await runtime.dispatchJSON(operation)
+                        let response = try await runtime.resolve(invocation, output: payload)
                         guard !Task.isCancelled else { return }
                         self.consumeOperation(response)
+                        try await self.continueInference(runtime: runtime, generation: generation)
+                        return
                     case .error:
                         throw EndpointReportedFailure(payload: frame.error)
                     }
@@ -632,23 +631,41 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 return
             } catch {
                 guard !Task.isCancelled,
-                      self?.allowsInference == true,
-                      self?.inferenceGeneration == generation else { return }
+                      let self,
+                      self.allowsInference,
+                      self.inferenceGeneration == generation else { return }
                 do {
                     let failure = Self.playerFacingFailure(error)
-                    let response = try await runtime.receiveFailure(
-                        attemptID: invocation.attemptID,
-                        baseRevision: invocation.baseRevision,
-                        kind: failure.kind,
-                        message: failure.message
-                    )
-                    self?.consumeOperation(response)
+                    // An intent failure is absorbed by the engine (the turn
+                    // continues as unclassified input), so record every
+                    // Endpoint failure here for diagnosis. No credentials
+                    // are part of these errors.
+                    Self.log.error("""
+                        Endpoint \(invocation.slug, privacy: .public) v\(invocation.version, privacy: .public) \
+                        failed (\(failure.kind.rawValue, privacy: .public)): \(String(describing: error), privacy: .public)
+                        """)
+                    let response = try await runtime.fail(invocation, kind: failure.kind, message: failure.message)
+                    self.consumeOperation(response)
+                    try await self.continueInference(runtime: runtime, generation: generation)
                 } catch {
-                    self?.persistenceError = Self.playerFacingPersistenceError(error)
+                    self.persistenceError = Self.playerFacingPersistenceError(error)
                 }
             }
         }
     }
+
+    /// Refreshes the read model after the engine took a result and starts
+    /// the next call the same turn is waiting on, if any.
+    private func continueInference(runtime: LimerickRuntime, generation: UInt64) async throws {
+        try refreshFromSnapshot(try await runtime.snapshotJSON())
+        _ = persistSessionState()
+        guard allowsInference, inferenceGeneration == generation else { return }
+        if let next = try await pendingInvocation(runtime: runtime) {
+            startEndpoint(next, runtime: runtime)
+        }
+    }
+
+    private static let log = Logger(subsystem: "com.rundale.mobile", category: "endpoint")
 
     private static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
         if let reported = error as? EndpointReportedFailure {
@@ -802,12 +819,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         _ = persistSessionState()
     }
 
-    /// Kept to one footnote line so the composer error strip never truncates it.
-    static let notWiredMessage = "Not yet connected to the game engine (#2044)."
-
     static func playerFacingPersistenceError(_ error: Error) -> String {
-        if case .notWired? = error as? LimerickRuntimeError {
-            return notWiredMessage
+        if case let .rejected(code, message)? = error as? LimerickRuntimeError,
+           ["save_incompatible", "save_locked", "content_unavailable"].contains(code) {
+            return message
         }
         if let projectionError = error as? Phase2ProjectionStoreError,
            let description = projectionError.errorDescription {
@@ -870,73 +885,6 @@ private struct MobileOperationResult: Decodable {
     let events: [SemanticEvent]
 }
 
-private struct EndpointOutput: Decodable {
-    let dialogue: String
-}
-
-private struct InvocationIdentity: Codable, Sendable {
-    let contractVersion: PresentationContractVersion
-    let sessionID: SessionID
-    let logicalRequestID: LogicalRequestID
-    let attemptID: ExecutionAttemptID
-    let baseRevision: StateRevision
-    let idempotencyKey: String
-    var payload: Data?
-
-    func requestBody() throws -> Data {
-        let input: Data
-        if let payload {
-            input = payload
-        } else {
-            input = try FixtureJSON.encode(self)
-        }
-        let object = try JSONSerialization.jsonObject(with: input)
-        return try JSONSerialization.data(withJSONObject: ["input": object], options: [.sortedKeys])
-    }
-}
-
-private enum EndpointOperation {
-    static func frame(
-        attemptID: ExecutionAttemptID,
-        baseRevision: StateRevision,
-        sequence: UInt64,
-        text: String,
-        update: StreamUpdate,
-        done: Bool
-    ) throws -> Data {
-        try json([
-            "op": "receive_frame",
-            "attempt_id": attemptID.rawValue,
-            "base_revision": baseRevision.rawValue,
-            "sequence": sequence,
-            "text": text,
-            "stream_update": update.rawValue,
-            "done": done
-        ])
-    }
-
-    static func candidate(
-        attemptID: ExecutionAttemptID,
-        baseRevision: StateRevision,
-        dialogue: String,
-        metadata: [String: String],
-        structured: Bool
-    ) throws -> Data {
-        try json([
-            "op": "receive_candidate",
-            "attempt_id": attemptID.rawValue,
-            "base_revision": baseRevision.rawValue,
-            "dialogue": dialogue,
-            "metadata": metadata,
-            "structured": structured
-        ])
-    }
-
-    private static func json(_ object: [String: Any]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-    }
-}
-
 private struct Phase2Projection: Codable, Sendable {
     let draft: Draft
     let viewport: TranscriptViewport
@@ -993,7 +941,9 @@ private struct Phase2ProjectionStore: Sendable {
     }
 
     var engineOpenPayload: Data {
-        let object: [String: Any] = ["save_path": engineURL.path]
+        // The world is the canonical mod, bundled with the app as game data.
+        let modDirectory = Bundle.main.url(forResource: "rundale", withExtension: nil, subdirectory: "Mods")?.path ?? ""
+        let object: [String: Any] = ["save_path": engineURL.path, "mod_dir": modDirectory]
         return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data("{}".utf8)
     }
 
@@ -1084,6 +1034,18 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     }
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
+                    if identities.role == "player_intent" {
+                        // The intent Endpoint does not stream: its JSON route
+                        // returns the output object. Free-form input the local
+                        // parser did not recognise is treated as speech to
+                        // whoever is present.
+                        continuation.yield(.response(statusCode: 200, headers: ["content-type": "application/json"]))
+                        continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: [
+                            "intent": "talk", "target": NSNull(), "dialogue": NSNull(), "atmosphere": NSNull()
+                        ])))
+                        continuation.finish()
+                        return
+                    }
                     continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream; charset=utf-8"]))
                     if input.contains("offline once"),
                        self.claimInjectedFailure(mode: "offline", requestID: identities.requestID) {
@@ -1147,6 +1109,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let requestID: String
         let attemptID: String
         let invocationID: String
+        let role: String
         let input: String
         let speakerName: String
         let endpointVersion: Int
@@ -1156,20 +1119,24 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         guard let body,
               let root = try JSONSerialization.jsonObject(with: body) as? [String: Any],
               let input = root["input"] as? [String: Any],
+              let role = input["role"] as? String,
               let requestID = input["logicalRequestID"] as? String,
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
-              let playerInput = input["playerInput"] as? String,
-              let speaker = input["speaker"] as? [String: Any],
-              let speakerName = speaker["displayName"] as? String else {
+              let playerInput = input["playerInput"] as? String else {
             throw LimerickEndpointError.malformedEvent("mock request input is invalid")
+        }
+        let speakerName = (input["speaker"] as? [String: Any])?["displayName"] as? String
+        guard role == "player_intent" || speakerName != nil else {
+            throw LimerickEndpointError.malformedEvent("mock dialogue input has no speaker")
         }
         return Identities(
             requestID: requestID,
             attemptID: attemptID,
             invocationID: invocationID,
+            role: role,
             input: playerInput,
-            speakerName: speakerName,
+            speakerName: speakerName ?? "",
             endpointVersion: Self.endpointVersion(from: url)
         )
     }

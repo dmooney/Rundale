@@ -279,6 +279,60 @@ pub(crate) async fn requests_lists_every_record_in_accepted_order(journal: &impl
     );
 }
 
+pub(crate) async fn events_without_a_request_are_journaled_in_sequence_and_idempotently(
+    journal: &impl ContractJournal,
+) {
+    let mut opening = PendingEvent {
+        id: super::ids::TranscriptEventId::new("opening"),
+        request_id: None,
+        attempt_id: None,
+        item_id: None,
+        kind: TranscriptEventKind::Narration,
+        speaker: None,
+        content: Some("Morning in the village.".to_string()),
+        terminal_outcome: None,
+        state_revision: None,
+        clarification: None,
+        metadata: Default::default(),
+    };
+    let stored = journal.record(vec![opening.clone()]).await.unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(journal.record(vec![opening.clone()]).await.unwrap(), stored);
+
+    let (record, command) = accepted("r1");
+    let after = journal.accept(record, vec![command]).await.unwrap();
+    assert!(stored[0].sequence < after[0].sequence);
+    assert!(
+        journal.requests().await.unwrap().len() == 1,
+        "no request record"
+    );
+
+    opening.content = Some("Evening.".to_string());
+    assert_eq!(
+        journal.record(vec![opening.clone()]).await.unwrap_err(),
+        JournalError::ConflictingEvent(opening.id.clone())
+    );
+    journal.fail_next_writes(1);
+    let mut later = opening.clone();
+    later.id = super::ids::TranscriptEventId::new("later");
+    assert!(journal.record(vec![later.clone()]).await.is_err());
+    assert_eq!(
+        journal.stored_events().len(),
+        2,
+        "a failed record writes nothing"
+    );
+
+    let (owned, _) = accepted("r2");
+    later.request_id = Some(owned.id);
+    assert!(
+        matches!(
+            journal.record(vec![later]).await,
+            Err(JournalError::Storage(_))
+        ),
+        "an event naming a request is journaled with that request"
+    );
+}
+
 /// Instantiates the contract suite for the journal `$make` constructs.
 macro_rules! journal_contract_tests {
     ($make:expr) => {
@@ -318,6 +372,12 @@ macro_rules! journal_contract_tests {
             #[tokio::test]
             async fn open_requests_lists_only_non_terminal_records() {
                 suite::open_requests_lists_only_non_terminal_records(&$make).await;
+            }
+
+            #[tokio::test]
+            async fn events_without_a_request_are_journaled_in_sequence_and_idempotently() {
+                suite::events_without_a_request_are_journaled_in_sequence_and_idempotently(&$make)
+                    .await;
             }
 
             #[tokio::test]

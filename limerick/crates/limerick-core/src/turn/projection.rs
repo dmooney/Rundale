@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEventKind};
+use crate::portable_look::SceneText;
 
 /// Emission names that carry transcript content.
 pub const TRANSCRIPT_EMISSIONS: &[&str] = &[
@@ -45,16 +46,22 @@ struct OpenStream {
 ///
 /// `location` is the player's location name before the attempt; a
 /// `world-update` naming a different location becomes `SceneChanged`.
-/// Player echo lines are skipped: the accepted command is its own event.
+/// `arrival` is the scene the attempt ended in: a scene change to it carries
+/// its text (see [`scene_event`]) and replaces the arrival description the
+/// loop logged, which also lists the exits. Player echo lines are skipped:
+/// the accepted command is its own event.
 pub fn project_emissions(
     emissions: &[(String, Value)],
     builder: &mut EventBuilder,
     location: Option<&str>,
+    arrival: Option<&SceneText>,
 ) -> Vec<PendingEvent> {
     let mut events: Vec<Option<PendingEvent>> = Vec::new();
     let mut streams: HashMap<u64, OpenStream> = HashMap::new();
     let mut dialogue_by_turn: HashMap<u64, usize> = HashMap::new();
     let mut location = location.map(str::to_string);
+    // The latest arrival description (`text-log` subtype `location`).
+    let mut described: Option<usize> = None;
 
     let text =
         |payload: &Value, key: &str| payload.get(key).and_then(Value::as_str).map(str::to_string);
@@ -98,6 +105,9 @@ pub fn project_emissions(
                     event.speaker = Some(source);
                 }
                 event.content = Some(content);
+                if subtype.as_deref() == Some("location") {
+                    described = Some(events.len());
+                }
                 events.push(Some(event));
             }
             "stream-token" => {
@@ -154,9 +164,20 @@ pub fn project_emissions(
                 if location.as_deref() != Some(name.as_str()) {
                     if location.is_some() {
                         let mut event = builder.event(TranscriptEventKind::SceneChanged);
-                        event.content = Some(name.clone());
-                        if let Some(id) = payload.get("location_id").and_then(Value::as_u64) {
-                            event.metadata.insert("sceneID".to_string(), id.to_string());
+                        match arrival.filter(|scene| scene.name == name) {
+                            Some(scene) => {
+                                fill_scene(&mut event, scene);
+                                if let Some(index) = described.take() {
+                                    events[index] = None;
+                                }
+                            }
+                            None => {
+                                event.content = Some(name.clone());
+                                if let Some(id) = payload.get("location_id").and_then(Value::as_u64)
+                                {
+                                    event.metadata.insert("sceneID".to_string(), id.to_string());
+                                }
+                            }
                         }
                         events.push(Some(event));
                     }
@@ -167,6 +188,37 @@ pub fn project_emissions(
         }
     }
     events.into_iter().flatten().collect()
+}
+
+/// A request-less `SceneChanged` event showing `scene` (a new game's
+/// opening scene).
+pub fn scene_event(id: super::ids::TranscriptEventId, scene: &SceneText) -> PendingEvent {
+    let mut event = PendingEvent {
+        id,
+        request_id: None,
+        attempt_id: None,
+        item_id: None,
+        kind: TranscriptEventKind::SceneChanged,
+        speaker: None,
+        content: None,
+        terminal_outcome: None,
+        state_revision: None,
+        clarification: None,
+        metadata: Default::default(),
+    };
+    fill_scene(&mut event, scene);
+    event
+}
+
+/// A scene event's content is the scene text; its title is `sceneName`.
+fn fill_scene(event: &mut PendingEvent, scene: &SceneText) {
+    event.content = Some(scene.text.clone());
+    event
+        .metadata
+        .insert("sceneName".to_string(), scene.name.clone());
+    event
+        .metadata
+        .insert("sceneID".to_string(), scene.location_id.to_string());
 }
 
 #[cfg(test)]
@@ -212,7 +264,7 @@ mod tests {
             ),
             ("stream-end".to_string(), json!({"hints":[]})),
         ];
-        let events = project_emissions(&emissions, &mut builder(), Some("Kilteevan"));
+        let events = project_emissions(&emissions, &mut builder(), Some("Kilteevan"), None);
         let summary: Vec<_> = events
             .iter()
             .map(|event| {
@@ -266,7 +318,7 @@ mod tests {
                 json!({"turn_id":2,"status":"completed"}),
             ),
         ];
-        let events = project_emissions(&emissions, &mut builder(), None);
+        let events = project_emissions(&emissions, &mut builder(), None, None);
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].kind, TranscriptEventKind::Error);
         assert_eq!(events[0].content.as_deref(), Some("Please try again."));
@@ -290,13 +342,65 @@ mod tests {
                 json!({"location_id":13,"location_name":"The Crossroads"}),
             ),
         ];
-        let events = project_emissions(&emissions, &mut builder(), Some("Kilteevan Village"));
+        let events = project_emissions(&emissions, &mut builder(), Some("Kilteevan Village"), None);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].kind, TranscriptEventKind::SceneChanged);
         assert_eq!(events[0].content.as_deref(), Some("The Crossroads"));
         assert_eq!(
             events[0].metadata.get("sceneID").map(String::as_str),
             Some("13")
+        );
+    }
+
+    #[test]
+    fn an_arrival_scene_replaces_the_logged_description_and_its_exits() {
+        let emissions = vec![
+            (
+                "text-log".to_string(),
+                json!({"source":"system","content":"You walk west along the boreen."}),
+            ),
+            (
+                "text-log".to_string(),
+                json!({"source":"system","subtype":"location",
+                       "content":"A peat fire warms the room.\nYou can go to: Kilteevan Village"}),
+            ),
+            (
+                "world-update".to_string(),
+                json!({"location_id":3,"location_name":"Connolly Cottage"}),
+            ),
+        ];
+        let scene = SceneText {
+            location_id: 3,
+            name: "Connolly Cottage".to_string(),
+            text: "A peat fire warms the room.\n\nRóisín is here.".to_string(),
+        };
+        let events = project_emissions(
+            &emissions,
+            &mut builder(),
+            Some("Kilteevan Village"),
+            Some(&scene),
+        );
+        let kinds: Vec<_> = events.iter().map(|event| event.kind.clone()).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                TranscriptEventKind::Narration,
+                TranscriptEventKind::SceneChanged
+            ]
+        );
+        assert_eq!(
+            events[0].content.as_deref(),
+            Some("You walk west along the boreen.")
+        );
+        let arrived = &events[1];
+        assert_eq!(arrived.content.as_deref(), Some(scene.text.as_str()));
+        assert_eq!(
+            arrived.metadata.get("sceneName").map(String::as_str),
+            Some("Connolly Cottage")
+        );
+        assert_eq!(
+            arrived.metadata.get("sceneID").map(String::as_str),
+            Some("3")
         );
     }
 

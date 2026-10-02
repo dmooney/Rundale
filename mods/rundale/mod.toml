@@ -36,3 +36,10 @@ transport = "transport.toml"
 tier1_system = "prompts/tier1_system.txt"
 tier1_context = "prompts/tier1_context.txt"
 tier2_system = "prompts/tier2_system.txt"
+
+# Limerick Endpoint definitions, one per inference role (ADR-025 §5). Each
+# file is named <slug>.v<version>.json; the engine attaches that identity to
+# the role's calls and Limerick Endpoints publishes the file's body.
+[endpoints]
+dialogue = "endpoints/rundale-dialogue.v1.json"
+intent = "endpoints/rundale-intent.v1.json"

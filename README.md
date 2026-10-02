@@ -216,7 +216,7 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 - **`docs/index.md`** is the master hub — phase status, design overview, ADR index, plans, research, and agent guides.
 - **Architectural Decision Records** record the rationale behind graph-based worlds, cognitive LOD, SQLite write-ahead-log persistence, git-like branching, JSON-structured LLM output, real geography, per-category inference, and the geo-tool OSM pipeline.
 - **Historical research archive** — religion, family, education, crafts, food, transportation, and Hiberno-English dialect notes informing NPC dialogue.
-- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), linked from `CLAUDE.md` and `AGENTS.md`.
+- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), linked from `AGENTS.md`.
 
 ## Model leaderboard
 

@@ -28,13 +28,14 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
-exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs', 'mobile/DerivedData', 'mobile/.*/\.build']
+exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs', 'mobile/DerivedData', 'mobile/\.verification', 'mobile/.*/\.build']
 
 [tool.pytest.ini_options]
 # The bench has bespoke phase tests; the scheduled player agent has transport
 # contract tests under limerick/testing/eval; the differential proof tools test
-# under limerick/scripts/proof. Collect all three in the CI pytest gate.
-testpaths = ["rundale-bench", "limerick/testing/eval", "limerick/scripts/proof"]
+# under limerick/scripts/proof; the mobile verification and release runners
+# test under mobile/scripts. Collect all four in the CI pytest gate.
+testpaths = ["rundale-bench", "limerick/testing/eval", "limerick/scripts/proof", "mobile/scripts"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
 addopts = "-q"

@@ -905,7 +905,9 @@ public final class LimerickEndpointClient: @unchecked Sendable {
             )
         }
         let result = EndpointCompletedResponse(requestID: endpointRequest.requestID, statusCode: statusCode, body: body)
-        _ = try result.validatedDialogue()
+        // One bounded JSON object; the caller validates it against the
+        // Endpoint's output schema (for example `validatedDialogue()`).
+        _ = try result.validatedJSON()
         return result
     }
 

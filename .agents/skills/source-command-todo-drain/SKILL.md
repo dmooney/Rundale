@@ -158,7 +158,7 @@ gh pr merge <N> --squash --delete-branch
 
 ## Boundaries
 
-- Never commit other sessions' leaked WIP from the main repo. If the Stop hook fires on someone else's broken match arms, tag the next message with `[skip-quality-hook]` and continue.
+- Never commit other sessions' leaked WIP from the main repo.
 - Never force-push to a PR branch — bot review threads anchor to commit SHAs and force-push detaches them.
 - Never amend; always create new commits. Pre-commit hook failures didn't actually commit, so `--amend` would corrupt prior history.
 - Don't touch `.proofs/` archives in `docs/proofs/local-perf` or `docs/proofs/rundale-bench` — bench archives, exempt from the gate.

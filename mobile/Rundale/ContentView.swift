@@ -73,6 +73,16 @@ struct ContentView: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            .overlay(alignment: .topLeading) {
+                if model.launch.isUITesting {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel("Transcript trace")
+                        .accessibilityValue(model.uiTestTranscriptTrace)
+                        .accessibilityIdentifier("uitest.transcriptTrace")
+                }
+            }
         }
         .background(RundaleTheme.canvas)
         .foregroundStyle(RundaleTheme.ink)
@@ -810,6 +820,9 @@ private struct TranscriptEntry: View {
 
     private var accessibilityLabel: String {
         var parts = [kindLabel]
+        if item.kind == .sceneChanged, let sceneName = item.metadata["sceneName"], !sceneName.isEmpty {
+            parts.append(sceneName)
+        }
         if let speaker = item.speaker, !speaker.isEmpty {
             parts.append(speaker)
         }
@@ -1160,16 +1173,18 @@ private struct Composer: View {
                 }
                 .accessibilityHint("Choose a nearby person to address without typing an at sign")
                 .accessibilityIdentifier("composer.people")
-                Button {
-                    model.browseCompletions("/")
-                    focused = true
-                } label: {
-                    shortcutLabel("Commands", systemImage: "list.bullet")
-                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
+                if model.offersCommands {
+                    Button {
+                        model.browseCompletions("/")
+                        focused = true
+                    } label: {
+                        shortcutLabel("Commands", systemImage: "list.bullet")
+                            .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityHint("Choose a command to put in the draft")
+                    .accessibilityIdentifier("composer.commands")
                 }
-                .accessibilityHint("Choose a command to put in the draft")
-                .accessibilityIdentifier("composer.commands")
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
                     Button {

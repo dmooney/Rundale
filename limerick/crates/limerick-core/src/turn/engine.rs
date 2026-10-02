@@ -36,13 +36,15 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::BoxFuture;
-use super::ids::{ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision};
+use super::ids::{
+    ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision, TranscriptEventId,
+};
 use super::journal::{JournalError, TurnCommit, TurnJournal};
 use super::lifecycle::{
     ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
     TerminalOutcome,
 };
-use super::projection::project_emissions;
+use super::projection::{project_emissions, scene_event};
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
 use crate::config::{InferenceConfig, InferenceSubrole};
 use crate::game_loop::flush_staged_emissions;
@@ -51,11 +53,12 @@ use crate::game_loop::{
     AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
     handle_game_input_settled,
 };
-use crate::game_mod::PronunciationEntry;
+use crate::game_mod::{EndpointCatalog, PronunciationEntry};
 use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
 use crate::ipc::{GameConfig, StreamEndPayload, text_log};
 use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
+use crate::portable_look::{SceneText, render_scene};
 use crate::turn_inference::{
     CallReport, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus, TurnInference,
 };
@@ -334,6 +337,7 @@ struct AttemptEnv {
     cloud_client: Mutex<Option<AnyClient>>,
     inference_config: InferenceConfig,
     pronunciations: Vec<PronunciationEntry>,
+    endpoints: EndpointCatalog,
     language: LanguageSettings,
     inference_failure_messages: Vec<String>,
     idle_messages: Vec<String>,
@@ -352,6 +356,7 @@ impl AttemptEnv {
             emitter: self.candidate.emitter(),
             inference_config: &self.inference_config,
             pronunciations: &self.pronunciations,
+            endpoints: &self.endpoints,
             client: &self.client,
             cloud_client: &self.cloud_client,
             language: self.language.clone(),
@@ -519,6 +524,40 @@ impl TurnEngine {
                     .find(|record| record.phase.is_open())
                     .map(|record| &record.id)
             })
+    }
+
+    /// Journals a narration line that belongs to no request, such as the
+    /// scene that opens a new game. `id` names the event: journaling the same
+    /// id and text again is a no-op that returns the stored event.
+    pub async fn narrate(
+        &self,
+        id: TranscriptEventId,
+        text: impl Into<String>,
+    ) -> Result<Vec<TranscriptEvent>, TurnError> {
+        let event = PendingEvent {
+            id,
+            request_id: None,
+            attempt_id: None,
+            item_id: None,
+            kind: TranscriptEventKind::Narration,
+            speaker: None,
+            content: Some(text.into()),
+            terminal_outcome: None,
+            state_revision: None,
+            clarification: None,
+            metadata: Default::default(),
+        };
+        Ok(self.journal.record(vec![event]).await?)
+    }
+
+    /// Journals `scene` as a request-less scene event (a new game's opening
+    /// scene), like [`narrate`](Self::narrate).
+    pub async fn describe_scene(
+        &self,
+        id: TranscriptEventId,
+        scene: &SceneText,
+    ) -> Result<Vec<TranscriptEvent>, TurnError> {
+        Ok(self.journal.record(vec![scene_event(id, scene)]).await?)
     }
 
     /// Accepts `input` as a new logical request and starts its first
@@ -956,6 +995,7 @@ impl TurnEngine {
             cloud_client: Mutex::new(None),
             inference_config: live.inference_config.clone(),
             pronunciations: live.pronunciations.to_vec(),
+            endpoints: live.endpoints.clone(),
             language: live.language.clone(),
             inference_failure_messages: live.inference_failure_messages.to_vec(),
             idle_messages: live.idle_messages.to_vec(),
@@ -1079,6 +1119,12 @@ impl TurnEngine {
         drop(calls);
         let mut builder =
             EventBuilder::new(request_id.clone(), Some(attempt_id.clone()), next_ordinal);
+        let arrival = {
+            let world = env.candidate.world.lock().await;
+            let npc_manager = env.candidate.npc_manager.lock().await;
+            (Some(world.current_location().name.as_str()) != location_before.as_deref())
+                .then(|| render_scene(&world, &npc_manager))
+        };
         let finished = Arc::into_inner(env)
             .ok_or_else(|| "the attempt's state is still shared".to_string())
             .and_then(|env| env.candidate.finish().map_err(|error| error.to_string()));
@@ -1144,6 +1190,7 @@ impl TurnEngine {
             finished.emissions(),
             &mut builder,
             location_before.as_deref(),
+            arrival.as_ref(),
         );
         events.push(builder.response_completed(TerminalOutcome::Succeeded, Some(revision)));
         let commit = TurnCommit {
@@ -1416,6 +1463,7 @@ mod tests {
             prompt: "greet the newcomer".to_string(),
             response: ResponseShape::Text,
             correlation_id: None,
+            endpoint: None,
         }
     }
 

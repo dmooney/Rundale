@@ -44,9 +44,6 @@ This looks like an implementation task. Before writing any code:
          Acceptance criteria: met
 
   5. Run: just agent-check
-
-The Stop hook blocks session-end if code was changed without an
-acceptance-criteria.md in the proof bundle.
 =================================
 REMINDER
 

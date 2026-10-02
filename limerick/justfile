@@ -373,7 +373,7 @@ clippy:
 clippy-fix:
     cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md, CLAUDE.md)
+# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md)
 # must exist on disk. Catches doc drift before it reaches an agent.
 check-doc-paths:
     ./scripts/check-doc-paths.sh
