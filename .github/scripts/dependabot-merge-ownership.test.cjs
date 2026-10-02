@@ -9,7 +9,7 @@ const workflowPath = path.join(
 	__dirname,
 	'..',
 	'workflows',
-	'dependabot-auto-merge.yml',
+	'dependabot-review.yml',
 );
 
 const forbiddenMergeMutations = [
