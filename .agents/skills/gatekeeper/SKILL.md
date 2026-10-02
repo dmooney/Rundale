@@ -255,11 +255,21 @@ gh pr merge $PR --squash --delete-branch --match-head-commit <reviewed head sha>
 `--match-head-commit` prevents merging a commit you did not review. If the
 merge is refused, report why and leave it for the next pass. When it is
 refused because the head is behind `main` (`mergeStateStatus` `BEHIND`), ask
-the author to update the branch; for Dependabot, comment `@dependabot rebase`.
-A rebased head is a new head: confirm its diff matches the one you approved
-and its required checks pass, then post an `approve` review for the new SHA
-before merging. Each merge puts the remaining approved PRs behind again, so
-land them one at a time. Post the
+the author to update the branch. The one exception to never changing a PR:
+for an approved Dependabot PR, use GitHub's update-branch (it merges `main`
+into the head, pinned to the reviewed SHA), because harnesses may defang an
+`@dependabot rebase` mention so the bot never sees it.
+
+```sh
+gh api -X PUT repos/:owner/:repo/pulls/$PR/update-branch -f expected_head_sha=<reviewed head sha>
+```
+
+An updated head is a new head: confirm its diff against `main` matches the
+one you approved and its required checks pass, then post an `approve` review
+for the new SHA before merging. Each merge puts the remaining approved PRs
+behind again, so land them one at a time. Leave a PR that conflicts with an
+earlier merge untouched; Dependabot rebases its own conflicting PRs only
+while no one else has pushed to them. Post the
 `approve` review before merging so the record shows what was accepted.
 
 ## Hand-off to the owner
