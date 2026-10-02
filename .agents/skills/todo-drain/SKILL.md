@@ -1,11 +1,13 @@
 ---
-description: Drain TODO.md demo-audit findings in parallel rounds — AC-first, live proof, attach bundle, retrigger CI as needed, land green PRs while next round is in flight.
-allowed-tools: Bash, Read, Edit, Write, Grep, Glob, EnterWorktree, Monitor, TaskCreate, TaskUpdate, Skill
+name: todo-drain
+description: "Drain TODO.md demo-audit findings in parallel rounds \u2014 AC-first, live proof, attach bundle, retrigger CI as needed, land green PRs while next round is in flight."
 ---
+
+# todo-drain
 
 Land fixes from `TODO.md` (Rundale demo-audit findings). Run rounds in parallel — start the next round while the previous PR's CI runs.
 
-# Workflow per round
+## Workflow per round
 
 ## 1. Sync + worktree
 
@@ -13,10 +15,10 @@ Never work in the main repo directory — other sessions may be using it. Switch
 
 ```sh
 git fetch origin main
-git worktree add .claude/worktrees/round-<n> -b claude/round-<n> origin/main
+git worktree add .worktrees/round-<n> -b round-<n> origin/main
 ```
 
-Then `EnterWorktree` to that path so all subsequent commands run inside the worktree.
+Then move execution to that path so all subsequent commands run inside the worktree.
 
 ## 2. Pick TODO item
 
@@ -27,7 +29,7 @@ Open `TODO.md`. Prefer the smallest-scope unaddressed P0/P1. If the entry has a 
 Before any code change:
 
 - `.proofs/todo-<id>/acceptance-criteria.md` — observable criteria, sized concretely (e.g. "`frequency_penalty: Option<f32>` field on `InferenceRequest`", not "improve repetition handling"). Include a "Deferred items" section listing anything intentionally punted from this round.
-- `limerick/testing/fixtures/play_todo-<id>.txt` — harness commands that exercise the new code path in `limerick-engine --headless --script`.
+- `limerick/testing/proofs/play_todo-<id>.txt` — harness commands that exercise the new code path in `limerick-engine --headless --script`.
 
 ## 4. Implement
 
@@ -55,7 +57,7 @@ cd limerick/apps/ui && npx vitest run && pnpm run check
 
 ```sh
 cargo run -p limerick-engine -- --headless --script \
-  limerick/testing/fixtures/play_todo-<id>.txt > /tmp/transcript.txt
+  limerick/testing/proofs/play_todo-<id>.txt > /tmp/transcript.txt
 cp /tmp/transcript.txt .proofs/todo-<id>/transcript.json
 ```
 
@@ -71,27 +73,17 @@ First line must be `Evidence type: live gameplay transcript`. Include:
 - Transcript excerpt.
 - "Why this fixes #N" explainer.
 - "Deferred items" section listing what was punted with a follow-up plan.
+- Risk check: save compatibility, prompt budget, mode parity, architecture fitness.
+- Final line: `Acceptance criteria: met`.
 
-## 8. Write judge.md
-
-Independent verdict. Must end with all three lines verbatim:
-
-```text
-Verdict: sufficient
-Technical debt: clear
-Acceptance criteria: met
-```
-
-Include risk-check (save compatibility, prompt budget, mode parity, architecture-fitness) and an acceptance-criteria audit table.
-
-## 9. Commit + push + PR
+## 8. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
-- Body explains the _why_, not the _what_; ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
+- Body explains the _why_, not the _what_. Do not add a Claude-specific co-author trailer unless the user explicitly asks for it.
 - PR title prefix matches commit.
 - PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
 
-## 10. Attach proof bundle
+## 9. Attach proof bundle
 
 From the worktree:
 
@@ -101,9 +93,9 @@ bash limerick/scripts/attach-proof.sh todo-<id> <pr-num>
 
 Do NOT call `just attach-proof` from a worktree — that uses the main repo's `justfile` and posts the wrong bundle.
 
-## 11. Start next round immediately
+## 10. Start next round immediately
 
-Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b claude/round-<n+1>` and repeat 2-10.
+Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b round-<n+1>` and repeat 2-9.
 
 Keep a running `Monitor` of all in-flight PRs:
 
@@ -111,8 +103,9 @@ Keep a running `Monitor` of all in-flight PRs:
 prev=""
 while true; do
   s=$(for pr in <ids>; do
-    gh pr checks $pr --json name,bucket 2>/dev/null \
-      | jq -c "[.[] | {name: (\"$pr/\" + .name), bucket}]"
+    gh pr view "$pr" --json statusCheckRollup \
+      --jq "[.statusCheckRollup[]? | {name: (\"$pr/\" + (.context // .name // \"unknown\")), bucket: (if (.state // .status // \"\") == \"PENDING\" then \"pending\" else ((.state // .conclusion // .status // \"unknown\") | ascii_downcase) end)}]" \
+      2>/dev/null
   done | jq -s 'add')
   cur=$(jq -r '.[] | select(.bucket!="pending") | "\(.name): \(.bucket)"' \
     <<<"$s" | sort)
@@ -124,7 +117,7 @@ done
 echo "ALL TERMINAL"
 ```
 
-## 12. Land green PRs
+## 11. Land green PRs
 
 When monitor reports green:
 
@@ -135,7 +128,7 @@ gh pr merge <N> --squash --delete-branch
 - The "main worktree" branch-delete error is harmless — merge succeeded on remote; verify via `gh pr view <N> --json state,mergeCommit`.
 - Gemini `review / review: cancel` is normal (auto-cancelled bot review, not a real failure).
 
-# Known CI failure patterns + fixes
+## Known CI failure patterns + fixes
 
 - **Rust quality gate / coverage ratchet `cancel`.** Concurrency rule (`cancel-in-progress: true`) killed older runs when a new push happened. Push an empty commit to retrigger:
 
@@ -149,7 +142,7 @@ gh pr merge <N> --squash --delete-branch
 
 - **`gh workflow run` HTTP 500.** Workflow file isn't on the branch HEAD or validation issue. Use empty commit + push instead.
 
-# Boundaries
+## Boundaries
 
 - Never commit other sessions' leaked WIP from the main repo.
 - Never force-push to a PR branch — bot review threads anchor to commit SHAs and force-push detaches them.
@@ -157,10 +150,14 @@ gh pr merge <N> --squash --delete-branch
 - Don't touch `.proofs/` archives in `docs/proofs/local-perf` or `docs/proofs/rundale-bench` — bench archives, exempt from the gate.
 - After each landed PR, do not edit `TODO.md` to mark items done — leave it as the demo-audit record; the PR commit IS the marker.
 
-# Stop conditions
+## Stop conditions
 
 Stop when:
 
 - User says "stop" or "pause".
 - `TODO.md` has no remaining unaddressed P0/P1 items.
 - 3+ consecutive rounds hit unrelated infra failures (signal: real bug in workflow, not your code; escalate to user).
+
+## Tooling Notes
+
+If your harness lacks a dedicated worktree or monitor tool, use plain `git worktree` commands and concise status updates.
