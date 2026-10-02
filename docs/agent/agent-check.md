@@ -43,6 +43,9 @@ Accepted evidence forms:
 - Gameplay transcript: a `.md` or `.txt` artifact that declares `Evidence type: gameplay transcript` (or `Evidence type: live gameplay transcript` when the diff touches a runtime-shipping path).
 - Screenshot: a `.png`, `.jpg`, or `.jpeg` artifact.
 - Gif: a `.gif` artifact.
+- Test run: an artifact that declares `Evidence type: test run`. Accepted only
+  when every proof-relevant file is test code or dev-only tooling (see
+  [Test code and dev tooling](#test-code-and-dev-tooling)).
 
 `evidence.md` maps every criterion in `acceptance-criteria.md` to the
 transcript lines or artifacts that show it, and ends with:
@@ -66,9 +69,29 @@ Historical bench receipts live in the ignored local archive at `docs/proofs/`
 per-task proof bundles and are not validated by this gate. Concise leaderboard
 summaries and content hashes remain committed; raw paid receipts do not.
 
+## Test code and dev tooling
+
+Some proof-relevant changes have no gameplay or live process to show. The gate
+treats two kinds of file this way:
+
+- **Test code:** `*.test.*`, `*.spec.*`, `*/tests/*`, `*/e2e/*`, and
+  `limerick/apps/ui/src/test-setup.ts`.
+- **Dev-only UI manifests:** a `limerick/apps/*/package.json` change confined
+  to `devDependencies`, and a `package-lock.json` change where every added,
+  removed, or changed package entry is flagged `"dev": true` (and its
+  `package.json` change is itself dev-only). `devOptional` does not count,
+  because it can reach a production optional dependency.
+
+Test code is never runtime-shipping, so it does not trigger the live-proof
+tier. When every proof-relevant file in the diff falls into these two kinds, a
+bundle is still required, but its evidence may declare `Evidence type: test
+run` and map each criterion to the test output. Any other proof-relevant file
+in the same diff, such as a UI component or a production dependency, restores
+the usual evidence requirements.
+
 ## Live-proof Tier
 
-When the diff touches a runtime-shipping path — `limerick-tauri/**`, `limerick-server/**`, `limerick-engine/**`, `limerick-core/src/{game_loop,game_session,ipc}/**`, `limerick-inference/src/{setup,client}.rs`, `limerick-npc/src/{ticks,manager,reactions,autonomous}/**`, `limerick-world/**`, `limerick-input/**`, `limerick/apps/ui/src/**`, `mods/**` (except Markdown such as `mods/**/AGENTS.md`; `.txt` prompt templates still count) — unit tests alone are not sufficient. The change must be exercised in a real process (Tauri, server, CLI, or browser) and the bundle's `evidence.md` header must declare `Evidence type: live gameplay transcript`, **or** the bundle must include a screenshot (`.png` / `.jpg` / `.jpeg`) or gif (`.gif`). The word "live" is the author affirmation that the run actually happened; analysis-only writeups failing this header are rejected by `just agent-check`.
+When the diff touches a runtime-shipping path — `limerick-tauri/**`, `limerick-server/**`, `limerick-engine/**`, `limerick-core/src/{game_loop,game_session,ipc}/**`, `limerick-inference/src/{setup,client}.rs`, `limerick-npc/src/{ticks,manager,reactions,autonomous}/**`, `limerick-world/**`, `limerick-input/**`, `limerick/apps/ui/src/**` (except test code), `mods/**` (except Markdown such as `mods/**/AGENTS.md`; `.txt` prompt templates still count) — unit tests alone are not sufficient. The change must be exercised in a real process (Tauri, server, CLI, or browser) and the bundle's `evidence.md` header must declare `Evidence type: live gameplay transcript`, **or** the bundle must include a screenshot (`.png` / `.jpg` / `.jpeg`) or gif (`.gif`). The word "live" is the author affirmation that the run actually happened; analysis-only writeups failing this header are rejected by `just agent-check`.
 
 **Real-loop integration tier.** Some runtime behaviours cannot be reproduced in a live process on demand — a deterministic post-generation guard whose _only_ trigger is intermittent large-model output (e.g. the 14B spontaneously impersonating another roster NPC, or looping a phrase to the token cap). The honest, strongest proof for these is a Rust integration test that drives the **real** `game_loop` (`handle_game_input` → `run_npc_turn`) via `GameTestHarness::execute_via_real_loop`, mocking only the LLM boundary — this exercises the exact production wiring (the gate's actual concern), unlike `--script`, which uses the legacy `execute()` path and bypasses `game_loop/npc_turn`. For such a change, declare `Evidence type: game-loop integration test` and **reference `execute_via_real_loop` in the same evidence file**; the gate accepts it as runtime proof. The `execute_via_real_loop` requirement ties the claim to the real mechanism so the tier cannot be stamped over plain unit tests. Use this tier only when a live trigger is genuinely non-deterministic — prefer a live transcript or screenshot whenever the behaviour can be exercised in a real process.
 
