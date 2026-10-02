@@ -379,7 +379,7 @@ describe("mobile invocation authentication", () => {
 
     const definition = JSON.parse(
       await readFile(
-        new URL("../../../../mobile/endpoint/rundale-dialogue-v1.json", import.meta.url),
+        new URL("../../../../mods/rundale/endpoints/rundale-dialogue.v1.json", import.meta.url),
         "utf8",
       ),
     ) as { inputSchema: Record<string, unknown> };
@@ -393,6 +393,30 @@ describe("mobile invocation authentication", () => {
     expect(validate(input)).toBe(true);
     input.knownPeople = Array.from({ length: 33 }, () => structuredClone(input.speaker));
     expect(validate(input)).toBe(false);
+  });
+
+  it("accepts the engine's intent invocation and rejects unknown fields", async () => {
+    const definition = JSON.parse(
+      await readFile(
+        new URL("../../../../mods/rundale/endpoints/rundale-intent.v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> };
+    const input = JSON.parse(
+      await readFile(
+        new URL("../../../../mobile/endpoint/example-intent-invocation.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const validateInput = compileSchema(definition.inputSchema);
+    expect(validateInput(input)).toBe(true);
+    expect(validateInput({ ...input, speaker: "Peig" })).toBe(false);
+    const validateOutput = compileSchema(definition.outputSchema);
+    expect(validateOutput({ intent: "move", target: "the Letter Office", dialogue: null })).toBe(
+      true,
+    );
+    expect(validateOutput({ intent: "fly", target: null })).toBe(false);
+    expect(validateOutput({ intent: "talk", extra: true })).toBe(false);
   });
 
   it("emits exactly one terminal error and records provider failure", async () => {

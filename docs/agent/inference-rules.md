@@ -9,6 +9,19 @@ promotion and setup systems. It is not a requirement for mobile feature work.
 When a local preset is promoted, the complete rule applies; this scope note
 does not waive the cross-cutting inference, state, or evidence rules.
 
+Rules 15 and 33 describe the desktop in-process pipeline. They do not apply to
+the mobile Endpoint path (owner decision, 2026-09-28): the Limerick Endpoint
+definition owns prompt construction and grounding; the app streams reply text
+into the transcript as it arrives, marked provisional; the engine commits the
+final reply after structural checks only (a complete, schema-valid, non-empty
+result), with no semantic content guards such as invented-person or
+invented-place detection. Grounding quality is fixed through the Endpoint
+definition and model, not engine rewrites. Stop or a failed call leaves the
+partial text visibly uncommitted, with no state effects. Rule 37 still applies:
+only a successful terminal result is committed. Desktop keeps its guards
+unchanged. The switch is the `dialogue-content-guards` flag
+(`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`), which the mobile host disables.
+
 <a id="rule-15"></a>
 
 ## Rule 15 — **Dialogue prompts must ground the model in the actual world:**

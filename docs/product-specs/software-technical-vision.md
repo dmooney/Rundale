@@ -6,6 +6,13 @@ Architecture for the text-first reset and all six delivery phases
 
 Editorial import note: references to the native Product & Technical Specification, including [P1], resolve within this repository to the versioned [Product & Technical Specification](product-technical-spec.md). The native document remains source provenance; this note does not change the imported source text or its proposed status.
 
+Editorial note (2026-10-01, #2045): the repository-level verification entry point
+that §§ Phase 1 and Phase 2 call "preferably ./verify" is `just mobile-verify`, with
+the same phase selector (`just mobile-verify --phase 1`). Every repository command
+is a `just` recipe, and a root `./verify` read as the engine's separate `just verify`.
+The contract the source text sets (one stable command, phase selection, nonzero exit
+on a required failure, human and machine-readable results) is unchanged.
+
 ## 1. Technical north star
 
 Rundale should become a small, dependable local application that can grow into a richer living world without changing who owns the game. SwiftUI provides the reading-and-typing experience. The embedded Rust Limerick Engine interprets commands, enforces rules, advances simulated time, manages NPC state, and commits saves. Limerick Endpoints supplies remote inference. The network never becomes the authority for location, knowledge, tasks, or story history. [P1]
@@ -451,6 +458,12 @@ Keep signing credentials and service secrets out of source and build artifacts. 
 ## 14. All-phase technical delivery vision
 
 The six phases below retain the scope and order of the product spec. Each phase adds the architecture needed for its own acceptance and establishes the minimum durable boundary needed by later work. They are not six opportunities to rebuild the application. All existing product checklists remain applicable. [P1]
+
+Repository delivery addition (2026-09-07): each phase concludes with a user
+demonstration under the product specification's phase-end demonstration
+requirement. Follow the [phase demo plan](phase-demo-plan.md), preserve a
+reproducible starting point, and distinguish demonstrated behavior from any
+unverified acceptance gates.
 
 ### Phase 1 — Static native interaction prototype
 

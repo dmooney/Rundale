@@ -1,4 +1,5 @@
 import LimerickMobileFFI
+import RundaleKit
 import XCTest
 @testable import RundaleBridge
 
@@ -31,15 +32,27 @@ final class LimerickRuntimeTests: XCTestCase {
         try await runtime.close()
     }
 
-    func testNotWiredEnvelopeMapsToDedicatedError() {
+    func testEngineRejectionsKeepTheirCodeAndMessage() {
         let envelope = Data(#"""
-        {"ok":false,"error":{"code":"not_wired","message":"`open_resume` is not yet wired to the shared Limerick engine (#2044).","issue":2044,"engine":{"save_format_version":3}}}
+        {"ok":false,"error":{"code":"request_in_progress","message":"request r1 is still open"}}
         """#.utf8)
-        let error = LimerickRuntime.statusError(LIMERICK_MOBILE_INTERNAL_ERROR, response: envelope)
-        XCTAssertEqual(
-            error,
-            .notWired("`open_resume` is not yet wired to the shared Limerick engine (#2044).")
-        )
+        let error = LimerickRuntime.statusError(LIMERICK_MOBILE_PROTOCOL_ERROR, response: envelope)
+        XCTAssertEqual(error, .rejected(code: "request_in_progress", message: "request r1 is still open"))
+    }
+
+    func testPendingInvocationDecodesTheEngineShape() throws {
+        let json = Data(#"""
+        {"attemptID":"a1","baseRevision":{"rawValue":3},"callID":"a1#2","endpoint":{"role":"dialogue","slug":"rundale-dialogue","version":1},"input":{"role":"npc_dialogue","sessionID":"s"},"logicalRequestID":"r1","stream":true}
+        """#.utf8)
+        let pending = try XCTUnwrap(LimerickPendingInvocation.decode(json))
+        XCTAssertEqual(pending.callID, "a1#2")
+        XCTAssertEqual(pending.baseRevision, StateRevision(3))
+        XCTAssertEqual(pending.slug, "rundale-dialogue")
+        XCTAssertTrue(pending.isDialogue)
+        XCTAssertTrue(pending.streams)
+        let body = try JSONSerialization.jsonObject(with: pending.requestBody()) as? [String: Any]
+        XCTAssertEqual((body?["input"] as? [String: Any])?["role"] as? String, "npc_dialogue")
+        XCTAssertNil(try LimerickPendingInvocation.decode(Data("null".utf8)))
     }
 
     func testOtherInternalErrorsKeepTheirRawEnvelope() {

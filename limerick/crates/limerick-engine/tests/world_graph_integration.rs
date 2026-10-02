@@ -15,7 +15,7 @@ use limerick_engine::world::time::TimeOfDay;
 use limerick_engine::world::transport::TransportMode;
 
 fn load_world_graph() -> WorldGraph {
-    let path = Path::new("../../../mods/rundale/world.json");
+    let path = Path::new("../../testing/fixtures/mods/rundale-legacy/world.json");
     WorldGraph::load_from_file(path).expect("mods/rundale/world.json should load and validate")
 }
 
@@ -38,8 +38,9 @@ fn test_limerick_json_location_count() {
     // Derive the expected count directly from the world.json source so this
     // test fails if the loader silently drops locations, not just if someone
     // edits this hardcoded literal.
-    let json_text = std::fs::read_to_string("../../../mods/rundale/world.json")
-        .expect("mods/rundale/world.json must be readable");
+    let json_text =
+        std::fs::read_to_string("../../testing/fixtures/mods/rundale-legacy/world.json")
+            .expect("mods/rundale/world.json must be readable");
     let world: serde_json::Value =
         serde_json::from_str(&json_text).expect("world.json must be valid JSON");
     let json_count = world["locations"]

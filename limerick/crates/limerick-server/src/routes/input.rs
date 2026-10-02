@@ -325,6 +325,7 @@ pub(crate) fn make_game_loop_ctx<'a>(
         emitter,
         inference_config: &state.inference_config,
         pronunciations: &state.pronunciations,
+        endpoints: limerick_core::game_mod::endpoints_of(&state.game_mod),
         client: &state.inference.client,
         cloud_client: &state.inference.cloud_client,
         language: state.language_settings.clone(),

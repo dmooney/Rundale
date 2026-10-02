@@ -495,35 +495,43 @@ Existing content can later be selectively reintroduced after the foundation is p
 
 During early development, maintain a concise human-readable representation of the entire test world.
 
-**Example:**
+The sheet lives with the world at `mods/rundale/world-sheet.txt`, and
+`limerick-engine/tests/world_sheet.rs` checks it against a new game. Presence
+is stated at clock times rather than parts of the day, so each line can be checked.
+
+**Example (the sheet's body):**
 
 ```text
+START
+ time: 07:00
+ location: Kilteevan Village
+
 KILTEEVAN VILLAGE
  exits: Letter Office, Connolly Cottage
  present at 08:00: Peig
+ present at 15:00: Mícheál, Róisín
 
 LETTER OFFICE
  exits: Kilteevan Village
- occupant: Peig
+ present at 10:00: Peig
+ present at 15:00: Peig
 
 CONNOLLY COTTAGE
  exits: Kilteevan Village
- residents: Mícheál, Róisín
+ present at 08:00: Mícheál, Róisín
+ present at 10:00: Mícheál, Róisín
 
 PEIG
  home: Letter Office
- morning: Letter Office
  knows: Mícheál, Róisín
 
 MÍCHEÁL
  home: Connolly Cottage
- morning: fields
- afternoon: village
+ knows: Peig, Róisín
 
 RÓISÍN
  home: Connolly Cottage
- morning: cottage
- afternoon: village
+ knows: Peig, Mícheál
 ```
 
 The sheet is a development oracle. Unexpected contradiction between authoritative game state and the sheet indicates either a bug or an intentional change that requires the sheet to be updated.
@@ -574,6 +582,19 @@ Passing tests alone does not establish Done. A milestone must produce the observ
 ## 17. Incremental Delivery Plan
 
 Each milestone is intentionally narrow. The checklist describes required outcomes and observable behavior, not a prescribed internal implementation. A milestone is complete only when all applicable requirements are satisfied and the resulting build is stable enough to serve as the foundation for the next milestone.
+
+### Phase-end demonstrations
+
+Repository requirement added 2026-09-07 at the user's request: conclude every
+phase with a demonstration for the user. Walk through the phase's observable
+player experience in the running application, including the relevant failure
+and recovery behavior. Present the build and evidence being demonstrated,
+summarize verification, and identify any acceptance gates still pending.
+A demonstration does not replace the phase's tests, Exit Criteria, or required
+physical-iPhone validation. An interim demo may show completed implementation
+while those gates remain pending, but must not be described as phase completion.
+
+Use the [phase demo plan](phase-demo-plan.md) to prepare each demonstration.
 
 Milestone 1 — Static native interaction prototype
 

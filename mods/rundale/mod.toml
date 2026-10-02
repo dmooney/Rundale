@@ -9,13 +9,14 @@ id = "rundale"
 # Per-user data folder name (saves + tile cache). Explicit so a future
 # rename of `name` doesn't silently relocate everyone's saves.
 save_root = "Rundale"
-version = "1.0.0"
-description = "Rural Ireland, 1820 — a living world of land, labour, and community"
+version = "2.0.0"
+description = "Rural Ireland, 1820: the canonical tiny world of Kilteevan, three places and three people"
 kind = "base"
 
 [setting]
-start_date = "1820-03-20T08:00:00Z"
-start_location = 15
+# Starts before 08:00 so Peig's walk to the village road is part of play.
+start_date = "1820-03-20T07:00:00Z"
+start_location = 1
 period_year = 1820
 player_language = "en-IE"
 native_language = "ga-IE"
@@ -35,3 +36,10 @@ transport = "transport.toml"
 tier1_system = "prompts/tier1_system.txt"
 tier1_context = "prompts/tier1_context.txt"
 tier2_system = "prompts/tier2_system.txt"
+
+# Limerick Endpoint definitions, one per inference role (ADR-025 §5). Each
+# file is named <slug>.v<version>.json; the engine attaches that identity to
+# the role's calls and Limerick Endpoints publishes the file's body.
+[endpoints]
+dialogue = "endpoints/rundale-dialogue.v1.json"
+intent = "endpoints/rundale-intent.v1.json"

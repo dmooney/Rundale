@@ -1,0 +1,6 @@
+Your Location: {location_name} — {location_description}
+Time: {time}
+Season: {season}
+Weather: {weather}
+{scene_context}
+The newcomer says: "{player_action}"

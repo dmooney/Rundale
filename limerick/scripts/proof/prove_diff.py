@@ -50,6 +50,7 @@ from script_compare import script_units  # noqa: E402
 
 BINARIES = ("limerick-server", "limerick-engine")
 FIXTURE_DIR = "limerick/testing/fixtures"
+LEGACY_MOD = "limerick/testing/fixtures/mods/rundale-legacy"
 SCRIPT_TIMEOUT = 600
 # The server's world tick claims due Tier-2/Tier-3 work every five seconds. Wait
 # past one tick so detached simulation requests reach the scripted-model log.
@@ -121,6 +122,16 @@ def build(side: Side) -> None:
         shutil.copy2(target / binary, side.bin_dir / binary)
 
 
+def content_mod(side: Side) -> Path:
+    """The world the fixtures and scenario are written for.
+
+    Since #2040 that is the large 1820 world kept as test data; trees from
+    before it still ship that world as mods/rundale.
+    """
+    legacy = side.tree / LEGACY_MOD
+    return legacy if legacy.is_dir() else side.tree / "mods/rundale"
+
+
 def run_fixture(side: Side, run_dir: Path, fixture: str) -> None:
     source = side.tree / FIXTURE_DIR / f"{fixture}.txt"
     out = run_dir / "script"
@@ -135,7 +146,7 @@ def run_fixture(side: Side, run_dir: Path, fixture: str) -> None:
                 "--script",
                 str(source),
                 "--game-mod",
-                str(side.tree / "mods/rundale"),
+                str(content_mod(side)),
             ],
             cwd=work / "cwd",
             env=isolated_env(work),
@@ -160,7 +171,7 @@ def run_scenario(side: Side, run_dir: Path, scenario: Path) -> None:
             "--server-bin",
             str(side.bin_dir / "limerick-server"),
             "--mod-dir",
-            str(side.tree / "mods/rundale"),
+            str(content_mod(side)),
             "--quiet",
             str(SCENARIO_QUIET_SECONDS),
         ],

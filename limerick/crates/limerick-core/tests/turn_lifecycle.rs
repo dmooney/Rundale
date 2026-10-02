@@ -36,7 +36,7 @@ const ENCOUNTER_LINE: &str = "A drover passes with two heifers and lifts his hat
 const REACTION_LINE: &str = "Ye're welcome in, stranger.";
 
 fn rundale_mod_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testing/fixtures/mods/rundale-legacy")
 }
 
 /// The runtime-owned live state a host borrows into each engine call.
@@ -87,6 +87,7 @@ impl Live {
             emitter: self.emitter.clone() as Arc<dyn EventEmitter>,
             inference_config: &self.inference_config,
             pronunciations: &[],
+            endpoints: &limerick_core::game_mod::NO_ENDPOINTS,
             client: &self.client,
             cloud_client: &self.cloud_client,
             language: limerick_core::npc::LanguageSettings::english_only(),
@@ -1217,9 +1218,24 @@ async fn full_travel_suspends_for_encounter_and_arrival_reactions_and_commits_on
         .filter(|event| event.event.kind == TranscriptEventKind::SceneChanged)
         .collect();
     assert_eq!(scenes.len(), 1, "{:?}", kinds(&events));
+    // The scene is titled with the destination and carries its description
+    // in place of the logged arrival text, which also listed the exits.
     assert_eq!(
-        scenes[0].event.content.as_deref(),
-        Some(destination.as_str())
+        scenes[0].event.metadata.get("sceneName"),
+        Some(&destination)
+    );
+    let scene = scenes[0].event.content.as_deref().unwrap_or_default();
+    assert!(
+        !scene.is_empty() && !scene.contains("You can go to"),
+        "{scene}"
+    );
+    assert!(
+        !events.iter().any(|event| event
+            .event
+            .content
+            .as_deref()
+            .is_some_and(|text| text.contains("You can go to"))),
+        "no exits list is journaled on arrival"
     );
     assert!(
         events.iter().any(|event| event

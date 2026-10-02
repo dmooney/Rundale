@@ -1,60 +1,115 @@
-# Rundale dialogue Endpoint definition
+# Rundale Endpoint definitions
 
-[`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) is the version 1
-Endpoint definition for the Phase 2 NPC dialogue role. It is the
-`EndpointDefinition` body consumed by Limerick Endpoints: `inputSchema`,
-`outputSchema`, `instructions`, `providerConfig`, and `inferenceConfig`.
-[`example-engine-invocation.json`](example-engine-invocation.json) is a
-secret-free serialization produced by the Rust `EndpointInvocation` DTO and
-checked against it in the `limerick-core` fixture test.
+The Endpoint definitions are game data. They live in the world's mod, one file
+per inference role, and the mod manifest declares them (ADR-025 §5):
 
-The public identity is organization `limerick-demo`, slug `rundale-dialogue`,
-version `1`. The exact artifact was published and promoted on 2026-09-09; its
-deployed content hash is
-`sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`.
-The first provider target is `google/gemini-3.5-flash-lite`, with 1,024 output
-tokens, no retry, and the versioned streaming projection
-`inferenceConfig.streaming.textField = "dialogue"`.
+```toml
+# mods/rundale/mod.toml
+[endpoints]
+dialogue = "endpoints/rundale-dialogue.v1.json"
+intent = "endpoints/rundale-intent.v1.json"
+```
+
+Each file is named `<slug>.v<version>.json`; the name is the Endpoint's
+identity, and the body is the `EndpointDefinition` consumed by Limerick
+Endpoints: `inputSchema`, `outputSchema`, `instructions`, `providerConfig`, and
+`inferenceConfig`. The engine loads them with the mod (`limerick_mod::endpoints`)
+and attaches each role's reference and structured input to the calls it makes
+(`limerick_core::endpoint_input`).
+
+| Role     | File                                                                                | Output                                             |
+| -------- | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Dialogue | [`rundale-dialogue.v1.json`](../../mods/rundale/endpoints/rundale-dialogue.v1.json) | `{ "dialogue": "..." }`, streamed as text          |
+| Intent   | [`rundale-intent.v1.json`](../../mods/rundale/endpoints/rundale-intent.v1.json)     | `{ "intent", "target", "dialogue", "atmosphere" }` |
+
+Until the game is released, each definition stays at version 1: a change edits
+the `.v1.json` file and replaces the published copy in place (`pnpm definitions
+replace`). After release, published versions become immutable and a change
+ships as a new `<slug>.v<version>.json`. The engine builds each input with
+`EndpointCall::invocation`.
+
+Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
+contract (acquired knowledge, player memory, task offers) was published to
+`limerick-prod` as v2 and has been removed; when the engine builds those fields,
+they land by replacing v1. Both files target `google/gemini-3.5-flash-lite` with no retry. Dialogue
+allows 1,024 output tokens and streams the `dialogue` field; intent allows 256,
+as the desktop Intent profile does.
+
+The intent definition's `instructions` are the engine's intent prompt
+(`limerick_input::intent_system_prompt()`) verbatim. A test fails if they drift;
+regenerate the file after changing the prompt.
 
 ## Engine wire agreement
 
-The input schema is the JSON serialization of the `EndpointInvocation` DTO
-from the `ios-port` branch's mobile-only runtime, which was not carried over to
-`main` (ADR-025). The shared engine produces this invocation again once the FFI
-boundary is wired to its turn API (#2044). That DTO used `serde(rename_all = "camelCase")`, so the request uses
-`sessionID`, `logicalRequestID`, `attemptID`, `playerInput`,
-`currentLocation`, `knownPeople`, `knownPlaces`, `authoredFacts`, and
-`recentConversation`. All fields are required and unknown fields are rejected.
+A call with an Endpoint carries an `EndpointCall`: the reference (role, slug,
+version) and the role's structured input. The host builds the request's
+`input` with `EndpointCall::invocation`, which adds the invocation envelope it
+owns to the engine's fields. The JSON request body is exactly
+`{ "input": <invocation> }`.
 
-Opaque mobile IDs serialize as strings. `baseRevision` is the explicit
-`{"rawValue": number}` `StateRevision` shape. Engine `u32` identifiers in
-grounded people, grounded conversation speakers, and locations remain JSON
-integers. `recentConversation` contains `limerick_types::ConversationExchange` values,
-which retain that type's default snake_case serde field names. It therefore
-uses the exact shape of
-[`ConversationExchange`](../../limerick/crates/limerick-types/src/conversation.rs):
-`timestamp`, `speaker_id`, `speaker_name`, `player_input`, `npc_dialogue`, and
-`location`.
+The envelope is the same for both roles: `contractVersion` (`{major: 1,
+minor: 0}`), `sessionID`, `logicalRequestID`, `attemptID`, `baseRevision`
+(`{"rawValue": number}`), and `idempotencyKey` (`<request>:<attempt>`). Opaque
+IDs serialize as strings. All fields are required and unknown fields are
+rejected.
 
-The engine supplies the authoritative context and bounds it before dispatch:
-up to 32 people, 32 places, 32 authored facts, and 8 recent exchanges. It
-sets `maxOutputChars` to 8,192 and `maxStreamBytes` to 16,384. Those fixed
-values are part of this v1 schema. The request's player and conversation text
-is untrusted content; the Endpoint instructions do not duplicate the world's
-facts and the engine remains authoritative for validation and state changes.
+The intent input adds `role: "player_intent"` and the bounded `playerInput`
+the deterministic local parser did not recognise.
 
-The output contract is exactly `{ "dialogue": "..." }`. `additionalProperties`
-is false, and the dialogue is bounded at 8,192 characters. The engine receives
-the terminal structured candidate for its own NPC validation and gameplay
-commit. Streaming may expose only the top-level `dialogue` text projection;
-partial text is provisional and never changes game state.
+The dialogue input adds `role: "npc_dialogue"`, `playerInput`, `speaker`,
+`currentLocation`, `knownPeople`, `knownPlaces`, `authoredFacts`,
+`recentConversation`, `maxOutputChars` (8,192), and `maxStreamBytes` (16,384).
+People are `npc-<id>` with their occupation as `role`; places are
+`place-<id>` with the description rendered for the current time and weather;
+authored facts are the speaker's `knowledge` from `npcs.json`. The engine caps
+people, places, and facts at 32 and sends the last 8 exchanges at the current
+location, oldest first. `recentConversation` contains
+`limerick_types::ConversationExchange` values, which keep that type's
+snake_case field names: `timestamp`, `speaker_id`, `speaker_name`,
+`player_input`, `npc_dialogue`, and `location`.
+
+[`example-engine-invocation.json`](example-engine-invocation.json) and
+[`example-intent-invocation.json`](example-intent-invocation.json) are secret-free
+invocations the engine builds on the canonical world. The Rust test
+`endpoint_calls` checks them against the engine's output
+(`UPDATE_ENDPOINT_FIXTURES=1` regenerates them), and the Endpoints suite
+validates them against the definitions' schemas.
+
+The request's player and conversation text is untrusted content. The Endpoint
+instructions do not duplicate the world's facts, and the engine remains
+authoritative for validation and state changes. The engine receives the
+terminal structured candidate for its own validation and gameplay commit.
+Streaming may expose only the top-level `dialogue` text projection; partial
+text is provisional and never changes game state.
+
+Desktop in-process inference ignores the Endpoint reference and sends the
+call's rendered prompt, so desktop provider requests are unchanged. The iPhone
+app is the Endpoint host: the FFI hands it each pending call's reference and
+`input` (`pending_endpoint`), and the app posts the request body to that
+version's `/stream` route (see the
+[FFI README](../../limerick/crates/limerick-mobile-ffi/README.md#inference)).
 
 ## Publication and invocation notes
 
-Publish this definition as an immutable Endpoint version and bind the Rundale
+The files are published, and the deployment checked against them, with the
+Endpoints definitions command
+([ADR 013](../../endpoints/docs/adr/013-publish-definitions-from-files.md)):
+
+```sh
+cd endpoints
+DATABASE_URL=... PROVIDER_MODE=live GOOGLE_ALLOWED_MODELS=gemini-3.5-flash-lite \
+  pnpm definitions verify <organization-slug> ../mods/rundale/endpoints
+```
+
+`verify` passes only when every file's content hash equals its published copy
+and every published version of these slugs has a file; `publish` adds the
+missing versions and writes nothing on any disagreement; `replace` also
+overwrites changed versions in place (pre-release only); `export` writes a
+published version that has no file into this directory.
+
+Publish each definition as an Endpoint version and bind the Rundale
 Firebase App Check app ID to its organization and slug in the deployed Limerick
-Endpoints configuration. The JSON request body is exactly
-`{ "input": <EndpointInvocation> }`. The mobile worker sends the engine's stable
+Endpoints configuration. The mobile worker sends the engine's stable
 request and attempt identities as bounded correlation headers. The server
 verifies both Firebase credentials, tenant and Endpoint bindings, quotas, kill
 switches, and the pinned version before provider dispatch. The client never
@@ -68,7 +123,7 @@ exact `{ "dialogue": "..." }` object and is validated again by the embedded
 engine before commit. See [the current integration handoff](phase2-handoff.md)
 for deployment and live-proof status.
 
-The definition intentionally contains no API keys, Firebase tokens, endpoint
+The definitions intentionally contain no API keys, Firebase tokens, endpoint
 URLs, organization identifiers, or deployment alias. Fill those values in
 the authorized service/configuration path when the Endpoint is provisioned.
 
@@ -78,7 +133,7 @@ Run the shared transport and schema checks from the repository root:
 
 ```sh
 swift test --package-path mobile/LimerickEndpointKit
-cd limerick && cargo test -p limerick-core --features mobile --test mobile_endpoint_fixture
+cd limerick && cargo test -p limerick-core --test endpoint_calls
 cd ../endpoints && pnpm exec vitest run apps/server/test/mobile-invocation.test.ts
 ```
 
@@ -87,3 +142,28 @@ between Swift, Rust, and TypeScript. The separate live evidence in
 [phase2-handoff.md](phase2-handoff.md) establishes publication, simulator
 Firebase/App Check, Google delivery, and Stop accounting; physical-iPhone App
 Attest remains unverified.
+
+## Live Endpoint suite
+
+`RundaleLiveEndpointUITests` plays the app against a deployed Limerick
+Endpoints service: a dialogue turn (`rundale-intent` v1, then
+`rundale-dialogue` v1), Stop during a streamed reply, and free-form movement
+classified by `rundale-intent` v1. It is opt-in and needs a Firebase App Check
+debug token registered for the Rundale iOS app. Against `limerick-prod`:
+
+```sh
+bash mobile/scripts/build-rust-mobile.sh
+xcodegen generate --spec mobile/project.yml
+TOKEN=$(endpoints/deploy/limerick-prod.sh appcheck-token create <name>)
+TEST_RUNNER_AppCheckDebugToken=$TOKEN \
+TEST_RUNNER_RUNDALE_LIVE_ENDPOINT_BASE_URL=https://limerick-endpoints-877612517009.us-east1.run.app \
+  xcodebuild -project mobile/Rundale.xcodeproj -scheme Rundale \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:RundaleUITests/RundaleLiveEndpointUITests test
+endpoints/deploy/limerick-prod.sh appcheck-token delete <name>
+```
+
+The base URL defaults to that `limerick-prod` origin and the organization to
+`limerick-demo` (`RUNDALE_LIVE_ENDPOINT_BASE_URL`,
+`RUNDALE_LIVE_ENDPOINT_ORGANIZATION` override them). The Firebase
+`GoogleService-Info.plist` is supplied privately and is ignored.

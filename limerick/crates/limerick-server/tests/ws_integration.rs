@@ -94,8 +94,8 @@ async fn ws_message_forwarding() {
     use limerick_server::state::AppState;
     use limerick_server::ws::ws_handler;
 
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world = limerick_core::world::WorldState::from_world_file(
         &data_dir.join("world.json"),
         limerick_core::world::DEFAULT_START_LOCATION,

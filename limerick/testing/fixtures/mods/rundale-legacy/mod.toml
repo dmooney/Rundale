@@ -1,0 +1,40 @@
+# Rundale 1820 large world, kept as test-only data (#2040).
+# mods/rundale ships the canonical tiny world; engine tests that need a
+# large cast and many places load this copy instead.
+# Rundale — Game Mod Manifest
+# Manifest schema version understood by this engine release (#1366).
+schema_version = 1
+
+[mod]
+name = "Rundale"
+title = "Rundale"
+id = "rundale"
+# Per-user data folder name (saves + tile cache). Explicit so a future
+# rename of `name` doesn't silently relocate everyone's saves.
+save_root = "Rundale"
+version = "1.0.0"
+description = "Rural Ireland, 1820 — a living world of land, labour, and community"
+kind = "base"
+
+[setting]
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+player_language = "en-IE"
+native_language = "ga-IE"
+
+[files]
+world = "world.json"
+npcs = "npcs.json"
+anachronisms = "anachronisms.json"
+festivals = "festivals.json"
+encounters = "encounters.json"
+loading = "loading.toml"
+ui = "ui.toml"
+pronunciations = "pronunciations.json"
+transport = "transport.toml"
+
+[prompts]
+tier1_system = "prompts/tier1_system.txt"
+tier1_context = "prompts/tier1_context.txt"
+tier2_system = "prompts/tier2_system.txt"

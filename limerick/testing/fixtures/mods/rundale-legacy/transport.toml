@@ -1,0 +1,6 @@
+default = "walking"
+
+[[modes]]
+id = "walking"
+label = "on foot"
+speed_m_per_s = 1.25

@@ -1,86 +1,95 @@
 {
+  "attemptID": "fixture-attempt",
+  "authoredFacts": [
+    {
+      "id": "npc-1-knowledge-1",
+      "source": "npcs.json",
+      "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish."
+    },
+    {
+      "id": "npc-1-knowledge-2",
+      "source": "npcs.json",
+      "statement": "Mícheál and Róisín Connolly share the cottage west of the village."
+    }
+  ],
+  "baseRevision": {
+    "rawValue": 0
+  },
   "contractVersion": {
     "major": 1,
     "minor": 0
   },
-  "sessionID": "fixture-session",
-  "logicalRequestID": "fixture-logical-request",
-  "attemptID": "fixture-attempt",
-  "baseRevision": {
-    "rawValue": 0
-  },
-  "idempotencyKey": "fixture-logical-request:fixture-attempt",
-  "role": "npc_dialogue",
-  "playerInput": "ask Peig about the old church",
-  "speaker": {
-    "id": "npc-peig",
-    "displayName": "Peig Hannigan",
-    "role": "letter-office keeper and village observer",
-    "currentLocationId": 1,
-    "currentLocationName": "Kilteevan Village"
-  },
   "currentLocation": {
-    "id": "kilteevan-village",
-    "displayName": "Kilteevan Village",
-    "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+    "description": "A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.",
+    "displayName": "Letter Office",
+    "id": "place-2",
     "playable": true
   },
+  "idempotencyKey": "fixture-logical-request:fixture-attempt",
   "knownPeople": [
     {
-      "id": "npc-peig",
+      "currentLocationId": 2,
+      "currentLocationName": "Letter Office",
       "displayName": "Peig Hannigan",
-      "role": "letter-office keeper and village observer",
-      "currentLocationId": 1,
-      "currentLocationName": "Kilteevan Village"
+      "id": "npc-1",
+      "role": "Letter-office keeper"
     },
     {
-      "id": "npc-micheal",
+      "currentLocationId": 3,
+      "currentLocationName": "Connolly Cottage",
       "displayName": "Mícheál Connolly",
-      "role": "smallholder and cattle drover",
-      "currentLocationId": 13,
-      "currentLocationName": "Connolly Cottage"
+      "id": "npc-2",
+      "role": "Smallholder and cattle drover"
     },
     {
-      "id": "npc-roisin",
+      "currentLocationId": 3,
+      "currentLocationName": "Connolly Cottage",
       "displayName": "Róisín Connolly",
-      "role": "spinner and household bookkeeper",
-      "currentLocationId": 13,
-      "currentLocationName": "Connolly Cottage"
+      "id": "npc-3",
+      "role": "Spinner and household bookkeeper"
     }
   ],
   "knownPlaces": [
     {
-      "id": "kilteevan-village",
+      "description": "A muddy road runs between low stone walls and a handful of whitewashed cottages. Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen runs west to Connolly Cottage. The clear sky hangs over the road. It is morning.",
       "displayName": "Kilteevan Village",
-      "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+      "id": "place-1",
       "playable": true
     },
     {
-      "id": "letter-office",
+      "description": "A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.",
       "displayName": "Letter Office",
-      "description": "Letter Office · a narrow counter, pigeonholes of folded paper, and a small turf fire.",
+      "id": "place-2",
       "playable": true
     },
     {
-      "id": "connolly-cottage",
+      "description": "A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth, and rain-dark coats by the door. Outside the weather is clear. It is morning.",
       "displayName": "Connolly Cottage",
-      "description": "Connolly Cottage · a peat fire, a scrubbed table, and rain-dark coats by the door.",
+      "id": "place-3",
       "playable": true
     }
   ],
-  "authoredFacts": [
+  "logicalRequestID": "fixture-logical-request",
+  "maxOutputChars": 8192,
+  "maxStreamBytes": 16384,
+  "playerInput": "ask Peig about the old church",
+  "recentConversation": [
     {
-      "id": "fact-peig-post",
-      "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
-      "source": "authored"
-    },
-    {
-      "id": "fact-peig-connollys",
-      "statement": "Mícheál and Róisín Connolly share the cottage west of the village.",
-      "source": "authored"
+      "location": 2,
+      "npc_dialogue": "And to you. The post is late again.",
+      "player_input": "Good morning to you.",
+      "speaker_id": 1,
+      "speaker_name": "Peig Hannigan",
+      "timestamp": "1820-03-20T07:05:00Z"
     }
   ],
-  "recentConversation": [],
-  "maxOutputChars": 8192,
-  "maxStreamBytes": 16384
+  "role": "npc_dialogue",
+  "sessionID": "fixture-session",
+  "speaker": {
+    "currentLocationId": 2,
+    "currentLocationName": "Letter Office",
+    "displayName": "Peig Hannigan",
+    "id": "npc-1",
+    "role": "Letter-office keeper"
+  }
 }

@@ -145,6 +145,56 @@ final class RundaleKitTests: XCTestCase {
         XCTAssertEqual(state.transcript.first(where: { $0.id == itemID })?.content, "Á—你好")
     }
 
+    /// The shared engine streams Endpoint text as provisional frames that are
+    /// never journaled: each carries the durable cursor it was produced at.
+    /// Frames must apply without moving that cursor, and the committed line
+    /// that follows (same transcript row, next durable sequence) replaces them.
+    func testUnjournaledProvisionalFramesKeepTheDurableCursor() {
+        let sessionID = SessionID("session-frames")
+        let requestID = LogicalRequestID("request-1")
+        let attemptID = ExecutionAttemptID("attempt-1")
+        let itemID = TranscriptItemID("attempt-1#2:provisional")
+        var state = SessionState(sessionID: sessionID)
+        var reducer = SessionReducer()
+        let command = SemanticEvent(
+            eventID: SemanticEventID("command"), sessionID: sessionID, sequence: 4,
+            kind: .playerCommand, content: "ask", logicalRequestID: requestID,
+            attemptID: attemptID, transcriptItemID: TranscriptItemID("command"), accepted: true
+        )
+        _ = reducer.reduce(.apply(command), in: &state)
+        for (index, text) in ["The wet ", "ground"].enumerated() {
+            let frame = SemanticEvent(
+                eventID: SemanticEventID("frame-\(index)"), sessionID: sessionID, sequence: 4,
+                kind: .npcDialogue, content: text, speaker: "Mícheál", logicalRequestID: requestID,
+                attemptID: attemptID, transcriptItemID: itemID, provisional: true,
+                streamSequence: UInt64(index + 1), streamUpdate: .append
+            )
+            XCTAssertEqual(reducer.reduce(.apply(frame), in: &state), .applied)
+        }
+        XCTAssertEqual(state.eventCursor, EventCursor(4))
+        XCTAssertEqual(state.transcript.last?.content, "The wet ground")
+        XCTAssertEqual(state.transcript.last?.state, .provisional)
+
+        let committed = SemanticEvent(
+            eventID: SemanticEventID("line"), sessionID: sessionID, sequence: 5,
+            kind: .npcDialogue, content: "The wet ground has made moving cattle hard.",
+            speaker: "Mícheál", logicalRequestID: requestID, attemptID: attemptID,
+            transcriptItemID: itemID
+        )
+        let completion = SemanticEvent(
+            eventID: SemanticEventID("done"), sessionID: sessionID, sequence: 6,
+            kind: .responseCompleted, logicalRequestID: requestID, attemptID: attemptID,
+            terminalOutcome: .succeeded, stateRevision: StateRevision(2)
+        )
+        XCTAssertEqual(reducer.reduce(.apply(committed), in: &state), .applied)
+        XCTAssertEqual(reducer.reduce(.apply(completion), in: &state), .applied)
+        let rows = state.transcript.filter { $0.id == itemID }
+        XCTAssertEqual(rows.count, 1, "the committed line replaced the streamed row")
+        XCTAssertEqual(rows.first?.content, "The wet ground has made moving cattle hard.")
+        XCTAssertEqual(rows.first?.state, .committed)
+        XCTAssertEqual(state.eventCursor, EventCursor(6))
+    }
+
     func testUniqueOutOfOrderEventAdvancesDeduplicationWithoutRewindingCursor() {
         let sessionID = SessionID("session-order")
         var state = SessionState(sessionID: sessionID, eventCursor: EventCursor(2))

@@ -26,10 +26,6 @@
 	<string>$(RUNDALE_ENDPOINT_BASE_URL)</string>
 	<key>RUNDALE_ENDPOINT_ORGANIZATION</key>
 	<string>$(RUNDALE_ENDPOINT_ORGANIZATION)</string>
-	<key>RUNDALE_ENDPOINT_SLUG</key>
-	<string>$(RUNDALE_ENDPOINT_SLUG)</string>
-	<key>RUNDALE_ENDPOINT_VERSION</key>
-	<string>$(RUNDALE_ENDPOINT_VERSION)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

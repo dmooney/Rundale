@@ -206,7 +206,8 @@ fn render_look_text_basic() {
 // ── Place listening ──────────────────────────────────────────────────────
 
 fn rundale_world_at(location: LocationId) -> WorldState {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale/world.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy/world.json");
     let mut world =
         WorldState::from_world_file(&path, location).expect("load the bundled Rundale world");
     // Freeze the accelerated clock so determinism assertions cannot cross a

@@ -56,6 +56,11 @@ pub struct InferenceCall {
     /// Engine correlation id (dialogue turn id), used for queue and audit
     /// correlation.
     pub correlation_id: Option<u64>,
+    /// The published Endpoint that executes this call on an Endpoint host,
+    /// with the role's structured input. `None` for workloads without an
+    /// Endpoint role (travel encounters, reactions) or when the mod declares
+    /// none. An in-process host ignores it and sends `system` and `prompt`.
+    pub endpoint: Option<crate::endpoint_input::EndpointCall>,
 }
 
 /// Why a call produced no usable reply.
@@ -402,6 +407,7 @@ mod tests {
             prompt: prompt.to_string(),
             response: ResponseShape::IntentJson,
             correlation_id: None,
+            endpoint: None,
         }
     }
 

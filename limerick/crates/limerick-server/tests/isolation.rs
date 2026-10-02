@@ -221,8 +221,8 @@ async fn second_ws_upgrade_same_account_is_409() {
     use limerick_core::world::{DEFAULT_START_LOCATION, WorldState};
     use limerick_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
 
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world =
         WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
@@ -345,8 +345,8 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     use limerick_core::world::{DEFAULT_START_LOCATION, WorldState};
     use limerick_server::state::{AppStateParts, GameConfig, UiConfigSnapshot, build_app_state};
 
-    let data_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testing/fixtures/mods/rundale-legacy");
     let world =
         WorldState::from_world_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();

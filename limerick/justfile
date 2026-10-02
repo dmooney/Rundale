@@ -295,11 +295,14 @@ coverage-check:
 
 # Run the main game walkthrough test script
 game-test:
-    cargo run -p limerick-engine -- --script testing/fixtures/test_walkthrough.txt
+    cargo run -p limerick-engine -- --script testing/fixtures/rundale/tiny_world.txt
+
+# The `test_*.txt` fixtures play the large 1820 world kept as test data (#2040).
+legacy_world := "testing/fixtures/mods/rundale-legacy"
 
 # Run a specific test fixture by name (without path/extension)
 game-test-one NAME:
-    cargo run -p limerick-engine -- --script testing/fixtures/{{NAME}}.txt
+    cargo run -p limerick-engine -- --script testing/fixtures/{{NAME}}.txt --game-mod {{legacy_world}}
 
 # Run all test fixtures
 game-test-all:
@@ -308,7 +311,7 @@ game-test-all:
     status=0
     for f in testing/fixtures/test_*.txt; do
         echo "=== Running $f ==="
-        if cargo run -p limerick-engine -- --script "$f" >/dev/null; then
+        if cargo run -p limerick-engine -- --script "$f" --game-mod {{legacy_world}} >/dev/null; then
             echo "  PASS"
         else
             echo "  FAIL"
@@ -370,7 +373,7 @@ clippy:
 clippy-fix:
     cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md, CLAUDE.md)
+# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md)
 # must exist on disk. Catches doc drift before it reaches an agent.
 check-doc-paths:
     ./scripts/check-doc-paths.sh

@@ -1484,6 +1484,11 @@ async fn handle_headless_staged_game_input(
             )
         })
         .unwrap_or_default();
+    let endpoints = app
+        .game_mod
+        .as_ref()
+        .map(|game_mod| game_mod.endpoints.clone())
+        .unwrap_or_default();
     let store = Arc::clone(&app.session_store);
 
     let world = Mutex::new(std::mem::take(&mut app.world));
@@ -1506,6 +1511,7 @@ async fn handle_headless_staged_game_input(
             emitter,
             inference_config: &inference_config,
             pronunciations: &pronunciations,
+            endpoints: &endpoints,
             client: &client,
             cloud_client: &cloud_client,
             language,

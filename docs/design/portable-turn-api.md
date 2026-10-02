@@ -133,9 +133,10 @@ Behaviour to port as tests (not code):
 
 Deliberate divergences from the oracle:
 
-- Provisional stream text is not shown as dialogue. `ios-port` displayed raw
-  frames; Rule 33 forbids publishing candidate text before the canonical apply
-  validator accepts it. Frames are accepted for liveness and sequencing only.
+- Provisional stream text is not shown as dialogue on desktop. `ios-port`
+  displayed raw frames; Rule 33 forbids publishing candidate text before the
+  canonical apply validator accepts it. Superseded for mobile on 2026-09-28
+  (§9): the mobile Endpoint path streams provisional text, as `ios-port` did.
 - No single-location `WorldGraph` exception, no content bundle, no
   `DefaultHasher` fingerprints, no second parser or resolver.
 - Slash-command handling (`deterministic_capability`) is not ported; see §9 Q3.
@@ -272,11 +273,12 @@ line `recover` records against a request an earlier process left open.
 // limerick_core::turn_inference
 
 pub struct InferenceCall {
-    pub subrole: InferenceSubrole,   // existing limerick-config type; Intent | Dialogue | TravelEncounter | ArrivalReaction here
+    pub subrole: InferenceSubrole,   // limerick-config type; Intent | Dialogue | TravelEncounter | ArrivalReaction here
     pub system: Option<String>,
     pub prompt: String,
     pub response: ResponseShape,     // Text | IntentJson | NpcDialogue
     pub correlation_id: Option<u64>, // dialogue turn id, for queue and audit correlation
+    pub endpoint: Option<EndpointCall>, // endpoint_input::EndpointCall; intent and dialogue only (#2041)
 }
 
 pub enum ResponseShape { Text, IntentJson, NpcDialogue }
@@ -351,9 +353,19 @@ Option<Arc<dyn TurnInference>>` field fulfils it when set, otherwise it builds
   drive the engine with `drive_in_process(engine, live, input,
 &InProcessInference)`, which loops `AwaitingInference` → `resume`.
 
-Mobile Phase 3 adds an Endpoint reference (#2041) (role name and version) and structured inputs
-to `InferenceCall`, so an Endpoint host can execute the published definition.
-Mobile Phase 1 carries the rendered prompt, which is what desktop needs.
+The call also carries its published Endpoint (#2041, ADR-025 §5). The mod's
+manifest declares one definition file per role (`[endpoints]` in `mod.toml`,
+files named `<slug>.v<version>.json`, loaded by `limerick_mod::endpoints`), and
+`GameLoopContext::endpoints` holds the loaded catalog. Intent and dialogue calls
+set `endpoint` to an `EndpointCall` (`limerick_core::endpoint_input`): the
+reference (role, slug, version) and the role's structured input. The dialogue
+input is built from the same locked world state as the rendered prompt. Travel
+encounters and reactions have no Endpoint role and leave it `None`, as does a
+runtime with no mod. An Endpoint host sends
+`EndpointCall::invocation(&envelope)`, which adds the request identities it
+owns; `InProcessInference` ignores `endpoint` and sends `system` and `prompt`,
+so desktop provider requests are unchanged (`tests/endpoint_calls.rs` compares
+them over HTTP). The wire shape is documented in `mobile/endpoint/README.md`.
 
 Per-role failure policy is unchanged from desktop and shared by all hosts:
 
@@ -392,7 +404,12 @@ pub enum TranscriptEventKind {
 Transcript events are projected from the committed wire emissions by one
 function, `project_emissions`. `text-log` payloads map by source and subtype;
 a completed `stream-turn-end` becomes `NpcDialogue`; a `world-update` with a new
-location becomes `SceneChanged`. A test enumerates every event name the
+location becomes `SceneChanged`. A scene event is titled by `metadata.sceneName`
+(with `sceneID`) and its content is the scene as a client with a status header
+shows it (`portable_look::render_scene`): the location's description without
+the template sentences that restate time or weather, then who is present. It
+replaces the attempt's logged arrival description, so exits are left to
+`/exits`. A new game's opening scene is journaled the same way. A test enumerates every event name the
 pipeline can emit and requires each to be either mapped or listed as
 presentation-only (`stream-token`, `travel-start`, `dialogue-quality`, and
 similar), so a new emission cannot silently bypass the transcript. The wire
@@ -490,6 +507,9 @@ pub trait TurnJournal: Send + Sync {
     fn update(&self, record: RequestRecord, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     /// A committed turn, atomically.
     fn commit(&self, commit: TurnCommit) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
+    /// Events that belong to no request (a new game's opening scene), same
+    /// contract; `TurnEngine::narrate` writes one narration line.
+    fn record(&self, events: Vec<PendingEvent>) -> BoxFuture<'_, Result<Vec<TranscriptEvent>, JournalError>>;
     fn open_requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
     /// Every record, in the order first accepted (restores an engine).
     fn requests(&self) -> BoxFuture<'_, Result<Vec<RequestRecord>, JournalError>>;
@@ -746,3 +766,33 @@ Decided in review:
   inference; mobile runs without them until the background inference seam
   (plan item, #2025) lands.
 - No iOS target build in CI; `rust-mobile-build` stays a host-target check.
+
+Decided by the owner on 2026-09-28, for the mobile Endpoint path (#2044):
+
+- Stream as it comes. Endpoint text deltas are shown in the transcript as
+  provisional text while the reply arrives, as the product spec requires
+  (§8: partial content is distinguishable from committed content). The final
+  reply replaces it when committed; Stop or a failure leaves it visibly
+  uncommitted with no state effects.
+- No post-generation content guards on this path. The engine commits the final
+  reply after structural checks only; invented people or places are fixed
+  through the Endpoint definition and model. As built (#2044), the mobile host
+  disables the `dialogue-content-guards` flag
+  (`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`): validation stops after the
+  response contract, and the apply step skips its repetition rewrite, display
+  cap, and obligation fallback. The Endpoint definition, not the
+  mod's desktop prompt templates, is the prompt source. See the scope note in
+  [inference rules](../agent/inference-rules.md). Desktop is unchanged.
+
+## 10. Mobile host (#2044)
+
+`limerick-mobile-ffi` is the mobile host of the turn engine: one session per
+open save, a `TurnEngine` over the save's `SqliteTurnJournal`, and the shared
+live state loaded from the bundled mod. Each call with an Endpoint is handed to
+the Swift app (`pending_endpoint`), which posts the invocation to that
+Endpoint version and resumes the engine (`resolve` / `fail`). Travel encounters
+and arrival reactions are routed `Unavailable`, so the pipeline uses its canned
+lines. Dialogue text deltas are projected as provisional, unjournaled events
+that carry the durable cursor; the committed line takes over the streamed row's
+`transcriptItemID`. The operation contract is in the crate's
+[README](../../limerick/crates/limerick-mobile-ffi/README.md).

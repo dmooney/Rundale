@@ -240,12 +240,14 @@ pub struct GameTestHarness {
 }
 
 impl GameTestHarness {
-    /// Creates a new harness loaded from the Rundale mod. Used by all
-    /// unit tests that assert on Rundale-specific content (location names,
-    /// NPC names, etc.). Character-log writers are **disabled** so the
-    /// hundreds of cargo-test instances don't pollute the shared user-data dir.
+    /// Creates a new harness loaded from the large 1820 Rundale world kept as
+    /// test data in `testing/fixtures/mods/rundale-legacy`. Used by all unit
+    /// tests that assert on its content (location names, NPC names, etc.);
+    /// the shipped `mods/rundale` is the canonical tiny world (#2040).
+    /// Character-log writers are **disabled** so the hundreds of cargo-test
+    /// instances don't pollute the shared user-data dir.
     pub fn new() -> Self {
-        Self::build_rundale(false)
+        Self::build_legacy_world(false)
     }
 
     /// Creates a harness from whichever mod `mods/mod-list.toml` selects
@@ -253,6 +255,23 @@ impl GameTestHarness {
     /// `limerick --script` exercises the mod that is actually deployed.
     pub fn new_from_active_mod() -> Self {
         Self::build(false)
+    }
+
+    /// Creates a harness from an explicit mod directory, with character logs
+    /// disabled. Used by tests that play a shipped mod.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mod does not load, so a broken mod cannot fall back to
+    /// the built-in test NPC unnoticed.
+    pub fn new_with_mod_dir(mod_dir: &std::path::Path) -> Self {
+        let harness = Self::build_from_mod_dir(false, Some(mod_dir));
+        assert!(
+            harness.app.game_mod.is_some(),
+            "failed to load mod at {}",
+            mod_dir.display()
+        );
+        harness
     }
 
     /// Builds the harness used by `run_script_mode` with the per-character
@@ -274,14 +293,13 @@ impl GameTestHarness {
         Self::build_from_mod_dir(enable_character_logs, None)
     }
 
-    /// Builds a harness loaded from the Rundale mod directory explicitly,
-    /// bypassing `mod-list.toml`. Used by tests that assert on Rundale-specific
-    /// content (locations, NPC names, etc.) so they remain stable regardless
-    /// of which mod is currently active.
-    fn build_rundale(enable_character_logs: bool) -> Self {
-        let rundale_dir =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-        Self::build_from_mod_dir(enable_character_logs, Some(&rundale_dir))
+    /// Builds a harness loaded from the legacy large-world fixture explicitly,
+    /// bypassing `mod-list.toml`, so tests that assert on its content remain
+    /// stable regardless of which mod is active.
+    fn build_legacy_world(enable_character_logs: bool) -> Self {
+        let legacy_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testing/fixtures/mods/rundale-legacy");
+        Self::build_from_mod_dir(enable_character_logs, Some(&legacy_dir))
     }
 
     fn build_from_mod_dir(enable_character_logs: bool, mod_dir: Option<&std::path::Path>) -> Self {
@@ -1189,7 +1207,14 @@ impl GameTestHarness {
 
     /// Handles the NewGame effect — reinitializes world and NPCs.
     fn handle_new_game_effect(&mut self) -> ActionResult {
-        let game_mod = limerick_core::game_mod::find_default_mod()
+        // Reload the mod this harness was started with (for example
+        // `--game-mod`), not whichever mod a cwd walk finds.
+        let game_mod = self
+            .app
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.mod_dir.clone())
+            .or_else(limerick_core::game_mod::find_default_mod)
             .and_then(|dir| limerick_core::game_mod::GameMod::load(&dir).ok());
 
         let Some(ref gm) = game_mod else {
