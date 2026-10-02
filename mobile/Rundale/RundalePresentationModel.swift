@@ -96,7 +96,7 @@ final class RundalePresentationModel: ObservableObject {
         transcript = state.transcript.map(Self.presentedItem)
         draft = launch.initialDraft ?? self.session.restoredDraft()?.text ?? ""
         clarification = state.pendingClarification.map(Self.presentedClarification)
-        isStreaming = state.activeRequestID != nil
+        isStreaming = Self.isWorking(state)
         isFollowingNewest = state.viewport.isFollowingNewest
         lastAnnouncedEventID = self.session.lastEvent?.eventID
     }
@@ -407,6 +407,14 @@ final class RundalePresentationModel: ObservableObject {
         }
     }
 
+    /// The engine is working on the active request. A request waiting on the
+    /// player's clarification choice stays active in the engine but is not
+    /// work: the question is the player's turn, and new input replaces it.
+    private static func isWorking(_ state: SessionState) -> Bool {
+        guard let active = state.activeRequestID else { return false }
+        return state.pendingClarification?.requestID != active
+    }
+
     private func refreshFromSession() {
         let state = session.state
         let nextHeader = session.currentHeader
@@ -422,7 +430,7 @@ final class RundalePresentationModel: ObservableObject {
         }
         presentedCursor = state.eventCursor
         clarification = state.pendingClarification.map(Self.presentedClarification)
-        isStreaming = state.activeRequestID != nil
+        isStreaming = Self.isWorking(state)
         if state.viewport.isFollowingNewest != isFollowingNewest {
             isFollowingNewest = state.viewport.isFollowingNewest
         }

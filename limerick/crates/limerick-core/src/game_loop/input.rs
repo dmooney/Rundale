@@ -499,7 +499,7 @@ pub async fn handle_game_input_settled(
         .await
         .flags
         .is_disabled(ADDRESSEE_CLARIFICATION_FLAG);
-    let (mentions, explicit_recipient_names, validated_talk_target, vocative) = {
+    let (mentions, explicit_recipient_names, validated_talk_target, vocative, asked) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let mentions = extract_npc_mentions(&raw, &world, &npc_manager);
@@ -516,19 +516,41 @@ pub async fn handle_game_input_settled(
                 )
             })
             .map(str::to_string);
+        // "ask Connolly about the household" names who is asked, whatever
+        // the intent model returns for it; words that match no one present
+        // ("ask around if ...") are not an address.
+        let asked = asked_addressee(&raw)
+            .filter(
+                |asked| match npc_manager.resolve_reference_at(asked, world.player_location) {
+                    crate::npc::manager::NpcReference::Unique(_) => true,
+                    crate::npc::manager::NpcReference::Ambiguous(_) => clarify,
+                    crate::npc::manager::NpcReference::NotFound => false,
+                },
+            )
+            .map(str::to_string);
         let explicit_recipient_names = explicit_talk_recipient_clause(&raw)
             .map(|clause| extract_npc_mentions(clause, &world, &npc_manager).names);
+        // An ambiguous target is kept when clarification is on, so the
+        // turn asks who was meant instead of falling back to whoever is
+        // first ("ask Connolly" with both Connollys present).
         let validated = if is_talk {
             talk_target.filter(|t| {
-                npc_manager
-                    .resolve_reference_at(t, world.player_location)
-                    .unique()
-                    .is_some()
+                match npc_manager.resolve_reference_at(t, world.player_location) {
+                    crate::npc::manager::NpcReference::Unique(_) => true,
+                    crate::npc::manager::NpcReference::Ambiguous(_) => clarify,
+                    crate::npc::manager::NpcReference::NotFound => false,
+                }
             })
         } else {
             None
         };
-        (mentions, explicit_recipient_names, validated, vocative)
+        (
+            mentions,
+            explicit_recipient_names,
+            validated,
+            vocative,
+            asked,
+        )
     };
 
     // Explicit recipients are authoritative. A chip-selected addressee, or the
@@ -558,6 +580,9 @@ pub async fn handle_game_input_settled(
     } else {
         if let Some(vocative) = vocative {
             push_unique_target(&mut targets, vocative);
+        }
+        if let Some(asked) = asked {
+            push_unique_target(&mut targets, asked);
         }
         for name in mentions.names {
             push_unique_target(&mut targets, name);
@@ -632,6 +657,51 @@ fn push_unique_target(targets: &mut Vec<String>, target: String) {
     }
 }
 
+/// Who an "ask X ..." message is put to: the words after "ask" up to where
+/// the question starts ("ask Connolly about the household" gives
+/// "Connolly"; "ask Peig if the post came" gives "Peig"). `None` when there
+/// is no such opening ("ask around", "ask about the fair") or it is longer
+/// than a name.
+fn asked_addressee(raw: &str) -> Option<&str> {
+    const QUESTION_STARTS: &[&str] = &[
+        "about",
+        "regarding",
+        "to",
+        "for",
+        "if",
+        "whether",
+        "what",
+        "where",
+        "when",
+        "why",
+        "how",
+        "who",
+        "is",
+        "was",
+        "did",
+        "does",
+    ];
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if !lower.starts_with("ask ") {
+        return None;
+    }
+    let rest = &trimmed["ask ".len()..];
+    let mut end = None;
+    let mut offset = 0;
+    for word in rest.split(' ') {
+        if QUESTION_STARTS.contains(&word.to_ascii_lowercase().as_str()) {
+            end = Some(offset);
+            break;
+        }
+        offset += word.len() + 1;
+    }
+    let head = rest[..end?]
+        .trim()
+        .trim_matches(|ch: char| !ch.is_alphanumeric());
+    (!head.is_empty() && head.split_whitespace().count() <= 4).then_some(head)
+}
+
 fn explicit_talk_recipient_clause(raw: &str) -> Option<&str> {
     let trimmed = raw.trim();
     let lower = trimmed.to_ascii_lowercase();
@@ -693,6 +763,36 @@ mod tests {
         assert_eq!(
             super::explicit_talk_recipient_clause("Where is Padraig Darcy?"),
             None
+        );
+    }
+
+    #[test]
+    fn asked_addressee_is_who_the_question_is_put_to() {
+        use super::asked_addressee;
+        assert_eq!(
+            asked_addressee("ask Connolly about the household"),
+            Some("Connolly")
+        );
+        assert_eq!(
+            asked_addressee("Ask Peig Hannigan if the post came"),
+            Some("Peig Hannigan")
+        );
+        assert_eq!(
+            asked_addressee("ask Mícheál whether the cattle are sold"),
+            Some("Mícheál")
+        );
+        assert_eq!(
+            asked_addressee("ask the widow, what news?"),
+            Some("the widow")
+        );
+        assert_eq!(asked_addressee("ask about the fair"), None);
+        assert_eq!(asked_addressee("ask around"), None);
+        assert_eq!(asked_addressee("ask for directions"), None);
+        assert_eq!(asked_addressee("Where is Peig?"), None);
+        assert_eq!(
+            asked_addressee("ask the old man by the gate in the long coat about it"),
+            None,
+            "longer than a name"
         );
     }
 

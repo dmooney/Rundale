@@ -955,6 +955,51 @@ fn resolve_reference_reports_ambiguous_first_name_instead_of_not_found() {
 }
 
 #[test]
+fn resolve_reference_matches_a_family_name_without_an_introduction() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Peig Hannigan", "Postmistress", 2));
+    mgr.add_npc(named_npc(2, "Mícheál Connolly", "Drover", 3));
+    mgr.add_npc(named_npc(3, "Róisín Connolly", "Spinner", 3));
+
+    assert_eq!(
+        mgr.resolve_reference_at("Connolly", LocationId(3)),
+        NpcReference::Ambiguous(vec![NpcId(2), NpcId(3)]),
+        "two Connollys at home: ask, never guess"
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("connolly", LocationId(3)),
+        NpcReference::Ambiguous(vec![NpcId(2), NpcId(3)])
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Hannigan", LocationId(2)),
+        NpcReference::Unique(NpcId(1))
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Peig", LocationId(2)),
+        NpcReference::NotFound,
+        "a first name still needs an introduction"
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Connolly", LocationId(2)),
+        NpcReference::NotFound,
+        "only people present match"
+    );
+}
+
+#[test]
+fn resolve_reference_prefers_an_introduced_first_name_over_a_family_name() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Kelly Walsh", "Farmer", 2));
+    mgr.add_npc(named_npc(2, "Nora Kelly", "Weaver", 2));
+    mgr.mark_introduced(NpcId(1));
+
+    assert_eq!(
+        mgr.resolve_reference_at("Kelly", LocationId(2)),
+        NpcReference::Unique(NpcId(1))
+    );
+}
+
+#[test]
 fn resolve_reference_reports_ambiguous_role_and_keeps_unique_vocative() {
     let mut mgr = NpcManager::new();
     mgr.add_npc(named_npc(1, "Peig Hannigan", "Farmer", 2));

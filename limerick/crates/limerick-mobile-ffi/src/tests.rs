@@ -670,6 +670,67 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
     assert_eq!(committed["terminalOutcome"], "succeeded");
 }
 
+/// How the intent Endpoint answered "ask Connolly about the household".
+enum IntentAnswer {
+    Target(&'static str),
+    Failed,
+}
+
+/// Product spec §5.3: "ask Connolly" at the cottage names both Connollys,
+/// so the turn asks which one rather than speaking to whoever is listed
+/// first, on the canonical world through the phone's intent Endpoint. The
+/// player's own words name who is asked, so the question does not depend on
+/// the model: it returns "Connolly", a garbled target (seen live:
+/// "Connolly.mdl"), or fails (seen live: 502 MODEL_ERROR).
+#[test]
+fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
+    for answer in [
+        IntentAnswer::Target("Connolly"),
+        IntentAnswer::Target("Connolly.mdl"),
+        IntentAnswer::Failed,
+    ] {
+        let (game, _) = Game::new();
+        game.go_to_the_cottage();
+        let mut result = game.submit("ask Connolly about the household");
+        for _ in 0..3 {
+            if result["status"] != "awaiting_inference" {
+                break;
+            }
+            let pending = game.pending();
+            assert_eq!(pending["endpoint"]["role"], "intent", "{pending}");
+            result = match answer {
+                IntentAnswer::Target(target) => game.resolve(
+                    &pending,
+                    json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
+                ),
+                IntentAnswer::Failed => game.op(json!({
+                    "op": "fail",
+                    "call_id": pending["callID"],
+                    "attempt_id": pending["attemptID"],
+                    "base_revision": pending["baseRevision"],
+                    "error_kind": "protocol",
+                    "message": "MODEL_ERROR",
+                })),
+            };
+        }
+        assert_eq!(result["status"], "awaiting_clarification", "{result}");
+        assert!(
+            events_of_kind(&result, "npc_dialogue").is_empty(),
+            "no one answers before the player chooses: {result}"
+        );
+        let question = events_of_kind(&result, "clarification_required");
+        let prompt = &question[0]["clarification"];
+        let mut entities: Vec<&str> = prompt["choices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|choice| choice["entityID"].as_str().unwrap())
+            .collect();
+        entities.sort();
+        assert_eq!(entities, ["2", "3"], "Mícheál and Róisín: {prompt}");
+    }
+}
+
 /// The Endpoint path commits a reply after structural checks only: a reply
 /// naming a person and place the world does not have is not rewritten.
 #[test]
