@@ -6,7 +6,9 @@ script="$repo_root/limerick/scripts/publish-pr-page.sh"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-git init -q --bare "$work/remote.git"
+# Pin HEAD to main as GitHub does; a runner's git may default to master,
+# and a clone would then check out nothing.
+git init -q --bare --initial-branch=main "$work/remote.git"
 export RUNDALE_PAGES_REMOTE="$work/remote.git"
 export RUNDALE_PAGES_CHECKOUT="$work/checkout"
 export RUNDALE_PAGES_BASE_URL="https://pages.example.invalid"
