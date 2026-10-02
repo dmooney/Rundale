@@ -23,6 +23,31 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertTrue(completed.waitForExistence(timeout: 45), "Expected validated live dialogue")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(completed.label.contains("In progress"))
+
+        // A short live reply can stay provisional for ~100 ms, below the
+        // accessibility poll interval, so read the app's record of every
+        // dialogue-row state it published to the view.
+        let rowID = String(completed.identifier.dropFirst("transcript.item.".count))
+        let rowEntries = app.transcriptTrace().filter { $0.row == rowID }
+        let provisionalIndex = try XCTUnwrap(
+            rowEntries.firstIndex { $0.state == "provisional" && !$0.text.isEmpty },
+            "Expected live Endpoint text in a provisional row before the terminal frame: \(rowEntries)"
+        )
+        let committedIndex = try XCTUnwrap(
+            rowEntries.firstIndex { $0.state == "committed" },
+            "The terminal event must finalize the same streamed row: \(rowEntries)"
+        )
+        XCTAssertLessThan(provisionalIndex, committedIndex)
+        let trace = try JSONSerialization.data(
+            withJSONObject: rowEntries.map {
+                ["state": $0.state, "characters": $0.text.count, "milliseconds": $0.milliseconds]
+            },
+            options: [.prettyPrinted]
+        )
+        let traceAttachment = XCTAttachment(data: trace, uniformTypeIdentifier: "public.json")
+        traceAttachment.name = "rundale-live-stream-trace.json"
+        traceAttachment.lifetime = .keepAlways
+        add(traceAttachment)
         let timing: [String: Any] = [
             "transport": "live-endpoint",
             "send_to_final_ui_seconds": Date().timeIntervalSince(sentAt),

@@ -11,7 +11,6 @@ Rundale is the game. Limerick is the Rust game engine.
 4. Read applicable directory-level instructions before editing.
 
 Append a concise learning when you discover a reusable, non-obvious trap.
-The `Stop--learnings-reminder` hook nudges this review after non-trivial sessions.
 Do not load every reference for every task.
 
 ## Current product direction
@@ -90,9 +89,9 @@ conflict. Do not circle between them. Standing answers:
 - **Mobile-plan PRs:** squash-merge once required checks pass and review comments are
   addressed, then start the next plan issue.
 - **`limerick-prod`:** the game is unreleased and has no users, so publishing and
-  promoting Endpoints there is authorized. If the permission classifier blocks an
-  authorized prod action, stop, give the owner the exact command, and wait for their
-  approval; do not look for another route to the same action.
+  promoting Endpoints there is authorized. So is live Endpoint testing: run the live
+  suites against it, including App Check debug-token setup, without asking first.
+  Its Endpoints use an inexpensive Gemini Flash Lite model.
 
 ## Standard commands
 
@@ -102,6 +101,7 @@ These are existing repository commands, not proof of mobile milestone completion
 just build          # existing default engine build
 just check          # existing pre-commit quality gates
 just verify         # existing checks plus harness walkthrough
+just mobile-verify --phase N  # iPhone app gates for spec Milestone N (macOS + Xcode)
 just agent-check    # proof evidence and judge verdict gate
 just ui-test        # existing Svelte frontend tests
 just ui-e2e         # existing browser Playwright contracts
@@ -109,10 +109,9 @@ bash limerick/scripts/check-doc-paths.sh  # documentation links and paths
 ```
 
 For gameplay changes, use `/limerick-engine prove <feature>` on the affected production
-path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements;
-the planned phase-selectable `./verify` (specified in the technical vision; it exists
-on the `ios-port` branch, not on `main`) must not be confused with the existing
-`just verify`.
+path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements.
+`just mobile-verify` is the phase-selectable iPhone gate the technical vision
+requires; `just verify` is the engine's gate. Neither stands in for the other.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
 commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
@@ -120,7 +119,17 @@ commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
 Use conventional commits and one logical change per commit. PRs explain changed
 behavior, link requirements/issues, and list actual verification and remaining gates.
-For visible changes include appropriate visual and interaction evidence.
+For visible changes include appropriate visual and interaction evidence; pace
+recordings for a human viewer as the [phase demo plan](docs/product-specs/phase-demo-plan.md#recordings) describes.
+PR recordings live outside this repository, in the public
+[`dmooney/rundale-pages`](https://github.com/dmooney/rundale-pages) repository, which
+GitHub Pages serves at `https://dmooney.github.io/rundale-pages/pr/<number>/`. Put an
+`index.html`, the video as H.264 `.mp4`, and a short `.gif` in one directory and run
+`bash limerick/scripts/publish-pr-page.sh <pr-number> <directory>`; it copies them into
+`pr/<number>/`, refreshes the site's index, and pushes. Link that page from the PR body
+and embed the GIF so it plays inline. Do not use Claude Artifacts (private to the
+owner's account) or GitHub release assets (videos download instead of playing) for PR
+evidence, and never commit videos to this repository.
 Follow [git workflow](docs/agent/git-workflow.md) and [proof requirements](docs/agent/agent-check.md).
 Keep the README, documentation, and canonical world sheet consistent with changes
 where applicable. Run `just notices` when dependencies change.
@@ -134,10 +143,8 @@ to build, sign, upload, and distribute to the existing Internal Beta group; do
 not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
-The release tooling (`just mobile-build`, `just testflight-update`, and its
-runbook) is being ported from `ios-port` in #2045. Until it lands, say in the PR
-and to the owner that no build was published and why. Once it exists: complete
-export compliance, confirm the build is **Testing** in **Internal Beta** (upload
+Use `just testflight-update` and its [runbook](mobile/testflight.md); it runs
+`just mobile-verify --phase all` before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
 received, what to try, checks run, and any remaining device gates. If signing,
 Apple processing, or another blocker prevents delivery, report it explicitly.

@@ -25,7 +25,7 @@ the issues record what depends on what. Refer to work by issue number.
 | 8            | [Controlled expansion](https://github.com/dmooney/Rundale/milestone/8) (spec Milestone 6)             | Phase 7                         |
 
 "Milestone N" in the [product specification](../product-specs/product-technical-spec.md)
-§17, and "Phase N" in the test plans, audits, and `./verify --phase N`, mean
+§17, and "Phase N" in the test plans, audits, and `just mobile-verify --phase N`, mean
 product spec Milestone N, not Mobile Phase N.
 
 ## Where things stand
@@ -202,7 +202,10 @@ Issues: #2043, #2044, #2045, #2007, #2046.
   - the `limerick-mobile-ffi` boundary shape, re-pointed at the turn API and
     renamed from `parish_*` (#2007);
   - `mobile/scripts`: verify with pass reuse, release, UI recording, and
-    stream-frame analysis;
+    stream-frame analysis, run as `just mobile-verify`, `just mobile-build`,
+    and `just testflight-update` (the root `./verify` shim is not carried
+    forward: every repository command is a `just` recipe, and `./verify` read
+    as the engine's `just verify`);
   - the test plans, the Endpoint SSE fixtures, and the UI-test transcript trace.
 - Do not bring over:
   - `limerick-core/src/mobile`;
@@ -214,7 +217,7 @@ Issues: #2043, #2044, #2045, #2007, #2046.
 
 Exit:
 
-- `./verify` automated gates for spec Milestones 1–3 pass on a large and a small (SE)
+- `just mobile-verify` automated gates for spec Milestones 1–3 pass on a large and a small (SE)
   simulator.
 - The live Endpoint suite passes against `limerick-prod`.
 - A TestFlight build from the new line is uploaded.

@@ -25,7 +25,7 @@ use limerick_core::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
 use limerick_core::npc::manager::NpcManager;
 use limerick_core::npc::{LanguageSettings, NpcId};
 use limerick_core::persistence::{Database, GameSnapshot, SaveFileLock};
-use limerick_core::portable_look::render_look_text;
+use limerick_core::portable_look::{render_look_text, render_scene};
 use limerick_core::session_store::RecoveryBundle;
 use limerick_core::turn::{
     ExecutionAttemptId, InferenceCallId, InferenceResolution, InferenceRoutes, LogicalRequestId,
@@ -273,19 +273,12 @@ impl Session {
                 let opening = {
                     let world = live.world.lock().await;
                     let npcs = live.npc_manager.lock().await;
-                    let transport = live.game_mod.transport.default_mode();
-                    render_look_text(
-                        &world,
-                        &npcs,
-                        transport.speed_m_per_s,
-                        &transport.label,
-                        true,
-                    )
+                    render_scene(&world, &npcs)
                 };
                 engine
-                    .narrate(
+                    .describe_scene(
                         TranscriptEventId::new(format!("opening:{branch_id}")),
-                        opening,
+                        &opening,
                     )
                     .await?;
                 if refused {

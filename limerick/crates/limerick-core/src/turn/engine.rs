@@ -44,7 +44,7 @@ use super::lifecycle::{
     ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
     TerminalOutcome,
 };
-use super::projection::project_emissions;
+use super::projection::{project_emissions, scene_event};
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
 use crate::config::{InferenceConfig, InferenceSubrole};
 use crate::game_loop::flush_staged_emissions;
@@ -58,6 +58,7 @@ use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
 use crate::ipc::{GameConfig, StreamEndPayload, text_log};
 use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
+use crate::portable_look::{SceneText, render_scene};
 use crate::turn_inference::{
     CallReport, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus, TurnInference,
 };
@@ -547,6 +548,16 @@ impl TurnEngine {
             metadata: Default::default(),
         };
         Ok(self.journal.record(vec![event]).await?)
+    }
+
+    /// Journals `scene` as a request-less scene event (a new game's opening
+    /// scene), like [`narrate`](Self::narrate).
+    pub async fn describe_scene(
+        &self,
+        id: TranscriptEventId,
+        scene: &SceneText,
+    ) -> Result<Vec<TranscriptEvent>, TurnError> {
+        Ok(self.journal.record(vec![scene_event(id, scene)]).await?)
     }
 
     /// Accepts `input` as a new logical request and starts its first
@@ -1108,6 +1119,12 @@ impl TurnEngine {
         drop(calls);
         let mut builder =
             EventBuilder::new(request_id.clone(), Some(attempt_id.clone()), next_ordinal);
+        let arrival = {
+            let world = env.candidate.world.lock().await;
+            let npc_manager = env.candidate.npc_manager.lock().await;
+            (Some(world.current_location().name.as_str()) != location_before.as_deref())
+                .then(|| render_scene(&world, &npc_manager))
+        };
         let finished = Arc::into_inner(env)
             .ok_or_else(|| "the attempt's state is still shared".to_string())
             .and_then(|env| env.candidate.finish().map_err(|error| error.to_string()));
@@ -1173,6 +1190,7 @@ impl TurnEngine {
             finished.emissions(),
             &mut builder,
             location_before.as_deref(),
+            arrival.as_ref(),
         );
         events.push(builder.response_completed(TerminalOutcome::Succeeded, Some(revision)));
         let commit = TurnCommit {

@@ -3,14 +3,18 @@
 ## Mobile reset verification
 
 The [product specs](../product-specs/README.md) define the required mobile gates.
-The [Phase 1 and Phase 2 test plans](../test-plans/README.md) provide the companion
-case lists; they are test instructions, not completed verification reports.
-The technical vision requires a phase-selectable repository entry point such as
-`./verify --phase 1`, extended for Phase 2. At this reorganization (2026-09-07),
-this checkout has no root `./verify` or Swift/iOS project. These are implementation
-requirements, not commands this documentation change supplies or claims to pass.
-The existing `just verify` below runs the existing engine harness; it is not an
-equivalent iPhone acceptance gate.
+The [mobile test plans](../test-plans/README.md) provide the companion case
+lists; they are test instructions, not completed verification reports.
+
+`just mobile-verify --phase N` is the phase-selectable entry point the technical
+vision requires ("Phase N" is spec Milestone N). It runs on macOS with Xcode;
+`--phase all` (the default) runs every implemented phase. It writes
+`verify.json`, `verify.junit.xml`, and `summary.txt` under `mobile/.verification/`
+and exits nonzero on a blocking gate. Suites that passed with identical inputs are
+reused; `--no-cache` reruns them. Options, the gates in each phase, and UI
+recording are in the [mobile scripts README](../../mobile/scripts/README.md).
+The engine's `just verify` below is a different gate; it is not an iPhone
+acceptance gate.
 
 Phase 1 must report deterministic fixture/UI checks; Phase 2 adds portable Rust,
 persistence fault injection, binding contracts, device/simulator builds, and

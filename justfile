@@ -100,6 +100,18 @@ train-rundale-dialect:
 test:
     cd limerick && just test
 
+# Run the iPhone app's verification gates (macOS + Xcode): --phase 1-4|all (mobile/scripts/README.md)
+mobile-verify *ARGS:
+    python3 mobile/scripts/verify.py {{ARGS}}
+
+# Build the Release iPhone app without uploading
+mobile-build *ARGS:
+    python3 mobile/scripts/release.py build {{ARGS}}
+
+# Verify, sign, and upload an internal TestFlight build (mobile/testflight.md)
+testflight-update *ARGS:
+    python3 mobile/scripts/release.py testflight {{ARGS}}
+
 # Run the save-lock tests on the iOS Simulator (macOS + Xcode)
 ios-sim-save-lock:
     cd limerick && just ios-sim-save-lock
