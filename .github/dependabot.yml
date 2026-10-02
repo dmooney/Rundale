@@ -80,6 +80,18 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["major"]
+    ignore:
+      # TypeScript 7 breaks the UI and bench-site gates: svelte-check (UI)
+      # peers typescript ^5 || ^6, so `npm ci` fails with ERESOLVE, and
+      # `astro check` (bench-site) refuses TS 7 outright (see closed #2097).
+      # Lift once svelte-check peers TS 7 and astro check supports it (or the
+      # bench site moves to @astrojs/ts-content-mapper).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # @types/node must match the runtime pinned in .nvmrc (Node 24); bump
+      # its major together with .nvmrc and `engines.node`, not on its own.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # promptfoo is the only direct dependency; Dependabot transitive bumps of
   # nested packages (hono, csv-parse, …) repeatedly left package-lock.json out
