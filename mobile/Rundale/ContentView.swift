@@ -1139,14 +1139,16 @@ private struct Composer: View {
                                 if compactLayout {
                                     ProgressView()
                                         .controlSize(.small)
+                                        .tint(RundaleTheme.canvas)
                                         .accessibilityHidden(true)
                                 }
                                 Image(systemName: "stop.fill")
                                     .frame(width: 42, height: 42)
                             }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(RundaleTheme.error)
+                        // The same control as Send, so the app's ink never
+                        // lands on a saturated fill.
+                        .buttonStyle(ComposerActionButtonStyle())
                         .accessibilityLabel("Stop response")
                         .accessibilityIdentifier("composer.stop")
                     } else {
@@ -1157,7 +1159,7 @@ private struct Composer: View {
                             Image(systemName: "arrow.up")
                                 .frame(width: 42, height: 42)
                         }
-                        .buttonStyle(ComposerSendButtonStyle())
+                        .buttonStyle(ComposerActionButtonStyle())
                         .disabled(!canSubmitDraft)
                         .accessibilityLabel("Send command")
                         .accessibilityValue(canSubmitDraft ? "Ready to send" : "Enter a command to enable")
@@ -1366,7 +1368,7 @@ private struct SimulatorCommandTextField: UIViewRepresentable {
 }
 #endif
 
-private struct ComposerSendButtonStyle: ButtonStyle {
+private struct ComposerActionButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -1374,15 +1376,15 @@ private struct ComposerSendButtonStyle: ButtonStyle {
             .padding(10)
             .foregroundStyle(isEnabled ? RundaleTheme.canvas : RundaleTheme.secondaryInk)
             .background(
-                Circle().fill(isEnabled ? RundaleTheme.accent : Color.clear)
+                Capsule().fill(isEnabled ? RundaleTheme.accent : Color.clear)
             )
             .overlay(
-                Circle().stroke(
+                Capsule().stroke(
                     isEnabled ? Color.clear : RundaleTheme.rule,
                     lineWidth: 1.2
                 )
             )
-            .contentShape(Circle())
+            .contentShape(Capsule())
             .scaleEffect(configuration.isPressed && isEnabled ? 0.96 : 1)
             .opacity(configuration.isPressed && isEnabled ? 0.82 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
