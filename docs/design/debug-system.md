@@ -186,7 +186,7 @@ A custom tracing subscriber layer captures log entries into a ring buffer:
 
 ## Source Modules
 
-- [`limerick-engine/src/debug.rs`](../../limerick/crates/limerick-engine/src/debug.rs) — Debug commands and metrics
+- [`limerick-core/src/debug_view.rs`](../../limerick/crates/limerick-core/src/debug_view.rs) — `/debug` queries, shared by the engine and the phone
 - [`limerick-input`](../../limerick/crates/limerick-input/src/) — Debug command parsing
 - [`limerick-npc`](../../limerick/crates/limerick-npc/src/) — NPC state access for debug views
 - [`limerick-inference`](../../limerick/crates/limerick-inference/src/) — Inference metrics collection

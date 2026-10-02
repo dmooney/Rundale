@@ -46,17 +46,17 @@ PR #443 (emotion system) is open, not yet playtested, and touches several of the
 
 ### File overlap table
 
-| File                                                 | #443 uses                                                                                             | This plan will add                                                              | Overlap                 |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
-| `crates/limerick-npc/src/lib.rs`                     | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations`     | **High** — same struct  |
-| `crates/limerick-npc/src/manager.rs`                 | Tier 4 emits structured emotion impulses                                                              | Tier 4 fatigue-biased rules; end-of-sleep-window detection                      | **High**                |
-| `crates/limerick-npc/src/ticks.rs`                   | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas                      | New `run_dream_consolidation` pass; fatigue tick                                | Medium                  |
-| `crates/limerick-persistence/src/snapshot.rs`        | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed                                 | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical     |
-| `crates/limerick-config/src/engine.rs`               | `NpcConfig.emotions_enabled` flag                                                                     | `NpcConfig.dreams_enabled` flag                                                 | Medium                  |
-| `crates/limerick-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion`                                                                     | `/debug dreams`, `/stub-fatigue`, `/force-dream`                                | Low — parallel patterns |
-| `crates/limerick-core/prompts/*.prompt.yml`          | `npc_tier1` emotion preamble                                                                          | New `npc_dream_consolidation.prompt.yml`                                        | Low — new file          |
-| `crates/limerick-npc/src/memory.rs`                  | (untouched by #443)                                                                                   | Consolidation logic, core-memory marker, decay of old summaries                 | None                    |
-| `crates/limerick-npc/src/types.rs`                   | (untouched by #443)                                                                                   | Extend `NpcState` with `Sleeping` variant                                       | None                    |
+| File                                                    | #443 uses                                                                                             | This plan will add                                                              | Overlap                 |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| `crates/limerick-npc/src/lib.rs`                        | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations`     | **High** — same struct  |
+| `crates/limerick-npc/src/manager.rs`                    | Tier 4 emits structured emotion impulses                                                              | Tier 4 fatigue-biased rules; end-of-sleep-window detection                      | **High**                |
+| `crates/limerick-npc/src/ticks.rs`                      | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas                      | New `run_dream_consolidation` pass; fatigue tick                                | Medium                  |
+| `crates/limerick-persistence/src/snapshot.rs`           | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed                                 | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical     |
+| `crates/limerick-config/src/engine.rs`                  | `NpcConfig.emotions_enabled` flag                                                                     | `NpcConfig.dreams_enabled` flag                                                 | Medium                  |
+| `crates/limerick-core/src/debug_view.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion`                                                                     | `/debug dreams`, `/stub-fatigue`, `/force-dream`                                | Low — parallel patterns |
+| `crates/limerick-core/prompts/*.prompt.yml`             | `npc_tier1` emotion preamble                                                                          | New `npc_dream_consolidation.prompt.yml`                                        | Low — new file          |
+| `crates/limerick-npc/src/memory.rs`                     | (untouched by #443)                                                                                   | Consolidation logic, core-memory marker, decay of old summaries                 | None                    |
+| `crates/limerick-npc/src/types.rs`                      | (untouched by #443)                                                                                   | Extend `NpcState` with `Sleeping` variant                                       | None                    |
 
 ### Design coupling (bigger reason than files)
 
@@ -365,7 +365,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 - `crates/limerick-npc/src/data.rs` — load any optional sleep/dream tuning from `npcs.json` (e.g. personality-specific sleep needs) if designers want it later; minimal initially.
 - `crates/limerick-persistence/src/snapshot.rs` — snapshot fields with `#[serde(default)]`.
 - `crates/limerick-config/src/engine.rs` — `sleep_state_enabled`, `dreams_enabled` flags.
-- `crates/limerick-engine/src/debug.rs` + `crates/limerick-engine/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
+- `crates/limerick-core/src/debug_view.rs` + `crates/limerick-engine/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
 - `crates/limerick-core/src/prompts/mod.rs` — register new prompt file via `include_str!` + `LazyLock<PromptFile>`.
 - Tauri + server entry points to thread config flags to NPC tick calls (parity).
 - `docs/design/npc-system.md` — add a "Sleep & Dream Consolidation" cross-link to this doc.

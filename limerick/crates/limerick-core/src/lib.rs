@@ -41,6 +41,7 @@ pub use limerick_editor as editor;
 // rendering. They avoid the IPC and inference orchestration tree so embedded
 // runtimes can share them; `game_session` and `ipc::commands::look` re-export
 // them at their historical paths.
+pub mod debug_view;
 pub mod dialogue_apply;
 pub mod endpoint_input;
 pub mod event_bus;
