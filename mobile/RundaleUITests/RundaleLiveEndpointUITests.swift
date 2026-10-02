@@ -99,6 +99,44 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
     }
 
+    /// Product spec §5.3: rundale-intent v1 names "Connolly" as the
+    /// addressee and both Connollys are at home, so the game asks which one
+    /// before any dialogue call, then the choice continues the same request.
+    func test04LiveIntentAddresseeSharedByTwoPeopleAsksWhichConnolly() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+        _ = submit("ask Connolly about the household")
+
+        let clarification = app.otherElements["clarification"]
+        XCTAssertTrue(clarification.waitForExistence(timeout: 45),
+                      "Expected the game to ask which Connolly was meant")
+        XCTAssertTrue(waitForTranscriptText("Which Connolly do you mean?", timeout: 3))
+        let choices = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'clarification.option.'")
+        )
+        XCTAssertEqual(choices.count, 2, "One choice per Connolly at home")
+        XCTAssertFalse(dialogueRow(inProgress: false).exists,
+                       "No one answers before the player chooses")
+        XCTAssertFalse(app.buttons["composer.stop"].exists,
+                       "No dialogue call runs while the question is open")
+        hold(4)
+
+        choices.element(boundBy: 1).tap()
+        XCTAssertTrue(clarification.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(dialogueRow(inProgress: false).waitForExistence(timeout: 45),
+                      "The chosen Connolly answers the original question")
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        hold(5)
+    }
+
+    /// Pauses for a human viewer when recording; a no-op in normal runs.
+    private func hold(_ seconds: TimeInterval) {
+        guard let value = ProcessInfo.processInfo.environment["RUNDALE_DEMO_HOLD"],
+              let minimum = TimeInterval(value), minimum > 0 else { return }
+        Thread.sleep(forTimeInterval: max(seconds, minimum))
+    }
+
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]

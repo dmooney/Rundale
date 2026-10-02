@@ -147,8 +147,9 @@ Attest remains unverified.
 
 `RundaleLiveEndpointUITests` plays the app against a deployed Limerick
 Endpoints service: a dialogue turn (`rundale-intent` v1, then
-`rundale-dialogue` v1), Stop during a streamed reply, and free-form movement
-classified by `rundale-intent` v1. It is opt-in and needs a Firebase App Check
+`rundale-dialogue` v1), Stop during a streamed reply, free-form movement
+classified by `rundale-intent` v1, and "ask Connolly about the household" at
+the cottage asking which Connolly before anyone answers. It is opt-in and needs a Firebase App Check
 debug token registered for the Rundale iOS app. Against `limerick-prod`:
 
 ```sh

@@ -129,8 +129,8 @@ impl NpcManager {
     /// one that matches nobody.
     ///
     /// Exact display/canonical matches win; only when there are none are
-    /// introduced first names tried. Several exact matches are ambiguous and
-    /// do not fall through to first names.
+    /// introduced first names tried, then family names. Several matches in a
+    /// tier are ambiguous and do not fall through to the next tier.
     pub fn resolve_name_at(&self, name: &str, location: LocationId) -> NpcReference {
         let lower = name.trim().to_lowercase();
         if lower.is_empty() {
@@ -145,7 +145,7 @@ impl NpcManager {
             return exact;
         }
 
-        match_all(&npcs, |npc| {
+        let by_first_name = match_all(&npcs, |npc| {
             self.is_introduced(npc.id)
                 && npc
                     .name
@@ -153,6 +153,18 @@ impl NpcManager {
                     .split_whitespace()
                     .next()
                     .is_some_and(|first| first == lower)
+        });
+        if !matches!(by_first_name, NpcReference::NotFound) {
+            return by_first_name;
+        }
+
+        // A family name is how a household is spoken of ("the Connollys",
+        // "ask Connolly"), so it resolves without an introduction; two people
+        // sharing it are ambiguous.
+        match_all(&npcs, |npc| {
+            let name = npc.name.to_lowercase();
+            let mut words = name.split_whitespace();
+            words.next().is_some() && words.next_back().is_some_and(|last| last == lower)
         })
     }
 

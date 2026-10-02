@@ -50,6 +50,14 @@ say which gates you could not run.
 - **`rundale-intent` v1 can hit its 256-token cap** on vocative speech
   ("Mícheál, how are the cattle?"). The turn still works through dialogue, at
   the cost of a call.
+- **The Endpoints database keeps no request or response bodies.** Its
+  `invocations` rows hold status, sizes, tokens, and error codes only, so
+  `limerick-prod.sh sql` cannot show what `rundale-intent` returned. To see a
+  live intent output, log the JSON-route body in `RundaleEngineController` in a
+  local build and read it with `xcrun simctl spawn <sim> log show`. The intent
+  target is unreliable (seen: `"Connolly.mdl"`, 502 `MODEL_ERROR`, 502
+  `OUTPUT_VALIDATION_FAILED` for one input), so the engine reads an addressee
+  the player states plainly ("ask X about ...") itself.
 - **Location description templates are the dialogue Endpoint's only time and
   weather cue.** Do not delete "It is {time}." from `world.json` templates to
   tidy the scene card; the phone drops those sentences at render time
