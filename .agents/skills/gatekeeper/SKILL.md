@@ -72,7 +72,6 @@ The standards are Linus's:
 
 2. **Filter.** Skip a PR when any of these hold:
    - it is a draft;
-   - the author is `dependabot` (the auto-merge workflow owns those);
    - it carries the `needs-owner` label;
    - your latest verdict marker names the current head SHA **and** no
      non-gatekeeper comment, review, or thread reply has been posted since
@@ -180,6 +179,15 @@ or hollow proof is blocking.
 and the attached artifacts. Skipped or unavailable gates must be stated as
 such. An overstated claim is blocking even when the code is fine.
 
+**Dependency updates.** Dependabot PRs get the same review; no workflow
+merges them, so nothing lands them unless you do. The bump itself is the
+stated problem, so no linked issue is needed. Read the release notes in the
+body for breaking changes and security advisories, confirm the lockfile churn
+is confined to the bumped packages and their transitive dependencies, and
+treat a major bump that needed no source change as a claim CI must back. A
+group that mixes majors and fails CI is blocked like any other PR. Hand-off
+triggers apply by path: a bump under `endpoints/**` is still a money hand-off.
+
 **Hygiene.** Conventional PR title and commits; one logical change; `Fixes #N`
 for issues it resolves; README, docs, and the canonical world sheet updated
 where behavior changed; `just notices` output updated when dependencies
@@ -246,7 +254,23 @@ gh pr merge $PR --squash --delete-branch --match-head-commit <reviewed head sha>
 ```
 
 `--match-head-commit` prevents merging a commit you did not review. If the
-merge is refused, report why and leave it for the next pass. Post the
+merge is refused, report why and leave it for the next pass. When it is
+refused because the head is behind `main` (`mergeStateStatus` `BEHIND`), ask
+the author to update the branch. The one exception to never changing a PR:
+for an approved Dependabot PR, use GitHub's update-branch (it merges `main`
+into the head, pinned to the reviewed SHA), because harnesses may defang an
+`@dependabot rebase` mention so the bot never sees it.
+
+```sh
+gh api -X PUT repos/:owner/:repo/pulls/$PR/update-branch -f expected_head_sha=<reviewed head sha>
+```
+
+An updated head is a new head: confirm its diff against `main` matches the
+one you approved and its required checks pass, then post an `approve` review
+for the new SHA before merging. Each merge puts the remaining approved PRs
+behind again, so land them one at a time. Leave a PR that conflicts with an
+earlier merge untouched; Dependabot rebases its own conflicting PRs only
+while no one else has pushed to them. Post the
 `approve` review before merging so the record shows what was accepted.
 
 ## Hand-off to the owner
