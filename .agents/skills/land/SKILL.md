@@ -6,7 +6,7 @@ argument-hint: 'PR number (e.g. "842"). If omitted, use the PR for the current b
 
 Drive one PR to merge. Sequential, not parallel — this skill is for finishing a specific PR cleanly. Use `drain-backlog` for bulk sweeps.
 
-Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gates: `just check` (fmt + clippy + tests + witness-scan + check-doc-paths). See [`docs/agent/git-workflow.md`](../../../docs/agent/git-workflow.md) and CLAUDE.md non-negotiables (mode parity, feature-flag gating, README freshness).
+Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gates: `just check` (fmt + clippy + tests + witness-scan + check-doc-paths). See [`docs/agent/git-workflow.md`](../../../docs/agent/git-workflow.md) and the [engineering rules](../../../docs/agent/engineering-rules.md) (mode parity, feature-flag gating, README freshness).
 
 ## Steps
 

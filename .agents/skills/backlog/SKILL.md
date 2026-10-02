@@ -189,8 +189,8 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
 
 ### Drain notes
 
-- Triage-vocabulary is in `docs/agent/triage-vocabulary.md`. CLAUDE.md project rules (esp. mode parity #2
-  and feature-flag gating #6) apply to every fix.
+- Triage-vocabulary is in `docs/agent/triage-vocabulary.md`. The [engineering rules](../../../docs/agent/engineering-rules.md)
+  (especially mode parity and feature-flag gating) apply to every fix.
 - The orchestrator's own worktree must NOT be a worktree any sub-agent can write to. The
   `claude/eloquent-murdock-*` style branch this skill runs from is off-limits to sub-agents.
 - Wake intervals: ≤ 240s during active work (cache-warm), 3600s when the user signals usage conservation, a

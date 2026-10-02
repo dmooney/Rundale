@@ -5,9 +5,9 @@ Root mod registry for the Limerick engine. Contains game-world mods (`kind = "ba
 ## Scoped commands
 
 ```sh
-cargo test -p limerick-core --test mod_loading       # schema validation + load round-trip
+cargo test -p limerick-mod                            # manifest, discovery, and load
+cargo test -p limerick-core --test mod_artefact_malformed_input  # malformed mod files fail cleanly
 cargo run  -p limerick-client -- --script ...        # live gameplay against active mod
-limerick --list-mods                                  # available mods (if exposed)
 ```
 
 ## Local gotchas
@@ -27,6 +27,6 @@ limerick --list-mods                                  # available mods (if expos
 
 **1 test mod:** `testbed/` — minimal engine test harness (5-location grid). Kind = `base`. Used by integration tests; pig Latin code-switch for dialogue testing.
 
-**21 provider mods:** `anthropic-provider/`, `cohere-provider/`, `deepseek-provider/`, `github_models-provider/`, `google-provider/`, `groq-provider/`, `lmstudio-provider/`, `mistral-provider/`, `moonshot-provider/`, `nvidia-nim-provider/`, `openai-provider/`, `opencode-provider/`, `openrouter-provider/`, `qwen-provider/`, `scaleway-provider/`, `siliconflow-provider/`, `together-provider/`, `vercel-ai-provider/`, `xai-provider/`, `zhipu-provider/`, and others. Each is `kind = "providers"` with a `mod.toml` and `providers/*.toml` config.
+**Provider mods:** every `mods/*-provider/` directory. Each is `kind = "providers"` with a `mod.toml` and `providers/*.toml` config.
 
 **Registry file:** `mod-list.toml` — selects the active mod setting via `active_setting`.

@@ -188,7 +188,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run
-- `just agent-check` — requires proof evidence and a judge verdict for proof-relevant PRs
+- `just agent-check` — requires acceptance criteria and proof evidence for proof-relevant PRs
 
 ## Eval baselines
 

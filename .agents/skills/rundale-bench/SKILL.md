@@ -220,6 +220,9 @@ rubric. Use it to decide which model + provider combo to wire into
 `bench` and `drain-queue` modes, which both dispatch Sonnet subagents). Self-judging in-chat with Opus
 risks same-conversation bias, burns the Opus 5-hour window on mechanical rubric scoring, and inverts the
 cost calculus — Sonnet does this job just as well at a fraction of the token cost.
+The judge model is pinned on purpose: leaderboard scores are only comparable when every run uses the
+same judge, so do not move it to a newer model without re-scoring the leaderboard and recording the
+change in the rubric version.
 
 ### Target spec
 

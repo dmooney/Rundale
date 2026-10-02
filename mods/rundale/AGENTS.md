@@ -8,7 +8,7 @@ Game content for Rundale: the canonical tiny world of Kilteevan, 1820 (product s
 just game-test          # tiny-world walkthrough (testing/fixtures/rundale/tiny_world.txt)
 cargo test -p limerick-engine --test world_sheet   # world sheet oracle
 just screenshots        # regenerate visual baselines
-cargo test -p limerick-core --test mod_loading   # schema validation
+cargo test -p limerick-editor   # byte-identical round-trip of this mod
 ```
 
 ## Local gotchas
