@@ -68,9 +68,19 @@ identities (`sequence`, `stateRevision`, `baseRevision`, cursors) are
 `{"rawValue": n}`; the operations accept either form.
 
 A refused request (a request is still open, the request already committed, a
-slash command) answers `LIMERICK_MOBILE_PROTOCOL_ERROR` with the engine's code
-(`request_in_progress`, `rejected`, `command_unavailable`, ...). Nothing
-changes.
+slash command the phone does not offer) answers
+`LIMERICK_MOBILE_PROTOCOL_ERROR` with the engine's code (`request_in_progress`,
+`rejected`, `command_unavailable`, ...). Nothing changes.
+
+## Slash commands
+
+The engine runs the phone's slash commands as ordinary requests, answered
+locally with no Endpoint call (`limerick_core::turn::LocalCommand`). The read
+model's `commands` lists the advertised ones for `/help` and the app's Commands
+list: `/look`, `/people` (also `/npcs`), `/exits`, and `/help`. `/wait
+[minutes]`, `/pause`, `/resume`, `/debug [view]`, and `/flags` work in every
+build but are not advertised. Any other `/` input is refused with
+`command_unavailable`.
 
 ## Inference
 

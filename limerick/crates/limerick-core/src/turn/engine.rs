@@ -36,6 +36,7 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::BoxFuture;
+use super::commands::LocalCommand;
 use super::ids::{
     ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision, TranscriptEventId,
 };
@@ -448,6 +449,8 @@ pub struct TurnEngine {
     rules: TurnRules,
     loading: Option<LoadingHook>,
     routes: InferenceRoutes,
+    /// Whether `/`-commands run as local turns (see [`LocalCommand`]).
+    local_commands: bool,
     revision: StateRevision,
     records: HashMap<LogicalRequestId, RequestRecord>,
     running: Option<RunningAttempt>,
@@ -461,6 +464,7 @@ impl TurnEngine {
             rules,
             loading: None,
             routes: InferenceRoutes::live(),
+            local_commands: false,
             revision: StateRevision::default(),
             records: HashMap::new(),
             running: None,
@@ -492,6 +496,13 @@ impl TurnEngine {
     /// Sets the route availability attempts started from now on see.
     pub fn set_routes(&mut self, routes: InferenceRoutes) {
         self.routes = routes;
+    }
+
+    /// Runs the [`LocalCommand`]s as turns, for a host with no
+    /// system-command path of its own (the phone). Other `/` input stays
+    /// ordinary input; the host decides whether to submit it.
+    pub fn enable_local_commands(&mut self) {
+        self.local_commands = true;
     }
 
     /// Sets the turn rules attempts started from now on use.
@@ -1022,8 +1033,21 @@ impl TurnEngine {
                 Some(token)
             }
         };
+        let local = self
+            .local_commands
+            .then(|| LocalCommand::parse(&text))
+            .flatten();
         let future: AttemptFuture = Box::pin(async move {
             let ctx = attempt_env.context();
+            let text = match local {
+                // `/look` is the ordinary `look` turn.
+                Some(LocalCommand::Look) => "look".to_string(),
+                Some(command) => {
+                    command.run(&ctx, &attempt_env.rules.transport).await;
+                    return GameInputOutcome::default();
+                }
+                None => text,
+            };
             handle_game_input_settled(
                 &ctx,
                 text,
