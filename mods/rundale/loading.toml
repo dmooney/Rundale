@@ -57,3 +57,14 @@ idle_messages = [
     "A wren hops along the stone wall and vanishes.",
     "The smell of turf smoke drifts from a cottage chimney.",
 ]
+
+# The line shown when a model call fails, by why it failed. Each names what
+# happened and that the player can try again (the Retry button does).
+[failure_lines]
+offline = "The road out of the parish is washed away, and no word can travel it. Try again when the way is clear."
+busy = "Every tongue in the parish is wagging at once, and yours must wait its turn. Give it a moment and try again."
+unavailable = "The storyteller has gone out to the bog and isn't back yet. Try again in a while."
+timed_out = "The answer wandered off down a boreen and never came back. Try again."
+refused = "The constable at the crossroads won't let your words pass without the proper papers. Try again later."
+garbled = "The reply came back in such a tangle that not a word of it could be made out. Try again."
+cancelled = "The words were called back before they reached you. Try again."

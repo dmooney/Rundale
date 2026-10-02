@@ -649,9 +649,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     // are part of these errors.
                     Self.log.error("""
                         Endpoint \(invocation.slug, privacy: .public) v\(invocation.version, privacy: .public) \
-                        failed (\(failure.kind.rawValue, privacy: .public)): \(String(describing: error), privacy: .public)
+                        failed (\(failure.reason.rawValue, privacy: .public)): \(String(describing: error), privacy: .public)
                         """)
-                    let response = try await runtime.fail(invocation, kind: failure.kind, message: failure.message)
+                    let response = try await runtime.fail(
+                        invocation, kind: failure.kind, message: failure.diagnostic, reason: failure.reason
+                    )
                     self.consumeOperation(response)
                     try await self.continueInference(runtime: runtime, generation: generation)
                 } catch {
@@ -674,23 +676,19 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     private static let log = Logger(subsystem: "com.rundale.mobile", category: "endpoint")
 
+    /// Why a model call failed: the reason the engine shows the mod's line
+    /// for, and a diagnostic for the log (never shown to the player).
     private static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
         }
         guard let endpoint = error as? LimerickEndpointError else {
-            return PlayerFacingFailure(
-                kind: .transport,
-                message: "The response service could not be reached. You can retry this request."
-            )
+            return PlayerFacingFailure(.transport, .offline, "the response service could not be reached")
         }
 
         switch endpoint {
         case .invalidURL, .insecureURL, .loopbackHTTPNotAllowed:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service is not configured correctly for this build."
-            )
+            return PlayerFacingFailure(.protocolViolation, .unavailable, "the response service is misconfigured")
         case .invalidCredential:
             return authorizationFailure
         case let .responseStatus(status):
@@ -699,32 +697,17 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             return code.map { playerFacingEndpointFailure(code: $0) }
                 ?? playerFacingHTTPFailure(status: status)
         case .missingTerminal, .truncatedEvent:
-            return PlayerFacingFailure(
-                kind: .missingTerminal,
-                message: "The response ended before it was complete. You can retry this request."
-            )
+            return PlayerFacingFailure(.missingTerminal, .offline, "the response ended before it was complete")
         case .requestTooLarge:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "This request was too large for the response service. Try a shorter message."
-            )
+            return PlayerFacingFailure(.protocolViolation, .garbled, "the request was too large")
         case .responseBodyTooLarge, .lineTooLarge, .eventTooLarge, .streamTooLarge:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response was too large for the game to process. You can retry this request."
-            )
+            return PlayerFacingFailure(.protocolViolation, .garbled, "the response was too large")
         case .unsupportedVersion, .endpointVersionMismatch:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The game and response service are using incompatible versions."
-            )
+            return PlayerFacingFailure(.protocolViolation, .unavailable, "incompatible Endpoint version")
         case .responseNotSSE, .responseNotJSON, .malformedResponse, .malformedEvent,
              .invalidUTF8, .missingRequestID, .crossCorrelation, .missingSequence,
              .outOfOrderSequence, .duplicateEvent, .duplicateTerminal, .terminalBeforeStream:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service returned data in an unexpected format. The reply was discarded; you can retry."
-            )
+            return PlayerFacingFailure(.protocolViolation, .garbled, "the response had an unexpected format")
         }
     }
 
@@ -733,87 +716,37 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         case 401, 403:
             return authorizationFailure
         case 429:
-            return busyFailure
+            return PlayerFacingFailure(.transport, .busy, "HTTP 429")
         case 500...599:
-            return unavailableFailure
+            return PlayerFacingFailure(.transport, .unavailable, "HTTP \(status)")
         default:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service rejected this request (HTTP \(status)). You can retry."
-            )
+            return PlayerFacingFailure(.protocolViolation, .garbled, "HTTP \(status)")
         }
     }
 
     private static func playerFacingEndpointFailure(code: String?) -> PlayerFacingFailure {
+        let diagnostic = code ?? "unknown Endpoint error"
         switch code {
         case "AUTHENTICATION_FAILED", "AUTHORIZATION_FAILED":
             return authorizationFailure
         case "RATE_LIMITED", "QUOTA_EXCEEDED", "PROVIDER_RATE_LIMITED":
-            return busyFailure
-        case "PROVIDER_UNAVAILABLE":
-            return unavailableFailure
+            return PlayerFacingFailure(.transport, .busy, diagnostic)
+        case "PROVIDER_UNAVAILABLE", "INTERNAL_ERROR",
+             "ENDPOINT_NOT_FOUND", "VERSION_NOT_FOUND", "ENDPOINT_DISABLED":
+            return PlayerFacingFailure(.transport, .unavailable, diagnostic)
         case "REQUEST_TIMEOUT":
-            return PlayerFacingFailure(
-                kind: .transport,
-                message: "The storyteller took too long to respond. You can retry this request."
-            )
-        case "OUTPUT_VALIDATION_FAILED":
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The storyteller returned a reply in the wrong format. You can retry this request."
-            )
-        case "MODEL_ERROR":
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The storyteller could not complete its reply. You can retry this request."
-            )
-        case "ENDPOINT_NOT_FOUND", "VERSION_NOT_FOUND", "ENDPOINT_DISABLED":
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service is unavailable for this version of the game."
-            )
-        case "INVALID_INPUT", "UNSUPPORTED_MEDIA_TYPE", "REQUEST_TOO_LARGE":
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service could not process this request. Try a shorter message."
-            )
+            return PlayerFacingFailure(.timedOut, .timedOut, diagnostic)
         case "REQUEST_CANCELLED":
-            return PlayerFacingFailure(
-                kind: .interrupted,
-                message: "The response was cancelled before it completed. You can retry this request."
-            )
-        case "INTERNAL_ERROR":
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service had an internal error. You can retry this request."
-            )
+            return PlayerFacingFailure(.interrupted, .cancelled, diagnostic)
         default:
-            return PlayerFacingFailure(
-                kind: .protocolViolation,
-                message: "The response service reported an error. You can retry this request."
-            )
+            // OUTPUT_VALIDATION_FAILED, MODEL_ERROR, INVALID_INPUT, and any
+            // code this build does not know: the reply could not be used.
+            return PlayerFacingFailure(.protocolViolation, .garbled, diagnostic)
         }
     }
 
     private static var authorizationFailure: PlayerFacingFailure {
-        PlayerFacingFailure(
-            kind: .protocolViolation,
-            message: "The response service could not authorize this device. Please try again later."
-        )
-    }
-
-    private static var busyFailure: PlayerFacingFailure {
-        PlayerFacingFailure(
-            kind: .transport,
-            message: "The storyteller service is busy right now. You can retry this request shortly."
-        )
-    }
-
-    private static var unavailableFailure: PlayerFacingFailure {
-        PlayerFacingFailure(
-            kind: .transport,
-            message: "The storyteller service is temporarily unavailable. You can retry this request."
-        )
+        PlayerFacingFailure(.protocolViolation, .refused, "the device was not authorized")
     }
 
     private func consumeOperation(_ data: Data) {
@@ -908,7 +841,16 @@ private struct Phase2Projection: Codable, Sendable {
 
 private struct PlayerFacingFailure: Sendable {
     let kind: LimerickRuntimeFailureKind
-    let message: String
+    /// Why it failed, as the player hears it (the mod's line for it).
+    let reason: LimerickFailureReason
+    /// For the log only.
+    let diagnostic: String
+
+    init(_ kind: LimerickRuntimeFailureKind, _ reason: LimerickFailureReason, _ diagnostic: String) {
+        self.kind = kind
+        self.reason = reason
+        self.diagnostic = diagnostic
+    }
 }
 
 private struct EndpointReportedFailure: Error, Sendable {

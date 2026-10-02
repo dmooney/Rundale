@@ -45,6 +45,19 @@ public enum LimerickRuntimeFailureKind: String, Sendable {
     case interrupted
 }
 
+/// Why a model call failed, as the player should hear it. The engine shows
+/// the mod's line for the reason (`failure_lines` in the mod's
+/// `loading.toml`).
+public enum LimerickFailureReason: String, Sendable {
+    case offline
+    case busy
+    case unavailable
+    case timedOut = "timed_out"
+    case refused
+    case garbled
+    case cancelled
+}
+
 /// A model call the engine is waiting for, to be fulfilled through the
 /// Limerick Endpoint it names. `input` is the Endpoint request's `input`
 /// object, built by the engine.
@@ -295,16 +308,19 @@ public actor LimerickRuntime: SessionAdapter {
     public func fail(
         _ invocation: LimerickPendingInvocation,
         kind: LimerickRuntimeFailureKind,
-        message: String
+        message: String,
+        reason: LimerickFailureReason? = nil
     ) throws -> Data {
-        try dispatchJSON(try JSONSerialization.data(withJSONObject: [
+        var operation: [String: Any] = [
             "op": "fail",
             "call_id": invocation.callID,
             "attempt_id": invocation.attemptID.rawValue,
             "base_revision": invocation.baseRevision.rawValue,
             "error_kind": kind.rawValue,
             "message": message
-        ], options: [.sortedKeys]))
+        ]
+        if let reason { operation["reason"] = reason.rawValue }
+        return try dispatchJSON(try JSONSerialization.data(withJSONObject: operation, options: [.sortedKeys]))
     }
 
     /// Shows a streamed text delta of the awaited dialogue call as

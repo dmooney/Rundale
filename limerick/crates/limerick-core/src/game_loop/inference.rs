@@ -310,6 +310,7 @@ impl<'a> InProcessInference<'a> {
             }),
             metadata: None,
             partial_output_len: 0,
+            reason: None,
         };
         let failed = |kind, message: String| InferenceOutcome::Failed {
             kind,

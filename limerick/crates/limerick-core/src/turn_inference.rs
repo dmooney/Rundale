@@ -76,6 +76,57 @@ pub enum InferenceFailureKind {
     Interrupted,
 }
 
+/// Why a remote model call failed, as the player should hear it. The host
+/// reports it; the mod's `failure_lines` give each reason its line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FailureReason {
+    /// The device has no connection, or lost it mid-call.
+    Offline,
+    /// The service is rate limited or over quota.
+    Busy,
+    /// The service or its model provider is down.
+    Unavailable,
+    /// The call ran past its time budget.
+    TimedOut,
+    /// The device was not authorized.
+    Refused,
+    /// The reply could not be used (invalid, malformed, or a model error).
+    Garbled,
+    /// The service cancelled the call.
+    Cancelled,
+}
+
+impl FailureReason {
+    /// Every reason, in a fixed order.
+    pub const ALL: [Self; 7] = [
+        Self::Offline,
+        Self::Busy,
+        Self::Unavailable,
+        Self::TimedOut,
+        Self::Refused,
+        Self::Garbled,
+        Self::Cancelled,
+    ];
+
+    /// The reason's key in a mod's `failure_lines` and on the FFI.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Offline => "offline",
+            Self::Busy => "busy",
+            Self::Unavailable => "unavailable",
+            Self::TimedOut => "timed_out",
+            Self::Refused => "refused",
+            Self::Garbled => "garbled",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// The reason a key names, or `None` for an unknown key.
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|reason| reason.key() == key)
+    }
+}
+
 /// Generation settings the host used, reported back for telemetry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GenerationSettings {
@@ -106,6 +157,9 @@ pub struct CallReport {
     pub metadata: Option<ProviderMetadata>,
     /// Length of any partial output discarded with a failed call.
     pub partial_output_len: usize,
+    /// Why a failed call failed, as the player should hear it, when the
+    /// host knows.
+    pub reason: Option<FailureReason>,
 }
 
 /// The host's answer to one [`InferenceCall`].
@@ -295,6 +349,7 @@ impl TurnInference for DirectClientInference {
                 generation: None,
                 metadata: None,
                 partial_output_len: 0,
+                reason: None,
             };
             let Some(client) = self.client.as_ref() else {
                 return InferenceOutcome::Failed {

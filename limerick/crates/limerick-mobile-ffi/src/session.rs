@@ -35,7 +35,7 @@ use limerick_core::turn::{
     TurnRules, TurnStatus, TurnStep,
 };
 use limerick_core::turn_inference::{
-    CallReport, InferenceFailureKind, InferenceOutcome, RouteStatus,
+    CallReport, FailureReason, InferenceFailureKind, InferenceOutcome, RouteStatus,
 };
 use limerick_core::world::WorldState;
 use serde_json::{Value, json};
@@ -190,6 +190,17 @@ pub fn endpoint_game_config() -> GameConfig {
 
 /// Model calls the phone has no Endpoint for. The pipeline sees them as
 /// unavailable and uses its canned fallbacks.
+/// The mod's line for each reason a failed Endpoint call can give. Keys the
+/// engine does not know are ignored.
+fn failure_lines(game_mod: &GameMod) -> HashMap<FailureReason, String> {
+    game_mod
+        .loading
+        .failure_lines
+        .iter()
+        .filter_map(|(key, line)| Some((FailureReason::from_key(key)?, line.clone())))
+        .collect()
+}
+
 fn endpoint_routes() -> InferenceRoutes {
     InferenceRoutes::live()
         .with(InferenceSubrole::TravelEncounter, RouteStatus::Unavailable)
@@ -271,6 +282,7 @@ impl Session {
             engine.recover().await?;
             engine.set_routes(endpoint_routes());
             engine.enable_local_commands();
+            engine.set_failure_lines(failure_lines(&live.game_mod));
             if fresh {
                 let opening = {
                     let world = live.world.lock().await;
@@ -651,11 +663,15 @@ impl Session {
         base_revision: u64,
         kind: InferenceFailureKind,
         message: String,
+        reason: Option<FailureReason>,
     ) -> Result<Value, OpError> {
         let outcome = InferenceOutcome::Failed {
             kind,
             message,
-            report: self.report(),
+            report: CallReport {
+                reason,
+                ..self.report()
+            },
         };
         let resolution = self.resolution(call_id, attempt_id, base_revision, outcome);
         let ctx = self.live.ctx();

@@ -45,19 +45,19 @@ transcript opens with the launch-refusal notice.
 
 ## Operations
 
-| `op`                     | Fields                                                            | Result                                             |
-| ------------------------ | ----------------------------------------------------------------- | -------------------------------------------------- |
-| `snapshot`               | none                                                              | read model, requests, newest 100 events            |
-| `submit`                 | `text`, optional `draft_id`, `logical_request_id`                 | operation result                                   |
-| `retry`                  | `logical_request_id`                                              | operation result (new attempt)                     |
-| `answer_clarification`   | `logical_request_id`, `choice_id`                                 | operation result (same request)                    |
-| `stop`                   | none                                                              | operation result (`cancelled`, or `ignored`)       |
-| `pending_endpoint`       | none                                                              | the invocation the host owes, or `null`            |
-| `resolve`                | `call_id`, `attempt_id`, `base_revision`, `output`                | operation result                                   |
-| `fail`                   | `call_id`, `attempt_id`, `base_revision`, `error_kind`, `message` | operation result                                   |
-| `frame`                  | `call_id`, `attempt_id`, `sequence`, `text`                       | one provisional event, or `ignored`                |
-| `read_events`            | optional `after`, `limit` (1–100)                                 | events after `after`, `cursor`, `hasMore`          |
-| `read_event_page_before` | `before`, `limit` (1–100)                                         | newest events before `before`, `cursor`, `hasMore` |
+| `op`                     | Fields                                                                               | Result                                             |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `snapshot`               | none                                                                                 | read model, requests, newest 100 events            |
+| `submit`                 | `text`, optional `draft_id`, `logical_request_id`                                    | operation result                                   |
+| `retry`                  | `logical_request_id`                                                                 | operation result (new attempt)                     |
+| `answer_clarification`   | `logical_request_id`, `choice_id`                                                    | operation result (same request)                    |
+| `stop`                   | none                                                                                 | operation result (`cancelled`, or `ignored`)       |
+| `pending_endpoint`       | none                                                                                 | the invocation the host owes, or `null`            |
+| `resolve`                | `call_id`, `attempt_id`, `base_revision`, `output`                                   | operation result                                   |
+| `fail`                   | `call_id`, `attempt_id`, `base_revision`, `error_kind`, `message`, optional `reason` | operation result                                   |
+| `frame`                  | `call_id`, `attempt_id`, `sequence`, `text`                                          | one provisional event, or `ignored`                |
+| `read_events`            | optional `after`, `limit` (1–100)                                                    | events after `after`, `cursor`, `hasMore`          |
+| `read_event_page_before` | `before`, `limit` (1–100)                                                            | newest events before `before`, `cursor`, `hasMore` |
 
 An operation result carries `accepted`, `logicalRequestID`, `attemptID`,
 `events` (the journaled transcript events it produced, projected onto the
@@ -71,6 +71,12 @@ A refused request (a request is still open, the request already committed, a
 slash command the phone does not offer) answers
 `LIMERICK_MOBILE_PROTOCOL_ERROR` with the engine's code (`request_in_progress`,
 `rejected`, `command_unavailable`, ...). Nothing changes.
+
+A failed dialogue call shows the line the mod gives for its `reason`
+(`offline`, `busy`, `unavailable`, `timed_out`, `refused`, `garbled`,
+`cancelled`; `[failure_lines]` in the mod's `loading.toml`), or the engine's
+generic retry line when the host gives none. `message` is for diagnosis and is
+never shown. An unknown `reason` is a `protocol_error`.
 
 ## Slash commands
 
