@@ -21,16 +21,4 @@ cargo test -p limerick-diagnostics -- --nocapture    # with stdout for debugging
 
 ## Module map
 
-`lib.rs` — crate root; declares `pub mod bug_report` and `pub mod debug_snapshot`.
-
-`bug_report.rs` — `BugReportRequest`, `BugReportState`, `DiagnosticPayload`, `LlmExchange`, `BugReportResult`, `BugReportError`, `GitHubBugConfig`; `compose_issue_body` (pure, budget-capped); `create_bug_report` (async orchestration: screenshot upload to the fixed `bug-evidence` release, issue creation, offline fallback); `truncate_to_budget` (tail-preserving UTF-8 safe truncation); `WorldSnapshotFields` trait.
-
-`debug_snapshot/mod.rs` — `InferenceCategoryConfig` trait; re-exports from `build`, `reexport`, and `types`.
-
-`debug_snapshot/types.rs` — all debug DTO structs: `DebugSnapshot`, `ClockDebug`, `WeatherDebug`, `WorldDebug`, `NpcDebug`, `TierSummary`, `EventBusDebug`, `GossipDebug`, `ConversationsDebug`, `InferenceDebug`, `AuthDebug`, and a dozen supporting detail structs.
-
-`debug_snapshot/build.rs` — `build_debug_snapshot` (constructs `DebugSnapshot` from live `WorldState`, `WorldGraph`, `NpcManager`, and an `InferenceCategoryConfig`); `build_inference_categories`; `build_configured_providers`.
-
-`debug_snapshot/reexport.rs` — re-exports `limerick_inference::InferenceLogEntry` for consumers that import it from this crate.
-
-`debug_snapshot/tests.rs` — unit tests for snapshot construction.
+Two modules: `bug_report.rs` (issue composition, budget cap, offline bundle) and `debug_snapshot/` (DTOs in `types.rs`, construction in `build.rs`).
