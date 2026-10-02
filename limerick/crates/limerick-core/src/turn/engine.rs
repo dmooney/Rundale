@@ -27,7 +27,7 @@
 //! runtimes' `persistence_gate` provides this); commit replaces it with the
 //! candidate. Design: `docs/design/portable-turn-api.md` §3–§6.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -58,7 +58,7 @@ use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
 use crate::ipc::{GameConfig, StreamEndPayload, text_log};
 use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
-use crate::portable_look::{SceneText, render_scene};
+use crate::portable_look::{SceneText, render_return_scene, render_scene};
 use crate::turn_inference::{
     CallReport, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus, TurnInference,
 };
@@ -386,6 +386,9 @@ struct RunningAttempt {
     awaiting: Option<AwaitedCall>,
     /// Player location name when the attempt started (for `SceneChanged`).
     location_before: Option<String>,
+    /// Places the player had been when the attempt started: arriving at one
+    /// again shows who is there without repeating its description.
+    visited_before: HashSet<crate::world::LocationId>,
     /// Ordinal of the attempt's next transcript event.
     next_ordinal: u32,
     /// How the most recent dialogue call ended: `None` when it completed.
@@ -981,12 +984,15 @@ impl TurnEngine {
         let addressed_to = record.addressed_to.clone();
 
         let (calls_tx, calls) = mpsc::unbounded_channel();
-        let location_before = live
-            .world
-            .lock()
-            .await
-            .current_location_data()
-            .map(|location| location.name.clone());
+        let (location_before, visited_before) = {
+            let world = live.world.lock().await;
+            (
+                world
+                    .current_location_data()
+                    .map(|location| location.name.clone()),
+                world.visited_locations.clone(),
+            )
+        };
         let env = Arc::new(AttemptEnv {
             candidate: TurnCandidate::capture(live, Vec::new()).await,
             config: Mutex::new(live.config.lock().await.clone()),
@@ -1037,6 +1043,7 @@ impl TurnEngine {
             calls,
             awaiting: None,
             location_before,
+            visited_before,
             next_ordinal,
             last_dialogue_failure: None,
             _loading: loading_tokens,
@@ -1111,6 +1118,7 @@ impl TurnEngine {
             future,
             calls,
             location_before,
+            visited_before,
             next_ordinal,
             last_dialogue_failure,
             ..
@@ -1122,8 +1130,15 @@ impl TurnEngine {
         let arrival = {
             let world = env.candidate.world.lock().await;
             let npc_manager = env.candidate.npc_manager.lock().await;
-            (Some(world.current_location().name.as_str()) != location_before.as_deref())
-                .then(|| render_scene(&world, &npc_manager))
+            (Some(world.current_location().name.as_str()) != location_before.as_deref()).then(
+                || {
+                    if visited_before.contains(&world.player_location) {
+                        render_return_scene(&world, &npc_manager)
+                    } else {
+                        render_scene(&world, &npc_manager)
+                    }
+                },
+            )
         };
         let finished = Arc::into_inner(env)
             .ok_or_else(|| "the attempt's state is still shared".to_string())

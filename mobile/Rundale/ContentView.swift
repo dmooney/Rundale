@@ -826,7 +826,9 @@ private struct TranscriptEntry: View {
         if let speaker = item.speaker, !speaker.isEmpty {
             parts.append(speaker)
         }
-        parts.append(displayText)
+        if !displayText.isEmpty {
+            parts.append(displayText)
+        }
         if item.isInterrupted {
             parts.append("Interrupted; not applied")
         } else if item.isProvisional {
@@ -872,11 +874,14 @@ private struct TranscriptEntry: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(RundaleTheme.accent)
                 }
-                Text(item.text)
-                    .font(.system(.body, design: .serif))
-                    .italic()
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                // A return to an empty place is the title alone.
+                if !item.text.isEmpty {
+                    Text(item.text)
+                        .font(.system(.body, design: .serif))
+                        .italic()
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(.vertical, 4)
