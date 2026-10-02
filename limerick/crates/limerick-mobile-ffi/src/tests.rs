@@ -1120,19 +1120,102 @@ fn swift_bridge_header_matches_crate_header() {
 }
 
 #[test]
-fn slash_commands_are_refused_without_a_request() {
+fn slash_commands_the_phone_does_not_offer_are_refused_without_a_request() {
     let (game, _) = Game::new();
     let before = game.snapshot();
-    for text in ["/look", "  /help"] {
+    for text in ["/save", "  /quit", "/provider openai", "/nonsense"] {
         let (status, envelope) = game.dispatch(json!({"op": "submit", "text": text}));
         assert_eq!(
             status,
             limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR
         );
         assert_eq!(envelope["error"]["code"], "command_unavailable");
+        let message = envelope["error"]["message"].as_str().unwrap();
+        assert!(message.contains("/help"), "{message}");
+        assert!(
+            !message.contains("/wait"),
+            "names no hidden command: {message}"
+        );
     }
     assert!(game.pending().is_null(), "no Endpoint call is made");
     assert_eq!(game.snapshot(), before, "nothing is journaled");
-    let looked = game.submit("look");
-    assert_eq!(looked["terminalOutcome"], "succeeded");
+}
+
+/// Submits a slash command and returns its one-line-or-more answer, after
+/// checking it ran as an ordinary request with no Endpoint call.
+fn command(game: &Game, text: &str) -> String {
+    let result = game.submit(text);
+    assert_eq!(result["accepted"], true, "{result}");
+    assert_eq!(result["terminalOutcome"], "succeeded", "{result}");
+    assert!(game.pending().is_null(), "{text} made an Endpoint call");
+    let commands = events_of_kind(&result, "player_command");
+    assert_eq!(commands[0]["content"], text, "{result}");
+    events_of_kind(&result, "narration")
+        .iter()
+        .map(|event| event["content"].as_str().unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// #2120 and product spec §5.4: the phone's slash commands run as local
+/// turns on the shared engine.
+#[test]
+fn the_phone_slash_commands_answer_locally_as_turns() {
+    let (game, opening) = Game::new();
+    let names: Vec<&str> = opening["readModel"]["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|command| command["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["/look", "/people", "/exits", "/help"], "advertised");
+
+    let help = command(&game, "/help");
+    for advertised in names {
+        assert!(help.contains(advertised), "{help}");
+    }
+    for hidden in ["/wait", "/pause", "/resume", "/debug", "/flags"] {
+        assert!(!help.contains(hidden), "{hidden} is not advertised: {help}");
+    }
+
+    let looked = command(&game, "/look");
+    assert!(
+        looked.starts_with("A muddy road runs between low stone walls"),
+        "{looked}"
+    );
+    let exits = command(&game, "/exits");
+    assert!(
+        exits.contains("Letter Office") && exits.contains("Connolly Cottage"),
+        "{exits}"
+    );
+
+    game.go_to_the_cottage();
+    let people = command(&game, "/people");
+    assert!(
+        people.contains("cattle drover") && people.contains("Spinner"),
+        "{people}"
+    );
+    assert_eq!(command(&game, "/npcs"), people, "/npcs is /people");
+
+    let debug = command(&game, "/debug");
+    assert!(debug.contains("[DEBUG OVERVIEW]"), "{debug}");
+    let flags = command(&game, "/flags");
+    assert!(!flags.trim().is_empty(), "{flags}");
+
+    let paused = command(&game, "/pause");
+    assert_eq!(paused, "The clocks of the parish stand still.");
+    assert!(
+        command(&game, "/debug clock").contains("Paused: yes"),
+        "the pause commits"
+    );
+    command(&game, "/resume");
+    assert!(!command(&game, "/debug clock").contains("Paused: yes"));
+
+    let waited = command(&game, "/wait 240");
+    assert!(waited.contains("You wait for 240 minutes"), "{waited}");
+    let clock = command(&game, "/debug clock");
+    assert!(
+        clock.contains("Game time: 11:0"),
+        "the wait commits: {clock}"
+    );
 }

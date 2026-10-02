@@ -27,6 +27,7 @@ use limerick_core::npc::{LanguageSettings, NpcId};
 use limerick_core::persistence::{Database, GameSnapshot, SaveFileLock};
 use limerick_core::portable_look::{render_look_text, render_scene};
 use limerick_core::session_store::RecoveryBundle;
+use limerick_core::turn::{ADVERTISED_COMMANDS, LocalCommand};
 use limerick_core::turn::{
     ExecutionAttemptId, InferenceCallId, InferenceResolution, InferenceRoutes, LogicalRequestId,
     PendingInference, RequestRecord, SqliteTurnJournal, StateRevision, TerminalOutcome,
@@ -269,6 +270,7 @@ impl Session {
             .await?;
             engine.recover().await?;
             engine.set_routes(endpoint_routes());
+            engine.enable_local_commands();
             if fresh {
                 let opening = {
                     let world = live.world.lock().await;
@@ -462,14 +464,13 @@ impl Session {
         if text.trim().is_empty() {
             return Err(OpError::new("rejected", "there is nothing to submit"));
         }
-        // Slash commands run on the desktop's system-command path, which is
-        // not part of the turn API; on the phone the player says what they
-        // want to do instead. Refusing here keeps them away from the intent
+        // The engine runs the phone's slash commands as local turns. Any
+        // other `/` input is refused here, so it never reaches the intent
         // Endpoint and leaves no request behind.
-        if text.trim_start().starts_with('/') {
+        if text.trim_start().starts_with('/') && LocalCommand::parse(&text).is_none() {
             return Err(OpError::new(
                 "command_unavailable",
-                "Commands starting with / aren't available here. Say what you want to do instead.",
+                "That command isn't available here. Try /help.",
             ));
         }
         self.pump_world();
@@ -821,6 +822,10 @@ impl Session {
                 })).collect::<Vec<_>>(),
                 "timeOfDay": world.clock.time_of_day().to_string(),
                 "weather": world.weather.to_string(),
+                "commands": ADVERTISED_COMMANDS.iter().map(|(name, summary)| json!({
+                    "name": name,
+                    "summary": summary,
+                })).collect::<Vec<_>>(),
             })
         })
     }

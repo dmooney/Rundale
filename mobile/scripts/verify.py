@@ -1727,6 +1727,7 @@ class VerificationRun:
             only_testing=[
                 "RundaleUITests/RundalePhase2UITests",
                 "RundaleUITests/RundaleSceneUITests",
+                "RundaleUITests/RundaleCommandsUITests",
                 "RundaleTests/RundaleEngineLifecycleTests",
             ],
         )

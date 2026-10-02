@@ -388,9 +388,16 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
-        // The engine has no slash commands on the phone; offer only people.
+        // The engine names the slash commands it advertises on the phone.
         completionRegistry = FixtureCompletionRegistry(
-            slashCommands: [],
+            slashCommands: snapshot.readModel.commands.map {
+                CompletionItem(
+                    id: String($0.name.drop(while: { $0 == "/" })),
+                    kind: .slashCommand,
+                    label: $0.name,
+                    insertionText: $0.name
+                )
+            },
             nearbyNPCs: snapshot.readModel.nearbyPeople.map {
                 FixtureNPCReference(id: $0.id, displayName: $0.displayName)
             }
@@ -864,6 +871,13 @@ private struct EngineReadModel: Decodable {
     let nearbyPeople: [EngineNearbyPerson]
     let timeOfDay: String
     let weather: String
+    /// The slash commands `/help` and the Commands list offer.
+    let commands: [EngineCommand]
+}
+
+private struct EngineCommand: Decodable {
+    let name: String
+    let summary: String
 }
 
 private struct EngineScene: Decodable {

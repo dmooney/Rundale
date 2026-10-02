@@ -18,6 +18,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
+pub mod commands;
 pub mod engine;
 pub mod host;
 pub mod ids;
@@ -32,6 +33,7 @@ pub mod transcript;
 /// Boxed future returned by lifecycle traits.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+pub use commands::{ADVERTISED as ADVERTISED_COMMANDS, LocalCommand};
 pub use engine::{
     HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, LoadingHook,
     PendingInference, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep,

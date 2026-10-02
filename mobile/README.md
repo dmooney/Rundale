@@ -19,8 +19,9 @@ The app plays the canonical world on the shared engine:
   `rundale-dialogue` for the reply. Dialogue streams into the transcript as
   provisional text and the committed line replaces it. Stop, a failure, or a
   relaunch leave no state effects; the request can be retried.
-- Slash commands are not available on the phone; the player says what they
-  want to do.
+- Slash commands `/look`, `/people`, `/exits`, and `/help` answer locally,
+  with no Endpoint call, and are listed under Commands. `/wait`, `/pause`,
+  `/resume`, `/debug`, and `/flags` also work but are not advertised.
 - `--fixture=<name>` (or `--ui-tests` without `--phase2`) selects the
   deterministic presentation fixtures in `RundaleKit`, which exercise the UI
   without the engine.
