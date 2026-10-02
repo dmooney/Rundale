@@ -31,15 +31,6 @@
     ],
     "SessionStart": [
       {
-        "matcher": "compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--compact-context.sh'"
-          }
-        ]
-      },
-      {
         "matcher": "startup|resume|clear",
         "hooks": [
           {
@@ -53,21 +44,6 @@
           {
             "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--lsp-binary-check.sh'"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--commit-msg-check.sh'"
-          },
-          {
-            "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--acceptance-criteria-reminder.sh'"
           }
         ]
       }
