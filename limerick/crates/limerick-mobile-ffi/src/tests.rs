@@ -349,6 +349,77 @@ fn arriving_somewhere_shows_one_scene_with_its_name_description_and_who_is_there
     }
 }
 
+/// The one scene a move shows, as `(title, text)`.
+fn arrival(moved: &Value) -> (String, String) {
+    let scenes = events_of_kind(moved, "scene_changed");
+    assert_eq!(scenes.len(), 1, "{moved}");
+    (
+        scenes[0]["metadata"]["sceneName"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        scenes[0]["content"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+    )
+}
+
+/// Phase 4 test plan, arrival feedback: a place the player has been shows
+/// who is there without repeating its description, also after a relaunch;
+/// an empty one shows no text; `look` still describes it.
+#[test]
+fn returning_somewhere_lists_who_is_there_without_repeating_the_description() {
+    let (mut game, _) = Game::new();
+    let (_, first) = arrival(&game.go_to_the_cottage());
+    assert!(
+        first.starts_with("A peat fire warms the single room."),
+        "{first}"
+    );
+
+    // The opening scene described the village, so this is a return.
+    let (title, text) = arrival(&game.submit("go to Kilteevan Village"));
+    assert_eq!(title, "Kilteevan Village");
+    assert!(!text.contains("muddy road"), "described again: {text}");
+    let presence = people(&game.snapshot());
+    assert_eq!(
+        presence.len(),
+        1,
+        "Peig is on the village road: {presence:?}"
+    );
+    assert_eq!(
+        text,
+        limerick_core::ipc::capitalize_first(&format!("{} is here.", presence[0]))
+    );
+
+    // A first visit is described, and an empty place lists no one.
+    let (title, text) = arrival(&game.submit("go to the Letter Office"));
+    assert_eq!(title, "Letter Office");
+    assert!(text.starts_with("A narrow counter"), "{text}");
+    assert!(!text.contains(" here."), "{text}");
+
+    game.relaunch();
+    game.submit("go to Kilteevan Village");
+    let (title, text) = arrival(&game.submit("go to the Letter Office"));
+    assert_eq!(title, "Letter Office");
+    assert_eq!(text, "", "an empty place visited before has no text");
+
+    let (_, text) = arrival(&game.submit("go to Kilteevan Village"));
+    assert!(!text.contains("muddy road"), "{text}");
+    let (_, text) = arrival(&game.submit("go to Connolly Cottage"));
+    assert!(
+        !text.contains("A peat fire"),
+        "described after relaunch: {text}"
+    );
+    assert!(text.ends_with("are here."), "{text}");
+
+    let looked = game.submit("look");
+    let described = events_of_kind(&looked, "narration")
+        .iter()
+        .any(|event| event["content"].as_str().unwrap().contains("A peat fire"));
+    assert!(described, "look still describes the room: {looked}");
+}
+
 // Oracle: `successful_candidate_commits_one_exchange_and_retry_is_rejected`,
 // `acceptance_precedes_endpoint_and_has_grounding`, and RundaleKit
 // `testCompletionCommitsAndLateOldAttemptCannotWin`.
