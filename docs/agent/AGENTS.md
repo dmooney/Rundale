@@ -8,7 +8,7 @@ Reference directory for AI coding agents and human contributors. Human-facing en
 just screenshots                                    # exercise Playwright screenshot baselines
 bash limerick/scripts/check-doc-paths.sh              # validate backtick-quoted paths in docs
 bash limerick/scripts/check-repository-artifacts.sh   # enforce generated/binary artifact policy
-just agent-check                                    # proof evidence + judge verdict gate
+just agent-check                                    # acceptance criteria + proof evidence gate
 witness-scan                                        # catch AI partial-completion markers
 ```
 

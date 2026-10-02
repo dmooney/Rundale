@@ -105,7 +105,7 @@ just build          # existing default engine build
 just check          # existing pre-commit quality gates
 just verify         # existing checks plus harness walkthrough
 just mobile-verify --phase N  # iPhone app gates for spec Milestone N (macOS + Xcode)
-just agent-check    # proof evidence and judge verdict gate
+just agent-check    # acceptance criteria and proof evidence gate
 just ui-test        # existing Svelte frontend tests
 just ui-e2e         # existing browser Playwright contracts
 bash limerick/scripts/check-doc-paths.sh  # documentation links and paths

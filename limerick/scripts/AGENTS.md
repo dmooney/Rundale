@@ -37,7 +37,7 @@ just attach-proof <task-id>                                # post proof bundle a
 
 ### `render-proof-comment.sh` — Render proof artifacts into comment format
 
-- Reads evidence, judge verdict, and acceptance-criteria from a task bundle; produces the structured comment body for `gh`.
+- Reads acceptance criteria and evidence (plus a legacy `judge.md` if present) from a task bundle; produces the structured comment body for `gh`.
 
 ### `proof/` — Differential proof tools
 
