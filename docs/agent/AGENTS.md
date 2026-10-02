@@ -21,7 +21,7 @@ witness-scan                                        # catch AI partial-completio
 - **Generated and large artifacts follow [`repository-artifacts.md`](repository-artifacts.md).** The repository gate rejects tracked Graphify output, retired artifact paths, unapproved files over 8 MiB, and unreferenced documentation screenshots.
 - **Proof archives in local `docs/proofs/`** — ignored by Git and expected to resolve to the iCloud-backed archive. Per-task bundles go in `.proofs/<task-id>/` (also gitignored); publish concise hashes and summaries in tracked docs or PR bodies.
 - **Witness scan blocks merge.** Docs with partial-completion markers (`[...]`, `TODO` in code blocks, unfinished sentences before stop-tokens) fail `witness-scan`, which gates `just check` and `just verify`.
-- **Scaling guardrails (rule #11)** are in [scaling-rules.md](scaling-rules.md). Every entry-point crate AGENTS.md links here — edits ripple across the workspace.
+- **[Scaling guardrails](engineering-rules.md#scaling-guardrails)** are detailed in [scaling-rules.md](scaling-rules.md). Every entry-point crate AGENTS.md links here — edits ripple across the workspace.
 - **[`act-local.md`](act-local.md)** is the source of truth for `.actrc` and the `act-*` justfile recipes.
 
 ## Documentation routing

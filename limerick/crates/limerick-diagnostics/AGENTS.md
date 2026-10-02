@@ -12,11 +12,11 @@ cargo test -p limerick-diagnostics -- --nocapture    # with stdout for debugging
 ## Gotchas
 
 - **Cycle-breaking traits are the seam.** `limerick-diagnostics` cannot depend on `limerick-core` (that would be circular). `InferenceCategoryConfig` and `WorldSnapshotFields` are local traits that `limerick-core` implements for its concrete types so builders and body-composition helpers stay in this crate without reaching back.
-- **Body budget is enforced at `BODY_BUDGET` (58,982 bytes = 90% of GitHub's 65,536-char limit, rule #16).** `compose_issue_body` truncates the diagnostic section first (tail kept), then applies a hard cap. Tests pin the constant — do not raise it without verifying GitHub's current limit.
+- **Body budget is enforced at `BODY_BUDGET` (58,982 bytes = 90% of GitHub's 65,536-char limit, [external API payload caps](../../../docs/agent/test-tooling-rules.md#external-api-payload-caps)).** `compose_issue_body` truncates the diagnostic section first (tail kept), then applies a hard cap. Tests pin the constant — do not raise it without verifying GitHub's current limit.
 - **Screenshot upload is best-effort.** A `bug-evidence` release lookup or asset-upload failure logs a warning and files the issue without an image. Never abort on upload failure.
-- **`LIMERICK_BUG_REPORT_DRY_RUN=1` or a missing token forces offline mode.** The offline path writes `issue.md` + `screenshot.png` under a UUID subdirectory of the caller-supplied `bundle_root` — the caller resolves that path per rule #9.
+- **`LIMERICK_BUG_REPORT_DRY_RUN=1` or a missing token forces offline mode.** The offline path writes `issue.md` + `screenshot.png` under a UUID subdirectory of the caller-supplied `bundle_root` — the caller resolves that path per [runtime paths](../../../docs/agent/persistence-and-session-rules.md#runtime-paths).
 - **Token precedence: `LIMERICK_BUG_REPORT_TOKEN` > `GITHUB_TOKEN` > `GH_TOKEN` > `gh auth token` (subprocess).** `from_env_async` runs the subprocess on the blocking pool; use it from async handlers.
-- **`reqwest` is a direct dependency.** Bug-report HTTP calls (release asset + Issues APIs) are made here, not in the entry-point crates, so the three runtimes cannot drift (rule #12).
+- **`reqwest` is a direct dependency.** Bug-report HTTP calls (release asset + Issues APIs) are made here, not in the entry-point crates, so the three runtimes cannot drift ([cross-runtime orchestration](../../../docs/agent/engineering-rules.md#cross-runtime-orchestration)).
 - **`wiremock` in dev-dependencies.** Integration tests spin up a mock server; they are async (`#[tokio::test]`) and require `tokio` on the test executor.
 
 ## Module map

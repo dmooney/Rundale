@@ -75,13 +75,13 @@ The Limerick workspace currently has 24 crates under `limerick/crates/`.
 
 ## Local / Generated Paths
 
-| Path                            | Purpose                                                              | Commit policy            |
-| ------------------------------- | -------------------------------------------------------------------- | ------------------------ |
-| `.proofs/`                      | Per-task proof bundles for rule #10, posted with `just attach-proof` | gitignored; never commit |
-| .worktrees/, .claude/worktrees/ | Local agent worktrees and temporary branches                         | local/generated          |
-| logs/, saves/                   | Root-level runtime output from local runs                            | local/generated          |
-| limerick/logs/, limerick/saves/ | Limerick workspace runtime output and local save branches            | local/generated          |
-| limerick/target/                | Cargo build artifacts, coverage, and temp output                     | local/generated          |
+| Path                            | Purpose                                                                                                                                | Commit policy            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `.proofs/`                      | Per-task proof bundles for [truthful test automation](test-tooling-rules.md#truthful-test-automation), posted with `just attach-proof` | gitignored; never commit |
+| .worktrees/, .claude/worktrees/ | Local agent worktrees and temporary branches                                                                                           | local/generated          |
+| logs/, saves/                   | Root-level runtime output from local runs                                                                                              | local/generated          |
+| limerick/logs/, limerick/saves/ | Limerick workspace runtime output and local save branches                                                                              | local/generated          |
+| limerick/target/                | Cargo build artifacts, coverage, and temp output                                                                                       | local/generated          |
 
 ## Entry points (binaries)
 

@@ -1,6 +1,6 @@
 # limerick/testing — agent scope
 
-Asserted scenarios, legacy harness fixtures, exploratory proof scripts, eval rubrics, and dialogue benchmark corpus. Central to proof-evidence gate (rule #10). See root [`AGENTS.md`](../../AGENTS.md), [`docs/agent/harness.md`](../../docs/agent/harness.md), the `/limerick-engine` skill (prove, play, rubric workflows), and [`limerick-mcp`](../crates/limerick-mcp/) for driving a live instance.
+Asserted scenarios, legacy harness fixtures, exploratory proof scripts, eval rubrics, and dialogue benchmark corpus. Central to proof-evidence gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)). See root [`AGENTS.md`](../../AGENTS.md), [`docs/agent/harness.md`](../../docs/agent/harness.md), the `/limerick-engine` skill (prove, play, rubric workflows), and [`limerick-mcp`](../crates/limerick-mcp/) for driving a live instance.
 
 ## Scoped commands
 

@@ -1,6 +1,6 @@
 # limerick/scripts — agent scope
 
-Shell and Python dev scripts used by CI, agents, and local development. Most enforce or support the proof-evidence gate (rule #10 in root [`AGENTS.md`](../../AGENTS.md)). Scripts are invoked from the repo root via `bash limerick/scripts/<name>` or through `just` recipes.
+Shell and Python dev scripts used by CI, agents, and local development. Most enforce or support the proof-evidence gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)). Scripts are invoked from the repo root via `bash limerick/scripts/<name>` or through `just` recipes.
 
 ## Scoped commands
 
@@ -14,7 +14,7 @@ just attach-proof <task-id>                                # post proof bundle a
 ## Local gotchas
 
 - **`agent-check.sh` is fully self-contained.** No Rust/Node/just needed — only POSIX shell and (for `--source=pr`) `gh`.
-- **The proof pipeline is fragile.** `agent-check.sh` + `attach-proof.sh` + `render-proof-comment.sh` + `compose-proof-body.sh` enforce the acceptance-criteria-first workflow (rule #13). Changes here risk breaking CI proof validation.
+- **The proof pipeline is fragile.** `agent-check.sh` + `attach-proof.sh` + `render-proof-comment.sh` + `compose-proof-body.sh` enforce the acceptance-criteria-first workflow. Changes here risk breaking CI proof validation.
 - **`limerick-mcp-backend.sh` is the standard backend boot.** Spawns `limerick-server --port 3030`; pid in `limerick/.limerick-mcp-backend.pid`, log in `limerick/.limerick-mcp-backend.log`. `LIMERICK_MCP_BACKEND_PORT` overrides 3030.
 - **`gh` required** by `agent-check.sh` (PR mode), `attach-proof.sh`, and `render-proof-comment.sh`. Degrades gracefully in minimal sandboxes.
 - **Shell scripts use `set -euo pipefail`.** Python scripts use `#!/usr/bin/env python3` and are invoked directly.

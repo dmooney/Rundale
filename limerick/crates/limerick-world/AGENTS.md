@@ -13,7 +13,7 @@ Integration tests reference `../../testing/fixtures/...` and `../../../mods/rund
 
 ## Local gotchas
 
-- **Leaf-crate dependency rule (rule #1).** Depends only on `limerick-types` and `limerick-config`. Never depend on `limerick-core` or any runtime crate (tauri, axum, engine).
+- **Leaf-crate dependency rule ([module ownership](../../../docs/agent/engineering-rules.md#module-ownership)).** Depends only on `limerick-types` and `limerick-config`. Never depend on `limerick-core` or any runtime crate (tauri, axum, engine).
 - **World graph loads from `world.json` in the active mod.** Deserialised at session start; structural changes to graph types (nodes, edges, paths) must be reflected in `mods/rundale/world.json`.
 - **Coordinate resolution has three tiers.** Absolute (lat/lon) first, then relative (`relative_to` parent offset), then graph-delta fallback (inferred from topology). Test each tier separately when adding a new location type.
 - **Weather generation is deterministic from a seed.** Same seed + same time-of-day produces identical weather. Do not use `rand::thread_rng()` — the seed derives from the world clock. Tests asserting weather snapshots must fix the clock.

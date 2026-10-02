@@ -1,6 +1,6 @@
 # .github/workflows — agent scope
 
-CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/harness gates, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the proof-evidence gate (root AGENTS.md rule #10). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
+CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/harness gates, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the proof-evidence gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
 
 ## Scoped commands
 
@@ -25,9 +25,9 @@ just act-pr         # simulate the pull_request fast lane
 
 - **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. A separate `nondoc` filter (`predicate-quantifier: every`, excluding `**/*.md` and `docs/**`) forces `runtime`, `differential`, and `promptfoo` to false for documentation-only PRs, including Markdown inside crates, mods, and scripts. Its docs-consistency job also enforces the tracked-artifact size/path/orphan policy. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
-- **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
+- **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
-- **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
+- **CI-only edits skip the proof gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
 - **Rust cache workspace paths are repository-root relative.** Every `Swatinem/rust-cache` step that builds the nested Cargo workspace must set `workspaces: limerick -> target`; a job or workflow `working-directory` applies only to `run`, not `uses`.
 - **Rust toolchain is pinned by root `rust-toolchain.toml`.** Keep that file in

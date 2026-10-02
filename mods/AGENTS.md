@@ -14,7 +14,7 @@ limerick --list-mods                                  # available mods (if expos
 
 - **`mod-list.toml` controls the active mod.** `active_setting = "rundale"` selects Rundale. Switching a `base` mod changes the world, NPC catalog, prompts, and save root.
 - **Two mod kinds.** `kind = "base"` for game worlds (`rundale`, `testbed`); `kind = "providers"` for LLM provider registrations.
-- **`save_root` controls per-user data directory resolution (rule #9).** The `save_root` field in each base mod's `mod.toml` becomes the app name for `limerick_persistence::paths::resolve_user_data_dir()`. Changing it silently relocates existing saves. Provider mods omit `save_root`.
+- **`save_root` controls per-user data directory resolution ([runtime paths](../docs/agent/persistence-and-session-rules.md#runtime-paths)).** The `save_root` field in each base mod's `mod.toml` becomes the app name for `limerick_persistence::paths::resolve_user_data_dir()`. Changing it silently relocates existing saves. Provider mods omit `save_root`.
 - **Provider mod naming convention.** Each provider is `<name>-provider/` with a `mod.toml` and a `providers/<name>.toml` config defining `id`, `display_name`, `default_base_url`, `api_key_env_var`, `requires_api_key`, and `[[presets]]` with per-model-tier keys (`recommended`, `budget`, `mini`).
 - **Provider configs follow OpenAI-compat schema.** Non-OpenAI providers use `kind = "anthropic"` or `kind = "openai-compat"`. The `featured` boolean gates visibility in the UI picker.
 - **`mod.toml` schema is additive only.** Adding fields is safe; renaming or removing existing fields breaks deserialization for saves that store the schema.
