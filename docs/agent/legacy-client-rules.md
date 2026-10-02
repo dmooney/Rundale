@@ -7,20 +7,22 @@ automation or an HTTP harness, the original conditions below still apply;
 shared engineering, persistence, inference, and evidence contracts remain
 mandatory for every client.
 
-See [engineering-rules.md](engineering-rules.md) for the complete numbered
-map.
+See [engineering-rules.md](engineering-rules.md) for the complete rule
+index.
 
+<a id="portable-node-tools"></a>
 <a id="rule-25"></a>
 
-## Rule 25 — **Launch portable Node tools without a shell:**
+## Launch portable Node tools without a shell
 
 Cross-platform Node automation must use `shell: false` and invoke JavaScript
 CLI entry points through `process.execPath`, never platform wrappers such as
 `.cmd`; execute the default path in tests with spaces in filesystem paths.
 
+<a id="http-harness-continuity"></a>
 <a id="rule-35"></a>
 
-## Rule 35 — **Long-running HTTP harnesses must prove session and interaction continuity:**
+## Long-running HTTP harnesses must prove session and interaction continuity
 
 Reuse one authoritative server session across more requests than the
 configured admission cap, including local HTTP when production cookies are

@@ -13,8 +13,8 @@ cargo test -p limerick-persistence -- --nocapture     # with stdout for debuggin
 
 ## Local gotchas
 
-- **Leaf-crate dependency rule (rule #1).** Depends only on `limerick-types`, `limerick-world`, `limerick-npc`, `rusqlite`, `serde`, `chrono`, `tokio`. Never depend on `limerick-core` or any runtime crate (tauri, axum, engine).
-- **Resolve runtime paths from explicit config, not cwd (rule #9).** `resolve_user_data_dir(app_name)` checks `LIMERICK_USER_DATA_DIR` first, then platform-native roots. `resolve_project_saves_dir(app_name)` checks `LIMERICK_SAVES_DIR`. Both are called once at startup and stored on `AppState` — never from request handlers.
+- **Leaf-crate dependency rule ([module ownership](../../../docs/agent/engineering-rules.md#module-ownership)).** Depends only on `limerick-types`, `limerick-world`, `limerick-npc`, `rusqlite`, `serde`, `chrono`, `tokio`. Never depend on `limerick-core` or any runtime crate (tauri, axum, engine).
+- **Resolve runtime paths from explicit config, not cwd ([runtime paths](../../../docs/agent/persistence-and-session-rules.md#runtime-paths)).** `resolve_user_data_dir(app_name)` checks `LIMERICK_USER_DATA_DIR` first, then platform-native roots. `resolve_project_saves_dir(app_name)` checks `LIMERICK_SAVES_DIR`. Both are called once at startup and stored on `AppState` — never from request handlers.
 - **App name fallback chain.** Data-directory app name comes from `ModMeta::app_name()`, falling back to `ModMeta.name`, then `DEFAULT_APP_NAME` (`"Limerick"`).
 - **WAL concurrent access.** `Database::open()` enables `PRAGMA journal_mode=WAL` + `PRAGMA synchronous=NORMAL`. `AsyncDatabase` serialises all operations through `Arc<Mutex<Database>>` via `spawn_blocking`.
 - **Poison recovery on database mutex.** `lock_recovered()` transparently recovers from a poisoned mutex (issue #82); without it a single panic while holding the lock cascades to every subsequent call.

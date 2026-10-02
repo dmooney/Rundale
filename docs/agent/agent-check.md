@@ -17,9 +17,7 @@ implement
 run game                  → capture .proofs/<id>/transcript.txt
 write .proofs/<id>/evidence.md   → 'Evidence type: live gameplay transcript'
                                    + criterion-to-line mapping
-write .proofs/<id>/judge.md      → 'Verdict: sufficient'
-                                   'Technical debt: clear'
-                                   'Acceptance criteria: met'
+                                   + 'Acceptance criteria: met'
 just agent-check          → local mode validates the disk bundle
 gh pr create --body-file <(printf '%s\n' "$desc" \
   | bash limerick/scripts/compose-proof-body.sh <id>)
@@ -46,15 +44,18 @@ Accepted evidence forms:
 - Screenshot: a `.png`, `.jpg`, or `.jpeg` artifact.
 - Gif: a `.gif` artifact.
 
-The judge must include these three lines:
+`evidence.md` maps every criterion in `acceptance-criteria.md` to the
+transcript lines or artifacts that show it, and ends with:
 
 ```text
-Verdict: sufficient
-Technical debt: clear
 Acceptance criteria: met
 ```
 
-`Acceptance criteria: met` is required when the bundle has an `acceptance-criteria.md`.
+Bundles no longer carry a `judge.md` (#2119). The implementing agent wrote it
+about its own work, so it added no independent signal. Independent review is
+the `/gatekeeper` pass and human review, which check the evidence against the
+diff. Legacy bundles that still include `judge.md` keep passing: the file is
+ignored, except that its `Acceptance criteria: met` line still counts.
 
 ## What Counts As Proof-Relevant
 
@@ -173,7 +174,7 @@ trigger a run.
 
 ## Acceptance Criteria Requirement
 
-Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file lists observable criteria with the game commands or screenshots that prove each one. The judge then verifies each criterion individually against the transcript or visual artifact.
+Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file lists observable criteria with the game commands or screenshots that prove each one. `evidence.md` then maps each criterion individually to the transcript or visual artifact that shows it.
 
 ## Posting from a no-gh sandbox
 

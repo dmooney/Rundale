@@ -34,7 +34,6 @@ Run a triage pass over open issues that lack a `P*` priority or any theme label.
    already have both unless asked for a re-triage.
 
 4. **Classify.** For each remaining issue, read title + body and assign:
-
    - **Exactly one priority** (`P0`/`P1`/`P2`/`P3`) using the rubric in `triage-vocabulary.md`.
    - **At least one theme** label. Multiple is fine when an issue genuinely spans themes (e.g. `security` +
      `infra` for a workflow vuln).
@@ -104,7 +103,7 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    Then the task: branch name (e.g. `fix/<issue-list>-<topic>`), `Fixes #N, fixes #M.` in PR body for
    auto-close, conventional commit prefix (`fix:` / `security:` / `perf:` / `chore(deps):`), `just check`
    must pass before push, report back pwd / NEW PR number / per-issue summary. For mode-parity bugs, the
-   same fix must apply to Tauri, web, and CLI paths (CLAUDE.md rule #2).
+   same fix must apply to Tauri, web, and CLI paths ([mode parity](../../../docs/agent/engineering-rules.md#mode-parity)).
 
 3. **Schedule the sweep loop.** Once a wave is dispatched, call `ScheduleWakeup` with `delaySeconds` ≤ 240
    (cache TTL is 5min — staying under keeps the prompt cache warm). The wake prompt is a self-contained
@@ -125,7 +124,6 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    inline-only filter misses it.
 
 4. **Merge gate.** A PR is mergeable when ALL of:
-
    - title prefix is `fix:` / `security:` / `perf:` / `bug:` / `chore(deps):` / `fix(scope):`
    - all `Rust*`/`UI*`/`Full*` checks are SUCCESS
    - `unr == 0` (zero unresolved-non-outdated bot threads)
@@ -168,7 +166,6 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
   re-review; use judgement.
 
 - **CI transient failures (false positives, retry).**
-
   - Cache reserve race: `Failed to save: Unable to reserve cache with key v0-rust-...`
   - Playwright artifact upload 403: `Upload Playwright report ... Failed request: (403) Forbidden: job is completed`
 
@@ -179,7 +176,6 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
 
 - **Dependabot CI doesn't auto-fire.** GitHub's dependabot branch security policy blocks workflows even
   after a non-bot commit. Workaround:
-
   1. Push an empty commit to the dependabot branch: `git commit --allow-empty -m "ci: retrigger" && git push origin <branch>`
   2. Manually dispatch via `gh workflow run ci.yml --ref <branch>`
   3. The dispatched run shows green but doesn't update the PR's check-rollup
@@ -193,8 +189,8 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
 
 ### Drain notes
 
-- Triage-vocabulary is in `docs/agent/triage-vocabulary.md`. CLAUDE.md project rules (esp. mode parity #2
-  and feature-flag gating #6) apply to every fix.
+- Triage-vocabulary is in `docs/agent/triage-vocabulary.md`. The [engineering rules](../../../docs/agent/engineering-rules.md)
+  (especially mode parity and feature-flag gating) apply to every fix.
 - The orchestrator's own worktree must NOT be a worktree any sub-agent can write to. The
   `claude/eloquent-murdock-*` style branch this skill runs from is off-limits to sub-agents.
 - Wake intervals: ≤ 240s during active work (cache-warm), 3600s when the user signals usage conservation, a

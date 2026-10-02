@@ -98,7 +98,7 @@ flowchart TB
   two route tables stay aligned.
 - Both backends ultimately delegate to the same `limerick-core` game
   loop, parameterised over the runtime via the `EventEmitter` trait
-  (CLAUDE.md rule #12). New shared logic must land there, not in either
+  ([cross-runtime orchestration](../../../docs/agent/engineering-rules.md#cross-runtime-orchestration)). New shared logic must land there, not in either
   entry point.
 
 ## Transport

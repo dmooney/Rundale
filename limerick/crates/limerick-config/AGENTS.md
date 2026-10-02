@@ -11,7 +11,7 @@ cargo test -p limerick-config -- --nocapture        # with stdout (feature-flag 
 
 ## Local gotchas
 
-- **Leaf crate constraint (enforced, rule #1).** Never depend on `limerick-core`, `limerick-inference`, or any non-leaf crate.
+- **Leaf crate constraint (enforced, [module ownership](../../../docs/agent/engineering-rules.md#module-ownership)).** Never depend on `limerick-core`, `limerick-inference`, or any non-leaf crate.
 - **Config merging order: 4 layers.** Compiled default → TOML file → env var → CLI flag. `LIMERICK_OLLAMA_URL` is deprecated; use `LIMERICK_BASE_URL`.
 - **Feature flag semantics.** `config.flags.is_enabled("feature")` returns `false` for unknown flags. Use `is_disabled` for kill-switch features that ship enabled by default — it returns `true` only when the flag is explicitly `false`.
 - **Backend availability is not dialogue qualification.** `Provider::recommended_for_platform()` chooses a runnable backend (macOS vllm-mlx above the memory floor; Linux/Windows vLLM). It does not certify prose quality. Only profiles in `local_dialogue::QUALIFIED_LOCAL_DIALOGUE_PROFILES`, backed by a passing promotion receipt, may be labeled qualified; the registry is currently empty.

@@ -31,6 +31,14 @@ A UI-test run (XCUITest) moves faster than a person can follow and tears the
 app down as soon as it passes. Add explicit holds in a demo run, or edit the
 footage to freeze on each settled state, before sharing it.
 
+Publish a PR's recording on its public evidence page, not as a private link.
+Put the page's files (an `index.html`, the video as H.264 `.mp4`, and
+optionally a short `.gif`) in one directory and run
+`bash limerick/scripts/publish-pr-page.sh <pr-number> <directory>`. It
+publishes to `https://dmooney.github.io/rundale-pages/pr/<pr-number>/`. Link
+that page from the PR body, and embed the `.gif` from it so the recording plays
+inline in the PR.
+
 An implementation preview may be demonstrated before acceptance is complete.
 Label it as an interim demo and keep the phase open until the full Exit
 Criteria and Definition of Done have been met.

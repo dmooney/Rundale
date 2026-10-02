@@ -395,7 +395,7 @@ baselines:
 harness-audit:
     ./scripts/harness-audit.sh
 
-# Agent proof gate: requires changed proof evidence and judge verdicts for proof-relevant PRs
+# Agent proof gate: requires acceptance criteria and proof evidence for proof-relevant PRs
 agent-check:
     bash ./scripts/agent-check.sh
 

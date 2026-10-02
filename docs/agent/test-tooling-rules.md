@@ -3,11 +3,12 @@
 These rules cover truthful automation, tool reuse, verification reporting,
 managed test processes, preserved end-to-end contracts, and player-facing UX
 audits. See [engineering-rules.md](engineering-rules.md) for the complete
-numbered map.
+rule index.
 
+<a id="truthful-test-automation"></a>
 <a id="rule-10"></a>
 
-## Rule 10 — **Truthful test automation:**
+## Truthful test automation
 
 Anything named or scheduled as a test must execute the production behavior it
 claims to cover, contain a machine-checkable oracle, and propagate failures to
@@ -16,9 +17,10 @@ directories. Every confirmed escaped bug gets a regression test at the lowest
 production seam that would have caught it. Scheduled automation must be green,
 explicitly paused with a tracking issue, or removed.
 
+<a id="external-api-payload-caps"></a>
 <a id="rule-16"></a>
 
-## Rule 16 — **Cap external API payloads before sending:**
+## Cap external API payloads before sending
 
 Validate payload size client-side against the provider's documented limit (e.g.
 GitHub issue body ≤ 65536 chars) and truncate to ≤ 90% of it with a
@@ -26,26 +28,29 @@ GitHub issue body ≤ 65536 chars) and truncate to ≤ 90% of it with a
 asserting `payload.len() <= budget` is required for every such code path
 (#1375).
 
+<a id="existing-tooling"></a>
 <a id="rule-17"></a>
 
-## Rule 17 — **Survey existing tooling before building any:**
+## Survey existing tooling before building any
 
 Check whether the repo already provides it — the `limerick-harness` binary
 (built-in web server/dashboard), `justfile` recipes, `limerick/scripts/**`,
 `.claude/skills/` — and run or extend the existing tool in place. Never
 hand-roll a throwaway duplicate.
 
+<a id="truthful-verification-reporting"></a>
 <a id="rule-18"></a>
 
-## Rule 18 — **Report only verification you actually ran:**
+## Report only verification you actually ran
 
 Any claim that a test passed or a process ran must be backed by literal command
 output from the current session. State skips and failures explicitly — never
 estimate, extrapolate, or fabricate a result.
 
+<a id="shared-target-artifacts"></a>
 <a id="rule-26"></a>
 
-## Rule 26 — **Keep shared-target artifacts worktree-coherent:**
+## Keep shared-target artifacts worktree-coherent
 
 When a build script embeds worktree-local files, parallel test tooling that
 shares a Cargo target must key the build to those inputs and preserve and
@@ -53,9 +58,10 @@ validate the resulting executable before releasing its coordination lock.
 Never launch the shared final binary after Cargo releases its own lock; use the
 Playwright managed-server helper as the reference (#1717).
 
+<a id="crash-safe-managed-tests"></a>
 <a id="rule-27"></a>
 
-## Rule 27 — **Make managed-test lifecycles crash-safe on every platform:**
+## Make managed-test lifecycles crash-safe on every platform
 
 Locks, candidates, and copied executables must have bounded startup recovery
 and mechanically tested platform policy. A fresh active-use lease is a
@@ -68,18 +74,20 @@ the launcher alive to stop/wait the child and release ownership; Windows
 `taskkill /T /F` may skip hooks, so bounded expiry is the required fallback
 (#1717).
 
+<a id="merged-end-to-end-contracts"></a>
 <a id="rule-28"></a>
 
-## Rule 28 — **Preserve merged end-to-end contracts when extending or extracting a shared spec:**
+## Preserve merged end-to-end contracts when extending or extracting a shared spec
 
 Retain every already-merged public-behavior assertion across API, IPC,
 gameplay, and UI surfaces, and add new coverage alongside it; bounded behavior
 must cover the cap boundary and overflow. A focused test for the new slice does
 not prove earlier consumer contracts still exist.
 
+<a id="player-facing-interaction-models"></a>
 <a id="rule-29"></a>
 
-## Rule 29 — **Audit player-facing interaction models, not only controls:**
+## Audit player-facing interaction models, not only controls
 
 Scope note: the illustrated-notebook audit applies to the existing web/Tauri
 surface. Mobile feature work follows its product physical-iPhone UX gates and

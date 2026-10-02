@@ -1,11 +1,13 @@
 ---
-description: Run a demo-audit session — cycle `just demo` with live MCP/HTTP inspection, surface gameplay bugs, file them via the limerick_file_bug MCP (screenshot + logs + state) and log in TODO.md
-allowed-tools: Bash, Read, Edit, Write, Grep, Glob, TaskCreate, TaskUpdate, TaskList, mcp__limerick__limerick_file_bug, mcp__limerick__limerick_take_screenshot, mcp__limerick__limerick_latest_screenshot, mcp__limerick__limerick_world_snapshot, mcp__limerick__limerick_npcs_here, mcp__limerick__limerick_submit_input
+name: demo-audit
+description: "Run a demo-audit session \u2014 cycle `just demo` with live MCP/HTTP inspection, surface gameplay bugs, file them via the limerick_file_bug MCP (screenshot + logs + state) and log in TODO.md"
 ---
+
+# demo-audit
 
 Run a demo-audit session on the Limerick/Rundale engine. Goal: snapshot current gameplay quality + surface bugs via repeated `just demo` cycles combined with live MCP/HTTP inspection.
 
-# Workflow
+## Workflow
 
 ## 1. Pre-flight
 
@@ -106,24 +108,26 @@ Protocol per bug:
   entries when later cycles refute or refine them.
 - At the end list top-10 by impact, each linked to its issue.
 
-# Constraints
+## Constraints
 
 - Do NOT write code fixes. Document only, unless the user says "fix X now".
 - Read code before claiming root cause. Avoid asserting based on symptom alone — grep `limerick/crates/limerick-core`, `limerick-tauri`, `limerick-input`, `limerick-npc`, `limerick/apps/ui/src/lib`.
 - Track every cycle's distinct-location-count, movement count, NPC reply rate, error/warn count. Spot trends across cycles.
 - Stop when 2 consecutive cycles add zero truly new categories, OR when the user says stop. Acceptance-criteria gate doesn't apply — this is documentation work, not a code change.
 
-# Optional enhancements
+## Optional enhancements
 
 - Use `mcp__limerick__limerick_submit_input` to nudge the player toward a specific location and probe uncovered NPCs (Aoife Brennan, Sean Ruadh Kelly, Brigid Ni Fhatharta, etc).
 - Compare reply quality across NPCs (Padraig Darcy >> Duffy family observed); audit `npcs.json` for what makes Padraig good.
 - Read `limerick/crates/limerick-input/src/parser.rs` to enumerate the movement-verb grammar — fixes the silent-rejection bug list.
 
-# Arguments
+## Invocation Notes
 
-`$ARGUMENTS` — optional. Examples:
+The user may add a mode or target after naming this skill. Interpret common modes as:
 
 - (empty) — default 5-12 cycle audit with `N=8..15` turns each.
 - `quick` — single cycle, `N=8`, only flag P0/P1.
 - `deep` — up to 20 cycles, vary `N` (8/12/18/20), include MCP nudges.
 - `verify <issue-number>` — re-run targeting a specific TODO entry's preconditions.
+
+If your harness lacks a tool this workflow names, use the closest equivalent; if a required Limerick MCP tool is not registered, start the backend via the repo instructions before continuing.

@@ -98,7 +98,7 @@ For each turn:
    helper holds the display awake (`caffeinate`, §1.2) so the backgrounded capture path stays
    alive. If a capture still fails for a turn, write the shared placeholder for that ONE turn and
    **note in the run log that turn N is a placeholder** — never present a placeholder as real
-   (rule #18). If captures fail every turn, raise the window once, capture, then **restore
+   ([truthful verification reporting](../../../docs/agent/test-tooling-rules.md#truthful-verification-reporting)). If captures fail every turn, raise the window once, capture, then **restore
    `/pause`** (foregrounding can resume the clock pre-#1357) and record it.
 6. **RECORD** — note input, reply, state delta, and any defect you'd flag as a player.
 
@@ -176,7 +176,7 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    all-identical means the fan-out regressed). Use the shared placeholder **only** for a turn
    whose live capture failed, and only when you logged that fallback. Also write
    `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine). Every `frame.png` must be
-   non-empty (the ingest validates this — rule #14).
+   non-empty (the ingest validates this — [artifact content validation](../../../docs/agent/generated-art-rules.md#artifact-content-validation)).
 
    **Per-turn inference log (clickable on the run page) — MANDATORY for every dialogue turn.**
    `ingest` only rejects a _dangling_ `llm_transcript_path`; it does **not** reject a dialogue
