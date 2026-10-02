@@ -22,7 +22,7 @@
     "@limerick/runtime": "workspace:*",
     "@limerick/schemas": "workspace:*",
     "drizzle-orm": "0.45.2",
-    "fastify": "5.12.1",
+    "fastify": "5.12.5",
     "firebase-admin": "^14.3.0",
     "pg": "8.23.0"
   },
