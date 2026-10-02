@@ -1,13 +1,9 @@
 ---
-name: 'source-command-demo-audit-mcp'
+name: demo-audit-mcp
 description: "Run a demo-audit session where YOU drive the game directly via the limerick MCP (limerick_new_game + limerick_submit_input + snapshots) instead of the LLM auto-player \u2014 deterministic, targeted gameplay probing that surfaces bugs, files them via limerick_file_bug and logs them in TODO.md"
 ---
 
-# source-command-demo-audit-mcp
-
-Use this skill when the user asks to run the migrated source command `demo-audit-mcp`.
-
-## Command Template
+# demo-audit-mcp
 
 Run a demo-audit session on the Limerick/Rundale engine **driving the game yourself
 through the limerick MCP** rather than watching the LLM auto-player (`just demo`).
@@ -81,7 +77,6 @@ Each turn is: **observe → decide → act → observe → judge**.
    Maintain coverage counters: distinct locations visited, movement attempts vs
    successes, NPCs talked to, NPC reply rate.
 3. **Act** with `mcp__limerick__limerick_submit_input`:
-
    - Movement: natural-language intents (`"walk over to the forge"`, `"go to the church"`) —
      deliberately probe the parser grammar, including phrasings you expect to fail.
    - Dialogue: free text. Scope it with the optional `addressed_to` array
@@ -96,7 +91,6 @@ Each turn is: **observe → decide → act → observe → judge**.
 4. **Wait for the turn, then read the reply.** Poll `limerick_world_snapshot` until
    `turn_in_flight` is `false` (the clock will also have advanced). Then read what was
    said — there are two ways, since the reply is NOT in any tool's return value:
-
    - **Screenshot (richest):** `mcp__limerick__limerick_take_screenshot`, then `Read` the
      PNG — the narrative + dialogue column is rendered, so you see player text, NPC
      replies, movement narration, and the present-NPC chips in one image.
@@ -210,4 +204,4 @@ The user may add a mode or target after naming this skill. Interpret common mode
 - `repro <issue-number>` — drive the exact input sequence from that issue's Repro and confirm/refute.
 - `npc <name>` — drive to and probe a single NPC's dialogue quality with `addressed_to`.
 
-The source command assumed shell, file editing, task tracking, and Limerick MCP access. In Codex, use the available equivalents; if the `mcp__limerick__*` tools are absent, start or rebuild the Limerick MCP bridge using the repo instructions before continuing.
+If your harness lacks a tool this workflow names, use the closest equivalent; if the `mcp__limerick__*` tools are absent, start or rebuild the Limerick MCP bridge using the repo instructions before continuing.

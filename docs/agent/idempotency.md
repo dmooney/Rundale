@@ -72,7 +72,7 @@ so two users cannot share or collide on each other's keys.
 ## Feature flag
 
 The middleware is controlled by the `idempotency-key` feature flag. The flag is
-**default-on** (per CLAUDE.md rule #6): the middleware is active unless the flag
+**default-on** (per [feature flags](engineering-rules.md#feature-flags)): the middleware is active unless the flag
 is explicitly disabled.
 
 To disable, add `"idempotency-key": false` to `limerick-flags.json`:

@@ -889,4 +889,4 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - **`docs/index.md`** is the master hub — phase status, design overview, ADR index, plans, research, and agent guides
 - **Architectural Decision Records (ADRs)** — 24 records capturing the rationale behind graph-based worlds, cognitive LOD, SQLite WAL persistence, git-like branching, structured JSON output, real geography, per-category inference, prompt-injection defenses, the OSM geo-tool pipeline, and more
 - **Historical research archive** — comprehensive 1820s Ireland research covering religion, family, education, crafts, food, transportation, law, politics, folklore, and Hiberno-English dialect notes informing NPC dialogue
-- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, code style, gotchas, harness, skills, git workflow, scaling rules), linked from `CLAUDE.md` and `AGENTS.md`
+- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, code style, gotchas, harness, skills, git workflow, scaling rules), linked from the root `AGENTS.md`

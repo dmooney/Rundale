@@ -4,13 +4,16 @@ Rundale is the game. Limerick is the Rust game engine.
 
 ## Start here
 
-1. Skim [LEARNINGS.md](LEARNINGS.md) for relevant traps.
-2. Read the [product specification](docs/product-specs/README.md) for the task's milestone.
-3. Use [docs/agent/README.md](docs/agent/README.md) to select the engineering references
+1. Read the [product specification](docs/product-specs/README.md) for the task's milestone.
+2. Use [docs/agent/README.md](docs/agent/README.md) to select the engineering references
    relevant to the files and behavior you will change.
-4. Read applicable directory-level instructions before editing.
+3. Follow the `AGENTS.md` in each directory you change. Claude Code and Codex load
+   them when you work there; other agents should read them before editing.
+4. Search [LEARNINGS.md](LEARNINGS.md) for the subsystem you are changing; do not read
+   it end to end.
 
-Append a concise learning when you discover a reusable, non-obvious trap.
+Record a reusable, non-obvious trap in the nearest directory `AGENTS.md`, beside the
+code it concerns. Use LEARNINGS.md only for traps that span several areas.
 Do not load every reference for every task.
 
 ## Current product direction
@@ -102,7 +105,7 @@ just build          # existing default engine build
 just check          # existing pre-commit quality gates
 just verify         # existing checks plus harness walkthrough
 just mobile-verify --phase N  # iPhone app gates for spec Milestone N (macOS + Xcode)
-just agent-check    # proof evidence and judge verdict gate
+just agent-check    # acceptance criteria and proof evidence gate
 just ui-test        # existing Svelte frontend tests
 just ui-e2e         # existing browser Playwright contracts
 bash limerick/scripts/check-doc-paths.sh  # documentation links and paths

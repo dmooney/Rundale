@@ -13,8 +13,9 @@
 # In both modes the script:
 #   - Diffs the working tree against the base ref.
 #   - Categorises changed files into proof-relevant / runtime-shipping.
-#   - Validates that proof artifacts (evidence, judge, acceptance-criteria)
-#     exist and contain the required header lines.
+#   - Validates that proof artifacts (acceptance criteria and evidence)
+#     exist and contain the required header lines. A legacy judge.md is
+#     ignored; the implementing agent no longer grades its own work.
 #   - Rejects placeholder debt markers in changed files.
 #   - Rejects any `.proofs/` path appearing in the diff (those files are
 #     meant to live in PR comments only — see `just attach-proof`).
@@ -92,7 +93,6 @@ changed="$tmpdir/changed"
 relevant="$tmpdir/relevant"
 runtime="$tmpdir/runtime"
 evidence="$tmpdir/evidence"
-judges="$tmpdir/judges"
 ac_files="$tmpdir/ac_files"
 
 {
@@ -105,7 +105,6 @@ ac_files="$tmpdir/ac_files"
 : >"$relevant"
 : >"$runtime"
 : >"$evidence"
-: >"$judges"
 : >"$ac_files"
 
 is_proof_relevant() {
@@ -123,8 +122,8 @@ is_proof_relevant() {
         # Documentation, agent instructions, build config, CI workflows,
         # and check tooling require proof only when paired with a runtime
         # code change. On their own, they have no gameplay behavior to
-        # prove. Per rule 10 in AGENTS.md.
-        # (*.md already covers AGENTS.md / CLAUDE.md / README.md.)
+        # prove (truthful test automation, docs/agent/test-tooling-rules.md).
+        # (*.md already covers AGENTS.md and README.md.)
         *.md | *.txt | \
             justfile | limerick/justfile | \
             docs/* | .agents/* | .claude/* | \
@@ -150,8 +149,8 @@ is_proof_relevant() {
 # live process — unit tests alone don't fire startup wiring, IPC
 # handlers, or browser-mounted Svelte components. Pure logic crates
 # (limerick-config, limerick-types, limerick-palette, limerick-persistence) are
-# excluded — their behaviour is fully covered by `cargo test`. Per rule
-# #10 in AGENTS.md.
+# excluded — their behaviour is fully covered by `cargo test`. See
+# truthful test automation in docs/agent/test-tooling-rules.md.
 is_runtime_path() {
     local file="$1"
     case "$file" in
@@ -206,7 +205,7 @@ validate_evidence_file() {
             ;;
         *.md | *)
             # Accept the optional `live ` prefix that the runtime-path
-            # tier (rule #10) requires for proofs of changes touching
+            # tier (truthful test automation) requires for proofs of changes touching
             # the Tauri/server/CLI/UI/mod seams. Plain
             # `Evidence type: gameplay transcript` remains valid for
             # non-runtime proof-relevant changes. `game-loop integration
@@ -273,7 +272,7 @@ gather_bundles_local() {
         fi
         case "$f" in
             .proofs/*/judge.md)
-                echo "$f" >>"$judges"
+                # Legacy self-judged verdict file: accepted but ignored.
                 ;;
             .proofs/*/acceptance-criteria.md)
                 echo "$f" >>"$ac_files"
@@ -350,16 +349,15 @@ gather_bundles_pr() {
         in_block { print >> block_file }
     ' "$raw"
 
-    # Register every extracted block as evidence + judge + AC. The validators
+    # Register every extracted block as evidence + AC. The validators
     # below independently confirm each required header line is present.
     # AC section detection is intentionally strict: it requires a real
-    # `## Acceptance criteria` heading. The judge verdict line
+    # `## Acceptance criteria` heading. The status line
     # `Acceptance criteria: met` alone does NOT count, so a bundle that
-    # only contains judge boilerplate cannot satisfy rule 13.
+    # only contains that line cannot stand in for written criteria.
     for block_file in "$tmpdir"/pr_block_*.md; do
         [[ -f "$block_file" ]] || continue
         echo "$block_file" >>"$evidence"
-        echo "$block_file" >>"$judges"
         if grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$block_file"; then
             echo "$block_file" >>"$ac_files"
         fi
@@ -376,7 +374,6 @@ changed_count="$(wc -l <"$changed" | tr -d ' ')"
 relevant_count="$(wc -l <"$relevant" | tr -d ' ')"
 runtime_count="$(wc -l <"$runtime" | tr -d ' ')"
 evidence_count="$(wc -l <"$evidence" | tr -d ' ')"
-judge_count="$(wc -l <"$judges" | tr -d ' ')"
 ac_count="$(wc -l <"$ac_files" | tr -d ' ')"
 
 echo "agent-check: source=$source_mode; comparing $changed_count changed file(s) against $base_ref."
@@ -399,27 +396,6 @@ if [[ "$relevant_count" -gt 0 ]]; then
         while IFS= read -r file; do
             validate_evidence_file "$file" || failed=1
         done <"$evidence"
-    fi
-
-    if [[ "$judge_count" -eq 0 ]]; then
-        if [[ "$source_mode" == "pr" ]]; then
-            echo "agent-check FAILED: PR comment is missing judge.md content." >&2
-        else
-            echo "agent-check FAILED: proof-relevant changes require .proofs/<task-id>/judge.md." >&2
-        fi
-        echo "The judge content must include 'Verdict: sufficient' and 'Technical debt: clear'." >&2
-        failed=1
-    else
-        while IFS= read -r file; do
-            if ! grep -Eiq '^Verdict:[[:space:]]*sufficient([[:space:]]|$)' "$file"; then
-                echo "agent-check FAILED: $file must include 'Verdict: sufficient'." >&2
-                failed=1
-            fi
-            if ! grep -Eiq '^Technical debt:[[:space:]]*clear([[:space:]]|$)' "$file"; then
-                echo "agent-check FAILED: $file must include 'Technical debt: clear'." >&2
-                failed=1
-            fi
-        done <"$judges"
     fi
 
     if [[ "$ac_count" -gt 0 ]]; then
@@ -455,7 +431,7 @@ if [[ "$relevant_count" -gt 0 ]]; then
                             live_found=1
                         elif grep -Eiq '^Evidence type:[[:space:]]*game-loop integration test[[:space:]]*$' "$file" \
                             && grep -q 'execute_via_real_loop' "$file"; then
-                            # Real-loop integration tier (rule #10). Some runtime
+                            # Real-loop integration tier (truthful test automation). Some runtime
                             # behaviours — deterministic guards whose ONLY trigger is
                             # intermittent large-model output (e.g. the 14B
                             # spontaneously impersonating another NPC, or looping a
@@ -491,19 +467,15 @@ else
 fi
 
 # Per-bundle completeness: every bundle that exists at all must contain
-# judge + evidence + acceptance-criteria. Catches the case where bundle A
-# has a judge and bundle B has only an evidence file — the aggregate
-# `judge_count > 0` test would have silently allowed B to pass.
-# AC section heading is required (not the verdict line) per rule 13.
-if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 || "$ac_count" -gt 0 ]]; then
+# evidence + acceptance criteria. Catches the case where bundle A is
+# complete and bundle B has only an evidence file — the aggregate counts
+# above would have silently allowed B to pass. A real acceptance-criteria
+# section is required; the status line alone does not count.
+if [[ "$evidence_count" -gt 0 || "$ac_count" -gt 0 ]]; then
     if [[ "$source_mode" == "local" ]]; then
         # Collect every bundle dir touched.
         while IFS= read -r bundle_dir; do
             [[ -z "$bundle_dir" ]] && continue
-            if [[ ! -f "$bundle_dir/judge.md" ]]; then
-                echo "agent-check FAILED: bundle '$bundle_dir/' is missing judge.md." >&2
-                failed=1
-            fi
             # An evidence file means any of: evidence.md, transcript.{md,txt}, or
             # a binary artifact in the bundle dir.
             local_has_evidence=0
@@ -523,51 +495,42 @@ if [[ "$evidence_count" -gt 0 || "$judge_count" -gt 0 || "$ac_count" -gt 0 ]]; t
             fi
             if [[ ! -f "$bundle_dir/acceptance-criteria.md" ]]; then
                 echo "agent-check FAILED: bundle '$bundle_dir/' is missing acceptance-criteria.md." >&2
-                echo "Write acceptance criteria BEFORE coding using /task-start <task-id>." >&2
-                echo "See rule 13 in AGENTS.md." >&2
+                echo "Write the acceptance criteria before implementing; see docs/agent/agent-check.md." >&2
+                failed=1
+                continue
+            fi
+            # The evidence must state that every criterion was met. A legacy
+            # judge.md carrying the line still counts so older bundles pass.
+            met_found=0
+            for ev in "$bundle_dir"/*.md; do
+                [[ -f "$ev" ]] || continue
+                [[ "$ev" == "$bundle_dir/acceptance-criteria.md" ]] && continue
+                if grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$ev"; then
+                    met_found=1
+                    break
+                fi
+            done
+            if [[ "$met_found" -eq 0 ]]; then
+                echo "agent-check FAILED: bundle '$bundle_dir/' must include 'Acceptance criteria: met' in evidence.md." >&2
+                echo "evidence.md maps every criterion in acceptance-criteria.md to the transcript lines that show it." >&2
                 failed=1
             fi
-        done < <(cat "$evidence" "$judges" "$ac_files" 2>/dev/null | grep -E '^\.proofs/[^/]+/' | sed 's|/[^/]*$||' | sort -u)
+        done < <(cat "$evidence" "$ac_files" 2>/dev/null | grep -E '^\.proofs/[^/]+/' | sed 's|/[^/]*$||' | sort -u)
     else
         # PR mode: every block must contain a real `## Acceptance criteria`
-        # heading, plus the judge verdict lines (validated above per-file).
+        # heading and the 'Acceptance criteria: met' status line.
         while IFS= read -r block_file; do
+            bundle_id="$(basename "$block_file" .md | sed 's/^pr_block_//')"
             if ! grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$block_file"; then
-                bundle_id="$(basename "$block_file" .md | sed 's/^pr_block_//')"
-                echo "agent-check FAILED: PR comment for bundle '$bundle_id' has no '## Acceptance criteria' section." >&2
-                echo "The judge verdict line 'Acceptance criteria: met' alone does NOT satisfy rule 13." >&2
+                echo "agent-check FAILED: PR bundle '$bundle_id' has no '## Acceptance criteria' section." >&2
+                echo "The status line 'Acceptance criteria: met' alone does not stand in for written criteria." >&2
+                failed=1
+            elif ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$block_file"; then
+                echo "agent-check FAILED: PR bundle '$bundle_id' must include 'Acceptance criteria: met' in its evidence." >&2
                 failed=1
             fi
-        done < <(sort -u "$judges")
+        done < <(sort -u "$evidence")
     fi
-fi
-
-# Confirm 'Acceptance criteria: met' in every judge whose bundle has an
-# acceptance-criteria.md — enforced unconditionally so proof-only PRs (where
-# relevant_count is 0) cannot bypass the gate.
-if [[ "$judge_count" -gt 0 ]]; then
-    while IFS= read -r file; do
-        check=1
-        if [[ "$source_mode" == "local" ]]; then
-            bundle_dir="$(dirname "$file")"
-            [[ -f "$bundle_dir/acceptance-criteria.md" ]] || check=0
-        else
-            # PR mode: every block that listed a real AC section also
-            # needs the 'Acceptance criteria: met' line. Verdict-only
-            # bundles can't sneak through by matching `Acceptance criteria:`
-            # against the verdict line itself.
-            if ! grep -Eiq '^##+[[:space:]]+Acceptance criteria' "$file"; then
-                check=0
-            fi
-        fi
-        if [[ "$check" -eq 1 ]]; then
-            if ! grep -Eiq '^Acceptance criteria:[[:space:]]*met([[:space:]]|$)' "$file"; then
-                echo "agent-check FAILED: $file must include 'Acceptance criteria: met'." >&2
-                echo "The judge must verify every criterion from acceptance-criteria.md against the game log." >&2
-                failed=1
-            fi
-        fi
-    done <"$judges"
 fi
 
 debt_found=0
@@ -595,7 +558,7 @@ if [[ "$failed" -ne 0 ]]; then
 fi
 
 if [[ "$relevant_count" -gt 0 ]]; then
-    echo "agent-check passed: proof evidence and judge verdict are present; no placeholder debt markers found."
+    echo "agent-check passed: acceptance criteria and proof evidence are present; no placeholder debt markers found."
 else
     echo "agent-check passed: no proof needed; no placeholder debt markers found."
 fi

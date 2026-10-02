@@ -46,8 +46,7 @@ result=0
     id="demo-1177"
     mkdir -p ".proofs/$id"
     printf '## Acceptance criteria\n\n- A: thing happens\n' >".proofs/$id/acceptance-criteria.md"
-    printf 'Evidence type: live gameplay transcript\n\nA happened on line 7.\n' >".proofs/$id/evidence.md"
-    printf 'Verdict: sufficient\nTechnical debt: clear\nAcceptance criteria: met\n' >".proofs/$id/judge.md"
+    printf 'Evidence type: live gameplay transcript\n\nA happened on line 7.\n\nAcceptance criteria: met\n' >".proofs/$id/evidence.md"
 
     # 1. Empty body -> one region.
     empty_out="$(printf '' | bash "$compose" "$id")"

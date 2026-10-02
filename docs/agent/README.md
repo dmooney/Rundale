@@ -11,10 +11,11 @@ remain scoped references, not a mandate to restore old product features.
 | Universal rules and routing to specialized invariants          | [engineering-rules.md](engineering-rules.md)                 |
 | Existing runtime MCP/CLI commands                              | [runtime-driving-reference.md](runtime-driving-reference.md) |
 
-Model selection and orchestration policy belongs in the user's global
-`$CODEX_HOME/AGENTS.md`. It is not duplicated here. See the
-[official instruction hierarchy](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
-for global and repository discovery behavior.
+Model selection and orchestration policy belongs in each agent's global
+configuration and is not duplicated here. Claude Code and Codex both read
+`AGENTS.md` natively, loading a subdirectory's `AGENTS.md` when they work in that
+directory; put area-specific traps there rather than in the root file. Skills
+live in `.agents/skills/` (`.claude/skills` is a symlink to it).
 
 The detailed references below describe existing implementation and tooling.
 
@@ -40,6 +41,6 @@ alongside the full product milestone requirements.
 | **Scaling guardrails** — per-session state, seam review checklist | [scaling-rules.md](scaling-rules.md)                       |
 | Visual client, notebook UI, and graphics research                 | [../graphics-v2/README.md](../graphics-v2/README.md)       |
 
-The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.
+The root `AGENTS.md` is a slim index — start there if you're new, then come here for the details.
 
 The [rename verification record](limerick-rename-verification.md) records runtime, preservation, packaging, and platform evidence.

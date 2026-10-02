@@ -23,4 +23,4 @@ just realign-coords-run -- --baseline-world <path>            # realign from bas
 
 ## Module map
 
-`src/main.rs` CLI entry + `AdminLevel` enum, `src/bin/realign_rundale_coords/` coordinate realignment utility (`main.rs`, `overrides.rs`, `geocode.rs`, `realign.rs` — #1200), `src/lib.rs` library surface (re-exports `osm_model`), `src/world_file_shared.inc` shared world-file serde types, `src/osm_model.rs` OSM data model types, `src/extract/` feature extraction (`mod.rs`, `classify.rs`, `dedup.rs`, `crossroads.rs` — #1200), `src/overpass.rs` Overpass query builder + HTTP client, `src/merge.rs` merge OSM extracts with hand-authored data, `src/pipeline.rs` end-to-end download→extract→connect→describe→merge→output, `src/lod.rs` level-of-detail filtering, `src/output.rs` world.json formatter, `src/descriptions.rs` location description templates, `src/connections.rs` graph edge building from road network, `src/cache.rs` HTTP response cache, `src/test_utils.rs` test helpers.
+`src/pipeline.rs` is the end-to-end download → extract → connect → describe → merge → output flow; `src/bin/realign_rundale_coords/` is the realignment tool.
