@@ -1,7 +1,9 @@
 # LEARNINGS — gotchas for future maintainers
 
-Brief notes worth a future agent's time. Append new entries at the
-bottom; don't lengthen items past 2-3 lines.
+Brief notes worth a future agent's time, for traps that span several
+areas. A trap that belongs to one directory goes in that directory's
+`AGENTS.md` instead. Search this file for the subsystem you are changing
+rather than reading it end to end. Keep items to 2-3 lines.
 
 ## Engine + runtime
 
