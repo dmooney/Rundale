@@ -209,6 +209,9 @@ I’m not sure which Connolly you mean.
 [ Mícheál Connolly ]   [ Róisín Connolly ]
 ```
 
+Choices name people as the player knows them: by name once introduced,
+otherwise by their description.
+
 Temporary choice controls are appropriate for genuine ambiguity.
 
 ### 5.4 Slash commands

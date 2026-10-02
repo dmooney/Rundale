@@ -44,16 +44,23 @@ exchange; an empty or ignored Send must preserve the reading position.
 
 ## Arrival feedback regression
 
-Enter Connolly Cottage for the first time: show its description and
-“Mícheál Connolly and Róisín Connolly are here.” Return through the village to
-Letter Office after Peig's scheduled journey: show “Peig Hannigan is here.”
-Close and reopen the app, then revisit the cottage. Show current presence
-without repeating its opening description. `/look` must still describe the room.
-An empty destination must not invent occupants or produce a dangling “are here.”
+Enter Connolly Cottage for the first time: show its description and who is
+there. People the player has not been introduced to are named by their
+description, for example “A weathered man in a mud-spattered frieze coat and a
+young woman with yarn wound about her wrist are here.”; once introduced, by
+name. Return to the village, where Peig is waiting for the morning post: show
+only who is there (“A sharp-eyed woman with a satchel of letters is here.”),
+without the village's description. Close and reopen the app, then revisit the
+cottage. Show current presence without repeating its description. `/look` must
+still describe the room. An empty destination must not invent occupants or
+produce a dangling “are here.”; a return to an empty place shows its title
+alone.
 
 Native simulator coverage:
-`RundalePhase3UITests.testArrivalsListPeopleAndKeepRepeatVisitsBriefAfterRelaunch`.
-Rust session regressions cover persisted visit history and post-schedule presence.
+`RundaleSceneUITests.testReturningShowsWhoIsThereWithoutRepeatingTheDescription`.
+The FFI test
+`returning_somewhere_lists_who_is_there_without_repeating_the_description`
+covers persisted visit history across relaunch.
 
 ## Physical sessions and phase-end demo
 
