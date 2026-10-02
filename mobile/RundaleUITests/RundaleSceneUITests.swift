@@ -44,6 +44,55 @@ final class RundaleSceneUITests: XCTestCase {
         hold(5)
     }
 
+    /// Phase 4 test plan, arrival feedback: a place the player has been
+    /// shows who is there without its description; an empty one is the
+    /// title alone; `look` still describes it.
+    func testReturningShowsWhoIsThereWithoutRepeatingTheDescription() {
+        app.launchArguments = ["--ui-tests", "--phase2", "--no-auto-focus", "--reset-fixture"]
+        app.launch()
+        XCTAssertTrue(sceneRow("Kilteevan Village", "A muddy road").waitForExistence(timeout: 15))
+
+        submit("go to Connolly Cottage")
+        XCTAssertTrue(sceneRow("Connolly Cottage", "A peat fire warms the single room")
+            .waitForExistence(timeout: 15))
+        hold(3)
+
+        // The opening described the village: coming back lists who is there.
+        submit("go to Kilteevan Village")
+        let villageReturn = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Scene. Kilteevan Village. ' AND label ENDSWITH 'is here.'"
+        )).firstMatch
+        XCTAssertTrue(villageReturn.waitForExistence(timeout: 15), "Expected a presence-only return")
+        XCTAssertFalse(villageReturn.label.contains("muddy road"), villageReturn.label)
+        hold(3)
+
+        submit("go to the Letter Office")
+        XCTAssertTrue(sceneRow("Letter Office", "A narrow counter").waitForExistence(timeout: 15))
+        submit("go to Kilteevan Village")
+        submit("go to the Letter Office")
+        let emptyReturn = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label == 'Scene. Letter Office'"
+        )).firstMatch
+        XCTAssertTrue(emptyReturn.waitForExistence(timeout: 15), "Expected the title alone")
+        hold(3)
+
+        submit("look")
+        XCTAssertTrue(transcriptText("A narrow counter, pigeonholes").waitForExistence(timeout: 15))
+        hold(4)
+    }
+
+    private func submit(_ command: String) {
+        let input = app.descendants(matching: .any).matching(identifier: "composer.input").firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText(command)
+        app.buttons["composer.send"].tap()
+        let cleared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 8), .completed)
+    }
+
     /// A scene card's accessibility label is "Scene. <name>. <text>".
     private func sceneRow(_ name: String, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(

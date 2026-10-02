@@ -16,20 +16,15 @@ pub struct SceneText {
     pub location_id: u32,
     /// Location name (the scene's title).
     pub name: String,
-    /// Description, then a presence line when anyone is there.
+    /// Description, then a presence line when anyone is there. A return
+    /// visit's scene has only the presence line, or no text.
     pub text: String,
 }
 
 /// Renders the player's current scene (see [`SceneText`]).
 pub fn render_scene(world: &WorldState, npc_manager: &NpcManager) -> SceneText {
     let location = world.current_location();
-    // In id order, so a journaled scene reads the same on every run.
-    let mut present = npc_manager.npcs_at(world.player_location);
-    present.sort_by_key(|npc| npc.id.0);
-    let names: Vec<String> = present
-        .iter()
-        .map(|npc| npc_manager.display_name(npc).to_string())
-        .collect();
+    let names = present_names(world, npc_manager);
     let setting = match world.current_location_data() {
         Some(data) => {
             let refs: Vec<&str> = names.iter().map(String::as_str).collect();
@@ -46,6 +41,28 @@ pub fn render_scene(world: &WorldState, npc_manager: &NpcManager) -> SceneText {
         name: location.name.clone(),
         text,
     }
+}
+
+/// Renders the scene of a place the player has been before: who is there,
+/// without repeating the description (`look` still gives it). The text is
+/// empty when no one is there.
+pub fn render_return_scene(world: &WorldState, npc_manager: &NpcManager) -> SceneText {
+    SceneText {
+        location_id: world.player_location.0,
+        name: world.current_location().name.clone(),
+        text: presence_line(&present_names(world, npc_manager)).unwrap_or_default(),
+    }
+}
+
+/// Who is at the player's location, as the player knows them, in id order so
+/// a journaled scene reads the same on every run.
+fn present_names(world: &WorldState, npc_manager: &NpcManager) -> Vec<String> {
+    let mut present = npc_manager.npcs_at(world.player_location);
+    present.sort_by_key(|npc| npc.id.0);
+    present
+        .iter()
+        .map(|npc| npc_manager.display_name(npc).to_string())
+        .collect()
 }
 
 /// "Peig is here.", "Mícheál and Róisín are here.", "A, B and C are here.",

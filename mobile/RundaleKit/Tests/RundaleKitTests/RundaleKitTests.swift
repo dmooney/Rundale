@@ -37,6 +37,25 @@ final class RundaleKitTests: XCTestCase {
         XCTAssertEqual(event.metadata["sceneID"], "crossroads")
     }
 
+    func testSceneWithoutTextIsStillATitledRow() {
+        let sessionID = SessionID("session-scene")
+        var state = SessionState(sessionID: sessionID, draft: Draft(id: DraftID("draft-1"), text: ""))
+        var reducer = SessionReducer()
+        let scene = SemanticEvent(
+            eventID: SemanticEventID("event-scene"),
+            sessionID: sessionID,
+            sequence: 1,
+            kind: .sceneChanged,
+            content: "",
+            metadata: ["sceneID": "2", "sceneName": "Letter Office"]
+        )
+        XCTAssertEqual(reducer.reduce(.apply(scene), in: &state), .applied)
+        let row = try? XCTUnwrap(state.transcript.last)
+        XCTAssertEqual(row?.kind, .sceneChanged)
+        XCTAssertEqual(row?.content, "")
+        XCTAssertEqual(row?.metadata["sceneName"], "Letter Office")
+    }
+
     func testAcceptanceClearsOnlyMatchingDraftAndKeepsNewEdits() {
         let sessionID = SessionID("session-acceptance")
         var state = SessionState(sessionID: sessionID, draft: Draft(id: DraftID("draft-1"), text: "look around"))

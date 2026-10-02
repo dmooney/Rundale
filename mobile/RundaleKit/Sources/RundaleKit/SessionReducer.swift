@@ -418,7 +418,11 @@ public struct SessionReducer: Sendable {
         state: inout SessionState,
         stateOverride: TranscriptItemState
     ) {
-        guard let content = event.content, !content.isEmpty || event.transcriptItemID != nil else { return }
+        // A scene's title is in its metadata, so a scene with no text (a
+        // return to an empty place) is still a row.
+        guard let content = event.content,
+              !content.isEmpty || event.transcriptItemID != nil || event.kind == .sceneChanged
+        else { return }
         let itemID = event.transcriptItemID ?? TranscriptItemID("event:\(event.eventID.rawValue)")
         let current = state.transcript.first(where: { $0.id == itemID })
         let nextContent: String
