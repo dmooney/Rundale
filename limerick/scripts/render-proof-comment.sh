@@ -12,13 +12,14 @@
 #
 # Required files in the bundle:
 #   acceptance-criteria.md
-#   evidence.md          (with `Evidence type:` header)
-#   judge.md             (with Verdict / Technical debt / Acceptance criteria
-#                        verdict lines)
+#   evidence.md          (with `Evidence type:` header and the
+#                        `Acceptance criteria: met` line)
 # Optional:
 #   transcript.txt       (truncated inline; full file expected as a PR
 #                        attachment)
 #   *.png / *.jpg / *.jpeg / *.gif  (referenced inline as PR attachments)
+#   judge.md             (legacy; rendered when present so bundles written
+#                        before judge.md was retired keep their status line)
 #
 # Usage: render-proof-comment.sh <task-id>
 set -euo pipefail
@@ -43,7 +44,7 @@ judge="$bundle/judge.md"
 transcript="$bundle/transcript.txt"
 intended="$bundle/intended-diffs.toml"
 
-for required in "$ac" "$evidence" "$judge"; do
+for required in "$ac" "$evidence"; do
     if [[ ! -f "$required" ]]; then
         echo "render-proof-comment: missing required file '$required'." >&2
         exit 1
@@ -83,6 +84,17 @@ emit_intended_diffs() {
     echo '```toml intended-diffs'
     cat "$intended"
     echo '```'
+}
+
+# Legacy bundles carried their status lines in judge.md. Render it when
+# present so those bundles still validate; new bundles omit the file.
+emit_legacy_judge() {
+    local reader="$1"
+    [[ -f "$judge" ]] || return 0
+    echo
+    echo '### Judge (legacy)'
+    echo
+    "$reader" "$judge"
 }
 
 emit_attachments_section() {
@@ -137,13 +149,7 @@ EOF
     emit_intended_diffs
     emit_transcript_inline
 
-    cat <<EOF
-
-### Judge
-
-$(cat "$judge")
-EOF
-
+    emit_legacy_judge cat
     emit_attachments_section
 
     cat <<EOF
@@ -152,7 +158,7 @@ EOF
 EOF
 } >"$staged"
 
-# Cap individual section bodies so that even huge AC/evidence/judge
+# Cap individual section bodies so that even huge AC/evidence
 # files can't bust the comment ceiling. Each section is hard-truncated
 # to 15 000 bytes individually; when applied alongside the omitted
 # transcript section that leaves headroom under the 60 000 ceiling for
@@ -188,11 +194,8 @@ $(truncate_section_body "$evidence")
 ### Transcript
 
 _omitted from inline comment — exceeds GitHub comment-body byte cap. Drop the file referenced below into this PR comment via the GitHub UI to share the full capture._
-
-### Judge
-
-$(truncate_section_body "$judge")
 EOF
+    emit_legacy_judge truncate_section_body
     emit_attachments_section
     cat <<EOF
 
@@ -204,7 +207,7 @@ staged_bytes=$(wc -c <"$staged" | tr -d ' ')
 if [[ "$staged_bytes" -gt "$COMMENT_BYTE_CAP" ]]; then
     # First fallback: drop the inline transcript section. The transcript
     # file is still listed under "Artifacts" for upload via the GitHub
-    # UI. Re-check size after the rewrite — if AC/evidence/judge themselves
+    # UI. Re-check size after the rewrite — if AC/evidence themselves
     # are huge, hard-truncate each section so the comment always fits.
     emit_truncated_render >"$staged"
     staged_bytes=$(wc -c <"$staged" | tr -d ' ')

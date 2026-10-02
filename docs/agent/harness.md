@@ -1,6 +1,6 @@
 # Harness Map
 
-One-page index of every check, sensor, skill, and audit in this repository — the _machinery_ an agent (or contributor) interacts with as part of normal work. Everything here is referenced from `AGENTS.md` / `CLAUDE.md`; this page exists so you don't have to assemble the picture from a half-dozen separate docs.
+One-page index of every check, sensor, skill, and audit in this repository — the _machinery_ an agent (or contributor) interacts with as part of normal work. Everything here is referenced from `AGENTS.md`; this page exists so you don't have to assemble the picture from a half-dozen separate docs.
 
 The framing comes from OpenAI's [harness-engineering post](https://openai.com/index/harness-engineering/) — the scaffolding around a coding agent matters as much as the agent itself. Every sensor here has a single purpose: turn a recurring kind of mistake into something `cargo test` (or CI) catches automatically, with a self-correcting error message.
 
@@ -10,7 +10,6 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Edit a doc that links to a path                                                                            | Rejects broken relative Markdown links and nonexistent agent-path references | `limerick/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`)                                |
 | Track generated output, an oversized file, or an orphaned documentation screenshot                         | Repository-artifact gate fails with the exact policy violation               | `limerick/scripts/check-repository-artifacts.sh` (CI: `docs-consistency`, local: `just check`)                     |
-| Edit `AGENTS.md`                                                                                           | `CLAUDE.md` follows automatically                                            | `CLAUDE.md` is a symlink to `AGENTS.md`                                                                            |
 | Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate                                                  | Test fails citing the rule                                                   | `limerick/crates/limerick-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
 | Create a top-level module under `limerick/crates/limerick-engine/src/` that shadows one in `limerick-core` | Test fails with the canonical fix (extend the leaf crate)                    | `architecture_fitness.rs` → `limerick_engine_does_not_duplicate_limerick_core_modules`                             |
 | Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                                 | Test fails listing the orphan(s)                                             | `architecture_fitness.rs` → `no_orphaned_source_files`                                                             |
@@ -34,14 +33,14 @@ Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlin
 ## Quality gates in order
 
 ```text
-local:  just agent-check      # proof evidence + judge verdict + fast debt scan
+local:  just agent-check      # acceptance criteria + proof evidence + fast debt scan
         just check    # agent-check + fmt + clippy + test + witness-scan + doc/artifact checks
         just verify   # check + game-test fixture sweep
         just baselines        # only after intentional gameplay output changes (UPDATE_BASELINES=1)
         just harness-audit    # read-only coverage report
 
 CI fast lane (`ci.yml`):
-        agent-check           # proof evidence + judge verdict + fast debt scan
+        agent-check           # acceptance criteria + proof evidence + fast debt scan
         docs-consistency      # check-doc-paths + repository-artifacts
         format/python/shell/toml quality
         runtime-suite         # reusable full-ci.yml, runtime-change PRs only
@@ -71,11 +70,11 @@ cancellations, and unexpected skips fail closed.
 
 These rules are still **convention only** — no test enforces them. If you find yourself working around them, that's a candidate for the next sensor:
 
-- Tests with behavior changes — `AGENTS.md` §3
-- Content-level proof quality beyond the committed judge verdict — `AGENTS.md` §4 and §10
-- No unexplained `#[allow]` — `AGENTS.md` §5
-- Feature flags for new engine/gameplay features — `AGENTS.md` §6
-- Mode-parity _wiring_ (every IPC handler called from every entry point) — `AGENTS.md` §2 (the _dep-level_ part is enforced; the wiring part isn't). The per-turn **dialogue** chokepoint is no longer convention-only: all paths route through `limerick_core::game_session::apply_npc_dialogue_turn`, and `limerick-engine/tests/mode_parity.rs` (the parity _golden_) asserts the legacy harness path and the real `game_loop` publish an identical `GameEvent` stream (#1172 / #1173).
+- [Tests with behavior changes](engineering-rules.md#tests-with-behavior-changes)
+- Content-level proof quality: the gate checks that evidence exists and is labelled, not that it proves the criteria — [gameplay proof](engineering-rules.md#gameplay-proof), [truthful test automation](test-tooling-rules.md#truthful-test-automation); `/gatekeeper` and human review check it
+- [No unexplained `#[allow]`](engineering-rules.md#no-unexplained-allow)
+- [Feature flags](engineering-rules.md#feature-flags) for new engine/gameplay features
+- [Mode-parity](engineering-rules.md#mode-parity) _wiring_ (every IPC handler called from every entry point) (the _dep-level_ part is enforced; the wiring part isn't). The per-turn **dialogue** chokepoint is no longer convention-only: all paths route through `limerick_core::game_session::apply_npc_dialogue_turn`, and `limerick-engine/tests/mode_parity.rs` (the parity _golden_) asserts the legacy harness path and the real `game_loop` publish an identical `GameEvent` stream (#1172 / #1173).
 
 ## Turning a recurring mistake into a sensor
 

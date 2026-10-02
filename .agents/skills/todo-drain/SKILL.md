@@ -1,13 +1,9 @@
 ---
-name: 'source-command-todo-drain'
+name: todo-drain
 description: "Drain TODO.md demo-audit findings in parallel rounds \u2014 AC-first, live proof, attach bundle, retrigger CI as needed, land green PRs while next round is in flight."
 ---
 
-# source-command-todo-drain
-
-Use this skill when the user asks to run the migrated source command `todo-drain`.
-
-## Command Template
+# todo-drain
 
 Land fixes from `TODO.md` (Rundale demo-audit findings). Run rounds in parallel — start the next round while the previous PR's CI runs.
 
@@ -19,7 +15,7 @@ Never work in the main repo directory — other sessions may be using it. Switch
 
 ```sh
 git fetch origin main
-git worktree add .codex/worktrees/round-<n> -b codex/round-<n> origin/main
+git worktree add .worktrees/round-<n> -b round-<n> origin/main
 ```
 
 Then move execution to that path so all subsequent commands run inside the worktree.
@@ -77,27 +73,17 @@ First line must be `Evidence type: live gameplay transcript`. Include:
 - Transcript excerpt.
 - "Why this fixes #N" explainer.
 - "Deferred items" section listing what was punted with a follow-up plan.
+- Risk check: save compatibility, prompt budget, mode parity, architecture fitness.
+- Final line: `Acceptance criteria: met`.
 
-## 8. Write judge.md
-
-Independent verdict. Must end with all three lines verbatim:
-
-```text
-Verdict: sufficient
-Technical debt: clear
-Acceptance criteria: met
-```
-
-Include risk-check (save compatibility, prompt budget, mode parity, architecture-fitness) and an acceptance-criteria audit table.
-
-## 9. Commit + push + PR
+## 8. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
 - Body explains the _why_, not the _what_. Do not add a Claude-specific co-author trailer unless the user explicitly asks for it.
 - PR title prefix matches commit.
 - PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
 
-## 10. Attach proof bundle
+## 9. Attach proof bundle
 
 From the worktree:
 
@@ -107,9 +93,9 @@ bash limerick/scripts/attach-proof.sh todo-<id> <pr-num>
 
 Do NOT call `just attach-proof` from a worktree — that uses the main repo's `justfile` and posts the wrong bundle.
 
-## 11. Start next round immediately
+## 10. Start next round immediately
 
-Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b codex/round-<n+1>` and repeat 2-10.
+Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b round-<n+1>` and repeat 2-9.
 
 Keep a running `Monitor` of all in-flight PRs:
 
@@ -131,7 +117,7 @@ done
 echo "ALL TERMINAL"
 ```
 
-## 12. Land green PRs
+## 11. Land green PRs
 
 When monitor reports green:
 
@@ -174,4 +160,4 @@ Stop when:
 
 ## Tooling Notes
 
-The source command assumed shell, file editing, worktree switching, monitoring, task tracking, and skill invocation tools. In Codex, use the available equivalents; when a dedicated worktree or monitor tool is unavailable, use plain `git worktree` commands and concise status updates.
+If your harness lacks a dedicated worktree or monitor tool, use plain `git worktree` commands and concise status updates.

@@ -6,12 +6,11 @@ argument-hint: 'PR number (e.g. "842"). If omitted, use the PR for the current b
 
 Drive one PR to merge. Sequential, not parallel — this skill is for finishing a specific PR cleanly. Use `drain-backlog` for bulk sweeps.
 
-Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gates: `just check` (fmt + clippy + tests + witness-scan + check-doc-paths). See [`docs/agent/git-workflow.md`](../../../docs/agent/git-workflow.md) and CLAUDE.md non-negotiables (mode parity, feature-flag gating, README freshness).
+Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gates: `just check` (fmt + clippy + tests + witness-scan + check-doc-paths). See [`docs/agent/git-workflow.md`](../../../docs/agent/git-workflow.md) and the [engineering rules](../../../docs/agent/engineering-rules.md) (mode parity, feature-flag gating, README freshness).
 
 ## Steps
 
 1. **Resolve target PR.**
-
    - If `$ARGUMENTS` set → `PR=$ARGUMENTS`.
    - Else → `PR=$(gh pr view --json number --jq .number)` from current branch. If none, stop and ask.
    - Fetch state in one call:
@@ -32,14 +31,12 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
      ```
 
 2. **Pre-flight gates.**
-
    - `state == OPEN` and `isDraft == false`. If draft, ask the user before marking ready.
    - `baseRefName == main` (or whatever the user expects).
    - Title prefix is conventional (`feat:`/`fix:`/`refactor:`/`docs:`/`test:`/`chore:`/`security:`/`perf:`). If not, fix the title via `gh pr edit $PR --title "<new>"` — required by branch protection convention.
    - PR body has `Fixes #N` / `Closes #N` for any issue it claims to resolve, so squash-merge auto-closes them.
 
 3. **Rebase if DIRTY/BEHIND.** When `mergeStateStatus` is `DIRTY` or `BEHIND`:
-
    - Check out the PR branch in a clean worktree:
 
      ```sh
@@ -57,7 +54,6 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - `git push` (no force; merges advance the branch fast-forward; relies on `gh pr checkout`'s tracking config so fork PRs work too).
 
 4. **Address unaddressed bot review threads.**
-
    - Inline threads:
 
      ```sh
@@ -83,7 +79,6 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
      ```
 
    - For each unaddressed thread/review:
-
      - Read the cited path/line. Decide: **act** (legitimate bug/nit) or **dismiss** (false positive, out-of-scope, intentional).
      - Acting: edit code. Re-run `just check`. Commit (`fix: address <bot> review on <path>`). Push.
      - Resolve the thread once the fix lands:
@@ -97,7 +92,6 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - **Bots COMMENT but never APPROVE.** Don't gate on `reviewDecision == APPROVED`; gate on threads-resolved + CI green.
 
 5. **Fix CI.** Refetch `statusCheckRollup`. For every check that isn't `SUCCESS` or `NEUTRAL`:
-
    - Pull logs:
 
      ```sh
@@ -113,7 +107,6 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - Loop until all `Rust*` / `UI*` / `Full*` checks are SUCCESS.
 
 6. **Final merge gate.** All of:
-
    - `state == OPEN`, not draft.
    - `mergeStateStatus == CLEAN` (or `HAS_HOOKS` — both mergeable).
    - All required checks SUCCESS.
@@ -140,7 +133,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
 ## Notes
 
 - **Why merge-not-rebase in step 3.** Bot review threads anchor to commit SHAs. `git rebase` + force-push detaches them as `outdated`, which both hides feedback and forces the bots to re-review from scratch. `git merge origin/main` preserves history and thread anchors. The user's drain-backlog skill follows the same convention.
-- **Mode parity (CLAUDE.md rule #2).** If the PR touches IPC handlers or shared logic, verify the change is wired through Tauri, web, and CLI entry points before merging. Architecture-fitness tests catch some of this; wiring parity is still convention.
-- **Feature flag gate (CLAUDE.md rule #6).** New engine/gameplay features must be wrapped in `config.flags.is_enabled("feature-name")` and noted in the PR body. Reject the merge if missing — push back to the PR author or fix it inline.
-- **README freshness (CLAUDE.md rule #7).** If the PR adds/removes a feature visible in the feature list or changes deps, ensure `README.md` and `just notices` were run. If not, do it before merging.
+- **[Mode parity](../../../docs/agent/engineering-rules.md#mode-parity).** If the PR touches IPC handlers or shared logic, verify the change is wired through Tauri, web, and CLI entry points before merging. Architecture-fitness tests catch some of this; wiring parity is still convention.
+- **Feature flag gate ([feature flags](../../../docs/agent/engineering-rules.md#feature-flags)).** New engine/gameplay features must be wrapped in `config.flags.is_enabled("feature-name")` and noted in the PR body. Reject the merge if missing — push back to the PR author or fix it inline.
+- **README freshness ([README maintenance](../../../docs/agent/engineering-rules.md#readme-maintenance)).** If the PR adds/removes a feature visible in the feature list or changes deps, ensure `README.md` and `just notices` were run. If not, do it before merging.
 - **Out of scope.** This skill lands ONE PR. For multi-PR sweeps, use `drain-backlog`. For rebasing the current branch onto main without merging, use `rebase`.

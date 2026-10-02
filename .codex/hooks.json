@@ -31,15 +31,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--compact-context.sh'"
-          }
-        ],
-        "matcher": "compact"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--install-system-deps.sh'"
           },
           {
@@ -52,20 +43,6 @@
           }
         ],
         "matcher": "startup|resume|clear"
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--commit-msg-check.sh'"
-          },
-          {
-            "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--acceptance-criteria-reminder.sh'"
-          }
-        ]
       }
     ]
   }

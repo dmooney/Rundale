@@ -15,8 +15,8 @@ Ships both a library (`limerick_server::run_server`) and a binary (`src/main.rs`
 
 ## Local gotchas
 
-- **Cross-runtime orchestration belongs in `limerick-core` (rule #12).** New game-loop / IPC handlers must live in `limerick-core` parameterized over `EventEmitter`; this crate provides only the Axum/WS adapter. Copy-pasting from `limerick-tauri` is forbidden (#687, #696).
-- **Resolve runtime paths from config, not cwd (rule #9).** Never call `current_dir()` in handlers — use `AppState`-stored paths. Use `limerick_persistence::picker::resolve_project_saves_dir`.
+- **[Cross-runtime orchestration](../../../docs/agent/engineering-rules.md#cross-runtime-orchestration) belongs in `limerick-core`.** New game-loop / IPC handlers must live in `limerick-core` parameterized over `EventEmitter`; this crate provides only the Axum/WS adapter. Copy-pasting from `limerick-tauri` is forbidden (#687, #696).
+- **Resolve runtime paths from config, not cwd ([runtime paths](../../../docs/agent/persistence-and-session-rules.md#runtime-paths)).** Never call `current_dir()` in handlers — use `AppState`-stored paths. Use `limerick_persistence::picker::resolve_project_saves_dir`.
 - **Per-visitor session isolation.** Each visitor gets its own session with persisted save state; auth + lifecycle in `auth.rs`, `cf_auth.rs`, `middleware.rs`, `session.rs`, `session/`, `state.rs`.
 - **No `axum`/`tower*` leakage (enforced).** These types must not appear in `limerick-core` or leaf crates.
 

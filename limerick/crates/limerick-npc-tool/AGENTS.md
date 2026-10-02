@@ -15,7 +15,7 @@ cargo test -p limerick-npc-tool                              # unit
 
 ## Local gotchas
 
-- **Dev-time only — no mode parity (rule #2).** Not wired into `limerick-engine`, `limerick-server`, or `limerick-tauri`.
+- **Dev-time only — no [mode parity](../../../docs/agent/engineering-rules.md#mode-parity).** Not wired into `limerick-engine`, `limerick-server`, or `limerick-tauri`.
 - **Binary-only crate.** All logic in `src/main.rs`; no library surface. Consume output JSON or invoke as a subprocess.
 - **Depends on `limerick-npc` for typed NPC schema** (`NpcFile`/`NpcFileEntry`) — gives deterministic field ordering that `serde_json::Value` cannot (TD-001). Does not depend on `limerick-core`; `rusqlite` and generation deps stay out of the engine.
 - **Owns its own SQLite schema.** Parish/household/NPC tables (#434) diverge from `limerick-persistence`'s branch-keyed save format; migrations are independent.

@@ -19,7 +19,7 @@
 
 - [ ] Acceptance criteria and evidence are embedded in this PR body through the `limerick-proof-bundle` fence when proof-relevant files change.
 - [ ] Evidence is a gameplay transcript, screenshot, GIF, or live measurement with the required `Evidence type: live ...` header for runtime changes.
-- [ ] The independent judge records `Verdict: sufficient`, `Technical debt: clear`, and `Acceptance criteria: met`.
+- [ ] The evidence maps every acceptance criterion to the transcript lines or artifacts that show it, and states `Acceptance criteria: met`.
 - [ ] Documentation/CI-only change: proof bundle is not required and the reason is stated below.
 
 Proof exemption reason, if applicable: <!-- N/A unless documentation/CI-only -->

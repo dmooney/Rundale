@@ -2,14 +2,16 @@
 
 These rules govern prompt grounding, model output application, provider
 termination, and qualification evidence. See [engineering-rules.md](engineering-rules.md)
-for the complete numbered map.
+for the complete rule index.
 
-Rule 36 is a specialized maintenance policy for the existing local-inference
+[Local-inference promotion](#local-inference-promotion) is a specialized maintenance policy for the existing local-inference
 promotion and setup systems. It is not a requirement for mobile feature work.
 When a local preset is promoted, the complete rule applies; this scope note
 does not waive the cross-cutting inference, state, or evidence rules.
 
-Rules 15 and 33 describe the desktop in-process pipeline. They do not apply to
+[Dialogue prompt grounding](#dialogue-prompt-grounding) and
+[canonical semantic model apply](#canonical-semantic-model-apply) describe the
+desktop in-process pipeline. They do not apply to
 the mobile Endpoint path (owner decision, 2026-09-28): the Limerick Endpoint
 definition owns prompt construction and grounding; the app streams reply text
 into the transcript as it arrives, marked provisional; the engine commits the
@@ -17,14 +19,15 @@ final reply after structural checks only (a complete, schema-valid, non-empty
 result), with no semantic content guards such as invented-person or
 invented-place detection. Grounding quality is fixed through the Endpoint
 definition and model, not engine rewrites. Stop or a failed call leaves the
-partial text visibly uncommitted, with no state effects. Rule 37 still applies:
+partial text visibly uncommitted, with no state effects. [Model termination](#model-termination) still applies:
 only a successful terminal result is committed. Desktop keeps its guards
 unchanged. The switch is the `dialogue-content-guards` flag
 (`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`), which the mobile host disables.
 
+<a id="dialogue-prompt-grounding"></a>
 <a id="rule-15"></a>
 
-## Rule 15 — **Dialogue prompts must ground the model in the actual world:**
+## Dialogue prompts must ground the model in the actual world
 
 Every NPC system prompt includes a `PEOPLE YOU KNOW` and a `PLACES IN THIS
 LIMERICK` list with instructions to decline to confirm anyone or anywhere not on
@@ -33,9 +36,10 @@ them. Enforcement: `build_enhanced_system_prompt_with_config` in
 production); test: `limerick-core/tests/dialogue_prompt_anchor.rs`; flag
 `npc-dialogue-grounding`, default-on (#1394).
 
+<a id="canonical-semantic-model-apply"></a>
 <a id="rule-33"></a>
 
-## Rule 33 — **Validate semantic model output at the canonical apply seam:**
+## Validate semantic model output at the canonical apply seam
 
 Prompt contracts and deterministic guards must share canonical constants. Treat
 player-visible model dialogue as an effect: quarantine candidate tokens until
@@ -52,9 +56,10 @@ response before effects. Multi-turn pronouns may carry an unresolved person/plac
 only through a bounded typed conversation context and only while the referent
 is unambiguous (#1776, #1779, #1786, #1788–#1790, #1832, #1834, #1839–#1841).
 
+<a id="local-inference-promotion"></a>
 <a id="rule-36"></a>
 
-## Rule 36 — **Promote local-inference presets only from passing production evidence:**
+## Promote local-inference presets only from passing production evidence
 
 A recommended model/backend/sampling/hardware profile requires a
 content-addressed promotion receipt from the frozen production-prompt holdout
@@ -64,9 +69,10 @@ Development-split scores, preliminary leaderboard rows, hand-entered
 summaries, and average quality alone must never change a shipped
 recommendation.
 
+<a id="model-termination"></a>
 <a id="rule-37"></a>
 
-## Rule 37 — **Treat model termination as part of the response contract:**
+## Treat model termination as part of the response contract
 
 Streaming provider clients must reject every non-success finish reason (for
 example `length` / `MAX_TOKENS`) instead of parsing or displaying the partial
@@ -74,9 +80,10 @@ body. Mandatory-reasoning profiles must budget and measure reasoning-token
 headroom separately from the player-visible response; a low effort label is
 not a token ceiling.
 
+<a id="serving-topology-qualification"></a>
 <a id="rule-38"></a>
 
-## Rule 38 — **Separate qualification policy by serving topology:**
+## Separate qualification policy by serving topology
 
 Local promotion latency gates must not be reused for routed cloud models. A
 promotion receipt is valid only for the exact provider and API route measured;
@@ -86,9 +93,10 @@ completeness, and request reliability; latency and throughput rank qualified
 profiles unless a separately measured product SLO explicitly makes one a
 release gate.
 
+<a id="judge-evidence"></a>
 <a id="rule-39"></a>
 
-## Rule 39 — **Give judges the complete evidence needed by their rubric:**
+## Give judges the complete evidence needed by their rubric
 
 Any quality axis that depends on system-prompt facts—character identity, mood
 contract, known people, known places, or period rules—must receive those exact
@@ -96,9 +104,10 @@ production facts in the judge bundle. Persist every paid judge attempt before
 validation, journal retries immutably, and trip a batch-wide circuit breaker on
 authentication, billing, quota, or rate-limit failures.
 
+<a id="independent-judge-families"></a>
 <a id="rule-40"></a>
 
-## Rule 40 — **Cloud dialogue qualification requires independent judge families:**
+## Cloud dialogue qualification requires independent judge families
 
 Never let a model family vote on itself. A promotable cloud profile needs at
 least two eligible judge families, uses the policy-defined consensus statistic,

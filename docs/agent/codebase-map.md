@@ -6,41 +6,41 @@ are likely to see. Scoped instructions live in `AGENTS.md`.
 
 ## Repository Layout
 
-| Path                                              | Purpose                                                                      | Entry / key file                        | Scope doc                                     |
-| ------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| `AGENTS.md`                                       | Repo-wide agent instructions                                                 | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                  |
-| `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)      | -                                             |
-| `limerick/`                                       | Main Rust workspace and frontend workspace for the Limerick engine           | [Cargo.toml](../../limerick/Cargo.toml) | -                                             |
-| `limerick/crates/`                                | 24 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Limerick crates](#limerick-crates) | per crate                                     |
-| `limerick/apps/ui/`                               | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`               | [AGENTS.md](../../limerick/apps/ui/AGENTS.md) |
-| `limerick/testing/`                               | Asserted scenarios, legacy fixtures, proof scripts, evals, and test data     | `scenarios/`, `fixtures/`, `proofs/`    | [AGENTS.md](../../limerick/testing/AGENTS.md) |
-| `limerick/scripts/`                               | Check, proof, MCP-backend, screenshot, and release helper scripts            | `*.sh`, `*.py`                          | -                                             |
-| `limerick/assets/`                                | Bundled app assets such as fonts                                             | `fonts/`                                | -                                             |
-| `limerick/dist/`                                  | Runtime distribution helpers and local model/proxy assets                    | `vllm-mlx/`                             | -                                             |
-| `mods/`                                           | Game/content mods, provider mods, and settings mods                          | `mod-list.toml`, provider dirs          | -                                             |
-| `mods/rundale/`                                   | Rundale content: the canonical tiny world (spec §14), prompts, palette       | `mod.toml`, `world-sheet.txt`           | [AGENTS.md](../../mods/rundale/AGENTS.md)     |
-| `mods/testbed/`                                   | Small settings/content mod for deterministic tests                           | `mod.toml`                              | -                                             |
-| `limerick/testing/fixtures/mods/rundale-legacy/`  | Large 1820 world kept as test data for engine tests                          | `mod.toml`                              | -                                             |
-| `rundale-bench/`                                  | v1 dialogue benchmark, candidate configs, and bench artifacts                | `candidates_*.toml`, `artifacts/`       | -                                             |
-| `promptfoo/`                                      | v2 benchmark of record + generated GitHub Pages site (`bench-site/`)         | `leaderboard/`, `bench-site/`           | -                                             |
-| `docs/`                                           | Project documentation hub                                                    | [`index.md`](../index.md)               | -                                             |
-| `docs/agent/`                                     | Agent-facing engineering docs                                                | [`README.md`](README.md)                | -                                             |
-| `docs/graphics-v2/`                               | Visual-client research, art provenance, and reproducible rendering evidence  | [`README.md`](../graphics-v2/README.md) | [AGENTS.md](../graphics-v2/AGENTS.md)         |
-| `docs/proofs/`                                    | Ignored local/iCloud proof archives (`local-perf/`, `rundale-bench/`)        | -                                       | -                                             |
-| `docs/screenshots/`                               | Current, referenced documentation images                                     | `*.png`                                 | -                                             |
-| `docs/adr/`, `docs/design/`, `docs/plans/`        | Architecture records, design notes, and planning docs                        | `*.md`                                  | -                                             |
-| `docs/research/`, `docs/reviews/`, `docs/audits/` | Research notes, review artifacts, and audits                                 | `*.md`                                  | -                                             |
-| `deploy/`                                         | Packaging and release artifacts                                              | `Dockerfile`                            | -                                             |
-| `scripts/`                                        | Root-level utility scripts outside the Limerick workspace                    | `loc_projection.py`                     | -                                             |
-| `crates/`                                         | Root-level Rust examples/experiments outside the Limerick workspace          | `limerick-world/examples/`              | -                                             |
-| `.agents/`                                        | Tool-agnostic agent assets and source skills                                 | `skills/`                               | -                                             |
-| `.claude/`                                        | Claude Code hooks, commands, agents, and local settings                      | `settings.json`, `hooks/`               | -                                             |
-| `.claude-plugin/`                                 | Distributable Rundale plugin manifest                                        | `plugin.json`                           | -                                             |
-| `.codex/`                                         | Codex project skill/config assets                                            | `skills/`                               | -                                             |
-| `.opencode/`                                      | opencode agents, commands, skills, tools, and plugin config                  | `opencode.jsonc`, `skills/`             | -                                             |
-| `.github/`                                        | GitHub workflows, commands, labels, and PR template                          | `workflows/`                            | -                                             |
-| `.devcontainer/`                                  | Dev container image and editor setup                                         | `devcontainer.json`                     | -                                             |
-| `.vscode/`                                        | Workspace editor tasks, launch configs, and settings                         | `settings.json`, `tasks.json`           | -                                             |
+| Path                                              | Purpose                                                                           | Entry / key file                        | Scope doc                                     |
+| ------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
+| `AGENTS.md`                                       | Repo-wide agent instructions                                                      | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                  |
+| `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                     | [LEARNINGS.md](../../LEARNINGS.md)      | -                                             |
+| `limerick/`                                       | Main Rust workspace and frontend workspace for the Limerick engine                | [Cargo.toml](../../limerick/Cargo.toml) | -                                             |
+| `limerick/crates/`                                | 24 Rust workspace crates: binaries, composition crate, and leaf logic crates      | see [Limerick crates](#limerick-crates) | per crate                                     |
+| `limerick/apps/ui/`                               | Svelte 5 + TypeScript frontend shared by desktop and web modes                    | `src/routes/`, `src/lib/`               | [AGENTS.md](../../limerick/apps/ui/AGENTS.md) |
+| `limerick/testing/`                               | Asserted scenarios, legacy fixtures, proof scripts, evals, and test data          | `scenarios/`, `fixtures/`, `proofs/`    | [AGENTS.md](../../limerick/testing/AGENTS.md) |
+| `limerick/scripts/`                               | Check, proof, MCP-backend, screenshot, and release helper scripts                 | `*.sh`, `*.py`                          | -                                             |
+| `limerick/assets/`                                | Bundled app assets such as fonts                                                  | `fonts/`                                | -                                             |
+| `limerick/dist/`                                  | Runtime distribution helpers and local model/proxy assets                         | `vllm-mlx/`                             | -                                             |
+| `mods/`                                           | Game/content mods, provider mods, and settings mods                               | `mod-list.toml`, provider dirs          | -                                             |
+| `mods/rundale/`                                   | Rundale content: the canonical tiny world (spec §14), prompts, palette            | `mod.toml`, `world-sheet.txt`           | [AGENTS.md](../../mods/rundale/AGENTS.md)     |
+| `mods/testbed/`                                   | Small settings/content mod for deterministic tests                                | `mod.toml`                              | -                                             |
+| `limerick/testing/fixtures/mods/rundale-legacy/`  | Large 1820 world kept as test data for engine tests                               | `mod.toml`                              | -                                             |
+| `rundale-bench/`                                  | v1 dialogue benchmark, candidate configs, and bench artifacts                     | `candidates_*.toml`, `artifacts/`       | -                                             |
+| `promptfoo/`                                      | v2 benchmark of record + generated GitHub Pages site (`bench-site/`)              | `leaderboard/`, `bench-site/`           | -                                             |
+| `docs/`                                           | Project documentation hub                                                         | [`index.md`](../index.md)               | -                                             |
+| `docs/agent/`                                     | Agent-facing engineering docs                                                     | [`README.md`](README.md)                | -                                             |
+| `docs/graphics-v2/`                               | Visual-client research, art provenance, and reproducible rendering evidence       | [`README.md`](../graphics-v2/README.md) | [AGENTS.md](../graphics-v2/AGENTS.md)         |
+| `docs/proofs/`                                    | Ignored local/iCloud proof archives (`local-perf/`, `rundale-bench/`)             | -                                       | -                                             |
+| `docs/screenshots/`                               | Current, referenced documentation images                                          | `*.png`                                 | -                                             |
+| `docs/adr/`, `docs/design/`, `docs/plans/`        | Architecture records, design notes, and planning docs                             | `*.md`                                  | -                                             |
+| `docs/research/`, `docs/reviews/`, `docs/audits/` | Research notes, review artifacts, and audits                                      | `*.md`                                  | -                                             |
+| `deploy/`                                         | Packaging and release artifacts                                                   | `Dockerfile`                            | -                                             |
+| `scripts/`                                        | Root-level utility scripts outside the Limerick workspace                         | `loc_projection.py`                     | -                                             |
+| `crates/`                                         | Root-level Rust examples/experiments outside the Limerick workspace               | `limerick-world/examples/`              | -                                             |
+| `.agents/`                                        | Tool-agnostic agent assets and source skills                                      | `skills/`                               | -                                             |
+| `.claude/`                                        | Claude Code hooks, agents, and local settings; `skills` links to `.agents/skills` | `settings.json`, `hooks/`               | -                                             |
+| `.claude-plugin/`                                 | Distributable Rundale plugin manifest                                             | `plugin.json`                           | -                                             |
+| `.codex/`                                         | Codex project skill/config assets                                                 | `skills/`                               | -                                             |
+| `.opencode/`                                      | opencode agents, commands, skills, tools, and plugin config                       | `opencode.jsonc`, `skills/`             | -                                             |
+| `.github/`                                        | GitHub workflows, commands, labels, and PR template                               | `workflows/`                            | -                                             |
+| `.devcontainer/`                                  | Dev container image and editor setup                                              | `devcontainer.json`                     | -                                             |
+| `.vscode/`                                        | Workspace editor tasks, launch configs, and settings                              | `settings.json`, `tasks.json`           | -                                             |
 
 ## Limerick Crates
 
@@ -75,13 +75,13 @@ The Limerick workspace currently has 24 crates under `limerick/crates/`.
 
 ## Local / Generated Paths
 
-| Path                            | Purpose                                                              | Commit policy            |
-| ------------------------------- | -------------------------------------------------------------------- | ------------------------ |
-| `.proofs/`                      | Per-task proof bundles for rule #10, posted with `just attach-proof` | gitignored; never commit |
-| .worktrees/, .claude/worktrees/ | Local agent worktrees and temporary branches                         | local/generated          |
-| logs/, saves/                   | Root-level runtime output from local runs                            | local/generated          |
-| limerick/logs/, limerick/saves/ | Limerick workspace runtime output and local save branches            | local/generated          |
-| limerick/target/                | Cargo build artifacts, coverage, and temp output                     | local/generated          |
+| Path                            | Purpose                                                                                                                                | Commit policy            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `.proofs/`                      | Per-task proof bundles for [truthful test automation](test-tooling-rules.md#truthful-test-automation), posted with `just attach-proof` | gitignored; never commit |
+| .worktrees/, .claude/worktrees/ | Local agent worktrees and temporary branches                                                                                           | local/generated          |
+| logs/, saves/                   | Root-level runtime output from local runs                                                                                              | local/generated          |
+| limerick/logs/, limerick/saves/ | Limerick workspace runtime output and local save branches                                                                              | local/generated          |
+| limerick/target/                | Cargo build artifacts, coverage, and temp output                                                                                       | local/generated          |
 
 ## Entry points (binaries)
 

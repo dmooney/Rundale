@@ -27,7 +27,7 @@ its parent initiative is important.
 | `refactor`      | Code quality, structural change, no behavior change.                                                             |
 | `frontend`      | Anything in `limerick/apps/ui/` — Svelte components, MapLibre, styles.                                           |
 | `a11y`          | Accessibility-specific (keyboard nav, ARIA, contrast). Pair with `frontend`.                                     |
-| `mode-parity`   | Tauri / web server / headless CLI behavioral divergence (project rule #2).                                       |
+| `mode-parity`   | Tauri / web server / headless CLI behavioral divergence ([mode parity](engineering-rules.md#mode-parity)).       |
 | `npc-reactions` | The LLM-driven NPC-reaction subsystem.                                                                           |
 | `witness-scan`  | The `/witness` verification workflow tooling.                                                                    |
 | `infra`         | CI, deploy, Docker, Cloudflare, GitHub Actions, runners.                                                         |
