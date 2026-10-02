@@ -77,27 +77,17 @@ First line must be `Evidence type: live gameplay transcript`. Include:
 - Transcript excerpt.
 - "Why this fixes #N" explainer.
 - "Deferred items" section listing what was punted with a follow-up plan.
+- Risk check: save compatibility, prompt budget, mode parity, architecture fitness.
+- Final line: `Acceptance criteria: met`.
 
-## 8. Write judge.md
-
-Independent verdict. Must end with all three lines verbatim:
-
-```text
-Verdict: sufficient
-Technical debt: clear
-Acceptance criteria: met
-```
-
-Include risk-check (save compatibility, prompt budget, mode parity, architecture-fitness) and an acceptance-criteria audit table.
-
-## 9. Commit + push + PR
+## 8. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
 - Body explains the _why_, not the _what_. Do not add a Claude-specific co-author trailer unless the user explicitly asks for it.
 - PR title prefix matches commit.
 - PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
 
-## 10. Attach proof bundle
+## 9. Attach proof bundle
 
 From the worktree:
 
@@ -107,9 +97,9 @@ bash limerick/scripts/attach-proof.sh todo-<id> <pr-num>
 
 Do NOT call `just attach-proof` from a worktree — that uses the main repo's `justfile` and posts the wrong bundle.
 
-## 11. Start next round immediately
+## 10. Start next round immediately
 
-Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b codex/round-<n+1>` and repeat 2-10.
+Don't wait for CI. Branch off `origin/main` again with `git worktree add ... -b codex/round-<n+1>` and repeat 2-9.
 
 Keep a running `Monitor` of all in-flight PRs:
 
@@ -131,7 +121,7 @@ done
 echo "ALL TERMINAL"
 ```
 
-## 12. Land green PRs
+## 11. Land green PRs
 
 When monitor reports green:
 

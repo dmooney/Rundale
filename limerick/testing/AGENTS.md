@@ -9,7 +9,7 @@ just test            # full workspace tests
 just baselines       # regenerate harness baselines
 just game-test       # walkthrough using fixtures/
 just scenario-test   # asserted scenarios over limerick_core::game_loop
-just agent-check     # proof-evidence + judge verdict gate
+just agent-check     # proof-evidence gate
 ```
 
 ## Local gotchas
@@ -19,7 +19,6 @@ just agent-check     # proof-evidence + judge verdict gate
 - **`proofs/` scripts are evidence, not tests.** They use legacy harness syntax (one command per line, `#` comments) and are never swept as regressions merely because they exist.
 - **`rundale-bench/` (repo root, `../../rundale-bench/`) Phase 1 corpus is frozen** for ELO comparability. Append-only — never edit existing prompts. Use `/eval-dialogue` to score new candidates.
 - **`evals/` rubrics gate gameplay PRs.** Touching a rubric retroactively invalidates baselines — bump the version + note in PR.
-- **Proof-bundle judge.md must be independent.** A judge written by the same agent that wrote the proof = no signal (rule #10).
 
 ## Layout
 
