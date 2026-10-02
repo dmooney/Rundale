@@ -70,6 +70,12 @@ pub struct LoadingConfig {
     /// back to a blank line.
     #[serde(default)]
     pub idle_messages: Vec<String>,
+    /// The line shown when a remote model call fails, keyed by why it
+    /// failed (`offline`, `busy`, `unavailable`, `timed_out`, `refused`,
+    /// `garbled`, `cancelled`). A reason with no line shows the engine's
+    /// generic retry line.
+    #[serde(default)]
+    pub failure_lines: std::collections::BTreeMap<String, String>,
 }
 
 /// Sidebar section of the UI configuration.

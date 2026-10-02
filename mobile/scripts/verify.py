@@ -1728,6 +1728,7 @@ class VerificationRun:
                 "RundaleUITests/RundalePhase2UITests",
                 "RundaleUITests/RundaleSceneUITests",
                 "RundaleUITests/RundaleCommandsUITests",
+                "RundaleUITests/RundaleFailureLinesUITests",
                 "RundaleTests/RundaleEngineLifecycleTests",
             ],
         )

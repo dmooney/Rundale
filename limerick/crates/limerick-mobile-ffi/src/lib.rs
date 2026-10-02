@@ -32,7 +32,7 @@ use std::str;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use limerick_core::turn_inference::InferenceFailureKind;
+use limerick_core::turn_inference::{FailureReason, InferenceFailureKind};
 use serde_json::{Map, Value, json};
 
 use session::{OpError, OpenMode, OpenOptions, Session};
@@ -252,6 +252,12 @@ fn limit(object: &Map<String, Value>) -> Result<usize, OpError> {
     }
 }
 
+/// Why a call failed, as the player should hear it (a mod `failure_lines` key).
+fn failure_reason(raw: &str) -> Result<FailureReason, OpError> {
+    FailureReason::from_key(raw)
+        .ok_or_else(|| OpError::new("protocol_error", format!("unknown failure reason `{raw}`")))
+}
+
 fn failure_kind(raw: &str) -> Result<InferenceFailureKind, OpError> {
     match raw {
         "transport" | "missing_terminal" => Ok(InferenceFailureKind::Transport),
@@ -299,6 +305,9 @@ fn run_operation(session: &mut Session, object: &Map<String, Value>) -> Result<V
             required_number(object, "base_revision")?,
             failure_kind(&string_field(object, "error_kind")?)?,
             optional_string(object, "message")?.unwrap_or_default(),
+            optional_string(object, "reason")?
+                .map(|key| failure_reason(&key))
+                .transpose()?,
         ),
         "frame" => Ok(session.frame(
             &string_field(object, "call_id")?,

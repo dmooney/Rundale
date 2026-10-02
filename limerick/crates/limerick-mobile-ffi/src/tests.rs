@@ -566,6 +566,69 @@ fn stop_wins_and_a_late_result_cannot_commit_until_a_retry_runs_a_new_attempt() 
     assert_eq!(revision(&game.snapshot()), base + 1);
 }
 
+/// A failed dialogue call shows the mod's line for the reason the host gave
+/// (`mods/rundale/loading.toml` `[failure_lines]`), or the engine's generic
+/// retry line when the host gave none.
+#[test]
+fn a_failed_call_shows_the_mods_line_for_its_reason() {
+    let game_mod =
+        limerick_core::game_mod::GameMod::load(&repo_root().join("mods/rundale")).unwrap();
+    let lines = &game_mod.loading.failure_lines;
+    let mut shown = std::collections::BTreeSet::new();
+    for reason in limerick_core::turn_inference::FailureReason::ALL
+        .map(|reason| Some(reason.key()))
+        .into_iter()
+        .chain([None])
+    {
+        let (game, _) = Game::new();
+        game.go_to_the_cottage();
+        let submitted = game.submit("Mícheál, how are the cattle this week?");
+        let dialogue = game.until_dialogue(submitted);
+        let mut failure = json!({
+            "op": "fail",
+            "call_id": dialogue["callID"],
+            "attempt_id": dialogue["attemptID"],
+            "base_revision": dialogue["baseRevision"],
+            "error_kind": "transport",
+            "message": "diagnostic only",
+        });
+        if let Some(reason) = reason {
+            failure["reason"] = json!(reason);
+        }
+        let failed = game.op(failure);
+        assert_eq!(failed["terminalOutcome"], "failed", "{failed}");
+        let errors = events_of_kind(&failed, "error");
+        let line = errors[0]["content"].as_str().unwrap();
+        assert!(!line.contains("diagnostic only"), "{line}");
+        match reason {
+            Some(reason) => assert_eq!(line, lines[reason], "{reason}"),
+            None => assert_eq!(
+                line,
+                limerick_core::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE
+            ),
+        }
+        shown.insert(line.to_string());
+    }
+    assert_eq!(shown.len(), 8, "every reason has its own line");
+
+    let (game, _) = Game::new();
+    game.go_to_the_cottage();
+    let dialogue = game.until_dialogue(game.submit("Mícheál, how are the cattle?"));
+    let (status, envelope) = game.dispatch(json!({
+        "op": "fail",
+        "call_id": dialogue["callID"],
+        "attempt_id": dialogue["attemptID"],
+        "base_revision": dialogue["baseRevision"],
+        "error_kind": "transport",
+        "reason": "gremlins",
+    }));
+    assert_eq!(
+        status,
+        limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR
+    );
+    assert_eq!(envelope["error"]["code"], "protocol_error", "{envelope}");
+}
+
 // Oracle: `failed_attempt_can_retry_with_new_attempt_identity`,
 // `correlated_endpoint_failure_is_terminal_and_retryable`,
 // `endpoint_failure_requires_the_invocation_base_revision`, and RundaleKit

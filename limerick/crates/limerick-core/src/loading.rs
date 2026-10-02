@@ -244,6 +244,7 @@ mod tests {
             spinner_colors: vec![[255, 0, 0], [0, 255, 0]],
             inference_failure_messages: vec![],
             idle_messages: vec![],
+            failure_lines: Default::default(),
         };
         let mut anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.color_index, 0);
@@ -326,6 +327,7 @@ mod tests {
             phrases: vec!["Testing...".to_string(), "Waiting...".to_string()],
             inference_failure_messages: Vec::new(),
             idle_messages: Vec::new(),
+            failure_lines: Default::default(),
         };
         let anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.spinner_frames.len(), 2);
@@ -344,6 +346,7 @@ mod tests {
             phrases: vec!["Go...".to_string()],
             inference_failure_messages: Vec::new(),
             idle_messages: Vec::new(),
+            failure_lines: Default::default(),
         };
         let anim = LoadingAnimation::from_config(&config);
         assert_eq!(anim.current_color_rgb(), (100, 200, 50));

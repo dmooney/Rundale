@@ -61,7 +61,8 @@ use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
 use crate::portable_look::{SceneText, render_return_scene, render_scene};
 use crate::turn_inference::{
-    CallReport, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus, TurnInference,
+    CallReport, FailureReason, InferenceCall, InferenceFailureKind, InferenceOutcome, RouteStatus,
+    TurnInference,
 };
 use crate::world::transport::TransportMode;
 
@@ -394,6 +395,8 @@ struct RunningAttempt {
     next_ordinal: u32,
     /// How the most recent dialogue call ended: `None` when it completed.
     last_dialogue_failure: Option<Option<InferenceFailureKind>>,
+    /// Why the most recent dialogue call failed, when the host said.
+    last_failure_reason: Option<FailureReason>,
     /// Loading indicators the attempt started, held to stop them on drop.
     _loading: LoadingTokens,
 }
@@ -451,6 +454,8 @@ pub struct TurnEngine {
     routes: InferenceRoutes,
     /// Whether `/`-commands run as local turns (see [`LocalCommand`]).
     local_commands: bool,
+    /// The line shown for each reason a host gives for a failed call.
+    failure_lines: HashMap<FailureReason, String>,
     revision: StateRevision,
     records: HashMap<LogicalRequestId, RequestRecord>,
     running: Option<RunningAttempt>,
@@ -465,6 +470,7 @@ impl TurnEngine {
             loading: None,
             routes: InferenceRoutes::live(),
             local_commands: false,
+            failure_lines: HashMap::new(),
             revision: StateRevision::default(),
             records: HashMap::new(),
             running: None,
@@ -503,6 +509,13 @@ impl TurnEngine {
     /// ordinary input; the host decides whether to submit it.
     pub fn enable_local_commands(&mut self) {
         self.local_commands = true;
+    }
+
+    /// Sets the line shown when a dialogue call fails for each reason a host
+    /// can report (the mod's `failure_lines`). A failure with no reason, or
+    /// a reason with no line, shows the engine's generic retry line.
+    pub fn set_failure_lines(&mut self, lines: HashMap<FailureReason, String>) {
+        self.failure_lines = lines;
     }
 
     /// Sets the turn rules attempts started from now on use.
@@ -777,6 +790,10 @@ impl TurnEngine {
                 InferenceOutcome::Completed { .. } => None,
                 InferenceOutcome::Failed { kind, .. } => Some(*kind),
             });
+            running.last_failure_reason = match &resolution.outcome {
+                InferenceOutcome::Completed { .. } => None,
+                InferenceOutcome::Failed { report, .. } => report.reason,
+            };
         }
         // The attempt is suspended on exactly this call, so the receiver is
         // alive; a send failure would mean the attempt already ended.
@@ -1070,6 +1087,7 @@ impl TurnEngine {
             visited_before,
             next_ordinal,
             last_dialogue_failure: None,
+            last_failure_reason: None,
             _loading: loading_tokens,
         });
         self.advance(live).await
@@ -1145,6 +1163,7 @@ impl TurnEngine {
             visited_before,
             next_ordinal,
             last_dialogue_failure,
+            last_failure_reason,
             ..
         } = running;
         drop(future);
@@ -1191,6 +1210,11 @@ impl TurnEngine {
         }
 
         if let Some(message) = outcome.dialogue_failure {
+            // The mod's line for why the call failed, when the host said.
+            let message = last_failure_reason
+                .and_then(|reason| self.failure_lines.get(&reason))
+                .cloned()
+                .unwrap_or(message);
             // The candidate is discarded, but the player still sees the
             // failed turn end: its empty placeholder, its failed terminal
             // with the recovery message, and the end of the stream.
