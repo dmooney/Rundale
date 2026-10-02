@@ -89,9 +89,9 @@ conflict. Do not circle between them. Standing answers:
 - **Mobile-plan PRs:** squash-merge once required checks pass and review comments are
   addressed, then start the next plan issue.
 - **`limerick-prod`:** the game is unreleased and has no users, so publishing and
-  promoting Endpoints there is authorized. If the permission classifier blocks an
-  authorized prod action, stop, give the owner the exact command, and wait for their
-  approval; do not look for another route to the same action.
+  promoting Endpoints there is authorized. So is live Endpoint testing: run the live
+  suites against it, including App Check debug-token setup, without asking first.
+  Its Endpoints use an inexpensive Gemini Flash Lite model.
 
 ## Standard commands
 
@@ -121,6 +121,15 @@ Use conventional commits and one logical change per commit. PRs explain changed
 behavior, link requirements/issues, and list actual verification and remaining gates.
 For visible changes include appropriate visual and interaction evidence; pace
 recordings for a human viewer as the [phase demo plan](docs/product-specs/phase-demo-plan.md#recordings) describes.
+PR recordings live outside this repository, in the public
+[`dmooney/rundale-pages`](https://github.com/dmooney/rundale-pages) repository, which
+GitHub Pages serves at `https://dmooney.github.io/rundale-pages/pr/<number>/`. Put an
+`index.html`, the video as H.264 `.mp4`, and a short `.gif` in one directory and run
+`bash limerick/scripts/publish-pr-page.sh <pr-number> <directory>`; it copies them into
+`pr/<number>/`, refreshes the site's index, and pushes. Link that page from the PR body
+and embed the GIF so it plays inline. Do not use Claude Artifacts (private to the
+owner's account) or GitHub release assets (videos download instead of playing) for PR
+evidence, and never commit videos to this repository.
 Follow [git workflow](docs/agent/git-workflow.md) and [proof requirements](docs/agent/agent-check.md).
 Keep the README, documentation, and canonical world sheet consistent with changes
 where applicable. Run `just notices` when dependencies change.
