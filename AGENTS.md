@@ -89,9 +89,9 @@ conflict. Do not circle between them. Standing answers:
 - **Mobile-plan PRs:** squash-merge once required checks pass and review comments are
   addressed, then start the next plan issue.
 - **`limerick-prod`:** the game is unreleased and has no users, so publishing and
-  promoting Endpoints there is authorized. If the permission classifier blocks an
-  authorized prod action, stop, give the owner the exact command, and wait for their
-  approval; do not look for another route to the same action.
+  promoting Endpoints there is authorized. So is live Endpoint testing: run the live
+  suites against it, including App Check debug-token setup, without asking first.
+  Its Endpoints use an inexpensive Gemini Flash Lite model.
 
 ## Standard commands
 
