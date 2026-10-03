@@ -25,8 +25,7 @@ cd "$REPO_ROOT" || exit 1
 
 MANIFEST="limerick/Cargo.toml"
 LEDGER="${LIMERICK_HARNESS_SHADOW_LEDGER:-$REPO_ROOT/limerick/target/harness-shadow-ledger.jsonl}"
-# Default summary lives under the ignored local docs/proofs archive rather
-# than .proofs/ (short-lived PR proof bundles).
+# Default summary lives under the ignored local docs/proofs archive.
 SUMMARY="${1:-$REPO_ROOT/docs/proofs/harness-shadow/initial-ledger.md}"
 
 export LIMERICK_HARNESS_SHADOW=1

@@ -1,50 +1,41 @@
 # limerick/scripts — agent scope
 
-Shell and Python dev scripts used by CI, agents, and local development. Most enforce or support the proof-evidence gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)). Scripts are invoked from the repo root via `bash limerick/scripts/<name>` or through `just` recipes.
+Shell and Python dev scripts used by CI, agents, and local development. Several enforce or support the PR evidence gate ([agent-check](../../docs/agent/agent-check.md)). Scripts are invoked from the repo root via `bash limerick/scripts/<name>` or through `just` recipes.
 
 ## Scoped commands
 
 ```sh
-bash limerick/scripts/agent-check.sh --source=local          # validate .proofs/ on disk
+bash limerick/scripts/agent-check.sh --source=local          # lints; reports if an evidence link is needed
 bash limerick/scripts/check-repository-artifacts.sh          # validate tracked artifacts
 bash limerick/scripts/limerick-mcp-backend.sh start            # boot backend for mcp__limerick__* tools
-just attach-proof <task-id>                                # post proof bundle as PR comment
+bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's evidence page
 ```
 
 ## Local gotchas
 
 - **`agent-check.sh` is fully self-contained.** No Rust/Node/just needed — only POSIX shell and (for `--source=pr`) `gh`.
-- **The proof pipeline is fragile.** `agent-check.sh` + `attach-proof.sh` + `render-proof-comment.sh` + `compose-proof-body.sh` enforce the acceptance-criteria-first workflow. Changes here risk breaking CI proof validation.
+- **`agent-check.sh` gates every PR in CI.** A classification change can block or wave through runtime PRs; add a case to `tests/agent-check-evidence-link.test.sh` with it.
 - **`limerick-mcp-backend.sh` is the standard backend boot.** Spawns `limerick-server --port 3030`; pid in `limerick/.limerick-mcp-backend.pid`, log in `limerick/.limerick-mcp-backend.log`. `LIMERICK_MCP_BACKEND_PORT` overrides 3030.
-- **`gh` required** by `agent-check.sh` (PR mode), `attach-proof.sh`, and `render-proof-comment.sh`. Degrades gracefully in minimal sandboxes.
+- **`gh` required** by `agent-check.sh` in PR mode only; local mode needs no network.
 - **Shell scripts use `set -euo pipefail`.** Python scripts use `#!/usr/bin/env python3` and are invoked directly.
 - **Scripts are standalone.** Do not extract shared shell libraries — duplicate small helpers inline.
 
 ## Script index
 
-### `agent-check.sh` — PR proof gate
+### `agent-check.sh` — PR evidence gate
 
-- Two modes: `--source=local` (validate `.proofs/` on disk) and `--source=pr <number>` (validate PR body/comments via `gh`, used by CI).
-- Diffs the working tree, categorises changed files as proof-relevant / runtime-shipping / test-only, validates artifacts and required headers, rejects placeholder debt markers.
-- Test code and dev-only UI manifests are never runtime-shipping; when they are the only proof-relevant files, `Evidence type: test run` is accepted. The lockfile check parses `package-lock.json` with awk brace counting, so keep it POSIX-awk compatible (CI runs mawk).
+- Two modes: `--source=local` (lints, and reports whether the diff is runtime-shipping) and `--source=pr <number>` (also requires `https://dmooney.github.io/rundale-pages/pr/<number>/` in the PR body via `gh`, used by CI).
+- Runtime-shipping: `mobile/**` (except `mobile/scripts/**`), `mods/**`, and the engine runtime crates; Markdown, `graphify-out/`, and Rust/UI test code never are. Rejects `.proofs/` paths and placeholder debt markers in every mode.
 
-### `attach-proof.sh` — Post proof bundle as PR comment
+### `publish-pr-page.sh` — Publish a PR's evidence page
 
-- Reads `.proofs/<task-id>/`, formats a structured comment, posts via `gh pr comment`. Used by `just attach-proof <task-id>`. Depends on `render-proof-comment.sh`.
-
-### `compose-proof-body.sh` — Compose proof bundle into PR body
-
-- Used by `gh pr create --body-file <(... | bash limerick/scripts/compose-proof-body.sh <task-id>)` to inline the bundle on PR creation.
-
-### `render-proof-comment.sh` — Render proof artifacts into comment format
-
-- Reads acceptance criteria and evidence (plus a legacy `judge.md` if present) from a task bundle; produces the structured comment body for `gh`.
+- Copies a directory with `index.html` (plus `.mp4`/`.gif`) to `pr/<number>/` in the public `rundale-pages` repository and pushes.
 
 ### `proof/` — Differential proof tools
 
 - `prove_diff.py` (`just prove-diff`) builds the merge-base with `origin/main` in a detached worktree and this working tree, copies each side's binaries, runs a live scenario and every `--script` fixture on both, and fails on differences not listed in an intended-differences TOML.
 - `scripted_openai.py` is the scripted model server (real HTTP, canned replies per workload, request-body log); `drive_session.py` drives `limerick-server` or an attached bridge over `POST /api/submit-input`; `body_diff.py` and `script_compare.py` are the comparators; `noise.py` masks the live server's wall-clock seconds before `/pause`, the one run-to-run difference left by design.
-- CI runs it on runtime pull requests (`Differential proof` in `ci.yml`), reading `toml intended-diffs` blocks from the PR body (`--intended-markdown`); `render-proof-comment.sh` writes that block from a bundle's `intended-diffs.toml`.
+- CI runs it on runtime pull requests (`Differential proof` in `ci.yml`), reading `toml intended-diffs` blocks the author writes in the PR body (`--intended-markdown`).
 - Documented in [`docs/agent/agent-check.md`](../../docs/agent/agent-check.md#differential-proof).
 
 ### `limerick-mcp-backend.sh` — Start/stop/status/log helper

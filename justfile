@@ -61,32 +61,26 @@ web PORT="3001":
 check:
     cd limerick && just check
 
-# Agent proof gate (local mode): validates the bundle in .proofs/<task-id>/
-# against the same rules CI uses. Pass `--source=pr <num>` to validate a
-# PR comment instead (what CI does).
+# PR evidence gate (local mode): rejects .proofs/ paths and placeholder debt
+# markers, and reports whether the diff touches runtime-shipping code, which
+# needs an evidence-page link in the PR body. Pass `--source=pr <num>` to
+# also check that link (what CI does). See docs/agent/agent-check.md.
 agent-check *ARGS:
     bash limerick/scripts/agent-check.sh {{ARGS}}
 
 # Differential proof: builds the merge-base with origin/main and this working
 # tree, runs SCENARIO (limerick/scripts/proof/scenarios/) live plus every
 # --script fixture on both, and fails on any difference not declared with
-# `--intended <file.toml>`. E.g. `just prove-diff talk-and-task --intended
-# .proofs/<id>/intended-diffs.toml`. See docs/agent/agent-check.md.
+# `--intended <file.toml>` or by a ```toml intended-diffs block in a saved PR
+# body (`--intended-markdown <body.md>`, what CI reads). E.g.
+# `just prove-diff talk-and-task --intended-markdown pr-body.md`.
+# See docs/agent/agent-check.md.
 prove-diff SCENARIO="talk-and-task" *ARGS:
     python3 limerick/scripts/proof/prove_diff.py --scenario {{SCENARIO}} {{ARGS}}
 
 # Enforce generated-output, large-file, and documentation-screenshot policy.
 repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
-
-# Attach a proof bundle to a PR. The bundle lives at .proofs/<TASK_ID>/
-# (gitignored). By default it is written into the PR body (race-free) and is
-# idempotent. Extra args pass through: a PR number (defaults to the current
-# branch's PR) and/or a mode flag — --as-comment (legacy) or --via-mcp
-# (no-gh sandbox: emits the block on stdout for posting via the GitHub MCP).
-# E.g. `just attach-proof 1178 --via-mcp` or `just attach-proof 1178 42`.
-attach-proof TASK_ID *ARGS:
-    bash limerick/scripts/attach-proof.sh {{TASK_ID}} {{ARGS}}
 
 # Pre-push gate: check + game harness walkthrough
 verify:
