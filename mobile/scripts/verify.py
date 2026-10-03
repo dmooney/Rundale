@@ -2396,7 +2396,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--parallel-workers",
         type=_worker_count,
-        default=_worker_count(os.environ.get("RUNDALE_PARALLEL_WORKERS", str(DEFAULT_PARALLEL_WORKERS))),
+        default=_worker_count(
+            os.environ.get("RUNDALE_PARALLEL_WORKERS", str(DEFAULT_PARALLEL_WORKERS))
+        ),
         metavar="N",
         help=(
             "simulator test workers (cloned simulators); 1 runs serially "
