@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // Node 25 ships a global `localStorage` getter that returns an empty stub
 // (controlled by `--localstorage-file`) which shadows jsdom's Storage on both

@@ -94,6 +94,7 @@ relevant="$tmpdir/relevant"
 runtime="$tmpdir/runtime"
 evidence="$tmpdir/evidence"
 ac_files="$tmpdir/ac_files"
+test_only="$tmpdir/test_only"
 
 {
     git diff --name-only "$base"...HEAD
@@ -106,6 +107,7 @@ ac_files="$tmpdir/ac_files"
 : >"$runtime"
 : >"$evidence"
 : >"$ac_files"
+: >"$test_only"
 
 is_proof_relevant() {
     local file="$1"
@@ -151,8 +153,121 @@ is_proof_relevant() {
 # (limerick-config, limerick-types, limerick-palette, limerick-persistence) are
 # excluded — their behaviour is fully covered by `cargo test`. See
 # truthful test automation in docs/agent/test-tooling-rules.md.
+# Test code: unit/integration/e2e tests and the test runner's setup file.
+# Still proof-relevant (a bundle is required), but it never ships into a
+# live process, so it is excluded from the runtime tier below and a test
+# run is honest evidence for it.
+is_test_path() {
+    case "$1" in
+        *.test.* | *.spec.* | */tests/* | */e2e/* | limerick/apps/ui/src/test-setup.ts)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Print package.json with its top-level devDependencies block removed, so
+# two versions compare equal exactly when only devDependencies changed.
+strip_dev_dependencies() {
+    awk '
+        function count(s, ch,   t) { t = s; return gsub(ch, "", t) }
+        !skip && /^[[:space:]]*"devDependencies":[[:space:]]*\{/ { skip = 1; depth = 0 }
+        skip {
+            depth += count($0, "{") - count($0, "}")
+            if (depth <= 0) skip = 0
+            next
+        }
+        { print }
+    '
+}
+
+# Print one record per package-lock.json "packages" entry:
+# key <FS> dev-flag <FS> entry text. Only "dev": true counts as dev-only;
+# "devOptional" can still reach a production optional dependency.
+lock_entries() {
+    awk '
+        BEGIN { fs = sprintf("%c", 28); join = sprintf("%c", 29) }
+        function count(s, ch,   t) { t = s; return gsub(ch, "", t) }
+        {
+            line = $0
+            if (in_entry) {
+                body = body join line
+                if (depth == 3 && line ~ /^[[:space:]]*"dev":[[:space:]]*true/) dev = 1
+            } else if (in_packages && depth == 2 && line ~ /^[[:space:]]*"[^"]*":[[:space:]]*\{/) {
+                key = line
+                sub(/^[[:space:]]*"/, "", key)
+                sub(/".*$/, "", key)
+                in_entry = 1
+                body = line
+                dev = 0
+            } else if (depth == 1 && line ~ /^[[:space:]]*"packages":[[:space:]]*\{/) {
+                in_packages = 1
+            }
+            depth += count(line, "{") - count(line, "}")
+            if (in_entry && depth == 2) {
+                print key fs dev fs body
+                in_entry = 0
+            }
+            if (in_packages && depth == 1) in_packages = 0
+        }
+    '
+}
+
+# True when every lockfile entry added, removed, or changed between two
+# lockfiles is flagged dev-only. The root entry ("") mirrors package.json,
+# which is checked separately.
+lock_changes_dev_only() {
+    awk '
+        BEGIN { FS = sprintf("%c", 28) }
+        NR == FNR { old_body[$1] = $3; old_dev[$1] = $2; next }
+        { new_body[$1] = $3; new_dev[$1] = $2 }
+        END {
+            for (k in new_body) {
+                if (k == "") continue
+                if (!(k in old_body) || new_body[k] != old_body[k]) {
+                    if (new_dev[k] != 1) exit 1
+                    if ((k in old_body) && old_dev[k] != 1) exit 1
+                }
+            }
+            for (k in old_body) {
+                if (k == "") continue
+                if (!(k in new_body) && old_dev[k] != 1) exit 1
+            }
+            exit 0
+        }
+    ' <(git show "$base:$1" 2>/dev/null | lock_entries) <(if [[ -f "$1" ]]; then lock_entries <"$1"; fi)
+}
+
+# A UI package manifest change confined to development tooling: package.json
+# differs only in devDependencies, and every package-lock.json entry it moves
+# is dev-only. Such a change ships nothing into a live process.
+is_dev_only_node_manifest() {
+    local file="$1"
+    case "$file" in
+        limerick/apps/*/package.json)
+            [[ -f "$file" ]] || return 1
+            diff -q \
+                <(git show "$base:$file" 2>/dev/null | strip_dev_dependencies) \
+                <(strip_dev_dependencies <"$file") >/dev/null
+            ;;
+        limerick/apps/*/package-lock.json)
+            [[ -f "$file" ]] || return 1
+            is_dev_only_node_manifest "${file%package-lock.json}package.json" \
+                && lock_changes_dev_only "$file"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 is_runtime_path() {
     local file="$1"
+    if is_test_path "$file"; then
+        return 1
+    fi
     case "$file" in
         graphify-out/* | */graphify-out/*)
             return 1
@@ -216,7 +331,17 @@ validate_evidence_file() {
             if grep -Eiq '^Evidence type:[[:space:]]*((live[[:space:]]+)?(gameplay transcript|screenshot|gif)|game-loop integration test)[[:space:]]*$' "$file"; then
                 return 0
             fi
+            # `test run` is honest evidence only when every proof-relevant
+            # file is test code or dev-only tooling: there is no gameplay
+            # or live process for such a change to show.
+            if [[ "$test_only_change" -eq 1 ]] \
+                && grep -Eiq '^Evidence type:[[:space:]]*test run[[:space:]]*$' "$file"; then
+                return 0
+            fi
             echo "agent-check FAILED: $file must declare 'Evidence type: [live ](gameplay transcript|screenshot|gif)' or 'Evidence type: game-loop integration test'." >&2
+            if [[ "$test_only_change" -eq 1 ]]; then
+                echo "This change touches only test code and dev tooling, so 'Evidence type: test run' is also accepted." >&2
+            fi
             return 1
             ;;
     esac
@@ -246,6 +371,9 @@ scan_for_debt_markers() {
 while IFS= read -r file; do
     if is_proof_relevant "$file"; then
         echo "$file" >>"$relevant"
+        if is_test_path "$file" || is_dev_only_node_manifest "$file"; then
+            echo "$file" >>"$test_only"
+        fi
     fi
     if is_runtime_path "$file"; then
         echo "$file" >>"$runtime"
@@ -375,6 +503,11 @@ relevant_count="$(wc -l <"$relevant" | tr -d ' ')"
 runtime_count="$(wc -l <"$runtime" | tr -d ' ')"
 evidence_count="$(wc -l <"$evidence" | tr -d ' ')"
 ac_count="$(wc -l <"$ac_files" | tr -d ' ')"
+test_only_count="$(wc -l <"$test_only" | tr -d ' ')"
+test_only_change=0
+if [[ "$relevant_count" -gt 0 && "$test_only_count" -eq "$relevant_count" ]]; then
+    test_only_change=1
+fi
 
 echo "agent-check: source=$source_mode; comparing $changed_count changed file(s) against $base_ref."
 
@@ -382,6 +515,9 @@ failed=0
 
 if [[ "$relevant_count" -gt 0 ]]; then
     echo "agent-check: $relevant_count proof-relevant file(s) changed."
+    if [[ "$test_only_change" -eq 1 ]]; then
+        echo "agent-check: all are test code or dev-only tooling; 'Evidence type: test run' accepted."
+    fi
 
     if [[ "$evidence_count" -eq 0 ]]; then
         if [[ "$source_mode" == "pr" ]]; then

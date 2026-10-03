@@ -25,7 +25,8 @@ just attach-proof <task-id>                                # post proof bundle a
 ### `agent-check.sh` — PR proof gate
 
 - Two modes: `--source=local` (validate `.proofs/` on disk) and `--source=pr <number>` (validate PR body/comments via `gh`, used by CI).
-- Diffs the working tree, categorises changed files as proof-relevant / runtime-shipping, validates artifacts and required headers, rejects placeholder debt markers.
+- Diffs the working tree, categorises changed files as proof-relevant / runtime-shipping / test-only, validates artifacts and required headers, rejects placeholder debt markers.
+- Test code and dev-only UI manifests are never runtime-shipping; when they are the only proof-relevant files, `Evidence type: test run` is accepted. The lockfile check parses `package-lock.json` with awk brace counting, so keep it POSIX-awk compatible (CI runs mawk).
 
 ### `attach-proof.sh` — Post proof bundle as PR comment
 
