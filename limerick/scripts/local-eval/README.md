@@ -77,7 +77,7 @@ Every run prints a `cost: N calls, X in + Y out tokens, ~$Z.ZZZZ` footer
 sourced from each call's `usage` block. Static $/M-token rates live in
 `eval_lib.py::COSTS` — verify before treating totals as gospel.
 
-## Why keep these alongside the proof bundle?
+## Why keep these scripts in the repository?
 
 The locally archived bench results at `docs/proofs/local-perf/evidence.md` are
 only as good as the prompts that produced them. Keeping the scripts checked in

@@ -55,8 +55,8 @@ docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/seam-validatio
 docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/masked-seam-repair-template/seam-contract-overlay.png
 limerick/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png
 
-# Proof bundles — written by /task-start and the live-proof skills.
-# Bundles are attached to PRs via `just attach-proof`, not committed.
+# Retired per-task proof bundles. Agent-check rejects any tracked .proofs/
+# path; PR evidence now lives on the rundale-pages site.
 /.proofs/
 
 # Historical proof receipts and generated benchmark output are local archives,

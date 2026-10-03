@@ -18,7 +18,7 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | Accidentally return `Moved { minutes: 0 }` (frozen clock)                                                  | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                       |
 | Silently break the location-description renderer                                                           | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                     |
 | Leave AI partial-completion markers in changed files                                                       | Witness scan fails                                                           | `limerick/justfile` -> `witness-scan` (gates `just check` and `just verify`)                                       |
-| Open a PR with runtime, UI, gameplay, CI, harness, or agent-instruction changes but no proof               | Agent proof gate fails                                                       | `limerick/scripts/agent-check.sh` (CI: `agent-check`, local: `just agent-check`)                                   |
+| Open a PR with runtime-shipping changes (`mobile/**`, `mods/**`, engine runtime) but no evidence-page link | Evidence gate fails                                                          | `limerick/scripts/agent-check.sh` (CI: `agent-check`, local: `just agent-check`)                                   |
 | Want to know which gameplay subsystems lack a fixture                                                      | Read-only report                                                             | `just harness-audit` → `limerick/scripts/harness-audit.sh`                                                         |
 
 ## Skills
@@ -33,14 +33,14 @@ Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlin
 ## Quality gates in order
 
 ```text
-local:  just agent-check      # acceptance criteria + proof evidence + fast debt scan
+local:  just agent-check      # .proofs/ path lint + fast debt scan
         just check    # agent-check + fmt + clippy + test + witness-scan + doc/artifact checks
         just verify   # check + game-test fixture sweep
         just baselines        # only after intentional gameplay output changes (UPDATE_BASELINES=1)
         just harness-audit    # read-only coverage report
 
 CI fast lane (`ci.yml`):
-        agent-check           # acceptance criteria + proof evidence + fast debt scan
+        agent-check           # evidence-page link in PR body + lints
         docs-consistency      # check-doc-paths + repository-artifacts
         format/python/shell/toml quality
         runtime-suite         # reusable full-ci.yml, runtime-change PRs only
@@ -71,7 +71,7 @@ cancellations, and unexpected skips fail closed.
 These rules are still **convention only** — no test enforces them. If you find yourself working around them, that's a candidate for the next sensor:
 
 - [Tests with behavior changes](engineering-rules.md#tests-with-behavior-changes)
-- Content-level proof quality: the gate checks that evidence exists and is labelled, not that it proves the criteria — [gameplay proof](engineering-rules.md#gameplay-proof), [truthful test automation](test-tooling-rules.md#truthful-test-automation); `/gatekeeper` and human review check it
+- Content-level proof quality: the gate checks that the evidence-page link exists, not that the recording proves the criteria — [gameplay proof](engineering-rules.md#gameplay-proof), [truthful test automation](test-tooling-rules.md#truthful-test-automation); `/gatekeeper` and human review check it
 - [No unexplained `#[allow]`](engineering-rules.md#no-unexplained-allow)
 - [Feature flags](engineering-rules.md#feature-flags) for new engine/gameplay features
 - [Mode-parity](engineering-rules.md#mode-parity) _wiring_ (every IPC handler called from every entry point) (the _dep-level_ part is enforced; the wiring part isn't). The per-turn **dialogue** chokepoint is no longer convention-only: all paths route through `limerick_core::game_session::apply_npc_dialogue_turn`, and `limerick-engine/tests/mode_parity.rs` (the parity _golden_) asserts the legacy harness path and the real `game_loop` publish an identical `GameEvent` stream (#1172 / #1173).

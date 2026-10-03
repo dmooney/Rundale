@@ -1,107 +1,101 @@
 # Agent Check
 
-`agent-check` is the PR proof gate. It turns "I tested it" into a recorded artifact that CI can verify before the expensive Rust and UI jobs run.
+`agent-check` is the PR evidence gate. A pull request that changes
+runtime-shipping code must link its evidence page, the public recording page at
+`https://dmooney.github.io/rundale-pages/pr/<number>/`, in its body. The gate
+also runs two cheap lints on every change.
 
-The script has two source modes:
+It checks only that the link is there. Whether the recording shows the change
+working is for review: the owner watches the recording, and the
+[`/gatekeeper`](../../.agents/skills/gatekeeper/SKILL.md) pass judges it
+against the diff.
 
-- `bash limerick/scripts/agent-check.sh --source=local` (default) — validates the bundle that lives at `.proofs/<task-id>/` on disk. This is what `just agent-check` runs. Bundles in `.proofs/` are gitignored.
-- `bash limerick/scripts/agent-check.sh --source=pr <number>` — validates the bundle embedded in the PR body via `just attach-proof`; a structured comment remains a legacy fallback. CI uses this mode on `pull_request` events and reads the `<!-- limerick-proof-bundle:<task-id> v=1 -->` fenced block.
+## Modes
 
-Run it locally with `just agent-check`. It is also part of `just check` and `just verify`.
+- `bash limerick/scripts/agent-check.sh --source=local` (default, `just agent-check`,
+  part of `just check` and `just verify`) runs the lints and reports whether the
+  diff touches runtime-shipping code. It cannot see a PR body, so it never fails
+  for a missing link.
+- `bash limerick/scripts/agent-check.sh --source=pr <number>` also reads the PR
+  body with `gh` and fails a runtime-shipping diff whose body does not contain
+  `https://dmooney.github.io/rundale-pages/pr/<number>/` for that same number.
+  CI's `Evidence gate` job runs this mode on every non-Dependabot pull
+  request. Only the body counts; comments are ignored, so a third party cannot
+  satisfy the gate.
 
-## Lifecycle of a bundle
+The job reads the body when it runs, and `pull_request` runs on `opened`,
+`synchronize`, and `reopened`, not on body edits. Publish the page and link it
+before opening the PR, or re-run the job (or push a commit) after adding it.
 
-```text
-write .proofs/<id>/acceptance-criteria.md
-implement
-run game                  → capture .proofs/<id>/transcript.txt
-write .proofs/<id>/evidence.md   → 'Evidence type: live gameplay transcript'
-                                   + criterion-to-line mapping
-                                   + 'Acceptance criteria: met'
-just agent-check          → local mode validates the disk bundle
-gh pr create --body-file <(printf '%s\n' "$desc" \
-  | bash limerick/scripts/compose-proof-body.sh <id>)
-                          → opens the PR with the bundle ALREADY in the
-                            body, so the gate is green on its first run
-just attach-proof <id>    → (re-)injects the bundle into the body of an
-                            existing PR; idempotent (replaces the prior
-                            region, never appends a duplicate). Use after
-                            fixing a bundle. `--as-comment` keeps the legacy
-                            comment path.
-```
+## Runtime-shipping paths
 
-CI reads the bundle from the PR body (or a comment) — the body is present on
-the `pull_request.opened` run, so a fresh proof-relevant PR is green on the
-first run with no re-push (#1177).
+A link is required when the diff touches any of these, except Markdown files
+and `graphify-out/` trees anywhere:
 
-## What It Enforces
+- `mobile/**`: the iPhone app, its Swift packages, endpoint fixtures, and its
+  UI tests (UI tests drive the app itself). Exempt: `mobile/scripts/**`, the
+  verification and release tooling, and Swift unit tests
+  (`mobile/RundaleTests/**`, `mobile/*/Tests/**`).
+- `mods/**`: world content and prompt templates (`.txt` counts).
+- The engine's runtime crates and seams: `limerick-tauri/**`,
+  `limerick-server/**`, `limerick-engine/**`,
+  `limerick-core/src/{game_loop,game_session,ipc}/**`,
+  `limerick-inference/src/{setup,client}.rs`,
+  `limerick-npc/src/{ticks,manager}.rs`,
+  `limerick-npc/src/{reactions,autonomous}/**`, `limerick-world/**`,
+  `limerick-input/**`, and `limerick/apps/ui/src/**`. Rust and UI test code under
+  these (`*.test.*`, `*.spec.*`, `*/tests/*`, `*/e2e/*`, `test-setup.ts`) is
+  exempt.
 
-When proof-relevant files change, the PR must carry a proof bundle.
+No link is required for pure documentation, `.github/**`, `.agents/**`,
+`.claude/**`, `limerick/scripts/**`, `justfile`, `limerick/justfile`,
+`mobile/scripts/**`, pure-logic crates, or Rust, UI, or Swift unit-test-only
+changes.
+Dependabot PRs skip the job in CI.
 
-Accepted evidence forms:
+Such changes still need tests and an honest account of the verification run;
+they simply have no player-visible behavior for a recording to show.
 
-- Gameplay transcript: a `.md` or `.txt` artifact that declares `Evidence type: gameplay transcript` (or `Evidence type: live gameplay transcript` when the diff touches a runtime-shipping path).
-- Screenshot: a `.png`, `.jpg`, or `.jpeg` artifact.
-- Gif: a `.gif` artifact.
-- Test run: an artifact that declares `Evidence type: test run`. Accepted only
-  when every proof-relevant file is test code or dev-only tooling (see
-  [Test code and dev tooling](#test-code-and-dev-tooling)).
+## What goes in the PR
 
-`evidence.md` maps every criterion in `acceptance-criteria.md` to the
-transcript lines or artifacts that show it, and ends with:
+- **Evidence page** (runtime-shipping changes). A recording of the change
+  working in the real app or engine process, on the production path, paced for
+  a human viewer per the [phase demo plan](../product-specs/phase-demo-plan.md#recordings).
+  Put an `index.html`, the H.264 `.mp4`, and a short `.gif` in one directory,
+  run `bash limerick/scripts/publish-pr-page.sh <pr-number> <directory>`, link
+  the page from the PR body, and embed the GIF. A simulator run is not
+  physical-iPhone validation, and a fixture is not live gameplay; say which one
+  the recording shows.
+- **Acceptance criteria and verification** (every PR). Ordinary prose in the
+  body: the criteria the change meets, what shows each one (the recording, a
+  test, a command's output), and the checks actually run, with skipped,
+  failing, and unavailable gates named as such. No format is machine-checked.
+- **Intended differences** (when the differential proof applies). A
+  ` ```toml intended-diffs ` block in the body; see below.
 
-```text
-Acceptance criteria: met
-```
+Unit tests alone are not proof of a gameplay or runtime change; see
+[gameplay proof](engineering-rules.md#gameplay-proof).
 
-Bundles no longer carry a `judge.md` (#2119). The implementing agent wrote it
-about its own work, so it added no independent signal. Independent review is
-the `/gatekeeper` pass and human review, which check the evidence against the
-diff. Legacy bundles that still include `judge.md` keep passing: the file is
-ignored, except that its `Acceptance criteria: met` line still counts.
+### Why not a proof bundle
 
-## What Counts As Proof-Relevant
-
-The gate requires proof for engine, UI, gameplay content, runtime scripts, CI, agent instructions, and harness changes. PRs that touch no source/runtime paths are exempt: pure documentation (any `*.md` / `*.txt`, e.g. AGENTS.md, README.md, `docs/**`), CI-only (`.github/**`), agent-instruction-only (`.agents/**`, `.claude/**`), check-tooling-only (`limerick/scripts/**`), and build-config-only (`justfile`) edits all skip the gate when no code change accompanies them. Dependabot PRs are also exempt at the CI layer — automated dependency bumps have no useful signal to prove.
+Until October 2026 the gate validated a per-task `.proofs/<task-id>/` bundle
+embedded in the PR body: an acceptance-criteria file, an `evidence.md` with an
+`Evidence type:` header, and an `Acceptance criteria: met` line. It checked form,
+not substance, the author certified their own work (the reason `judge.md` was
+dropped in #2119), its runtime path list predated the iPhone app, and it
+duplicated the recording page the owner actually reviews. The bundle, its
+helpers (`attach-proof`, `compose-proof-body.sh`, `render-proof-comment.sh`),
+and its evidence tiers were removed.
 
 Historical bench receipts live in the ignored local archive at `docs/proofs/`
-(symlinked to iCloud Drive on the primary macOS workstation). They are not
-per-task proof bundles and are not validated by this gate. Concise leaderboard
-summaries and content hashes remain committed; raw paid receipts do not.
-
-## Test code and dev tooling
-
-Some proof-relevant changes have no gameplay or live process to show. The gate
-treats two kinds of file this way:
-
-- **Test code:** `*.test.*`, `*.spec.*`, `*/tests/*`, `*/e2e/*`, and
-  `limerick/apps/ui/src/test-setup.ts`.
-- **Dev-only UI manifests:** a `limerick/apps/*/package.json` change confined
-  to `devDependencies`, and a `package-lock.json` change where every added,
-  removed, or changed package entry is flagged `"dev": true` (and its
-  `package.json` change is itself dev-only). `devOptional` does not count,
-  because it can reach a production optional dependency.
-
-Test code is never runtime-shipping, so it does not trigger the live-proof
-tier. When every proof-relevant file in the diff falls into these two kinds, a
-bundle is still required, but its evidence may declare `Evidence type: test
-run` and map each criterion to the test output. Any other proof-relevant file
-in the same diff, such as a UI component or a production dependency, restores
-the usual evidence requirements.
-
-## Live-proof Tier
-
-When the diff touches a runtime-shipping path — `limerick-tauri/**`, `limerick-server/**`, `limerick-engine/**`, `limerick-core/src/{game_loop,game_session,ipc}/**`, `limerick-inference/src/{setup,client}.rs`, `limerick-npc/src/{ticks,manager,reactions,autonomous}/**`, `limerick-world/**`, `limerick-input/**`, `limerick/apps/ui/src/**` (except test code), `mods/**` (except Markdown such as `mods/**/AGENTS.md`; `.txt` prompt templates still count) — unit tests alone are not sufficient. The change must be exercised in a real process (Tauri, server, CLI, or browser) and the bundle's `evidence.md` header must declare `Evidence type: live gameplay transcript`, **or** the bundle must include a screenshot (`.png` / `.jpg` / `.jpeg`) or gif (`.gif`). The word "live" is the author affirmation that the run actually happened; analysis-only writeups failing this header are rejected by `just agent-check`.
-
-**Real-loop integration tier.** Some runtime behaviours cannot be reproduced in a live process on demand — a deterministic post-generation guard whose _only_ trigger is intermittent large-model output (e.g. the 14B spontaneously impersonating another roster NPC, or looping a phrase to the token cap). The honest, strongest proof for these is a Rust integration test that drives the **real** `game_loop` (`handle_game_input` → `run_npc_turn`) via `GameTestHarness::execute_via_real_loop`, mocking only the LLM boundary — this exercises the exact production wiring (the gate's actual concern), unlike `--script`, which uses the legacy `execute()` path and bypasses `game_loop/npc_turn`. For such a change, declare `Evidence type: game-loop integration test` and **reference `execute_via_real_loop` in the same evidence file**; the gate accepts it as runtime proof. The `execute_via_real_loop` requirement ties the claim to the real mechanism so the tier cannot be stamped over plain unit tests. Use this tier only when a live trigger is genuinely non-deterministic — prefer a live transcript or screenshot whenever the behaviour can be exercised in a real process.
-
-Accepted live signals: `mcp__limerick__*`, `mcp__claude-in-chrome__*`, the `/limerick-engine` skill (its `prove` / `play` / `demo` / `browser` modes), or a Bash invocation of `just demo` / `just play` / `just run` / `just run-headless` / `just web` / `cargo tauri dev` / `cargo run -p limerick-{engine,tauri,server,client}`.
+(symlinked to iCloud Drive on the primary macOS workstation). The gate does not
+read them.
 
 ## Differential Proof
 
 `just prove-diff [SCENARIO] [--intended FILE]` runs the same scenarios on
 `main` and on your change and reports every difference. Use it for any change
-that could alter runtime behaviour, and paste its report into `evidence.md`.
+that could alter runtime behaviour, and summarise its report in the PR body.
 It proves two things a transcript alone does not: the change did what you
 declared, and nothing else changed.
 
@@ -132,8 +126,9 @@ What it does (`limerick/scripts/proof/prove_diff.py`):
    `report.md` in the output directory. Any undeclared difference fails; so does
    a declaration that matches nothing.
 
-Intended-differences file (TOML; keep it in the bundle, e.g.
-`.proofs/<id>/intended-diffs.toml`):
+Intended-differences declarations (TOML). Locally, pass them as a file with
+`--intended FILE`, or save the PR body and pass `--intended-markdown FILE`,
+which reads the same fenced blocks CI reads. In the PR, write them in the body:
 
 ```toml
 [[intended]]
@@ -177,35 +172,25 @@ on every pull request that changes code compiled into `limerick-server` or
 Docs-only and UI-only pull requests skip it. It builds `main` and the pull
 request's merge commit, runs the `talk-and-task` scenario and every fixture
 on both, and reads the intended differences from the pull request body: every
-fenced block opened with ` ```toml intended-diffs `. When the bundle has
-`.proofs/<id>/intended-diffs.toml`, `compose-proof-body.sh` and
-`just attach-proof` put that block in the body for you. The report goes to
+fenced block opened with ` ```toml intended-diffs ` and closed with
+` ``` `, each on its own line. The author writes that block in the body by
+hand; there is no helper. The report goes to
 the job summary, a sticky pull request comment, and a `prove-diff` artifact
 with every run. The job is part of the `CI gate` aggregate, so an undeclared
 difference, an unobserved required declaration, or a nondeterministic head
 run blocks the merge.
 
-To change the declaration, edit the body (`just attach-proof <id>` after
-editing the bundle file) and re-run the job; a body edit alone does not
-trigger a run.
+To change the declaration, edit the body and re-run the job; a body edit
+alone does not trigger a run. Check a declaration before pushing with
+`gh pr view <n> --json body --jq .body >body.md` and
+`just prove-diff talk-and-task --intended-markdown body.md`.
 
 ## Belt-and-suspenders Lints
 
-- Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
-- Changed files are scanned for language-specific unfinished-work macros and
-  placeholder comments that often indicate partial completion.
+Both modes, every change:
 
-## Acceptance Criteria Requirement
-
-Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file lists observable criteria with the game commands or screenshots that prove each one. `evidence.md` then maps each criterion individually to the transcript or visual artifact that shows it.
-
-## Posting from a no-gh sandbox
-
-The web / MCP sandbox has no `gh`. Use `--via-mcp` (no network):
-
-```sh
-just attach-proof <id> --via-mcp        # validates locally, prints the block to stdout
-# or: bash limerick/scripts/attach-proof.sh <id> --via-mcp
-```
-
-It runs the same local validation, then prints **only** the fenced bundle block to stdout (progress goes to stderr). Post it through the GitHub MCP — preferably as the PR **body** (`create_pull_request` / update body) so the gate is green on the first run, or as a comment via `add_issue_comment` (the gate reads both). Binary artifacts (screenshots / transcript) are uploaded separately in the GitHub UI; the CI gate only needs the text block.
+- Any `.proofs/<...>` path in the diff fails. The directory held the retired
+  bundles and stays gitignored; a tracked file there is a leftover.
+- Changed files other than Markdown are scanned for language-specific
+  unfinished-work macros and placeholder comments that often indicate partial
+  completion.

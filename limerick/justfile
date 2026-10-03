@@ -395,7 +395,7 @@ baselines:
 harness-audit:
     ./scripts/harness-audit.sh
 
-# Agent proof gate: requires acceptance criteria and proof evidence for proof-relevant PRs
+# PR evidence gate, local mode: .proofs/ path and placeholder lints (CI also checks the evidence-page link)
 agent-check:
     bash ./scripts/agent-check.sh
 

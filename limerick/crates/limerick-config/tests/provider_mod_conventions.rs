@@ -254,7 +254,7 @@ fn provider_mod_conventions() {
         all_violations.is_empty(),
         "Provider-mod convention violations found across {} provider mods:\n\n{}\n\n\
          Fix the TOML files listed above to satisfy the naming/schema conventions \
-         documented in .proofs/td005-mods-provider-validation/acceptance-criteria.md",
+         this test checks.",
         provider_count,
         all_violations.join("\n")
     );

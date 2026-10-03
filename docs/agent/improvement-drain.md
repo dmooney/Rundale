@@ -70,7 +70,7 @@ substitute for the issue contract.
 2. **Ready → Implementing:** a worker slot is assigned; one issue maps to one
    logical PR.
 3. **Implementing → CI/Review:** focused checks pass and the PR carries
-   authoritative `Fixes`/`Closes` linkage plus any required proof bundle.
+   authoritative `Fixes`/`Closes` linkage plus any required evidence page.
 4. **CI/Review → Validation:** review findings are resolved and required CI
    passes against current `main`.
 5. **Validation → Done:** the PR is merged, the observable outcome is checked,

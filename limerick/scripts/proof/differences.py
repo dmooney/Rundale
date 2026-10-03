@@ -82,8 +82,7 @@ def load_intended(path: Path | None) -> list[Intended]:
 
 def load_intended_markdown(path: Path) -> list[Intended]:
     """Reads every fenced ```toml intended-diffs block in a Markdown file (a
-    PR body; `render-proof-comment.sh` writes the block from a bundle's
-    `intended-diffs.toml`)."""
+    PR body, where the author writes the block by hand)."""
     blocks: list[str] = []
     current: list[str] | None = None
     for line in path.read_text().splitlines():

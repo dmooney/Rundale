@@ -111,9 +111,10 @@ jobs:
               - '!docs/**'
 
   agent-check:
-    name: Agent proof gate
-    # Proof bundles live in the PR body by default; structured comments remain
-    # a legacy fallback. Push events to main/develop are post-merge, so the gate
+    name: Evidence gate
+    # Runtime-shipping changes (engine, mods, the iPhone app) must link their
+    # evidence page, https://dmooney.github.io/rundale-pages/pr/<number>/, in
+    # the PR body. Push events to main/develop are post-merge, so the gate
     # already ran on the PR that produced the commit. Dependabot-authored bumps
     # have no useful gameplay-proof signal, even when a coordinator refreshes
     # their branch and becomes the synchronize-event actor.
@@ -133,7 +134,7 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Validate proof evidence (PR body or comment fallback)
+      - name: Check the evidence-page link in the PR body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

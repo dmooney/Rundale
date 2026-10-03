@@ -8,7 +8,7 @@ Reference directory for AI coding agents and human contributors. Human-facing en
 just screenshots                                    # exercise Playwright screenshot baselines
 bash limerick/scripts/check-doc-paths.sh              # validate backtick-quoted paths in docs
 bash limerick/scripts/check-repository-artifacts.sh   # enforce generated/binary artifact policy
-just agent-check                                    # acceptance criteria + proof evidence gate
+just agent-check                                    # evidence-link gate and lints
 witness-scan                                        # catch AI partial-completion markers
 ```
 
@@ -19,7 +19,7 @@ witness-scan                                        # catch AI partial-completio
 - **[`gotchas.md`](gotchas.md) is the most mutation-prone file** — Tokio, SQLite, Ollama, and mode-parity pitfalls change as tooling evolves.
 - **Documentation screenshots live in `docs/screenshots/`** and must stay referenced. `just screenshots` exercises or updates Playwright baselines under `limerick/apps/ui/e2e/screenshots/baseline/`; promotion into documentation is an explicit review step.
 - **Generated and large artifacts follow [`repository-artifacts.md`](repository-artifacts.md).** The repository gate rejects tracked Graphify output, retired artifact paths, unapproved files over 8 MiB, and unreferenced documentation screenshots.
-- **Proof archives in local `docs/proofs/`** — ignored by Git and expected to resolve to the iCloud-backed archive. Per-task bundles go in `.proofs/<task-id>/` (also gitignored); publish concise hashes and summaries in tracked docs or PR bodies.
+- **Proof archives in local `docs/proofs/`** — ignored by Git and expected to resolve to the iCloud-backed archive. Publish concise hashes and summaries in tracked docs or PR bodies; PR recordings go on the PR's `rundale-pages` evidence page.
 - **Witness scan blocks merge.** Docs with partial-completion markers (`[...]`, `TODO` in code blocks, unfinished sentences before stop-tokens) fail `witness-scan`, which gates `just check` and `just verify`.
 - **[Scaling guardrails](engineering-rules.md#scaling-guardrails)** are detailed in [scaling-rules.md](scaling-rules.md). Every entry-point crate AGENTS.md links here — edits ripple across the workspace.
 - **[`act-local.md`](act-local.md)** is the source of truth for `.actrc` and the `act-*` justfile recipes.
