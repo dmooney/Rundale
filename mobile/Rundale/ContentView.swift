@@ -374,6 +374,10 @@ final class TranscriptCollectionViewController: UIViewController,
     private var isApplyingPosition = false
     private var lastBoundsSize: CGSize = .zero
     private var lastContentSize: CGSize = .zero
+    // Where pinToNewest last left the viewport, and whether the rows changed
+    // since. Growth and self-sizing leave the offset alone; a scroll moves it.
+    private var lastPinnedOffsetY: CGFloat?
+    private var itemsChangedSinceLayout = false
     private var wasScrollable = false
     // A drag is a user intent boundary. Content and bounds can change while a
     // finger is down (streamed row sizing and keyboard transitions are common
@@ -479,11 +483,24 @@ final class TranscriptCollectionViewController: UIViewController,
 
         guard !isApplyingPosition else { return }
         if isFollowingNewest {
-            if (boundsChanged || contentChanged || hasLoadedInitialItems),
-               !userScrollInProgress,
-               !collectionView.isTracking,
-               !collectionView.isDragging,
-               !collectionView.isDecelerating {
+            guard !userScrollInProgress,
+                  !collectionView.isTracking,
+                  !collectionView.isDragging,
+                  !collectionView.isDecelerating else { return }
+            let itemsChanged = itemsChangedSinceLayout
+            itemsChangedSinceLayout = false
+            if !boundsChanged, !itemsChanged,
+               let lastPinnedOffsetY,
+               collectionView.contentOffset.y < lastPinnedOffsetY - 28,
+               distanceFromNewest > 28 {
+                // The rows and viewport are unchanged, yet the offset moved up
+                // from where it was pinned: something other than a drag
+                // scrolled it. Cells measuring themselves after that scroll
+                // change the content size, so the offset is the signal. Treat
+                // it like a drag into history instead of undoing it (#2081).
+                updateFollowModeFromCurrentPosition()
+                persistReadingAnchor()
+            } else {
                 pinToNewest()
             }
         } else if let anchorLock {
@@ -530,6 +547,7 @@ final class TranscriptCollectionViewController: UIViewController,
             ? currentAnchor(preferFullyVisible: true)
             : nil
         items = newItems
+        itemsChangedSinceLayout = true
         collectionView.reloadData()
         collectionView.collectionViewLayout.invalidateLayout()
 
@@ -675,6 +693,7 @@ final class TranscriptCollectionViewController: UIViewController,
         )
         isApplyingPosition = false
         lastContentSize = collectionView.contentSize
+        lastPinnedOffsetY = collectionView.contentOffset.y
     }
 
     private func apply(_ anchor: LockedAnchor) {

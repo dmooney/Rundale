@@ -126,6 +126,8 @@ final class Phase1AuditVolumeTests: XCTestCase {
 
     func testThousandRowsRenderAndReachBothEndsWithinBudget() async {
         let controller = TranscriptCollectionViewController()
+        var followModes: [Bool] = []
+        controller.onFollowModeChanged = { follows, _ in followModes.append(follows) }
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 667))
         window.rootViewController = controller
         window.makeKeyAndVisible()
@@ -143,12 +145,12 @@ final class Phase1AuditVolumeTests: XCTestCase {
         XCTAssertEqual(scroll.numberOfItems(inSection: 0), 1000)
         XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 999, section: 0)))
         scroll.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
+        // Force the layout pass a status-bar tap or VoiceOver scroll is
+        // followed by; it must not re-pin the viewport to the newest row (#2081).
+        controller.view.setNeedsLayout()
         controller.view.layoutIfNeeded()
-        // Known failure tracked in #2081: while following newest, every layout
-        // pass re-pins to the bottom. Strict, so this fails once it is fixed.
-        XCTExpectFailure("#2081: follow-newest re-pins a programmatic scroll to the top") {
-            XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 0, section: 0)))
-        }
+        XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 0, section: 0)))
+        XCTAssertEqual(followModes, [false], "Scrolling away from the tail leaves follow mode")
         scroll.scrollToItem(at: IndexPath(item: 999, section: 0), at: .bottom, animated: false)
         controller.view.layoutIfNeeded()
         XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 999, section: 0)))
