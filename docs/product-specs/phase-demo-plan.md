@@ -31,8 +31,8 @@ A UI-test run (XCUITest) moves faster than a person can follow and tears the
 app down as soon as it passes. Add explicit holds in a demo run, or edit the
 footage to freeze on each settled state, before sharing it.
 
-The UI tests that exist for demos call a shared `hold(seconds)` helper
-(`mobile/RundaleUITests/DemoPacing.swift`). It does nothing in a normal run, so
+The UI tests that exist for demos call a `hold(seconds)` helper. It does
+nothing in a normal run, so
 the gate stays fast. To pace a recording, pass
 `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>` to `xcodebuild test` (xcodebuild strips
 the `TEST_RUNNER_` prefix, so the test reads `RUNDALE_DEMO_HOLD`); each hold then

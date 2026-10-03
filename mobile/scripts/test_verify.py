@@ -343,6 +343,11 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(args.parallel_workers, 1)
         with patch.dict(os.environ, {"RUNDALE_PARALLEL_WORKERS": "3"}, clear=True):
             self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 3)
+        with patch.dict(os.environ, {"RUNDALE_PARALLEL_WORKERS": "lots"}, clear=True):
+            parser = verify_module.build_parser()
+            with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
+                parser.parse_args([])
+            self.assertEqual(raised.exception.code, 2)
 
     def test_device_is_opt_in_and_simulator_remains_default(self):
         with patch.dict(os.environ, {}, clear=True):
