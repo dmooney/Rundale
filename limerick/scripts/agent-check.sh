@@ -99,8 +99,8 @@ runtime="$tmpdir/runtime"
 
 : >"$runtime"
 
-# Rust and UI test code never ships into a live process; a test run is
-# honest evidence for it. Mobile tests are handled separately below.
+# Rust, UI, and Swift unit-test code never ships into a live process; a
+# test run is honest evidence for it. Mobile UI tests are handled below.
 is_test_path() {
     case "$1" in
         *.test.* | *.spec.* | */tests/* | */e2e/* | limerick/apps/ui/src/test-setup.ts)
@@ -134,7 +134,12 @@ is_runtime_path() {
             mobile/scripts/*)
             return 1
             ;;
-        # The iPhone app, its Swift packages, endpoint fixtures, and its
+        # Swift unit tests (the app's and each Swift package's), like Rust
+        # and UI tests above.
+        mobile/RundaleTests/* | mobile/*/Tests/*)
+            return 1
+            ;;
+        # The iPhone app, its Swift packages, endpoint fixtures, and its UI
         # tests. Mobile UI tests drive the app itself, so they count.
         mobile/*)
             return 0

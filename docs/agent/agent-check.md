@@ -19,7 +19,7 @@ against the diff.
 - `bash limerick/scripts/agent-check.sh --source=pr <number>` also reads the PR
   body with `gh` and fails a runtime-shipping diff whose body does not contain
   `https://dmooney.github.io/rundale-pages/pr/<number>/` for that same number.
-  CI's `Agent proof gate` job runs this mode on every non-Dependabot pull
+  CI's `Evidence gate` job runs this mode on every non-Dependabot pull
   request. Only the body counts; comments are ignored, so a third party cannot
   satisfy the gate.
 
@@ -33,8 +33,9 @@ A link is required when the diff touches any of these, except Markdown files
 and `graphify-out/` trees anywhere:
 
 - `mobile/**`: the iPhone app, its Swift packages, endpoint fixtures, and its
-  unit and UI tests (UI tests drive the app itself). `mobile/scripts/**`, the
-  verification and release tooling, is exempt.
+  UI tests (UI tests drive the app itself). Exempt: `mobile/scripts/**`, the
+  verification and release tooling, and Swift unit tests
+  (`mobile/RundaleTests/**`, `mobile/*/Tests/**`).
 - `mods/**`: world content and prompt templates (`.txt` counts).
 - The engine's runtime crates and seams: `limerick-tauri/**`,
   `limerick-server/**`, `limerick-engine/**`,
@@ -48,7 +49,8 @@ and `graphify-out/` trees anywhere:
 
 No link is required for pure documentation, `.github/**`, `.agents/**`,
 `.claude/**`, `limerick/scripts/**`, `justfile`, `limerick/justfile`,
-`mobile/scripts/**`, pure-logic crates, or Rust/UI test-only changes.
+`mobile/scripts/**`, pure-logic crates, or Rust, UI, or Swift unit-test-only
+changes.
 Dependabot PRs skip the job in CI.
 
 Such changes still need tests and an honest account of the verification run;

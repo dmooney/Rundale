@@ -138,7 +138,7 @@ gh pr merge <N> --squash --delete-branch
 
   Do NOT try `gh pr close && gh pr reopen` first — classifier may deny it.
 
-- **Agent proof gate `fail` after adding the evidence link.** The job reads the body when it runs and does not re-run on a body edit. Re-run the job or push an empty commit.
+- **Evidence gate `fail` after adding the evidence link.** The job reads the body when it runs and does not re-run on a body edit. Re-run the job or push an empty commit.
 
 - **`gh workflow run` HTTP 500.** Workflow file isn't on the branch HEAD or validation issue. Use empty commit + push instead.
 

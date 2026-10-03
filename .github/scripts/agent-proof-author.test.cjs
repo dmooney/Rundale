@@ -53,7 +53,7 @@ function evaluateCondition(condition, context) {
 	});
 }
 
-test('Agent proof gate trusts immutable pull-request authorship', () => {
+test('Evidence gate trusts immutable pull-request authorship', () => {
 	const workflow = fs.readFileSync(workflowPath, 'utf8');
 	const condition = agentProofCondition(workflow);
 
@@ -69,7 +69,7 @@ test('Agent proof condition extraction survives top-level job reordering', () =>
 		'  docs-consistency:',
 		'    runs-on: ubuntu-latest',
 		'  agent-check:',
-		'    name: Agent proof gate',
+		'    name: Evidence gate',
 		`    if: ${condition}`,
 		'    runs-on: ubuntu-latest',
 		'  changes:',
@@ -79,7 +79,7 @@ test('Agent proof condition extraction survives top-level job reordering', () =>
 	assert.equal(agentProofCondition(reorderedWorkflow), condition);
 });
 
-test('Agent proof gate author/actor matrix preserves only the Dependabot-author exemption', async (t) => {
+test('Evidence gate author/actor matrix preserves only the Dependabot-author exemption', async (t) => {
 	const workflow = fs.readFileSync(workflowPath, 'utf8');
 	const condition = agentProofCondition(workflow);
 	const cases = [
@@ -123,7 +123,7 @@ test('Agent proof gate author/actor matrix preserves only the Dependabot-author 
 	}
 });
 
-test('Agent proof gate stays disabled outside pull-request events', () => {
+test('Evidence gate stays disabled outside pull-request events', () => {
 	const workflow = fs.readFileSync(workflowPath, 'utf8');
 	const condition = agentProofCondition(workflow);
 
