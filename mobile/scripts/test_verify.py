@@ -989,5 +989,31 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertIn("disabled_reason", report["cache"])
 
 
+class SplitUiClassTests(unittest.TestCase):
+    """Each phase's UI tests are split over classes so parallel workers share them."""
+
+    def test_every_phase_class_is_selected_and_base_has_no_tests(self):
+        import re
+
+        ui_dir = Path(__file__).resolve().parents[1] / "RundaleUITests"
+        for phase, selected in (
+            (2, verify_module.PHASE2_UI_CLASSES),
+            (3, verify_module.PHASE3_UI_CLASSES),
+            (4, verify_module.PHASE4_UI_CLASSES),
+        ):
+            text = (ui_dir / f"RundalePhase{phase}UITests.swift").read_text(encoding="utf-8")
+            base = f"RundalePhase{phase}UITestCase"
+            classes = re.findall(r"^(?:final )?class (\w+): (\w+) \{", text, re.MULTILINE)
+            subclasses = {name for name, parent in classes if parent == base}
+            self.assertGreater(len(subclasses), 1, phase)
+            self.assertEqual(
+                {f"RundaleUITests/{name}" for name in subclasses}, set(selected), phase
+            )
+            self.assertIn(f"RundaleUITests/RundalePhase{phase}UITests", selected)
+            base_body = text.split(f"class {base}: XCTestCase {{", 1)[1]
+            base_body = base_body.split("\nfinal class ", 1)[0]
+            self.assertNotIn("func test", base_body, phase)
+
+
 if __name__ == "__main__":
     unittest.main()

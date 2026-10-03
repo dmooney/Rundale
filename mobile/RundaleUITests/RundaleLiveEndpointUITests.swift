@@ -87,16 +87,28 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     }
 
     /// Free-form movement the local parser does not recognise is classified
-    /// by rundale-intent v1; the engine then moves the player.
+    /// by rundale-intent v1; the engine then moves the player, once, and the
+    /// transcript shows the move rather than a fallback conversation (#2046,
+    /// carried from #1993).
     func test03LiveIntentEndpointClassifiesFreeFormMovement() throws {
         try launch(reset: true)
         waitForInitialScene()
-        _ = submit("Let's make for the Letter Office")
+        _ = submit("Let us be off, walking on toward the Letter Office")
         XCTAssertTrue(
             waitForTranscriptText("A narrow counter, pigeonholes of folded paper", timeout: 45),
             "Expected the Letter Office after the intent Endpoint classified the move"
         )
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.otherElements.matching(NSPredicate(
+            format: "identifier == 'status.header' AND label CONTAINS 'Letter Office'"
+        )).firstMatch.exists)
+        let walks = app.transcriptRows().filter {
+            $0.text.contains("You walk along a short lane east to the whitewashed Letter Office")
+        }
+        XCTAssertEqual(walks.count, 1, "The move runs exactly once: \(walks)")
+        XCTAssertTrue(app.transcriptRows().filter { $0.kind == "npc_dialogue" }.isEmpty,
+                      "Unrecognised movement is not answered as dialogue")
+        hold(4)
     }
 
     /// Product spec §5.3: rundale-intent v1 names "Connolly" as the

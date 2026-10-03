@@ -29,6 +29,24 @@ SKIPPED = "skipped"
 UNAVAILABLE = "unavailable"
 NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
+# Xcode spreads whole test classes across parallel simulator workers, so each
+# phase's UI tests are split over several classes (sharing one base class).
+PHASE2_UI_CLASSES = (
+    "RundaleUITests/RundalePhase2UITests",
+    "RundaleUITests/RundalePhase2DialogueUITests",
+    "RundaleUITests/RundalePhase2RecoveryUITests",
+)
+PHASE3_UI_CLASSES = (
+    "RundaleUITests/RundalePhase3UITests",
+    "RundaleUITests/RundalePhase3ArrivalsUITests",
+    "RundaleUITests/RundalePhase3ClarificationUITests",
+)
+PHASE4_UI_CLASSES = (
+    "RundaleUITests/RundalePhase4UITests",
+    "RundaleUITests/RundalePhase4RecoveryUITests",
+    "RundaleUITests/RundalePhase4NetworkUITests",
+    "RundaleUITests/RundalePhase4AccessibilityUITests",
+)
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 6
@@ -1318,7 +1336,7 @@ class VerificationRun:
         name: str,
         phase: int,
         source: Path,
-        target: str,
+        target: str | Sequence[str],
         skip_testing: Sequence[str] = (),
     ) -> None:
         """Run one native suite on an explicitly selected, signed iPhone."""
@@ -1755,7 +1773,7 @@ class VerificationRun:
             identifier=identifier,
             name=name,
             only_testing=[
-                "RundaleUITests/RundalePhase2UITests",
+                *PHASE2_UI_CLASSES,
                 "RundaleUITests/RundaleSceneUITests",
                 "RundaleUITests/RundaleCommandsUITests",
                 "RundaleUITests/RundaleFailureLinesUITests",
@@ -1814,7 +1832,7 @@ class VerificationRun:
             phase=3,
             identifier=identifier,
             name=name,
-            only_testing="RundaleUITests/RundalePhase3UITests",
+            only_testing=PHASE3_UI_CLASSES,
         )
         if record["status"] == PASSED:
             self._validate_result(
@@ -1827,7 +1845,7 @@ class VerificationRun:
             name="Physical iPhone Phase 2 XCTest/XCUITest suite",
             phase=2,
             source=self.ui_tests_path / "RundalePhase2UITests.swift",
-            target="RundaleUITests/RundalePhase2UITests",
+            target=PHASE2_UI_CLASSES,
             skip_testing=(
                 "RundaleUITests/RundalePhase2UITests/testSimulatorReturnKeySubmitsDraft",
             ),
@@ -2034,7 +2052,7 @@ class VerificationRun:
             name="Physical iPhone Phase 3 canonical-world suite",
             phase=3,
             source=self.ui_tests_path / "RundalePhase3UITests.swift",
-            target="RundaleUITests/RundalePhase3UITests",
+            target=PHASE3_UI_CLASSES,
         )
         for identifier, name, reason in (
             (
@@ -2082,7 +2100,7 @@ class VerificationRun:
                 "phase4-ios-simulator-tests",
                 "Phase 4 native reliability suite",
                 self.ui_tests_path / "RundalePhase4UITests.swift",
-                "RundaleUITests/RundalePhase4UITests",
+                PHASE4_UI_CLASSES,
             ),
             (
                 "phase4-ios-controller-tests",
@@ -2123,7 +2141,7 @@ class VerificationRun:
             name="Physical iPhone Phase 4 native reliability suite",
             phase=4,
             source=self.ui_tests_path / "RundalePhase4UITests.swift",
-            target="RundaleUITests/RundalePhase4UITests",
+            target=PHASE4_UI_CLASSES,
         )
         self._physical_suite(
             identifier="physical-iphone-phase4-controller-tests",
