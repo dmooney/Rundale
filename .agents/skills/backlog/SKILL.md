@@ -1,16 +1,16 @@
 ---
 name: backlog
-description: Work the GitHub issue backlog in three modes — triage (label un-triaged issues by theme + P0–P3), fix-one (take a single issue end-to-end), and drain (multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green). Trigger for "triage the backlog", "fix issue #N", "drain the backlog", "merge ready PRs", "sweep open PRs", or cleanup after a triage pass. Per Limerick convention, bugs ship before enhancements.
+description: Work the GitHub issue backlog in three modes — triage (label un-triaged issues by theme + P0–P3), fix-one (take a single issue end-to-end), and drain (multi-wave parallel fix-agent sweep that hands bug-fix PRs to a gatekeeper as they go green). Trigger for "triage the backlog", "fix issue #N", "drain the backlog", "sweep open PRs", or cleanup after a triage pass. Per Limerick convention, bugs ship before enhancements.
 argument-hint: 'triage | fix-one <issue#> | drain [scope filter]'
 ---
 
 One skill for the whole issue lifecycle. Pick the mode:
 
-| Mode        | What it does                                                                                   |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| **triage**  | Classify un-triaged open issues by theme + priority and apply labels. _Labels_ issues.         |
-| **fix-one** | Take a single issue end-to-end: diagnose → implement → test → commit.                          |
-| **drain**   | Multi-wave parallel fix-agent sweep that merges bug-fix PRs as they go green. _Closes_ issues. |
+| Mode        | What it does                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| **triage**  | Classify un-triaged open issues by theme + priority and apply labels. _Labels_ issues.      |
+| **fix-one** | Take a single issue end-to-end: diagnose → implement → test → commit.                       |
+| **drain**   | Multi-wave parallel fix-agent sweep; green bug-fix PRs go to a gatekeeper. _Closes_ issues. |
 
 The canonical label vocabulary and rubric live in
 [`docs/agent/triage-vocabulary.md`](../../../docs/agent/triage-vocabulary.md) — read it before triage or drain.
@@ -123,13 +123,12 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    — gemini sometimes leaves substantive feedback only in the review summary with no inline comments; the
    inline-only filter misses it.
 
-4. **Merge gate.** A PR is mergeable when ALL of:
+4. **Review gate.** A PR is ready for review when ALL of:
    - title prefix is `fix:` / `security:` / `perf:` / `bug:` / `chore(deps):` / `fix(scope):`
    - all `Rust*`/`UI*`/`Full*` checks are SUCCESS
    - `unr == 0` (zero unresolved-non-outdated bot threads)
 
-   Then: `gh pr merge <n> --squash --delete-branch`. Branch-deletion errors are harmless when an agent
-   worktree still holds the branch — the merge succeeded. Verify auto-close via `gh pr view <n> --json
+   Then spawn a fresh gatekeeper subagent for it, as root `AGENTS.md` [Gatekeeper review](../../../AGENTS.md#gatekeeper-review) describes; it merges, sends the PR back, or hands it to the owner. Never merge it yourself. After the gatekeeper merges, verify auto-close via `gh pr view <n> --json
 closingIssuesReferences`; if the PR body lacked `Fixes #N` syntax, fall back to `gh issue close N
 --comment "Resolved by PR #M"`.
 
@@ -174,12 +173,9 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
 - **Empty CI on a PR (only `semgrep` ran).** Workflow didn't trigger. Try close+reopen first; if still
   empty, the branch likely needs a fresh non-bot commit.
 
-- **Dependabot CI doesn't auto-fire.** GitHub's dependabot branch security policy blocks workflows even
-  after a non-bot commit. Workaround:
-  1. Push an empty commit to the dependabot branch: `git commit --allow-empty -m "ci: retrigger" && git push origin <branch>`
-  2. Manually dispatch via `gh workflow run ci.yml --ref <branch>`
-  3. The dispatched run shows green but doesn't update the PR's check-rollup
-  4. After verifying success: `gh pr merge <n> --squash --delete-branch --admin`
+- **Dependabot PRs.** CI runs on them like any other PR, so they go to a gatekeeper the same way
+  (the gatekeeper skill reviews and lands dependency bumps). If CI never starts on one, report it to the
+  owner; do not dispatch runs outside the PR's check rollup or merge with `--admin`.
 
 - **DIRTY merge state.** Main moved while the PR was in flight. See step 6.
 
