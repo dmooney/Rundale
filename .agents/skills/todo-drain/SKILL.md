@@ -1,6 +1,6 @@
 ---
 name: todo-drain
-description: "Drain TODO.md demo-audit findings in parallel rounds \u2014 AC-first, live proof, attach bundle, retrigger CI as needed, land green PRs while next round is in flight."
+description: "Drain TODO.md demo-audit findings in parallel rounds \u2014 AC-first, live proof, evidence page, retrigger CI as needed, land green PRs while next round is in flight."
 ---
 
 # todo-drain
@@ -28,7 +28,7 @@ Open `TODO.md`. Prefer the smallest-scope unaddressed P0/P1. If the entry has a 
 
 Before any code change:
 
-- `.proofs/todo-<id>/acceptance-criteria.md` — observable criteria, sized concretely (e.g. "`frequency_penalty: Option<f32>` field on `InferenceRequest`", not "improve repetition handling"). Include a "Deferred items" section listing anything intentionally punted from this round.
+- Observable acceptance criteria, sized concretely (e.g. "`frequency_penalty: Option<f32>` field on `InferenceRequest`", not "improve repetition handling"), drafted as the opening of the PR body. List anything intentionally punted from this round under "Deferred items".
 - `limerick/testing/proofs/play_todo-<id>.txt` — harness commands that exercise the new code path in `limerick-engine --headless --script`.
 
 ## 4. Implement
@@ -53,45 +53,45 @@ For UI changes also:
 cd limerick/apps/ui && npx vitest run && pnpm run check
 ```
 
-## 6. Capture live transcript
+## 6. Capture live evidence
+
+Run the change in a real process on the production path, record it, and keep the recording and transcript outside the repository (a scratch directory such as `~/rundale-evidence/todo-<id>/`):
 
 ```sh
 cargo run -p limerick-engine -- --headless --script \
-  limerick/testing/proofs/play_todo-<id>.txt > /tmp/transcript.txt
-cp /tmp/transcript.txt .proofs/todo-<id>/transcript.json
+  limerick/testing/proofs/play_todo-<id>.txt > ~/rundale-evidence/todo-<id>/transcript.txt
 ```
 
-For UI-only changes the engine harness is regression cover only — actual UI behaviour is verified in vitest. Note this in `evidence.md`.
+For UI-only changes the engine harness is regression cover only — actual UI behaviour is verified in vitest and in the recording. Say so in the PR body.
 
-## 7. Write evidence.md
+## 7. Write the PR body
 
-First line must be `Evidence type: live gameplay transcript`. Include:
+Ordinary prose, no machine-checked format. Include:
 
-- Diff summary table (file, change).
-- Acceptance-criteria → evidence map (one row per AC, citing `file:line` or test name).
-- Commands run.
+- The acceptance criteria, each with what in the recording, transcript, or test output shows it.
+- Diff summary.
+- Verification actually run, with skips and unavailable gates stated as such.
 - Transcript excerpt.
 - "Why this fixes #N" explainer.
-- "Deferred items" section listing what was punted with a follow-up plan.
+- "Deferred items" with a follow-up plan.
 - Risk check: save compatibility, prompt budget, mode parity, architecture fitness.
-- Final line: `Acceptance criteria: met`.
 
 ## 8. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
 - Body explains the _why_, not the _what_. Do not add a Claude-specific co-author trailer unless the user explicitly asks for it.
 - PR title prefix matches commit.
-- PR body has Summary + Test plan checklist + `Proof bundle: .proofs/... posted via attach-proof`.
+- PR body from step 7, linking the evidence page (step 9).
 
-## 9. Attach proof bundle
+## 9. Publish the evidence page
 
-From the worktree:
+Runtime-shipping changes must link `https://dmooney.github.io/rundale-pages/pr/<pr-num>/` in the PR body; CI's agent-check fails without it. Put an `index.html`, the H.264 `.mp4`, and a short `.gif` in one directory, then from the worktree:
 
 ```sh
-bash limerick/scripts/attach-proof.sh todo-<id> <pr-num>
+bash limerick/scripts/publish-pr-page.sh <pr-num> ~/rundale-evidence/todo-<id>
 ```
 
-Do NOT call `just attach-proof` from a worktree — that uses the main repo's `justfile` and posts the wrong bundle.
+See [agent-check](../../../docs/agent/agent-check.md).
 
 ## 10. Start next round immediately
 
@@ -138,7 +138,7 @@ gh pr merge <N> --squash --delete-branch
 
   Do NOT try `gh pr close && gh pr reopen` first — classifier may deny it.
 
-- **Agent proof gate `fail` on first run after PR open.** Race: CI started before `attach-proof` posted the bundle comment. Retrigger via empty commit; second run finds the bundle and passes.
+- **Agent proof gate `fail` after adding the evidence link.** The job reads the body when it runs and does not re-run on a body edit. Re-run the job or push an empty commit.
 
 - **`gh workflow run` HTTP 500.** Workflow file isn't on the branch HEAD or validation issue. Use empty commit + push instead.
 
@@ -147,7 +147,7 @@ gh pr merge <N> --squash --delete-branch
 - Never commit other sessions' leaked WIP from the main repo.
 - Never force-push to a PR branch — bot review threads anchor to commit SHAs and force-push detaches them.
 - Never amend; always create new commits. Pre-commit hook failures didn't actually commit, so `--amend` would corrupt prior history.
-- Don't touch `.proofs/` archives in `docs/proofs/local-perf` or `docs/proofs/rundale-bench` — bench archives, exempt from the gate.
+- Don't touch the bench archives in `docs/proofs/local-perf` or `docs/proofs/rundale-bench`.
 - After each landed PR, do not edit `TODO.md` to mark items done — leave it as the demo-audit record; the PR commit IS the marker.
 
 ## Stop conditions

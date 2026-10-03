@@ -16,9 +16,9 @@ Run `just check` from the repo root. This runs: `agent-check`, `fmt-check`, `cli
 
 If it fails, diagnose by running the steps individually:
 
-1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `.proofs/<task-id>/` when it
-   reports missing evidence. The bundle is posted to the PR via `just attach-proof <task-id>`; it is not
-   committed.
+1. **Evidence gate**: `just agent-check`. Locally it fails only on a tracked `.proofs/` path or a
+   placeholder debt marker. When it reports runtime-shipping changes, the PR body must link the PR's
+   evidence page (`https://dmooney.github.io/rundale-pages/pr/<number>/`); CI checks that link.
 2. **Format**: `cd limerick && cargo fmt --check`. Fix with `cd limerick && cargo fmt`, then re-check.
 3. **Lint**: `cd limerick && cargo clippy -- -D warnings`. Fix warnings before proceeding.
 4. **Tests**: `cd limerick && cargo test`. All tests must pass.
@@ -59,12 +59,12 @@ pass # TODO
 return nil // placeholder
 ```
 
-When a PR touches **only documentation or design files** and the prose mentions Rust macro names (e.g. a
-table of allowed change categories), these regexes match the prose. CI reports: `placeholder-like debt
+Markdown files are skipped, but other text files are not: when a changed `.txt`, `.toml`, or script
+mentions Rust macro names (e.g. a table of allowed change categories), these regexes match it. CI reports: `placeholder-like debt
 markers found in changed files`.
 
-**How to spot:** check the file. If the match is inside a Markdown table cell, inline code backticks, or
-prose → false positive. If in `.rs` source → real debt.
+**How to spot:** check the file. If the match is inside prose, a comment, or a quoted example →
+false positive. If in `.rs` source → real debt.
 
 **Fix:** rephrase prose so the patterns don't match:
 
@@ -73,6 +73,6 @@ prose → false positive. If in `.rs` source → real debt.
 | `` `todo!()`, `unimplemented!()` `` | `` `todo!` / `unimplemented!` calls `` |
 | `panic!("Not implemented ...")`     | `panic!("unimplemented ...")`          |
 
-**Known skip-list gap:** `agent-check.sh` skips `limerick/scripts/agent-check.sh`, `limerick/justfile`, and
-`docs/agent/witness.md`. It does NOT skip `docs/design/*`. If false positives from design docs become
-frequent, add `docs/design/*` to the skip list.
+**Skip list:** `agent-check.sh` skips every `*.md` file, `limerick/scripts/agent-check.sh`, and
+`limerick/justfile`. Tests that need a marker assemble it at run time (see
+`limerick/scripts/tests/agent-check-evidence-link.test.sh`).
