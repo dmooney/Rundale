@@ -89,8 +89,8 @@ conflict. Do not circle between them. Standing answers:
   (for example, Markdown under `mods/` treated as runtime code), fix the gate's
   classification with a regression test in its own PR. Do not satisfy it with
   mislabeled evidence, and do not route around it.
-- **Mobile-plan PRs:** squash-merge once required checks pass and review comments are
-  addressed, then start the next plan issue.
+- **Mobile-plan PRs:** once the gatekeeper merges the PR (see
+  [Gatekeeper review](#gatekeeper-review)), start the next plan issue.
 - **`limerick-prod`:** the game is unreleased and has no users, so publishing and
   promoting Endpoints there is authorized. So is live Endpoint testing: run the live
   suites against it, including App Check debug-token setup, without asking first.
@@ -136,6 +136,16 @@ evidence, and never commit videos to this repository.
 Follow [git workflow](docs/agent/git-workflow.md) and [proof requirements](docs/agent/agent-check.md).
 Keep the README, documentation, and canonical world sheet consistent with changes
 where applicable. Run `just notices` when dependencies change.
+
+### Gatekeeper review
+
+Every PR an agent opens is reviewed by a gatekeeper before it merges. Do not merge
+your own PR. Once its required checks pass, spawn a fresh-context subagent (never a
+fork of your session) and give it only the PR number and the instruction to run the
+[`gatekeeper`](.agents/skills/gatekeeper/SKILL.md) skill on that PR. The gatekeeper
+squash-merges it, sends it back with review comments, or hands it to the owner.
+Address its comments with new commits, wait for checks, and spawn a new gatekeeper
+for the next round. A hand-off waits for the owner.
 
 ### Keep the iPhone beta current
 
