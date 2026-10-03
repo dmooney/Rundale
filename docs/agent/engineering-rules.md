@@ -61,7 +61,8 @@ Add/adjust tests for every behavior change.
 ## Gameplay proof
 
 For gameplay features, run `/limerick-engine prove <feature>` — unit tests alone
-are not sufficient.
+are not sufficient. Record the change working in the real app on the production
+path and link the PR's [evidence page](agent-check.md).
 
 <a id="no-unexplained-allow"></a>
 <a id="rule-5"></a>

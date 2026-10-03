@@ -31,7 +31,7 @@ alongside the full product milestone requirements.
 | Git workflow & engineering standards                              | [git-workflow.md](git-workflow.md)                         |
 | Event-driven portfolio and work-in-progress contract              | [improvement-drain.md](improvement-drain.md)               |
 | Witness-style completion gates                                    | [witness.md](witness.md)                                   |
-| PR proof evidence gate                                            | [agent-check.md](agent-check.md)                           |
+| PR evidence-page gate                                             | [agent-check.md](agent-check.md)                           |
 | Agent skills (`/check`, `/limerick-engine`, ...)                  | [skills.md](skills.md)                                     |
 | **Harness map** — what fires when, every sensor and gate          | [harness.md](harness.md)                                   |
 | **Driving the live game via the limerick MCP** (QA / harness)     | [driving-the-game-via-mcp.md](driving-the-game-via-mcp.md) |

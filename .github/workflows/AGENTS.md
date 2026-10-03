@@ -1,12 +1,12 @@
 # .github/workflows — agent scope
 
-CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/harness gates, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the proof-evidence gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
+CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/harness gates, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the evidence-link gate ([agent-check](../../docs/agent/agent-check.md)). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
 
 ## Scoped commands
 
 ```sh
 just check          # fmt + clippy + tests (mirrors rust-quality-gate)
-just agent-check    # proof-evidence gate (mirrors agent-check job)
+just agent-check    # evidence-link gate, local mode (agent-check job reads the PR body)
 just verify         # check + harness walkthrough
 
 # act-local — run CI workflows in Docker (see docs/agent/act-local.md)
@@ -27,7 +27,8 @@ just act-pr         # simulate the pull_request fast lane
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
-- **CI-only edits skip the proof gate ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).** `.github/**` changes with no source diff do not require a proof bundle.
+- **CI-only edits need no evidence page ([agent-check](../../docs/agent/agent-check.md)).** Only runtime-shipping paths (engine runtime crates, `mods/**`, `mobile/**`) require the `rundale-pages/pr/<number>/` link in the PR body.
+- **The agent-check job reads the body when it runs.** `pull_request` runs on `opened`/`synchronize`/`reopened`, not `edited`; after adding the link to an existing PR, re-run the job or push a commit.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
 - **Rust cache workspace paths are repository-root relative.** Every `Swatinem/rust-cache` step that builds the nested Cargo workspace must set `workspaces: limerick -> target`; a job or workflow `working-directory` applies only to `run`, not `uses`.
 - **Rust toolchain is pinned by root `rust-toolchain.toml`.** Keep that file in
@@ -46,7 +47,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
 - **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
-- **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
+- **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`, which requires the evidence-page link in the PR body for runtime-shipping diffs. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `full-ci.yml` — Preserved full-suite pipeline

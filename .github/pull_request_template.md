@@ -15,14 +15,13 @@
 - Scaling seams reviewed: <!-- persistence, identity, inference, sessions, AppState, or N/A -->
 - Feature flag: <!-- name and default, or N/A -->
 
-## Proof evidence
+## Acceptance criteria and evidence
 
-- [ ] Acceptance criteria and evidence are embedded in this PR body through the `limerick-proof-bundle` fence when proof-relevant files change.
-- [ ] Evidence is a gameplay transcript, screenshot, GIF, or live measurement with the required `Evidence type: live ...` header for runtime changes.
-- [ ] The evidence maps every acceptance criterion to the transcript lines or artifacts that show it, and states `Acceptance criteria: met`.
-- [ ] Documentation/CI-only change: proof bundle is not required and the reason is stated below.
+<!-- List each acceptance criterion and what shows it: the recording, a test, or a command's output. -->
 
-Proof exemption reason, if applicable: <!-- N/A unless documentation/CI-only -->
+Evidence page: <!-- https://dmooney.github.io/rundale-pages/pr/<this PR's number>/ -- required when the diff touches mobile/**, mods/**, or engine runtime crates; otherwise write "not required" and why -->
+
+<!-- Recording shows: real app on a physical iPhone | simulator | engine process | fixture. -->
 
 ## Checks actually run
 
