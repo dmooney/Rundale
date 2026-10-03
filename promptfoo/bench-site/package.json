@@ -16,7 +16,7 @@
     "@astrojs/svelte": "^9.0.1",
     "astro": "^7.3.5",
     "cookie": "^2.0.1",
-    "simple-icons": "^16.32.0",
+    "simple-icons": "^16.33.0",
     "svelte": "^5.57.1"
   },
   "devDependencies": {
