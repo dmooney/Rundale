@@ -244,6 +244,70 @@ final class RundalePhase1AuditUITests: XCTestCase {
         exerciseAccessibleFocusedComposer(forceDark: true)
     }
 
+    /// The composer grows with a long draft, up to its five-line limit,
+    /// instead of being squeezed by the transcript (reported on device: it
+    /// stopped at two lines).
+    func testComposerGrowsWithALongDraft() {
+        launch()
+        let input = commandInput
+        input.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        input.typeText("Hello")
+        let oneLine = input.frame.height
+        input.typeText(" there, I have a much longer thing to say about the cattle, the wet road "
+            + "west of the village, the letters waiting at the office, and the weather")
+        let grown = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in input.frame.height > oneLine * 2.5 }, object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [grown], timeout: 3), .completed,
+                       "The composer should grow past two lines (\(oneLine) -> \(input.frame.height))")
+        assertComposerIsUsableAboveKeyboard()
+        XCTAssertGreaterThan(input.frame.minY - transcript.frame.minY, 44,
+                             "Some transcript stays visible above the grown composer")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Composer grown with a long draft"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    /// The largest standard text size is not an accessibility size, so the
+    /// five-line limit applies. A grown composer and the People strip must
+    /// still fit above the keyboard on a small iPhone.
+    func testLargestStandardSizeFitsGrownComposerAndPeopleStripAboveKeyboard() {
+        app.launchArguments = [
+            "--ui-tests", "--no-auto-focus", "--reset-fixture",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+            "--fixture=standard"
+        ]
+        app.launch()
+        let input = commandInput
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        input.typeText("I have a much longer thing to say about the cattle, the wet road west "
+            + "of the village, the letters waiting at the office, and the weather ")
+        app.buttons["composer.people"].tap()
+        let option = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'completion.'")
+        ).firstMatch
+        XCTAssertTrue(option.waitForExistence(timeout: 3), "The People strip is showing")
+        XCTAssertTrue(option.isHittable)
+        XCTAssertLessThanOrEqual(option.frame.maxY, keyboard.frame.minY + 1)
+        assertComposerIsUsableAboveKeyboard()
+        XCTAssertGreaterThan(input.frame.height, 60, "The field grew past one line")
+        // Prove the row works: a tap that lands on Commands switches the
+        // strip to command options.
+        app.buttons["composer.commands"].tap()
+        XCTAssertTrue(app.buttons["completion.look"].waitForExistence(timeout: 3),
+                      "Commands is reachable above the keyboard")
+        XCTAssertGreaterThan(input.frame.minY - transcript.frame.minY, 44,
+                             "Some transcript stays visible above the strip and composer")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Grown composer and People strip at xxxLarge"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testAccessibilitySizeKeepsCompletionAndClarificationControlsAboveKeyboard() {
         launchAccessibilityFixture()
         commandInput.tap()

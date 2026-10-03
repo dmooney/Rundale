@@ -69,8 +69,15 @@ struct ContentView: View {
                 Composer(
                     model: model,
                     focused: $composerFocused,
-                    compactLayout: constrained
+                    compactLayout: constrained,
+                    availableHeight: geometry.size.height
                 )
+                // Take the composer's natural height (its field grows to its
+                // line limit) before the transcript's priority claims the
+                // rest; otherwise a long draft is squeezed to about two lines.
+                // The line limit is sized to the available height, so this
+                // cannot push the column past the keyboard.
+                .fixedSize(horizontal: false, vertical: true)
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .overlay(alignment: .topLeading) {
@@ -1116,6 +1123,8 @@ private struct Composer: View {
     @ObservedObject var model: RundalePresentationModel
     @FocusState.Binding var focused: Bool
     let compactLayout: Bool
+    /// Height of the whole column; the keyboard already reduces it.
+    let availableHeight: CGFloat
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var canSubmitDraft: Bool {
@@ -1304,7 +1313,21 @@ private struct Composer: View {
         // within one visible line above a constrained keyboard. A single view
         // identity avoids dropping first responder as the keyboard resizes.
         TextField("What do you do?", text: $model.draft, axis: .vertical)
-            .lineLimit(compactLayout ? 1...1 : 1...5)
+            .lineLimit(1...maxDraftLines)
+    }
+
+    /// Up to five lines, within about 30% of the column's height, so large
+    /// text on a small screen leaves room for the header, a completion strip,
+    /// the shortcuts, and some transcript. A constrained (accessibility-size)
+    /// layout keeps one line.
+    private var maxDraftLines: Int {
+        guard !compactLayout else { return 1 }
+        let lineHeight = UIFont.preferredFont(
+            forTextStyle: .body,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
+        ).lineHeight
+        let budget = availableHeight * 0.3 - 20  // the field's vertical padding
+        return min(5, max(1, Int(budget / lineHeight)))
     }
 
     private var commandFieldHint: String {
