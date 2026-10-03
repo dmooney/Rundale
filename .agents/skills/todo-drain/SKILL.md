@@ -117,15 +117,11 @@ done
 echo "ALL TERMINAL"
 ```
 
-## 11. Land green PRs
+## 11. Hand green PRs to the gatekeeper
 
-When monitor reports green:
+When monitor reports green, spawn a fresh gatekeeper subagent for each PR, as root `AGENTS.md` [Gatekeeper review](../../../AGENTS.md#gatekeeper-review) describes; it merges, sends the PR back, or hands it to the owner. Never merge it yourself.
 
-```sh
-gh pr merge <N> --squash --delete-branch
-```
-
-- The "main worktree" branch-delete error is harmless — merge succeeded on remote; verify via `gh pr view <N> --json state,mergeCommit`.
+- After the gatekeeper merges, verify via `gh pr view <N> --json state,mergeCommit`.
 - Gemini `review / review: cancel` is normal (auto-cancelled bot review, not a real failure).
 
 ## Known CI failure patterns + fixes

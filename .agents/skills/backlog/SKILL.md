@@ -123,13 +123,12 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    — gemini sometimes leaves substantive feedback only in the review summary with no inline comments; the
    inline-only filter misses it.
 
-4. **Merge gate.** A PR is mergeable when ALL of:
+4. **Review gate.** A PR is ready for review when ALL of:
    - title prefix is `fix:` / `security:` / `perf:` / `bug:` / `chore(deps):` / `fix(scope):`
    - all `Rust*`/`UI*`/`Full*` checks are SUCCESS
    - `unr == 0` (zero unresolved-non-outdated bot threads)
 
-   Then: `gh pr merge <n> --squash --delete-branch`. Branch-deletion errors are harmless when an agent
-   worktree still holds the branch — the merge succeeded. Verify auto-close via `gh pr view <n> --json
+   Then spawn a fresh gatekeeper subagent for it, as root `AGENTS.md` [Gatekeeper review](../../../AGENTS.md#gatekeeper-review) describes; it merges, sends the PR back, or hands it to the owner. Never merge it yourself. After the gatekeeper merges, verify auto-close via `gh pr view <n> --json
 closingIssuesReferences`; if the PR body lacked `Fixes #N` syntax, fall back to `gh issue close N
 --comment "Resolved by PR #M"`.
 
@@ -179,7 +178,7 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
   1. Push an empty commit to the dependabot branch: `git commit --allow-empty -m "ci: retrigger" && git push origin <branch>`
   2. Manually dispatch via `gh workflow run ci.yml --ref <branch>`
   3. The dispatched run shows green but doesn't update the PR's check-rollup
-  4. After verifying success: `gh pr merge <n> --squash --delete-branch --admin`
+  4. After verifying success, spawn a fresh gatekeeper subagent for the PR, as root `AGENTS.md` [Gatekeeper review](../../../AGENTS.md#gatekeeper-review) describes; it merges, sends the PR back, or hands it to the owner. Never merge it yourself. The dispatched run is not in the PR's check rollup, so say in the PR conversation where it ran.
 
 - **DIRTY merge state.** Main moved while the PR was in flight. See step 6.
 

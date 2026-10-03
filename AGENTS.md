@@ -145,7 +145,9 @@ fork of your session) and give it only the PR number and the instruction to run 
 [`gatekeeper`](.agents/skills/gatekeeper/SKILL.md) skill on that PR. The gatekeeper
 squash-merges it, sends it back with review comments, or hands it to the owner.
 Address its comments with new commits, wait for checks, and spawn a new gatekeeper
-for the next round. A hand-off waits for the owner.
+for the next round. A hand-off waits for the owner: report it, and move on to work
+that does not depend on it. The one exception is the owner asking to land a PR
+directly, which the [`land`](.agents/skills/land/SKILL.md) skill does.
 
 ### Keep the iPhone beta current
 
