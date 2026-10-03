@@ -21,8 +21,12 @@ the issues record what depends on what. Refer to work by issue number.
 | 4            | [iPhone app on the shared engine](https://github.com/dmooney/Rundale/milestone/4)                     | Phases 1 and 2                  |
 | 5            | [Re-accept prototype, vertical slice, and tiny world](https://github.com/dmooney/Rundale/milestone/5) | Phases 3 and 4                  |
 | 6            | [Mobile reliability](https://github.com/dmooney/Rundale/milestone/6) (spec Milestone 4)               | Phase 5                         |
-| 7            | [Living-world proof](https://github.com/dmooney/Rundale/milestone/7) (spec Milestone 5)               | Phase 6                         |
-| 8            | [Controlled expansion](https://github.com/dmooney/Rundale/milestone/8) (spec Milestone 6)             | Phase 7                         |
+| 7            | [New features](https://github.com/dmooney/Rundale/milestone/9)                                        | Phase 5                         |
+| 8            | [Living-world proof](https://github.com/dmooney/Rundale/milestone/7) (spec Milestone 5)               | Phase 6                         |
+| 9            | [Controlled expansion](https://github.com/dmooney/Rundale/milestone/8) (spec Milestone 6)             | Phase 8                         |
+
+Mobile Phase 7 holds the player-facing features deferred by the feature freeze; they
+start once Mobile Phase 5 lifts it.
 
 "Milestone N" in the [product specification](../product-specs/product-technical-spec.md)
 §17, and "Phase N" in the test plans, audits, and `just mobile-verify --phase N`, mean
@@ -36,9 +40,9 @@ product spec Milestone N, not Mobile Phase N.
   built on `main`: the `TurnEngine` and `InProcessTurns` drive server, Tauri,
   and the MCP bridge; the save database journals requests and transcript
   events in one transactional commit; saves carry a format version and open
-  forward-compatibly; and `SaveFileLock` is a kernel lock (ADR-026). Phase 1
-  still has two open issues (#2023, headless REPL on the shared pipeline;
-  #2025, a background-inference host seam). See
+  forward-compatibly; and `SaveFileLock` is a kernel lock (ADR-026). The
+  headless REPL still runs its own pipeline (#2023, outside this plan), and the
+  background-inference host seam (#2025) is postponed to Mobile Phase 8. See
   [the design doc](../design/portable-turn-api.md) for the as-built API.
 - `ios-port` has a working SwiftUI app, the Swift/Rust boundary (FFI), the
   Endpoints service, and verification and release tooling. These sit on a
@@ -94,7 +98,7 @@ walkthrough pass unchanged.
 
 ## Mobile Phase 1: portable turn API (L)
 
-Open: #2023, #2025. This document is #2036.
+Moved out: #2023 (outside this plan) and #2025 (Mobile Phase 8). This document is #2036.
 Done: #2026, #2027, #2028, #2029, #2032, #2033, #2034 (PR #2067), #2035 (PR #2073).
 See [the design doc](../design/portable-turn-api.md) for the as-built API and §8
 for the full PR sequence.
@@ -125,11 +129,13 @@ Exit:
 - Desktop tests and the harness walkthrough are unchanged.
 - `limerick-engine --script` output is unchanged for existing fixtures.
 
-## Background inference seam (M, in Mobile Phase 1)
+## Background inference seam (M, postponed to Mobile Phase 8)
 
 The turn engine routes only in-turn inference through the host. Post-turn NPC
 reactions, idle banter, and tier-2/3/4 simulation still call inference
-in-process, so mobile runs without them until this lands (#2025).
+in-process, so mobile runs without them until this lands (#2025). Background
+inference did not work on `ios-port` either, so this is postponed to Mobile Phase
+8 (living-world proof) and does not gate lifting the feature freeze.
 
 - Add a background-inference host seam in shared core, reusing the turn engine's
   inference request and outcome types. Background work yields to player turns
@@ -233,7 +239,7 @@ Issues: #2047, #2048.
   apply.
 - Tag `ios-port` as an archive (for example `archive/ios-port`) and stop
   updating it.
-- Unfreeze feature work once the background inference seam (#2025) has landed. The
+- Unfreeze feature work once #2047 is done; features go to Mobile Phase 7. The
   living world uses the engine's own systems, such as
   `limerick-npc` gossip, never mobile-only scripts.
 
