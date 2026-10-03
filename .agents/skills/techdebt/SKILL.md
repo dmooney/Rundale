@@ -237,8 +237,8 @@ during a split.
 - **Conflicts on rebase:** main moves; expect to rebase. The usual conflict is `Cargo.lock` (take main's,
   rebuild — cargo regenerates entries) plus dep-version bumps touching the same `Cargo.toml` lines. Resolve
   manually, keep both intents.
-- **Merge:** wait for CI green. If new review comments arrive after the user approved the merge plan, follow
-  the user's stated policy on whether to wait or merge through.
+- **Merge:** wait for CI green, then spawn a fresh gatekeeper subagent for the PR as root `AGENTS.md`
+  [Gatekeeper review](../../../AGENTS.md#gatekeeper-review) describes. Never merge it yourself.
 
 ### Crate-audit failure modes to avoid
 
