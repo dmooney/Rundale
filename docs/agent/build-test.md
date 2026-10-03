@@ -13,6 +13,12 @@ vision requires ("Phase N" is spec Milestone N). It runs on macOS with Xcode;
 and exits nonzero on a blocking gate. Suites that passed with identical inputs are
 reused; `--no-cache` reruns them. Options, the gates in each phase, and UI
 recording are in the [mobile scripts README](../../mobile/scripts/README.md).
+Simulator suites run with Xcode parallel testing (4 cloned-simulator workers by
+default; `--parallel-workers 1` is serial). While iterating, do not run the full
+gate: build once, then run only the affected class with
+`xcodebuild test-without-building -only-testing:RundaleUITests/<Class>` (or
+`record-ui-test.py`). Run the full `just mobile-verify` once per simulator at the
+end, and never edit a worktree while a gate is building from it.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 

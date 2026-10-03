@@ -22,6 +22,12 @@ swift test --package-path mobile/RundaleKit
 does not stand in for the other. Both need macOS for the iOS parts; on Linux,
 say which gates you could not run.
 
+Iterating: run only the affected class with `xcodebuild test-without-building
+-only-testing:RundaleUITests/<Class>`, and the full `just mobile-verify` gate once
+per simulator at the end. Never edit a worktree while a gate is building from it.
+Demo `hold(_:)` pauses are no-ops unless `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>`
+is set (recording only).
+
 ## Evidence
 
 - The simulator is not a physical iPhone. Report simulator runs as simulator
