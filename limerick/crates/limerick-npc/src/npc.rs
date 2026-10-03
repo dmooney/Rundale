@@ -14,7 +14,7 @@ static NEXT_GROUNDING_REVISION: AtomicU64 = AtomicU64::new(1);
 
 fn next_grounding_revision() -> u64 {
     NEXT_GROUNDING_REVISION
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
             next.checked_add(1)
         })
         .expect("NPC grounding revision counter exhausted")

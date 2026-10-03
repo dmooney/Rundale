@@ -400,7 +400,7 @@ impl EventBus {
     pub fn advance_context_epoch(&self) -> u64 {
         const MAX_SAFE_INTEGER: u64 = (1_u64 << 53) - 1;
         self.context_epoch
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |current| {
                 Some(current.saturating_add(1).min(MAX_SAFE_INTEGER))
             })
             .unwrap_or_else(|current| current)
