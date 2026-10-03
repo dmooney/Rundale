@@ -71,6 +71,10 @@ struct ContentView: View {
                     focused: $composerFocused,
                     compactLayout: constrained
                 )
+                // Take the composer's natural height (its field grows to its
+                // line limit) before the transcript's priority claims the
+                // rest; otherwise a long draft is squeezed to about two lines.
+                .fixedSize(horizontal: false, vertical: true)
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .overlay(alignment: .topLeading) {
