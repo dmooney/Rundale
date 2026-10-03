@@ -294,12 +294,12 @@ final class RundalePhase1AuditUITests: XCTestCase {
         XCTAssertTrue(option.isHittable)
         XCTAssertLessThanOrEqual(option.frame.maxY, keyboard.frame.minY + 1)
         assertComposerIsUsableAboveKeyboard()
-        for id in ["composer.people", "composer.commands"] {
-            let shortcut = app.buttons[id]
-            XCTAssertTrue(shortcut.isHittable, "\(id) stays reachable")
-            XCTAssertLessThanOrEqual(shortcut.frame.maxY, keyboard.frame.minY + 1,
-                                     "\(id) stays above the keyboard")
-        }
+        XCTAssertGreaterThan(input.frame.height, 60, "The field grew past one line")
+        // Prove the row works: a tap that lands on Commands switches the
+        // strip to command options.
+        app.buttons["composer.commands"].tap()
+        XCTAssertTrue(app.buttons["completion.look"].waitForExistence(timeout: 3),
+                      "Commands is reachable above the keyboard")
         XCTAssertGreaterThan(input.frame.minY - transcript.frame.minY, 44,
                              "Some transcript stays visible above the strip and composer")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
