@@ -63,7 +63,8 @@ final class RundalePhase1AuditUITests: XCTestCase {
         commandInput.tap()
         commandInput.typeText("draft before keyboard change")
         let originalHeight = keyboard.frame.height
-        let emoji = keyboard.buttons["Emoji"]
+        // iOS 26 draws the emoji key below the keyboard element, not in it.
+        let emoji = app.buttons["Emoji"]
         XCTAssertTrue(emoji.exists)
         emoji.tap()
         let resize = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
