@@ -131,6 +131,17 @@ def release_build_number(root: Path) -> int:
     number than the last without editing project.yml. App Store Connect may
     still renumber the build (manageAppVersionAndBuildNumber).
     """
+    shallow = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if shallow == "true":
+        # A shallow clone counts only its depth, which would request a
+        # lower build number than earlier uploads.
+        raise RuntimeError("cannot take a build number from a shallow clone; fetch full history")
     count = subprocess.run(
         ["git", "rev-list", "--count", "HEAD"],
         cwd=root,

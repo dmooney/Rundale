@@ -54,13 +54,28 @@ class ReleaseTests(unittest.TestCase):
         )
 
     def test_release_build_number_is_the_commit_count(self):
-        git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        git = [
+            "git",
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "commit.gpgsign=false",
+        ]
         subprocess.run([*git, "init", "-q"], cwd=self.root, check=True)
         for message in ("one", "two", "three"):
             subprocess.run(
                 [*git, "commit", "-q", "--allow-empty", "-m", message], cwd=self.root, check=True
             )
         self.assertEqual(release.release_build_number(self.root), 3)
+
+        shallow = self.root / "shallow"
+        subprocess.run(
+            ["git", "clone", "-q", "--depth", "1", f"file://{self.root}", str(shallow)], check=True
+        )
+        with self.assertRaisesRegex(RuntimeError, "shallow clone"):
+            release.release_build_number(shallow)
 
     def test_testflight_requests_the_commit_count_without_editing_project_yml(self):
         before = self.paths.project_spec.read_bytes()
