@@ -197,7 +197,7 @@ impl SqliteTurnJournal {
             db.turn_journal_transaction(|writer| {
                 let stored = write_in(writer, branch_id, kind, record.as_ref(), events)?;
                 let injected = fail
-                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                    .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
                         left.checked_sub(1)
                     })
                     .is_ok();
