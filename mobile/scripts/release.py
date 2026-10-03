@@ -124,21 +124,21 @@ def endpoint_args() -> list[str]:
     return [f"{key}={value}" for key, value in ENDPOINT_SETTINGS.items()]
 
 
-def increment_build_number(project_spec: Path, *, dry_run: bool = False) -> tuple[int, int]:
-    text = project_spec.read_text(encoding="utf-8")
-    pattern = re.compile(r"^(\s*CURRENT_PROJECT_VERSION:\s*[\"']?)(\d+)([\"']?\s*)$", re.MULTILINE)
-    matches = list(pattern.finditer(text))
-    if len(matches) != 1:
-        raise ValueError("project.yml must contain exactly one numeric CURRENT_PROJECT_VERSION")
-    match = matches[0]
-    old = int(match.group(2))
-    new = old + 1
-    if not dry_run:
-        replacement = f"{match.group(1)}{new}{match.group(3)}"
-        project_spec.write_text(
-            text[: match.start()] + replacement + text[match.end() :], encoding="utf-8"
-        )
-    return old, new
+def release_build_number(root: Path) -> int:
+    """Return HEAD's commit count, the build number an upload requests.
+
+    It rises with every commit on main, so each upload asks for a higher
+    number than the last without editing project.yml. App Store Connect may
+    still renumber the build (manageAppVersionAndBuildNumber).
+    """
+    count = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return int(count)
 
 
 def project_value(project_spec: Path, key: str) -> str:
@@ -334,8 +334,8 @@ class Release:
                 ],
                 cwd=self.paths.root,
             )
-            old, new = increment_build_number(self.paths.project_spec, dry_run=self.dry_run)
-            print(f"CURRENT_PROJECT_VERSION: {old} -> {new}")
+            build = release_build_number(self.paths.root)
+            print(f"Requested build number: {build} (commit count of HEAD)")
             # The verifier already built the Rust framework for all implemented phases.
             self.common_prepare(build_rust=False)
             self.run_command(
@@ -358,10 +358,11 @@ class Release:
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
                     *endpoint_args(),
+                    f"CURRENT_PROJECT_VERSION={build}",
                 ],
                 cwd=self.paths.root,
             )
-            self.validate_archive(expected_build=new)
+            self.validate_archive(expected_build=build)
             options = self.write_export_options()
             self.run_command(
                 [
@@ -383,7 +384,7 @@ class Release:
                         {
                             "status": "upload_requested",
                             "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
-                            "archiveBuild": new,
+                            "requestedBuild": build,
                             "uploadedBuild": None,
                             "appStoreConnectAppID": "6811694290",
                             "testingStatus": "pending_apple_processing",
@@ -443,7 +444,7 @@ class Release:
             if info.get(key) != value:
                 raise RuntimeError(f"archive metadata mismatch for {key}")
         if expected_build is not None and str(info.get("CFBundleVersion")) != str(expected_build):
-            raise RuntimeError("packaged app build number does not match project.yml")
+            raise RuntimeError("packaged app build number does not match the expected build")
         executable_name = info.get("CFBundleExecutable")
         if not isinstance(executable_name, str) or not executable_name:
             raise RuntimeError("packaged app is missing CFBundleExecutable")

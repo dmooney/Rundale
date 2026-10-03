@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import importlib
+import json
 import plistlib
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,13 +53,29 @@ class ReleaseTests(unittest.TestCase):
             },
         )
 
-    def test_build_number_mutation_is_numeric_and_dry_run_is_side_effect_free(self):
-        old, new = release.increment_build_number(self.paths.project_spec, dry_run=True)
-        self.assertEqual((old, new), (8, 9))
-        self.assertIn('"8"', self.paths.project_spec.read_text())
-        old, new = release.increment_build_number(self.paths.project_spec)
-        self.assertEqual((old, new), (8, 9))
-        self.assertIn('"9"', self.paths.project_spec.read_text())
+    def test_release_build_number_is_the_commit_count(self):
+        git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run([*git, "init", "-q"], cwd=self.root, check=True)
+        for message in ("one", "two", "three"):
+            subprocess.run(
+                [*git, "commit", "-q", "--allow-empty", "-m", message], cwd=self.root, check=True
+            )
+        self.assertEqual(release.release_build_number(self.root), 3)
+
+    def test_testflight_requests_the_commit_count_without_editing_project_yml(self):
+        before = self.paths.project_spec.read_bytes()
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(runner, "validate_archive") as validate,
+        ):
+            runner.testflight()
+        archive = next(c for c in self.commands if "archive" in c)
+        self.assertIn("CURRENT_PROJECT_VERSION=1259", archive)
+        validate.assert_called_once_with(expected_build=1259)
+        self.assertEqual(self.paths.project_spec.read_bytes(), before)
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual(receipt["requestedBuild"], 1259)
 
     def test_build_orders_rust_xcodegen_and_unsigned_build(self):
         runner = release.Release(self.paths, runner=self.runner)
@@ -174,7 +192,8 @@ class ReleaseTests(unittest.TestCase):
         before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         runner = release.Release(self.paths, dry_run=True, runner=self.runner)
         runner.build()
-        runner.testflight()
+        with patch.object(release, "release_build_number", return_value=1259):
+            runner.testflight()
         after = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
         self.assertFalse(self.paths.output.exists())
@@ -182,9 +201,12 @@ class ReleaseTests(unittest.TestCase):
 
     def test_testflight_orders_checks_archive_validation_then_upload(self):
         runner = release.Release(self.paths, runner=self.runner)
-        with patch.object(runner, "validate_archive") as validate:
+        with (
+            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(runner, "validate_archive") as validate,
+        ):
             runner.testflight()
-        validate.assert_called_once_with(expected_build=9)
+        validate.assert_called_once_with(expected_build=1259)
         self.assertEqual(self.commands[0][1].rsplit("/", 2)[-2:], ["scripts", "verify.py"])
         self.assertEqual(self.commands[0][2:], ["--phase", "all"])
         self.assertEqual(self.commands[1][0], "xcodegen")
@@ -199,7 +221,10 @@ class ReleaseTests(unittest.TestCase):
                 output.write("verification evidence\n")
 
         runner = release.Release(self.paths, runner=recording_runner)
-        with self.assertRaisesRegex(RuntimeError, "missing Info.plist"):
+        with (
+            patch.object(release, "release_build_number", return_value=1259),
+            self.assertRaisesRegex(RuntimeError, "missing Info.plist"),
+        ):
             runner.testflight()
         self.assertFalse(any("-exportArchive" in c for c in self.commands))
         self.assertIn("verification evidence", self.paths.log.read_text())
