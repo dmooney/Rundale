@@ -84,9 +84,10 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
         submit("/people")
         XCTAssertTrue(waitForText("No one else is here.", timeout: 8))
 
-        // From 09:00 Peig is behind her counter. A long wait moves the clock
-        // in one step, so she sets off when it ends; a short one lets her
-        // arrive (as the canonical world sheet's script does).
+        // Peig's schedule has her set out for the Letter Office at 09:00. A
+        // long wait moves the clock in one step, so she only sets off when it
+        // ends; a short one then lets her arrive (as the canonical world
+        // sheet's script does).
         submit("/wait 120")
         submit("/wait 10")
         submit("/people")
@@ -187,6 +188,7 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
         XCTAssertFalse(app.buttons["composer.stop"].exists)
         roisin.tap()
 
+        XCTAssertTrue(unresolvedPrompt.waitForNonExistence(timeout: 3))
         XCTAssertFalse(app.otherElements["clarification"].waitForExistence(timeout: 1))
         XCTAssertTrue(waitForText("household work allows", timeout: 15))
     }

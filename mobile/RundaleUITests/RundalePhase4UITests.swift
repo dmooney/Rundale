@@ -169,9 +169,10 @@ final class RundalePhase4UITests: RundalePhase4UITestCase {
 
     func testTalkingAboutAbsentMichaelStillGetsPeigsReplyAtTheLetterOffice() {
         launch(reset: true)
-        // From 09:00 Peig is behind her counter. A long wait moves the clock
-        // in one step, so she sets off when it ends; a short one lets her
-        // arrive (as the canonical world sheet's script does).
+        // Peig's schedule has her set out for the Letter Office at 09:00. A
+        // long wait moves the clock in one step, so she only sets off when it
+        // ends; a short one then lets her arrive (as the canonical world
+        // sheet's script does).
         submit("/wait 120")
         submit("/wait 10")
         submit("go to the Letter Office")

@@ -268,7 +268,11 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         launch(reset: false)
 
         XCTAssertTrue(app.otherElements["status.header"].waitForExistence(timeout: 8))
-        XCTAssertTrue(waitForTranscriptText(command, timeout: 12))
+        // The restored command row can sit above the visible rows on a small
+        // screen, so read it from the trace.
+        XCTAssertTrue(app.waitForTranscriptRow(timeout: 12) {
+            $0.kind == "player_command" && $0.text.contains(command)
+        })
         XCTAssertTrue(waitForDialogue(containing: "The wet ground has made moving cattle", timeout: 12))
         XCTAssertTrue(waitForDialogue(containing: "difficult this week", timeout: 12))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
