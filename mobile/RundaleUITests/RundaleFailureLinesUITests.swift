@@ -64,11 +64,4 @@ final class RundaleFailureLinesUITests: XCTestCase {
             format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", text
         )).firstMatch
     }
-
-    /// Pauses for a human viewer when recording; a no-op in normal runs.
-    private func hold(_ seconds: TimeInterval) {
-        guard let value = ProcessInfo.processInfo.environment["RUNDALE_DEMO_HOLD"],
-              let minimum = TimeInterval(value), minimum > 0 else { return }
-        Thread.sleep(forTimeInterval: max(seconds, minimum))
-    }
 }
