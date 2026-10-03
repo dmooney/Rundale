@@ -204,6 +204,16 @@ def _safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "command"
 
 
+def _worker_count(value: str) -> int:
+    try:
+        count = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("worker count must be an integer >= 1") from exc
+    if count < 1:
+        raise argparse.ArgumentTypeError("worker count must be an integer >= 1")
+    return count
+
+
 def _phase(value: str) -> int | None:
     if value.lower() == "all":
         return None
@@ -280,6 +290,9 @@ def _select_simulator(
     return matches[0], None
 
 
+DEFAULT_PARALLEL_WORKERS = 4
+
+
 class VerificationRun:
     def __init__(
         self,
@@ -301,6 +314,7 @@ class VerificationRun:
         configuration: str = "Debug",
         command_timeout_seconds: float = 30 * 60,
         use_cache: bool = True,
+        parallel_workers: int | None = None,
     ) -> None:
         self.root = repo_root.resolve()
         mobile = self.root / "mobile"
@@ -319,6 +333,11 @@ class VerificationRun:
         self.live_endpoint, self.soak, self.performance = live_endpoint, soak, performance
         self.development_team = development_team or os.environ.get("RUNDALE_IOS_DEVELOPMENT_TEAM")
         self.timeout = command_timeout_seconds
+        self.parallel_workers = (
+            DEFAULT_PARALLEL_WORKERS if parallel_workers is None else parallel_workers
+        )
+        if self.parallel_workers < 1:
+            raise ValueError("--parallel-workers must be at least 1")
         self.runner = command_runner or SubprocessCommandRunner()
         self.records: list[dict[str, Any]] = []
         self.results: dict[str, CommandResult] = {}
@@ -1032,6 +1051,17 @@ class VerificationRun:
         if self.soak and is_physical:
             command.append("-test-timeouts-enabled")
             command.append("NO")
+        if destination is not None and not is_physical and self.parallel_workers > 1:
+            # Simulator suites clone the destination simulator per worker.
+            # Every UI test launches the app with its own launch arguments and
+            # a fresh app container, so classes share no state. One worker
+            # keeps the run serial.
+            command += [
+                "-parallel-testing-enabled",
+                "YES",
+                "-parallel-testing-worker-count",
+                str(self.parallel_workers),
+            ]
         command += ["-derivedDataPath", derived, "-resultBundlePath", bundle]
         command += (
             ["CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "build"]
@@ -2363,6 +2393,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("RUNDALE_IOS_DEVELOPMENT_TEAM"),
         help="Apple development team for signed device tests (or RUNDALE_IOS_DEVELOPMENT_TEAM)",
     )
+    parser.add_argument(
+        "--parallel-workers",
+        type=_worker_count,
+        default=_worker_count(os.environ.get("RUNDALE_PARALLEL_WORKERS", str(DEFAULT_PARALLEL_WORKERS))),
+        metavar="N",
+        help=(
+            "simulator test workers (cloned simulators); 1 runs serially "
+            f"(default {DEFAULT_PARALLEL_WORKERS}, or RUNDALE_PARALLEL_WORKERS)"
+        ),
+    )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument(
@@ -2398,6 +2438,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         development_team=args.development_team,
         configuration=args.configuration,
         use_cache=args.use_cache,
+        parallel_workers=args.parallel_workers,
     )
     report = run.run(args.phase)
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")

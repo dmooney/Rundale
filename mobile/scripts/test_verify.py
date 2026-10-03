@@ -309,6 +309,41 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertIn("physical-iphone-phase1-tests-results", by_id)
             self.assertEqual(by_id["physical-iphone-phase1-tests"]["details"]["target"], "device")
 
+    def test_simulator_suites_run_in_parallel_unless_one_worker(self):
+        def simulator_argv(**kwargs):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "mobile").mkdir()
+                create_phase1_fixture(root)
+                fake = FakeRunner()
+                VerificationRun(root, command_runner=fake, **kwargs).run(1)
+                return next(
+                    call["argv"]
+                    for call in fake.calls
+                    if call["argv"][0:2] == ("xcodebuild", "-project")
+                    and "test" in call["argv"]
+                    and any(arg.startswith("platform=iOS Simulator") for arg in call["argv"])
+                )
+
+        argv = simulator_argv()
+        self.assertEqual(argv[argv.index("-parallel-testing-enabled") + 1], "YES")
+        self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "4")
+        argv = simulator_argv(parallel_workers=2)
+        self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "2")
+        argv = simulator_argv(parallel_workers=1)
+        self.assertNotIn("-parallel-testing-enabled", argv)
+        self.assertNotIn("-parallel-testing-worker-count", argv)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("."), parallel_workers=0)
+
+    def test_parallel_workers_option_reads_environment(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 4)
+            args = verify_module.build_parser().parse_args(["--parallel-workers", "1"])
+            self.assertEqual(args.parallel_workers, 1)
+        with patch.dict(os.environ, {"RUNDALE_PARALLEL_WORKERS": "3"}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 3)
+
     def test_device_is_opt_in_and_simulator_remains_default(self):
         with patch.dict(os.environ, {}, clear=True):
             args = verify_module.build_parser().parse_args([])

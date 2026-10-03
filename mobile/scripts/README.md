@@ -67,7 +67,14 @@ The runner accepts these options:
 --configuration NAME
 --report-dir PATH
 --no-cache
+--parallel-workers N
 ```
+
+Simulator suites run with Xcode parallel testing: `xcodebuild` clones the
+selected simulator into `N` workers (default 4, `RUNDALE_PARALLEL_WORKERS` or
+`--parallel-workers N`). `--parallel-workers 1` restores the serial run. The UI
+tests share no state: each launches the app with its own launch arguments and a
+fresh app container. Physical-device runs are never parallel.
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
 an explicit `--simulator` takes precedence. `--live-endpoint`, `--soak`, and
