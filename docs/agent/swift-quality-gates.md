@@ -131,7 +131,9 @@ fails, too, when a passing run produced no coverage report or the baseline has
 no entry for the package.
 
 The tolerance (1 percentage point) absorbs small refactors that delete covered
-lines. It does not absorb new untested code of any size. The floor is not a
+lines. It also absorbs a little new untested code: at the recorded baselines,
+roughly 18 uncovered lines in RundaleKit, 12 in LimerickEndpointKit, and 11 in
+RundaleBridge pass the gate, and anything larger fails it. The floor is not a
 target: raise a package's `line_percent` in the pull request that adds tests,
 and lower it only with a stated reason in that pull request. The baseline is
 outside the gate's cache key, so editing it re-checks cached passes without
