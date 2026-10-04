@@ -83,6 +83,7 @@ class ReleaseTests(unittest.TestCase):
         with (
             patch.object(release, "release_build_number", return_value=1259),
             patch.object(runner, "validate_archive") as validate,
+            patch.object(runner, "validate_distribution_ipa"),
         ):
             runner.testflight()
         archive = next(c for c in self.commands if "archive" in c)
@@ -233,15 +234,101 @@ class ReleaseTests(unittest.TestCase):
         with (
             patch.object(release, "release_build_number", return_value=1259),
             patch.object(runner, "validate_archive") as validate,
+            patch.object(runner, "validate_distribution_ipa") as validate_ipa,
         ):
             runner.testflight()
         validate.assert_called_once_with(expected_build=1259)
+        validate_ipa.assert_called_once_with(expected_build=1259)
         self.assertEqual(self.commands[0][1].rsplit("/", 2)[-2:], ["scripts", "verify.py"])
         self.assertEqual(self.commands[0][2:], ["--phase", "all"])
         self.assertEqual(self.commands[1][0], "xcodegen")
         self.assertIn("archive", self.commands[2])
-        self.assertIn("-exportArchive", self.commands[3])
+        # The local distribution export comes first; the upload export last.
+        local, upload = self.commands[3], self.commands[4]
+        self.assertIn("-exportArchive", local)
+        self.assertEqual(local[local.index("-exportPath") + 1], str(self.paths.distribution_export))
+        self.assertIn("-exportArchive", upload)
+        self.assertEqual(upload[upload.index("-exportPath") + 1], str(self.paths.export))
+        local_options = plistlib.loads(self.paths.distribution_export_options.read_bytes())
+        self.assertEqual(local_options["destination"], "export")
+        self.assertFalse(local_options["manageAppVersionAndBuildNumber"])
+        upload_options = plistlib.loads(self.paths.export_options.read_bytes())
+        self.assertEqual(upload_options["destination"], "upload")
+        self.assertTrue(upload_options["manageAppVersionAndBuildNumber"])
         self.assertFalse(any("build-rust-mobile.sh" in " ".join(c) for c in self.commands))
+
+    def write_valid_app(self, app: Path, *, build: str = "8") -> None:
+        app.mkdir(parents=True)
+        info = {
+            "CFBundleIdentifier": release.BUNDLE_ID,
+            "CFBundleShortVersionString": "0.1.0",
+            "CFBundleVersion": build,
+            "CFBundleExecutable": "Rundale",
+            "ITSAppUsesNonExemptEncryption": False,
+            **release.ENDPOINT_SETTINGS,
+        }
+        (app / "Info.plist").write_bytes(plistlib.dumps(info))
+        firebase = {**release.EXPECTED_FIREBASE, "API_KEY": "AIza" + "F" * 35}
+        (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(firebase))
+        (app / "Rundale").write_bytes(b"binary")
+
+    def test_distribution_ipa_is_unpacked_scanned_and_must_be_distribution_signed(self):
+        self.paths.distribution_export.mkdir(parents=True)
+        (self.paths.distribution_export / "Rundale.ipa").write_bytes(b"zip")
+        secret = b""
+
+        def unpacking_runner(argv, *, cwd, log):
+            self.commands.append(argv)
+            if argv[0] == "ditto":
+                app = Path(argv[-1]) / "Payload" / "Rundale.app"
+                self.write_valid_app(app, build="1259")
+                (app / "Rundale").write_bytes(b"binary " + secret)
+
+        runner = release.Release(self.paths, runner=unpacking_runner)
+        distribution = [
+            "Apple Distribution: Rundale (MBPRPZ283R)",
+            "Apple Worldwide Developer Relations",
+        ]
+        with patch.object(release, "signing_authorities", return_value=distribution) as authorities:
+            runner.validate_distribution_ipa(expected_build=1259)
+        app = self.paths.distribution_app / "Payload" / "Rundale.app"
+        authorities.assert_called_once_with(app)
+        self.assertEqual(self.commands[0][:3], ["ditto", "-x", "-k"])
+        self.assertEqual(self.commands[-1][:2], ["codesign", "--verify"])
+        self.assertEqual(self.commands[-1][-1], str(app))
+
+        development = ["Apple Development: Someone (ABCDE12345)"]
+        with (
+            patch.object(release, "signing_authorities", return_value=development),
+            self.assertRaisesRegex(RuntimeError, "Apple Distribution"),
+        ):
+            runner.validate_distribution_ipa(expected_build=1259)
+
+        with (
+            patch.object(release, "signing_authorities", return_value=distribution),
+            self.assertRaisesRegex(RuntimeError, "build number"),
+        ):
+            runner.validate_distribution_ipa(expected_build=1260)
+
+        secret = b"sk-ant-" + b"A" * 30
+        with (
+            patch.object(release, "signing_authorities", return_value=distribution),
+            self.assertRaisesRegex(
+                RuntimeError, "forbidden credentials: Rundale: Anthropic API key"
+            ),
+        ):
+            runner.validate_distribution_ipa(expected_build=1259)
+
+    def test_distribution_ipa_must_be_exactly_one(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        self.paths.distribution_export.mkdir(parents=True)
+        with self.assertRaisesRegex(RuntimeError, "expected one exported .ipa, found 0"):
+            runner.validate_distribution_ipa(expected_build=8)
+        for name in ("a.ipa", "b.ipa"):
+            (self.paths.distribution_export / name).write_bytes(b"zip")
+        with self.assertRaisesRegex(RuntimeError, "expected one exported .ipa, found 2"):
+            runner.validate_distribution_ipa(expected_build=8)
+        self.assertEqual(self.commands, [])
 
     def test_invalid_archive_prevents_upload_and_preserves_verification_log(self):
         def recording_runner(argv, *, cwd, log):

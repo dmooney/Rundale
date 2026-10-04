@@ -55,6 +55,14 @@ class Paths:
         return self.output / "testflight-export"
 
     @property
+    def distribution_export(self) -> Path:
+        return self.output / "distribution-export"
+
+    @property
+    def distribution_app(self) -> Path:
+        return self.output / "distribution-ipa"
+
+    @property
     def firebase(self) -> Path:
         return self.mobile / "Rundale" / "Resources" / "GoogleService-Info.plist"
 
@@ -69,6 +77,10 @@ class Paths:
     @property
     def export_options(self) -> Path:
         return self.output / "ExportOptions.plist"
+
+    @property
+    def distribution_export_options(self) -> Path:
+        return self.output / "DistributionExportOptions.plist"
 
     @property
     def receipt(self) -> Path:
@@ -117,6 +129,19 @@ def scan_bundle_credentials(app: Path, allowed: set[bytes]) -> list[str]:
             if any(match.group(0) not in allowed for match in pattern.finditer(data)):
                 findings.append(f"{path.relative_to(app)}: {label}")
     return findings
+
+
+def signing_authorities(app: Path) -> list[str]:
+    """Return the certificate chain codesign reports for a signed bundle."""
+    details = subprocess.run(
+        ["codesign", "-dvv", str(app)], check=True, capture_output=True, text=True
+    )
+    # codesign -d writes its report to stderr.
+    return [
+        line.removeprefix("Authority=")
+        for line in details.stderr.splitlines()
+        if line.startswith("Authority=")
+    ]
 
 
 def command_text(argv: Sequence[str]) -> str:
@@ -219,10 +244,20 @@ class Release:
         if self.dry_run:
             return
         # Keep compiler/package caches; discard only prior release artifacts.
-        for path in (self.paths.archive, self.paths.export):
+        for path in (
+            self.paths.archive,
+            self.paths.export,
+            self.paths.distribution_export,
+            self.paths.distribution_app,
+        ):
             if path.exists():
                 shutil.rmtree(path)
-        for path in (self.paths.receipt, self.paths.log, self.paths.export_options):
+        for path in (
+            self.paths.receipt,
+            self.paths.log,
+            self.paths.export_options,
+            self.paths.distribution_export_options,
+        ):
             path.unlink(missing_ok=True)
 
     def firebase_preflight(self) -> None:
@@ -377,6 +412,24 @@ class Release:
                 cwd=self.paths.root,
             )
             self.validate_archive(expected_build=build)
+            # Export the distribution-signed .ipa locally and scan it before
+            # the upload export, which re-signs the same archive the same way
+            # but leaves no local copy to inspect.
+            self.run_command(
+                [
+                    "xcodebuild",
+                    "-exportArchive",
+                    "-archivePath",
+                    str(self.paths.archive),
+                    "-exportOptionsPlist",
+                    str(self.write_export_options(upload=False)),
+                    "-exportPath",
+                    str(self.paths.distribution_export),
+                    "-allowProvisioningUpdates",
+                ],
+                cwd=self.paths.root,
+            )
+            self.validate_distribution_ipa(expected_build=build)
             options = self.write_export_options()
             self.run_command(
                 [
@@ -473,22 +526,47 @@ class Release:
     def validate_archive(self, *, expected_build: int | None = None) -> None:
         self.validate_app(self.paths.app, expected_build=expected_build, verify_code_sign=True)
 
-    def write_export_options(self) -> Path:
+    def validate_distribution_ipa(self, *, expected_build: int) -> None:
+        """Check the distribution-signed .ipa TestFlight receives (P2-F08)."""
+        if self.dry_run:
+            print(f"validate distribution ipa: {self.paths.distribution_export}")
+            return
+        ipas = sorted(self.paths.distribution_export.glob("*.ipa"))
+        if len(ipas) != 1:
+            raise RuntimeError(f"expected one exported .ipa, found {len(ipas)}")
+        if self.paths.distribution_app.exists():
+            shutil.rmtree(self.paths.distribution_app)
+        # ditto keeps the bundle's permissions and symlinks, which codesign checks.
+        self.run_command(["ditto", "-x", "-k", str(ipas[0]), str(self.paths.distribution_app)])
+        apps = sorted((self.paths.distribution_app / "Payload").glob("*.app"))
+        if len(apps) != 1:
+            raise RuntimeError(f"expected one app in the exported .ipa, found {len(apps)}")
+        self.validate_app(apps[0], expected_build=expected_build, verify_code_sign=True)
+        if not any(
+            authority.startswith("Apple Distribution:")
+            for authority in signing_authorities(apps[0])
+        ):
+            raise RuntimeError("exported app is not signed with an Apple Distribution certificate")
+
+    def write_export_options(self, *, upload: bool = True) -> Path:
         options = {
             "method": "app-store-connect",
-            "destination": "upload",
+            "destination": "upload" if upload else "export",
             "teamID": TEAM_ID,
             "signingStyle": "automatic",
             "testFlightInternalTestingOnly": True,
-            "manageAppVersionAndBuildNumber": True,
-            "uploadSymbols": True,
+            # Only the upload may renumber; the local export keeps the
+            # archive's build so its number can be checked.
+            "manageAppVersionAndBuildNumber": upload,
+            "uploadSymbols": upload,
         }
+        path = self.paths.export_options if upload else self.paths.distribution_export_options
         if not self.dry_run:
             self.paths.output.mkdir(parents=True, exist_ok=True)
-            self.paths.export_options.write_bytes(plistlib.dumps(options, sort_keys=False))
+            path.write_bytes(plistlib.dumps(options, sort_keys=False))
         else:
-            print(f"write export options: {self.paths.export_options}")
-        return self.paths.export_options
+            print(f"write export options: {path}")
+        return path
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
