@@ -7,6 +7,7 @@ Shell and Python dev scripts used by CI, agents, and local development. Several 
 ```sh
 bash limerick/scripts/agent-check.sh --source=local          # lints; reports if an evidence link is needed
 bash limerick/scripts/check-repository-artifacts.sh          # validate tracked artifacts
+bash limerick/scripts/check-docs-format.sh                   # Prettier + markdownlint on tracked files (just docs-check)
 bash limerick/scripts/limerick-mcp-backend.sh start            # boot backend for mcp__limerick__* tools
 bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's evidence page
 ```
@@ -26,6 +27,11 @@ bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's e
 
 - Two modes: `--source=local` (lints, and reports whether the diff is runtime-shipping) and `--source=pr <number>` (also requires `https://dmooney.github.io/rundale-pages/pr/<number>/` in the PR body via `gh`, used by CI).
 - Runtime-shipping: `mobile/**` (except `mobile/scripts/**`), `mods/**`, and the engine runtime crates; Markdown, `graphify-out/`, and Rust/UI test code never are. Rejects `.proofs/` paths and placeholder debt markers in every mode.
+
+### `check-docs-format.sh` — Docs/data formatting gate
+
+- Prettier and markdownlint over `git ls-files` only, so git-ignored copies (worktrees under `.claude/worktrees/`) never fail it; markdownlint runs with `--no-globs` so the config's `globs` cannot re-add every file on disk.
+- Fails, not skips, without root `node_modules` (`npm ci`). `just docs-check`, `just check`, `just verify`, and `.githooks/pre-push` run it; `tests/check-docs-format.test.sh` covers it.
 
 ### `publish-pr-page.sh` — Publish a PR's evidence page
 

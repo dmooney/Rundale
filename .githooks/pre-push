@@ -27,34 +27,4 @@ if [ ! -x node_modules/.bin/prettier ] || [ ! -x node_modules/.bin/markdownlint-
 fi
 
 echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
-
-# Mirror CI exactly: CI runs on a clean checkout, so only *tracked* files are
-# linted. Feeding `git ls-files` (instead of the package.json globs) keeps
-# git-ignored local files — e.g. .claude/settings.local.json — from tripping a
-# check that CI would never see. Prettier + markdownlint still apply their own
-# ignore configs on top of the explicit list.
-# NUL-delimited read loop (works on macOS's bash 3.2, which lacks `mapfile`).
-# Skip symlinks: CI's glob silently skips them, but passing them explicitly
-# makes Prettier error.
-fmt_files=()
-while IFS= read -r -d '' f; do [ -L "$f" ] || fmt_files+=("$f"); done \
-    < <(git ls-files -z -- '*.md' '*.json' '*.jsonc' '*.yml' '*.yaml')
-md_files=()
-while IFS= read -r -d '' f; do [ -L "$f" ] || md_files+=("$f"); done \
-    < <(git ls-files -z -- '*.md')
-
-if [ "${#fmt_files[@]}" -gt 0 ]; then
-    if ! node_modules/.bin/prettier --check --log-level warn "${fmt_files[@]}"; then
-        echo "" >&2
-        echo "pre-push: Prettier found unformatted docs. Fix with: just fmt-docs (or npm run format)" >&2
-        exit 1
-    fi
-fi
-if [ "${#md_files[@]}" -gt 0 ]; then
-    if ! node_modules/.bin/markdownlint-cli2 "${md_files[@]}"; then
-        echo "" >&2
-        echo "pre-push: markdownlint failed. See errors above; fix and re-push." >&2
-        exit 1
-    fi
-fi
-echo "pre-push: docs formatting OK."
+exec bash limerick/scripts/check-docs-format.sh
