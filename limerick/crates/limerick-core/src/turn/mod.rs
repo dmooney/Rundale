@@ -33,7 +33,7 @@ pub mod transcript;
 /// Boxed future returned by lifecycle traits.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-pub use commands::{ADVERTISED as ADVERTISED_COMMANDS, LocalCommand};
+pub use commands::{COMMANDS, CommandSpec, CompletionWord, LocalCommand};
 pub use engine::{
     HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, LoadingHook,
     PendingInference, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep,

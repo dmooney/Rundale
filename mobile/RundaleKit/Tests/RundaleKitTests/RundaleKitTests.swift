@@ -560,6 +560,74 @@ final class RundaleKitTests: XCTestCase {
         XCTAssertTrue(registry.suggestions(for: "ask @ró").contains { $0.entityID == "npc-roisin" })
     }
 
+    /// #2146: completion walks the engine's command registry a word at a
+    /// time, and names match without case or fadas.
+    func testSlashCompletionWalksTheCommandRegistryStepByStep() {
+        let registry = FixtureCompletionRegistry(
+            commands: [
+                SlashCompletionWord(word: "/look", summary: "Look around"),
+                SlashCompletionWord(word: "/people", summary: "Who is here"),
+                SlashCompletionWord(word: "/exits", summary: "Where you can go"),
+                SlashCompletionWord(word: "/help", summary: "These commands"),
+                SlashCompletionWord(word: "/wait", summary: "Let time pass", next: [
+                    SlashCompletionWord(word: "15", summary: "15 minutes"),
+                    SlashCompletionWord(word: "30", summary: "30 minutes"),
+                    SlashCompletionWord(word: "60", summary: "60 minutes")
+                ]),
+                SlashCompletionWord(word: "/pause", summary: "Hold the clock"),
+                SlashCompletionWord(word: "/resume", summary: "Let the clock run"),
+                SlashCompletionWord(word: "/debug", summary: "Inspect engine state", next: [
+                    SlashCompletionWord(word: "memory", summary: "Memories", takesNpc: true),
+                    SlashCompletionWord(word: "schedule", summary: "Schedule", takesNpc: true),
+                    SlashCompletionWord(word: "clock", summary: "Game time")
+                ]),
+                SlashCompletionWord(word: "/flags", summary: "Feature flags")
+            ],
+            advertised: ["/look", "/people", "/exits", "/help"],
+            nearbyNPCs: [FixtureNPCReference(id: "npc-2", displayName: "Mícheál Connolly")],
+            everyone: [
+                FixtureNPCReference(id: "npc-1", displayName: "Peig Hannigan"),
+                FixtureNPCReference(id: "npc-2", displayName: "Mícheál Connolly"),
+                FixtureNPCReference(id: "npc-3", displayName: "Róisín Connolly")
+            ]
+        )
+
+        // A bare `/` lists every command; the Commands button keeps four.
+        XCTAssertEqual(registry.suggestions(for: "/").map(\.label),
+                       ["/look", "/people", "/exits", "/help", "/wait", "/pause", "/resume", "/debug", "/flags"])
+        XCTAssertEqual(registry.advertisedCommands.map(\.label), ["/look", "/people", "/exits", "/help"])
+        XCTAssertEqual(registry.suggestions(for: "/de").map(\.label), ["/debug"])
+        XCTAssertEqual(registry.suggestions(for: "/P").map(\.label), ["/people", "/pause"])
+
+        // Each tap inserts the word and a space, so the next set follows.
+        var draft = "/de"
+        draft = registry.applying(registry.suggestions(for: draft)[0], to: draft)
+        XCTAssertEqual(draft, "/debug ")
+        XCTAssertEqual(registry.suggestions(for: draft).map(\.label), ["memory", "schedule", "clock"])
+        XCTAssertEqual(registry.suggestions(for: "/debug me").map(\.label), ["memory"])
+        draft = registry.applying(registry.suggestions(for: draft)[0], to: draft)
+        XCTAssertEqual(draft, "/debug memory ")
+        XCTAssertEqual(registry.suggestions(for: draft).map(\.label),
+                       ["Peig Hannigan", "Mícheál Connolly", "Róisín Connolly"],
+                       "every NPC, not only nearby ones")
+        XCTAssertEqual(registry.suggestions(for: "/debug memory mic").map(\.label), ["Mícheál Connolly"])
+        XCTAssertEqual(registry.suggestions(for: "/debug memory MÍC").map(\.label), ["Mícheál Connolly"])
+        XCTAssertEqual(registry.suggestions(for: "/debug memory roi").map(\.label), ["Róisín Connolly"])
+        XCTAssertEqual(registry.suggestions(for: "/debug memory conn").map(\.label),
+                       ["Mícheál Connolly", "Róisín Connolly"])
+        XCTAssertEqual(registry.suggestions(for: "/debug memory micheal con").map(\.label), ["Mícheál Connolly"])
+        draft = "/debug memory mic"
+        draft = registry.applying(registry.suggestions(for: draft)[0], to: draft)
+        XCTAssertEqual(draft, "/debug memory Mícheál Connolly ")
+        XCTAssertEqual(registry.suggestions(for: draft), [], "a finished name offers nothing more")
+
+        XCTAssertEqual(registry.suggestions(for: "/debug clock ").map(\.label), [])
+        XCTAssertEqual(registry.suggestions(for: "/wait ").map(\.label), ["15", "30", "60"])
+        XCTAssertEqual(registry.suggestions(for: "/look ").map(\.label), [])
+        XCTAssertEqual(registry.suggestions(for: "/nonsense ").map(\.label), [])
+        XCTAssertEqual(registry.suggestions(for: "/debug bogus ").map(\.label), [])
+    }
+
     func testFixtureAdapterManualStreamingStopAndRetry() async throws {
         let sessionID = SessionID("session-adapter")
         let adapter = FixtureSessionAdapter(sessionID: sessionID, script: .phase1)
@@ -689,7 +757,7 @@ final class RundaleKitTests: XCTestCase {
     }
 
     func testEveryRegisteredSlashCommandHasAuthoredDeterministicOutput() async throws {
-        for (index, command) in FixtureCompletionRegistry.phase1.slashCommands.enumerated() {
+        for (index, command) in FixtureCompletionRegistry.phase1.advertisedCommands.enumerated() {
             let adapter = FixtureSessionAdapter(
                 sessionID: SessionID("session-slash-\(index)"),
                 script: .phase1

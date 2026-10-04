@@ -27,7 +27,8 @@ use limerick_core::npc::{LanguageSettings, NpcId};
 use limerick_core::persistence::{Database, GameSnapshot, SaveFileLock};
 use limerick_core::portable_look::{render_look_text, render_scene};
 use limerick_core::session_store::RecoveryBundle;
-use limerick_core::turn::{ADVERTISED_COMMANDS, LocalCommand};
+use limerick_core::turn::commands::advertised as advertised_commands;
+use limerick_core::turn::{COMMANDS, LocalCommand};
 use limerick_core::turn::{
     ExecutionAttemptId, InferenceCallId, InferenceResolution, InferenceRoutes, LogicalRequestId,
     PendingInference, RequestRecord, SqliteTurnJournal, StateRevision, TerminalOutcome,
@@ -820,6 +821,8 @@ impl Session {
             let transport = self.live.game_mod.transport.default_mode();
             let mut people: Vec<_> = npcs.npcs_at(world.player_location);
             people.sort_by_key(|npc| npc.id.0);
+            let mut everyone: Vec<_> = npcs.all_npcs().collect();
+            everyone.sort_by_key(|npc| npc.id.0);
             json!({
                 "scene": {
                     "id": world.player_location.0.to_string(),
@@ -838,9 +841,16 @@ impl Session {
                 })).collect::<Vec<_>>(),
                 "timeOfDay": world.clock.time_of_day().to_string(),
                 "weather": world.weather.to_string(),
-                "commands": ADVERTISED_COMMANDS.iter().map(|(name, summary)| json!({
-                    "name": name,
-                    "summary": summary,
+                "commands": advertised_commands().map(|command| json!({
+                    "name": command.name,
+                    "summary": command.summary,
+                })).collect::<Vec<_>>(),
+                // Completion: every command the phone runs, the words that
+                // may follow each, and every NPC a name may complete to.
+                "commandCompletions": COMMANDS.iter().map(|command| command.completion()).collect::<Vec<_>>(),
+                "everyone": everyone.iter().map(|npc| json!({
+                    "id": format!("npc-{}", npc.id.0),
+                    "name": npc.name,
                 })).collect::<Vec<_>>(),
             })
         })

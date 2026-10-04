@@ -23,6 +23,77 @@ pub struct DebugView<'a> {
     pub language: &'a LanguageSettings,
 }
 
+/// A `/debug` view a host can offer for completion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DebugSubcommand {
+    /// The word after `/debug`.
+    pub name: &'static str,
+    /// What the view shows.
+    pub summary: &'static str,
+    /// Whether an NPC's name follows (matched without case or diacritics).
+    pub takes_npc: bool,
+}
+
+/// The views [`handle_debug`] answers, in `/debug help` order. Aliases
+/// (`rels`, `lang`) are accepted but not listed.
+pub const SUBCOMMANDS: &[DebugSubcommand] = &[
+    DebugSubcommand {
+        name: "memory",
+        summary: "An NPC's recent memories",
+        takes_npc: true,
+    },
+    DebugSubcommand {
+        name: "schedule",
+        summary: "An NPC's daily schedule",
+        takes_npc: true,
+    },
+    DebugSubcommand {
+        name: "relationships",
+        summary: "An NPC's relationships",
+        takes_npc: true,
+    },
+    DebugSubcommand {
+        name: "gossip",
+        summary: "Gossip network, or an NPC's gossip",
+        takes_npc: true,
+    },
+    DebugSubcommand {
+        name: "clock",
+        summary: "Game time details",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "here",
+        summary: "Current location details",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "npcs",
+        summary: "All NPCs with location, tier, mood",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "tiers",
+        summary: "Tier assignment summary",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "language",
+        summary: "Active language settings",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "reactions",
+        summary: "NPC reaction buffer",
+        takes_npc: false,
+    },
+    DebugSubcommand {
+        name: "help",
+        summary: "These views",
+        takes_npc: false,
+    },
+];
+
 /// Handles a `/debug` command and returns lines to display.
 ///
 /// The `sub` argument is the text after `/debug `, or `None` for bare `/debug`.
@@ -545,11 +616,30 @@ fn location_name(id: LocationId, graph: &WorldGraph) -> String {
         .unwrap_or_else(|| format!("Location({})", id.0))
 }
 
-/// Finds an NPC by fuzzy name match (case-insensitive substring).
+/// Finds an NPC by fuzzy name match: a substring, ignoring case and
+/// diacritics, so `micheal` finds Mícheál Connolly.
 fn find_npc_by_name<'a>(mgr: &'a NpcManager, name: &str) -> Option<&'a crate::npc::Npc> {
-    let lower = name.to_lowercase();
-    mgr.all_npcs()
-        .find(|n| n.name.to_lowercase().contains(&lower))
+    let wanted = fold(name);
+    mgr.all_npcs().find(|n| fold(&n.name).contains(&wanted))
+}
+
+/// `text` lowercased with the accents taken off Latin letters (the Irish
+/// fada and its neighbours), for matching typed names.
+fn fold(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' => 'a',
+            'é' | 'è' | 'ê' | 'ë' | 'ē' => 'e',
+            'í' | 'ì' | 'î' | 'ï' | 'ī' => 'i',
+            'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ō' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' | 'ū' => 'u',
+            'ý' | 'ÿ' => 'y',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        })
+        .collect()
 }
 
 /// Renders a visual strength bar: `[##########]` for 1.0 to `[..........]` for -1.0.
@@ -674,6 +764,72 @@ mod tests {
         assert!(find_npc_by_name(&mgr, "padraig").is_some());
         assert!(find_npc_by_name(&mgr, "PADRAIG").is_some());
         assert!(find_npc_by_name(&mgr, "nobody").is_none());
+    }
+
+    #[test]
+    fn find_npc_by_name_ignores_case_and_fadas() {
+        use crate::npc::Npc;
+        let mut mgr = NpcManager::new();
+        for (id, name) in [(1, "Mícheál Connolly"), (2, "Róisín Connolly")] {
+            let mut npc = Npc::new_test_npc();
+            npc.id = NpcId(id);
+            npc.name = name.to_string();
+            mgr.add_npc(npc);
+        }
+        let found = |typed| find_npc_by_name(&mgr, typed).map(|npc| npc.name.as_str());
+        assert_eq!(found("micheal"), Some("Mícheál Connolly"));
+        assert_eq!(found("MICHEAL CONNOLLY"), Some("Mícheál Connolly"));
+        assert_eq!(found("roisin"), Some("Róisín Connolly"));
+        assert_eq!(found("Róisín"), Some("Róisín Connolly"));
+        assert_eq!(found("roisin connolly"), Some("Róisín Connolly"));
+        assert_eq!(found("nobody"), None);
+
+        let session = Session {
+            world: WorldState::new(),
+            npc_manager: mgr,
+            language: LanguageSettings::english_only(),
+        };
+        let app = session.view();
+        for view in [
+            "memory micheal",
+            "schedule micheal",
+            "relationships roisin",
+            "gossip roisin",
+        ] {
+            let lines = handle_debug(Some(view), &app);
+            assert!(!lines[0].contains("NPC not found"), "{view}: {lines:?}");
+        }
+        assert!(
+            handle_debug(Some("memory micheal"), &app)[0]
+                .contains("[DEBUG MEMORY: Mícheál Connolly]")
+        );
+    }
+
+    #[test]
+    fn every_listed_subcommand_is_answered_and_in_help() {
+        let session = Session::new();
+        let app = session.view();
+        let help = debug_help().join("\n");
+        for sub in SUBCOMMANDS {
+            let lines = handle_debug(Some(sub.name), &app);
+            assert!(!lines[0].contains("Unknown debug command"), "{}", sub.name);
+            let shown = if sub.name == "relationships" {
+                "rels"
+            } else {
+                sub.name
+            };
+            assert!(
+                sub.name == "help" || help.contains(&format!("/debug {shown}")),
+                "{} in help",
+                sub.name
+            );
+            let usage = lines[0].contains("Usage:");
+            if sub.takes_npc && sub.name != "gossip" {
+                assert!(usage, "{} needs a name", sub.name);
+            } else {
+                assert!(!usage, "{} takes no name", sub.name);
+            }
+        }
     }
 
     #[test]

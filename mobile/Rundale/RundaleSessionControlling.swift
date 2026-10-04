@@ -39,5 +39,8 @@ protocol RundaleSessionControlling: AnyObject {
     func answerClarification(choiceID: String) async throws
 
     func suggestions(for text: String) -> [CompletionItem]
+    /// The short command list the Commands button offers; typing `/`
+    /// offers every command through `suggestions(for:)`.
+    var advertisedCommands: [CompletionItem] { get }
     func insert(_ item: CompletionItem, into text: String) -> String
 }
