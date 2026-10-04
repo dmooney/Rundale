@@ -867,6 +867,74 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
 
 /// The Endpoint path commits a reply after structural checks only: a reply
 /// naming a person and place the world does not have is not rewritten.
+/// Submits `text` and answers any intent call (naming `target`) until the
+/// turn ends or waits on a dialogue call; returns the last result.
+fn submit_through_intent(game: &Game, text: &str, target: &str) -> Value {
+    let mut result = game.submit(text);
+    for _ in 0..2 {
+        let pending = game.pending();
+        if pending.is_null() || pending["endpoint"]["role"] != "intent" {
+            break;
+        }
+        result = game.resolve(
+            &pending,
+            json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
+        );
+    }
+    result
+}
+
+fn narration(result: &Value) -> Vec<&str> {
+    events_of_kind(result, "narration")
+        .iter()
+        .map(|event| event["content"].as_str().unwrap())
+        .collect()
+}
+
+/// Spec Milestone 3: the player cannot converse with someone who is not
+/// there. Mícheál is at Connolly Cottage all morning, so asking for him in
+/// the village is answered "not here", never by whoever is in the village
+/// and never through the dialogue Endpoint (#2047).
+#[test]
+fn a_person_named_who_is_elsewhere_is_reported_absent_without_an_endpoint_call() {
+    let (game, _) = Game::new();
+    let mut checked_with_peig = false;
+    for with_peig in [false, true] {
+        if with_peig {
+            // 08:00: Peig waits on the village road for the post.
+            command(&game, "/wait 60");
+        }
+        let present = people(&game.snapshot());
+        assert_eq!(present.is_empty(), !with_peig, "{present:?}");
+        for text in [
+            "ask Mícheál about the cattle",
+            "Mícheál, how are the cattle?",
+        ] {
+            let result = submit_through_intent(&game, text, "Mícheál");
+            assert!(game.pending().is_null(), "{text}: {}", game.pending());
+            assert_eq!(result["terminalOutcome"], "succeeded", "{result}");
+            assert!(
+                events_of_kind(&result, "npc_dialogue").is_empty(),
+                "{result}"
+            );
+            assert_eq!(narration(&result), ["Mícheál is not here."], "{text}");
+        }
+        checked_with_peig = with_peig;
+    }
+    assert!(checked_with_peig);
+
+    // Speaking to Peig about Mícheál still reaches Peig.
+    let asked = submit_through_intent(&game, "Peig, have you seen Mícheál?", "Peig");
+    let dialogue = game.pending();
+    assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{asked}");
+    assert!(
+        !narration(&asked)
+            .iter()
+            .any(|line| line.contains("not here")),
+        "{asked}"
+    );
+}
+
 #[test]
 fn dialogue_content_guards_are_off_on_the_endpoint_path() {
     let (game, _) = Game::new();

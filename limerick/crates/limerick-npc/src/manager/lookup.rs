@@ -168,6 +168,31 @@ impl NpcManager {
         })
     }
 
+    /// Whether `reference` names someone who is not at `location` and no one
+    /// who is: a full, display, first, or family name. A player who addresses
+    /// someone by name who is elsewhere is told they are not here instead of
+    /// being answered by whoever is present. A name that also fits someone
+    /// present (even one not yet introduced) is never reported absent.
+    pub fn names_someone_elsewhere(&self, reference: &str, location: LocationId) -> bool {
+        let lower = reference.trim().to_lowercase();
+        if lower.is_empty() {
+            return false;
+        }
+        let named = |npc: &Npc| {
+            let name = npc.name.to_lowercase();
+            let mut words = name.split_whitespace();
+            name == lower
+                || self.display_name(npc).to_lowercase() == lower
+                || words.next().is_some_and(|first| first == lower)
+                || words.next_back().is_some_and(|last| last == lower)
+        };
+        let (here, elsewhere): (Vec<&Npc>, Vec<&Npc>) = self
+            .npcs
+            .values()
+            .partition(|npc| matches!(npc.state, NpcState::Present) && npc.location == location);
+        !here.into_iter().any(named) && elsewhere.into_iter().any(named)
+    }
+
     /// Finds an NPC at a location by occupation/role (case-insensitive).
     ///
     /// Returns `Some` only if exactly one co-located NPC matches — protects
