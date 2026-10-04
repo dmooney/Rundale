@@ -5,7 +5,7 @@ CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/har
 ## Scoped commands
 
 ```sh
-just check          # fmt + clippy + tests (mirrors rust-quality-gate)
+just check          # docs format + markdownlint, then fmt + clippy + tests (mirrors the docs and Rust gates)
 just agent-check    # evidence-link gate, local mode (agent-check job reads the PR body)
 just verify         # check + harness walkthrough
 

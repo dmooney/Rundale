@@ -185,6 +185,9 @@ jobs:
       - name: Markdownlint
         run: npm run lint:md
 
+      - name: Docs-format gate tests
+        run: bash limerick/scripts/tests/check-docs-format.test.sh
+
       - name: Portfolio-governance unit tests
         run: node --test .github/scripts/*.test.cjs
 

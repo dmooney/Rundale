@@ -77,6 +77,12 @@ Inspect existing tooling before creating new tools. Carry authorized work throug
 implementation and relevant verification; distinguish a completed coding task from
 a milestone that still requires live integration or physical-device acceptance.
 
+When CI fails, fix the failure and work out why local gates did not catch it before
+the push: a local recipe that does not run what CI runs, a gate that stopped before
+finishing, or a gate you skipped for the files you changed. Say which in your report.
+Close a missing-gate gap in its own tooling PR straight away, not as a later offer.
+A local gate that failed or did not finish has not passed.
+
 When instructions conflict (an issue criterion, plan order, a gate, and a delivery
 rule cannot all be satisfied), stop and ask the owner which gives way, naming the
 conflict. Do not circle between them. Standing answers:

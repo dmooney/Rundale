@@ -57,8 +57,10 @@ web PORT="3001":
 
 # ─── Quality Gates ──────────────────────────────────────────────────────────
 
-# Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
-check:
+# Pre-commit gate: docs/data formatting and Markdown lint (CI's
+# "Docs/data formatting" job), then the engine's format, lint, tests,
+# placeholder scan, and doc-paths
+check: docs-check
     cd limerick && just check
 
 # PR evidence gate (local mode): rejects .proofs/ paths and placeholder debt
@@ -83,7 +85,7 @@ repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
 
 # Pre-push gate: check + game harness walkthrough
-verify:
+verify: docs-check
     cd limerick && just verify
 
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
@@ -182,6 +184,11 @@ fmt-docs-check:
 # Lint Markdown (markdownlint-cli2)
 lint-docs:
     eval "$(fnm env)" && npm run lint:md
+
+# Prettier + markdownlint over tracked files only, as CI sees them (the gate
+# `check`, `verify`, and the pre-push hook run). Needs `npm ci` at the root.
+docs-check:
+    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; bash limerick/scripts/check-docs-format.sh
 
 # ─── Python tooling (ruff + mypy + yamllint + pytest) ─────────────────────────
 # Recipes prefer the local .venv-dev (just setup-py) and fall back to PATH tools.

@@ -28,7 +28,7 @@ Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlin
 1. **`/limerick-engine prove <feature>`** — after implementing, drive the feature through the script harness and read the JSON critically. Required for any gameplay change.
 2. **`/limerick-engine rubric`** — sister to `prove`: deterministic snapshot-diff + structural rubrics over baselined fixtures. Cheaper than reading JSON; runs on every `cargo test`.
 3. **`/limerick-engine play [scenario]`** — autonomous play-test, exploration-style. (`/limerick-engine` also covers `harness`, `demo`, `browser`, and `screenshot` modes.)
-4. **`/check`** — both gate levels: `just check` (`agent-check + fmt + clippy + test + witness-scan + doc/artifact checks`, pre-commit) and `just verify` (adds the full harness walkthrough, pre-push).
+4. **`/check`** — both gate levels: `just check` (`docs-check + agent-check + fmt + clippy + test + witness-scan + doc/artifact checks`, pre-commit) and `just verify` (adds the full harness walkthrough, pre-push).
 
 ## Quality gates in order
 

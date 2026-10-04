@@ -11,11 +11,16 @@ top-level `just` commands (they `cd limerick` for you) OR prefix cargo commands 
 
 ## Level 1 — `just check` (before every commit)
 
-Run `just check` from the repo root. This runs: `agent-check`, `fmt-check`, `clippy`, `test`,
-`witness-scan`, and `check-doc-paths`.
+Run `just check` from the repo root. It first runs `docs-check` (Prettier and markdownlint over tracked
+files, as CI's "Docs/data formatting" job does), then the engine's `agent-check`, `fmt-check`, `clippy`,
+`test`, `witness-scan`, `check-doc-paths`, `repository-artifacts`, and the Svelte UI checks. `docs-check`
+needs the root dev tooling (`npm ci` at the repo root) and fails, rather than skips, without it.
 
 If it fails, diagnose by running the steps individually:
 
+0. **Docs/data formatting**: `just docs-check`. Fix Prettier findings with `just fmt-docs`; fix
+   markdownlint findings by hand (for example MD038: no spaces at the ends of a code span). It checks
+   tracked files only, so a git-ignored file never fails it; commit or `git add` a new file to check it.
 1. **Evidence gate**: `just agent-check`. Locally it fails only on a tracked `.proofs/` path or a
    placeholder debt marker. When it reports runtime-shipping changes, the PR body must link the PR's
    evidence page (`https://dmooney.github.io/rundale-pages/pr/<number>/`); CI checks that link.
