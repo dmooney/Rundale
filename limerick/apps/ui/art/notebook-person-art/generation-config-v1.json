@@ -23,7 +23,7 @@
 	"reference_inputs": [
 		{
 			"id": "illustrated-rundale-notebook-concept",
-			"path": "docs/graphics-v2/illustrated-rundale-notebook.png",
+			"path": "limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png",
 			"purpose": "Sole authoritative production reference. Use the notebook portrait line language for the left cell and the painted-world marker language for the right cell. Preserve subject identity only from the structured NPC facts; do not copy any depicted concept character.",
 			"asset_kinds": ["pair"]
 		}

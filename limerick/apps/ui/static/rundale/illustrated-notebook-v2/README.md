@@ -7,7 +7,7 @@ are not evidence of an active notebook renderer.
 
 This directory was the clean visual boundary for the issue #1630 rebuild. The
 canonical comparison target is
-[`docs/graphics-v2/illustrated-rundale-notebook.png`](../../../../../../docs/graphics-v2/illustrated-rundale-notebook.png),
+[retained concept reference](../../../art/notebook-person-art/references/illustrated-rundale-notebook.png),
 but no runtime file is cut from that concept image.
 
 ## Provenance
@@ -58,7 +58,7 @@ prompt direction is:
 
 > Create one isolated blank rag-paper UI surface or one isolated charcoal/sepia
 > ink symbol. Match the hand-inked watercolor language of
-> `docs/graphics-v2/illustrated-rundale-notebook.png`; for paper assets also
+> `limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png`; for paper assets also
 > harmonize with `sewn-notebook-page.png`. Center the complete cutout on a
 > perfectly flat `#00ff00` chroma background. No text, portraits, scene content,
 > metal, rings, ring holes, spiral binding, paperclips, shadows, or watermark.

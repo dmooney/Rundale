@@ -18,7 +18,7 @@ cargo run --manifest-path limerick/Cargo.toml -p limerick-npc-tool -- art-inputs
 
 The export covers all 23 current Rundale NPCs. The audit is
 `npc-art-data-audit-v1.md`; the authoring rules are
-`docs/graphics-v2/npc-portraits/art-metadata-guidelines.md`.
+`references/art-metadata-guidelines.md`.
 
 ## Provider Candidate Generation
 
@@ -343,7 +343,7 @@ and its source sheets are retained only as legacy history and are not an approva
 authority or builder input.
 
 The source visual authority for this issue is
-`docs/graphics-v2/illustrated-rundale-notebook.png`. The accepted Roisin chat
+`references/illustrated-rundale-notebook.png`. The accepted Roisin chat
 portrait is an issue-produced, user-approved calibration derivative used only
 to isolate that concept's sparse portrait line language. Existing unrelated
 portrait experiments, marker concept sheets, old procedural busts, and

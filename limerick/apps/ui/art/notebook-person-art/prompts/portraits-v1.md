@@ -5,7 +5,7 @@ Use case: historical-scene
 Asset type: production source sheet for tiny game UI NPC head icons in the
 Rundale illustrated notebook
 
-Input image: Use only `docs/graphics-v2/illustrated-rundale-notebook.png` as
+Input image: Use only `limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png` as
 the visual authority. Match the tiny head sketches in the left Nearby rail and
 the selected-person notebook page. Do not use or imitate any other art,
 experiment, portrait sheet, marker sheet, concept sheet, icon set, or generated

@@ -78,12 +78,12 @@ Its default implementation is the semantic chat-first shell with responsive DOM
 art; it is reference material for the native reset. The retired Pixi notebook,
 Diorama, and Godot documents remain historical or exploratory records.
 
-| Need                                                                  | Start here                                                                           | Follow with                                                            |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| Existing desktop/web play surface                                     | [Chat-first stabilization contract](../limerick/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)            |
-| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                                  | Its task-oriented links and scoped guidance                            |
-| Runtime-composed visual scene system                                  | [Interactive Limerick Diorama RFC](design/ideas/rundale-diorama.md)                  | [Diorama implementation plan](plans/rundale-diorama-implementation.md) |
-| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-rundale-game-plan.md)                        | Treat as an exploratory alternative client                             |
+| Need                                                    | Start here                                                                           | Follow with                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Existing desktop/web play surface                       | [Chat-first stabilization contract](../limerick/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)            |
+| Archived visual-client research and retained art inputs | [Graphics V2 archive note](graphics-v2-archive.md)                                   | Historical source branch and maintained art-input location             |
+| Runtime-composed visual scene system                    | [Interactive Limerick Diorama RFC](design/ideas/rundale-diorama.md)                  | [Diorama implementation plan](plans/rundale-diorama-implementation.md) |
+| Separate Godot presentation client                      | [Godot-Based Rundale plan](design/godot-rundale-game-plan.md)                        | Treat as an exploratory alternative client                             |
 
 ## Design ideas / RFCs
 

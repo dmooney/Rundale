@@ -237,7 +237,7 @@ generated with OpenAI image generation.
 - [Product direction](docs/product-specs/README.md) and [delivery plan](docs/plans/mobile-engine-convergence.md).
 - [Limerick capability reference](docs/limerick-feature-reference.md) and [troubleshooting](docs/troubleshooting.md).
 - [Architecture decisions](docs/adr/README.md) and [historical research](docs/research/README.md).
-- [Archived visual-client research](docs/graphics-v2/README.md), including the shelved notebook concept.
+- [Archived visual-client research and retained art inputs](docs/graphics-v2-archive.md).
 - [Agent guide](AGENTS.md).
 
 ## Licence

@@ -20,10 +20,7 @@ composition itself should match the concept direction.
 
 Reference:
 
-- `docs/graphics-v2/illustrated-rundale-notebook.png`
-- `docs/graphics-v2/illustrated-rundale-notebook-prompt.md`
-- `docs/graphics-v2/concept-7a-conversation-lens.png`
-- `docs/graphics-v2/concept-7c-roads-and-schedules.png`
+- The notebook concept art and related prompt are preserved on the [`feat/graphics-v2` branch](https://github.com/dmooney/Rundale/tree/feat/graphics-v2/docs/graphics-v2).
 
 The notebook target has these stable pieces:
 

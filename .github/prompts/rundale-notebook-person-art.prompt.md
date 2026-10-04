@@ -12,7 +12,7 @@ Use this prompt file to turn one NPC record from
 identity-locked image-model request for a tiny notebook portrait and tiny
 in-scene marker generated together.
 
-The visual authority is `docs/graphics-v2/illustrated-rundale-notebook.png`.
+The visual authority is `limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png`.
 Do not use prior experimental portrait sheets, marker concept sheets,
 procedural busts, or unrelated graphics cycles as source art.
 
@@ -142,7 +142,7 @@ Use the Illustrated Limerick Notebook concept-art style:
 
 ## Concept Palette
 
-Use the palette from `docs/graphics-v2/illustrated-rundale-notebook.png`.
+Use the palette from `limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png`.
 
 - parchment anchors: #deccae, #d7c6a7, #c7b393
 - sepia/graphite ink anchors: #36362e, #454339, #5c5747

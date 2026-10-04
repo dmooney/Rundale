@@ -40,7 +40,7 @@ alongside the full product milestone requirements.
 | Generated output and large-file policy                            | [repository-artifacts.md](repository-artifacts.md)         |
 | Idempotency-Key support (#619)                                    | [idempotency.md](idempotency.md)                           |
 | **Scaling guardrails** — per-session state, seam review checklist | [scaling-rules.md](scaling-rules.md)                       |
-| Visual client, notebook UI, and graphics research                 | [../graphics-v2/README.md](../graphics-v2/README.md)       |
+| Archived visual-client research and art inputs                    | [../graphics-v2-archive.md](../graphics-v2-archive.md)     |
 
 The root `AGENTS.md` is a slim index — start there if you're new, then come here for the details.
 
