@@ -412,8 +412,18 @@ describe("mobile invocation authentication", () => {
     expect(validateInput(input)).toBe(true);
     expect(validateInput({ ...input, speaker: "Peig" })).toBe(false);
     const validateOutput = compileSchema(definition.outputSchema);
+    expect(
+      validateOutput({
+        intent: "move",
+        target: "the Letter Office",
+        dialogue: null,
+        atmosphere: null,
+      }),
+    ).toBe(true);
+    // Every field is required (nullable): with optional fields, constrained
+    // decoding on gemini-3.5-flash-lite runs on inside `target` (#2105).
     expect(validateOutput({ intent: "move", target: "the Letter Office", dialogue: null })).toBe(
-      true,
+      false,
     );
     expect(validateOutput({ intent: "fly", target: null })).toBe(false);
     expect(validateOutput({ intent: "talk", extra: true })).toBe(false);
