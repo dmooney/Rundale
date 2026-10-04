@@ -1,7 +1,7 @@
 ---
 name: gatekeeper
 description: Independent maintainer review of open pull requests — read the repo, the linked issue, the patch, and the PR conversation (never the developer's session), then either squash-merge, send it back to the author with review comments, or hand it to the owner. Trigger for "run the gatekeeper", "gatekeeper pass", "review open PRs", "gatekeeper #N", or a scheduled/looped review job.
-argument-hint: 'Optional PR number (e.g. "1234"). If omitted, run one pass over every eligible open PR. A named draft or not-yet-green PR gets a review-only pass.'
+argument-hint: 'Optional PR number (e.g. "1234"). If omitted, run one pass over every eligible open PR. A named PR that is a draft or has any required check not yet passed gets a review-only pass.'
 ---
 
 # Gatekeeper
@@ -68,8 +68,8 @@ The standards are Linus's:
    gh pr list --state open --base main --json number,title,author,isDraft,headRefOid,labels,updatedAt
    ```
 
-   With an argument, the only candidate is that PR. If it is a draft or its
-   required checks have not all completed, run a
+   With an argument, the only candidate is that PR. If it is a draft or has
+   any required check not yet passed (pending, failing, or not started), run a
    [review-only pass](#review-only-pass) instead of the steps below. (Agents
    spawn the gatekeeper only after checks pass, so this arises when the owner
    asks for a PR early.)
@@ -98,8 +98,9 @@ The standards are Linus's:
 
 ## Review-only pass
 
-When the owner asks for a specific PR that is a draft or whose required checks
-are pending, failing, or not yet started, review it in full anyway and record
+When the gatekeeper is given a PR number and that PR is a draft or has any
+required check not yet passed (pending, failing, or not started), review it in
+full anyway and record
 the verdict, but **never merge it**, whatever the verdict. Everything else in
 this file applies unchanged: independence, hard rules, the full review, round
 counting, hand-off labels, and escalation.
