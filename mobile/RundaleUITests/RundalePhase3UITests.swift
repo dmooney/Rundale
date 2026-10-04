@@ -59,6 +59,13 @@ class RundalePhase3UITestCase: XCTestCase {
         ))
     }
 
+    /// Pauses for a human viewer when recording; a no-op in normal runs.
+    func hold(_ seconds: TimeInterval) {
+        guard let value = ProcessInfo.processInfo.environment["RUNDALE_DEMO_HOLD"],
+              let minimum = TimeInterval(value), minimum > 0 else { return }
+        Thread.sleep(forTimeInterval: max(seconds, minimum))
+    }
+
     func attach(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
@@ -109,16 +116,20 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
     func testLocalCommandsAndTravelWorkWhenEveryEndpointRequestFails() {
         launchWithUnreachableEndpoint()
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 15))
+        hold(3)
 
         submit("/look")
         XCTAssertTrue(waitForText("A muddy road runs between low stone walls", timeout: 8))
+        hold(3)
         submit("/exits")
         XCTAssertTrue(waitForText("Connolly Cottage (4 min on foot)", timeout: 8))
+        hold(3)
         submit("go to Connolly Cottage")
         XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
         submit("/people")
         XCTAssertTrue(waitForText("Smallholder and cattle drover", timeout: 8))
         XCTAssertFalse(app.buttons["composer.retry"].exists, "No local command needed an Endpoint")
+        hold(4)
 
         submit("ask Mícheál about the cattle")
         XCTAssertTrue(waitForText("The road out of the parish is washed away", timeout: 30),
@@ -126,12 +137,14 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
         XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 5),
                       "The failed conversation offers Retry")
         attach("Conversation failed with every Endpoint request failing")
+        hold(4)
 
         submit("go to Kilteevan Village")
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
         submit("/exits")
         XCTAssertTrue(waitForText("Letter Office", timeout: 8))
         attach("Travel still works after the failed conversation")
+        hold(5)
     }
 
     func testPlaceNameTravelWithoutEndpointInference() {
