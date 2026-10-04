@@ -188,7 +188,7 @@ lint-docs:
 # Prettier + markdownlint over tracked files only, as CI sees them (the gate
 # `check`, `verify`, and the pre-push hook run). Needs `npm ci` at the root.
 docs-check:
-    bash limerick/scripts/check-docs-format.sh
+    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; bash limerick/scripts/check-docs-format.sh
 
 # ─── Python tooling (ruff + mypy + yamllint + pytest) ─────────────────────────
 # Recipes prefer the local .venv-dev (just setup-py) and fall back to PATH tools.

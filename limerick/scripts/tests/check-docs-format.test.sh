@@ -10,7 +10,11 @@ trap 'rm -rf "$test_repo"' EXIT
 
 cd "$test_repo"
 git init -q
-cp "$repo_root/.markdownlint-cli2.jsonc" "$repo_root/prettier.config.js" "$repo_root/.prettierignore" .
+# The real config, minus its `gitignore` option, so the ignored-file case
+# below proves the script's own tracked-files list (and --no-globs) keeps
+# ignored files out.
+grep -v '"gitignore"' "$repo_root/.markdownlint-cli2.jsonc" >.markdownlint-cli2.jsonc
+cp "$repo_root/prettier.config.js" "$repo_root/.prettierignore" .
 # shellcheck disable=SC2016 # literal Markdown backticks
 printf '# Good\n\nTry `/debug` here.\n' >good.md
 printf 'ignored/\nnode_modules\n' >.gitignore
