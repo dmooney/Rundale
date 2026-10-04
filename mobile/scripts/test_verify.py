@@ -64,6 +64,7 @@ class FakeRunner:
         self.calls = []
         self.results = results or {}
         self.fail_swift = False
+        self.run_swift_failure = CommandResult(7, stderr="swift tests failed")
         # None leaves no coverage report, like a toolchain that wrote none.
         self.coverage_percent: float | None = 80.0
         self.swift_output = "Executed 8 tests, with 0 failures (0 unexpected) in 0.01 seconds\n"
@@ -115,7 +116,7 @@ class FakeRunner:
         if command[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "tree"):
             return CommandResult(0, stdout=self.cargo_tree_output)
         if self.fail_swift and command[:2] == ("swift", "test"):
-            return CommandResult(7, stderr="swift tests failed")
+            return self.run_swift_failure
         if command[:2] == ("swift", "test"):
             if self.coverage_percent is not None:
                 write_codecov(Path(cwd), command, self.coverage_percent)
@@ -608,6 +609,29 @@ class VerificationRunnerTests(unittest.TestCase):
             VerificationRun(Path("/tmp/rundale-test")).run(2, fast=True)
         with self.assertRaises(ValueError):
             VerificationRun(Path("/tmp/rundale-test"), device="device").run(fast=True)
+
+    def test_failed_package_reason_names_the_failing_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            output = (
+                "[11/16] Compiling RundaleKit SemanticEvent.swift\n"
+                "/x/RundaleKitTests.swift:41: error: -[RundaleKitTests testX] : "
+                "XCTAssertEqual failed\n"
+                "Executed 29 tests, with 1 failure (0 unexpected)\n"
+            )
+            fake = FakeRunner()
+            fake.fail_swift = True
+            fake.run_swift_failure = CommandResult(1, stdout=output, stderr="build noise\n")
+            report = VerificationRun(root, command_runner=fake).run(1)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["swift-package-tests"]["status"], "failed")
+            self.assertEqual(
+                by_id["swift-package-tests"]["reason"],
+                "/x/RundaleKitTests.swift:41: error: -[RundaleKitTests testX] : XCTAssertEqual failed",
+            )
 
     def test_opt_in_suites_reject_early_phases(self):
         run = VerificationRun(Path("/tmp/rundale-test"), device="device", soak=True)

@@ -211,6 +211,19 @@ def _failure_reason(result: CommandResult, fallback: str) -> str:
     return reason
 
 
+def _swift_errors(output: str, limit: int = 3) -> list[str]:
+    """Return the first distinct `error:` diagnostics from swift build or XCTest output."""
+
+    errors: list[str] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if re.search(r"(^|: )error: ", line) and line not in errors:
+            errors.append(line)
+            if len(errors) == limit:
+                break
+    return errors
+
+
 def _relative(path: Path, root: Path) -> str:
     try:
         return path.resolve().relative_to(root.resolve()).as_posix()
@@ -817,6 +830,11 @@ class VerificationRun:
             env=self._env(),
             details={"package_path": package, **({"cache_key": key} if key else {})},
         )
+        if record["status"] == FAILED:
+            # Name the failing test or compiler error, not the build log tail.
+            errors = _swift_errors(self.results[identifier].output)
+            if errors:
+                self._change(record, FAILED, " | ".join(errors))
         if record["status"] == PASSED:
             self._validate_swift_result(record)
         if record["status"] == PASSED:
