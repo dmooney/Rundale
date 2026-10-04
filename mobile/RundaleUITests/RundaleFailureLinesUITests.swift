@@ -32,7 +32,7 @@ final class RundaleFailureLinesUITests: XCTestCase {
     }
 
     func testALostConnectionHasItsOwnLineAndRetryRecovers() {
-        submit("ask Mícheál Connolly offline once")
+        submit("ask Mícheál Connolly about the cattle offline once")
         XCTAssertTrue(row(containing: "The road out of the parish is washed away")
             .waitForExistence(timeout: 10))
         hold(3)

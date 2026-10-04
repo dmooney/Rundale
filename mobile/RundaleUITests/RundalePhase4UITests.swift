@@ -251,11 +251,11 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
 @MainActor
 final class RundalePhase4NetworkUITests: RundalePhase4UITestCase {
     func testConnectionLossBeforeResponseCanRetryWithoutRestart() {
-        assertNetworkRecovery(command: "ask Mícheál Connolly offline once", partialExpected: false)
+        assertNetworkRecovery(command: "ask Mícheál Connolly about the cattle offline once", partialExpected: false)
     }
 
     func testConnectionLossDuringStreamCanRetryWithoutDuplicatingDialogue() {
-        assertNetworkRecovery(command: "ask Mícheál Connolly disconnect once", partialExpected: true)
+        assertNetworkRecovery(command: "ask Mícheál Connolly about the cattle disconnect once", partialExpected: true)
     }
 }
 
