@@ -98,12 +98,12 @@ pub const SUBCOMMANDS: &[DebugSubcommand] = &[
     },
     DebugSubcommand {
         name: "language",
-        summary: "Language settings from the loaded mod",
+        summary: "Active language settings",
         npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "reactions",
-        summary: "NPC reaction buffer and monoculture sensor",
+        summary: "NPC reaction buffer",
         npc: NpcArgument::None,
     },
     DebugSubcommand {
