@@ -22,8 +22,8 @@ The app plays the canonical world on the shared engine:
 - Slash commands answer locally, with no Endpoint call. Commands lists the
   advertised four (`/look`, `/people`, `/exits`, `/help`). Typing `/` offers
   every command, including `/wait`, `/pause`, `/resume`, `/debug`, and
-  `/flags`, then each next word from the engine's registry: `/debug ` offers
-  its views and `/debug memory ` offers everyone in the world. Names match
+  `/flags`, then each next word from the engine's registry: after `/debug`
+  it offers the views, and after `/debug memory` everyone in the world. Names match
   without case or fadas, on the phone and in the engine.
 - `--fixture=<name>` (or `--ui-tests` without `--phase2`) selects the
   deterministic presentation fixtures in `RundaleKit`, which exercise the UI
