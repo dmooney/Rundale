@@ -77,6 +77,10 @@ final class RundaleCommandsUITests: XCTestCase {
             XCTAssertTrue(app.buttons["completion.\(name)"].waitForExistence(timeout: 3), name)
         }
         hold(3)
+        // The strip scrolls sideways to the commands past the screen edge.
+        swipeStrip(until: "flags", direction: .left)
+        hold(3)
+        swipeStrip(until: "look", direction: .right)
         input.typeText("de")
         XCTAssertFalse(app.buttons["completion.look"].exists, "completion narrows as the player types")
         app.buttons["completion.debug"].tap()
@@ -84,6 +88,9 @@ final class RundaleCommandsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["completion.memory"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["completion.clock"].exists)
         hold(3)
+        swipeStrip(until: "help", direction: .left)
+        hold(3)
+        swipeStrip(until: "memory", direction: .right)
         app.buttons["completion.memory"].tap()
         XCTAssertEqual(input.value as? String, "/debug memory ")
         // Every NPC in the world, not only the ones on the road.
@@ -110,6 +117,26 @@ final class RundaleCommandsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["completion.look"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["completion.debug"].exists, "Commands lists only the advertised four")
     }
+
+    /// Swipes the completion strip until `id`, off screen at first, is
+    /// wholly on screen, then checks it can be tapped.
+    private func swipeStrip(until id: String, direction: SwipeDirection) {
+        let strip = app.scrollViews["composer.completions"]
+        let target = app.buttons["completion.\(id)"]
+        let screen = app.windows.firstMatch.frame
+        XCTAssertTrue(target.waitForExistence(timeout: 3), id)
+        XCTAssertFalse(screen.contains(target.frame), "\(id) starts off screen")
+        for _ in 0..<4 where !screen.contains(target.frame) {
+            switch direction {
+            case .left: strip.swipeLeft(velocity: .slow)
+            case .right: strip.swipeRight(velocity: .slow)
+            }
+        }
+        XCTAssertTrue(screen.contains(target.frame), "a swipe brings \(id) on screen")
+        XCTAssertTrue(target.isHittable, id)
+    }
+
+    private enum SwipeDirection { case left, right }
 
     private var input: XCUIElement {
         app.descendants(matching: .any).matching(identifier: "composer.input").firstMatch
