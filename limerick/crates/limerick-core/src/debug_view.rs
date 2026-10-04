@@ -23,7 +23,8 @@ pub struct DebugView<'a> {
     pub language: &'a LanguageSettings,
 }
 
-/// A `/debug` view a host can offer for completion.
+/// A `/debug` view: what `/debug help` lists and a host offers for
+/// completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DebugSubcommand {
     /// The word after `/debug`.
@@ -31,7 +32,25 @@ pub struct DebugSubcommand {
     /// What the view shows.
     pub summary: &'static str,
     /// Whether an NPC's name follows (matched without case or diacritics).
-    pub takes_npc: bool,
+    pub npc: NpcArgument,
+}
+
+/// Whether a `/debug` view takes an NPC's name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NpcArgument {
+    /// No name.
+    None,
+    /// A name is needed.
+    Required,
+    /// A name narrows the view to that NPC.
+    Optional,
+}
+
+impl DebugSubcommand {
+    /// Whether a name may follow this view.
+    pub fn takes_npc(&self) -> bool {
+        self.npc != NpcArgument::None
+    }
 }
 
 /// The views [`handle_debug`] answers, in `/debug help` order. Aliases
@@ -40,57 +59,57 @@ pub const SUBCOMMANDS: &[DebugSubcommand] = &[
     DebugSubcommand {
         name: "memory",
         summary: "An NPC's recent memories",
-        takes_npc: true,
+        npc: NpcArgument::Required,
     },
     DebugSubcommand {
         name: "schedule",
         summary: "An NPC's daily schedule",
-        takes_npc: true,
+        npc: NpcArgument::Required,
     },
     DebugSubcommand {
         name: "relationships",
         summary: "An NPC's relationships",
-        takes_npc: true,
+        npc: NpcArgument::Required,
     },
     DebugSubcommand {
         name: "gossip",
         summary: "Gossip network, or an NPC's gossip",
-        takes_npc: true,
+        npc: NpcArgument::Optional,
     },
     DebugSubcommand {
         name: "clock",
         summary: "Game time details",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "here",
         summary: "Current location details",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "npcs",
         summary: "All NPCs with location, tier, mood",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "tiers",
         summary: "Tier assignment summary",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "language",
         summary: "Active language settings",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "reactions",
         summary: "NPC reaction buffer",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
     DebugSubcommand {
         name: "help",
         summary: "These views",
-        takes_npc: false,
+        npc: NpcArgument::None,
     },
 ];
 
@@ -477,21 +496,24 @@ fn debug_relationships(app: &DebugView<'_>, name: Option<&str>) -> Vec<String> {
 
 /// Help for /debug subcommands.
 fn debug_help() -> Vec<String> {
-    vec![
+    let mut lines = vec![
         "[DEBUG COMMANDS]".to_string(),
-        "  /debug          — Overview (clock, tiers, NPCs here)".to_string(),
-        "  /debug npcs     — All NPCs with location, tier, mood".to_string(),
-        "  /debug tiers    — Tier assignment summary".to_string(),
-        "  /debug clock    — Game time details".to_string(),
-        "  /debug here     — Current location details".to_string(),
-        "  /debug schedule <name>  — NPC's daily schedule".to_string(),
-        "  /debug memory <name>    — NPC's recent memories".to_string(),
-        "  /debug rels <name>      — NPC's relationships".to_string(),
-        "  /debug gossip [name]    — Gossip network (or NPC's known gossip)".to_string(),
-        "  /debug language         — Active language settings from the loaded mod".to_string(),
-        "  /debug reactions        — Per-session NPC reaction emoji buffer + monoculture sensor"
-            .to_string(),
-    ]
+        "  /debug — Overview (clock, tiers, NPCs here)".to_string(),
+    ];
+    lines.extend(
+        SUBCOMMANDS
+            .iter()
+            .filter(|sub| sub.name != "help")
+            .map(|sub| {
+                let name = match sub.npc {
+                    NpcArgument::None => "",
+                    NpcArgument::Required => " <name>",
+                    NpcArgument::Optional => " [name]",
+                };
+                format!("  /debug {}{name} — {}", sub.name, sub.summary)
+            }),
+    );
+    lines
 }
 
 /// Per-session NPC reaction emoji ring buffer + monoculture sensor state.
@@ -813,22 +835,13 @@ mod tests {
         for sub in SUBCOMMANDS {
             let lines = handle_debug(Some(sub.name), &app);
             assert!(!lines[0].contains("Unknown debug command"), "{}", sub.name);
-            let shown = if sub.name == "relationships" {
-                "rels"
-            } else {
-                sub.name
-            };
             assert!(
-                sub.name == "help" || help.contains(&format!("/debug {shown}")),
+                sub.name == "help" || help.contains(&format!("/debug {}", sub.name)),
                 "{} in help",
                 sub.name
             );
             let usage = lines[0].contains("Usage:");
-            if sub.takes_npc && sub.name != "gossip" {
-                assert!(usage, "{} needs a name", sub.name);
-            } else {
-                assert!(!usage, "{} takes no name", sub.name);
-            }
+            assert_eq!(usage, sub.npc == NpcArgument::Required, "{}", sub.name);
         }
     }
 
