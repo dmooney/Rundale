@@ -28,7 +28,7 @@ files. The same gate runs in CI.
 Git index:
 
 - no tracked path may contain a `graphify-out` component;
-- no PNG may be tracked under `docs/graphics-v2/pipeline-experiments/`;
+- no PNG may be tracked under the retired graphics-v2 pipeline-experiments folder; the checker test guards against reintroduction. Its historical contents remain on the [preserved graphics-v2 branch](https://github.com/dmooney/Rundale/tree/feat/graphics-v2);
 - retired screenshot, every `bug-reports/` path, and rejected scene-plate paths cannot
   be reintroduced;
 - files larger than 8 MiB fail unless
@@ -46,43 +46,12 @@ file is optimized or archived.
 
 ## Retirement ledger
 
-Wave 2 (base commit `d9aff21b3de86cdf1339647f399336c5392d4fa3`) removed the
-following generated/intermediate files from the current tree. Their exact
-original bytes and SHA-256 values are retained here so the deletion is
-auditable. The CF pipeline can regenerate its outputs from the tracked source
-mosaic and scripts; the original blobs remain recoverable from Git history and
-the verified bare mirror `Rundale-pre-rewrite-20260823T215406Z.git` in the
-documented operator backup location.
-
-| Path                                                                                                                      | Original bytes | SHA-256                                                            |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------: | ------------------------------------------------------------------ |
-| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/masked-seam-repair-template/seam-contract-overlay.png` |        9484931 | `6aa96a2dcef26323cb07148ff168b08820d76a05864aa4519661a0f669442363` |
-| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/seam-validation-overlay.png`                           |        9406614 | `9bc16003c3da3a75e0f588fb8ac2ca2e37cd088deaa10211059156568210f9f9` |
-| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-grid-overlay.png`                          |        9406614 | `9bc16003c3da3a75e0f588fb8ac2ca2e37cd088deaa10211059156568210f9f9` |
-| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/runtime-reassembled.png`                               |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
-| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-supertile.png`                             |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
-| `limerick/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png`                                         |        8492224 | `becdeaec87bebf0063d7611cec764254948b0fcad6820235a4da3173f3828331` |
-
-### Wave 3: Graphics V2 pipeline experiments
-
-Wave 3 (base commit `b467cae661b95b12606e5c64b7649429aafa3dc4`)
-archived all 474 PNGs formerly under
-`docs/graphics-v2/pipeline-experiments/`. The verified payload contains
-657,902,063 bytes and 393 unique Git blobs. Four clean-checkout inputs were
-promoted to `docs/graphics-v2/map-sources/` and
-`docs/graphics-v2/authorities/`. The other 470 payload paths accounted for
-648,887,496 bytes; after adding the archive index and policy documentation, the
-net current-tree reduction is 648,743,872 bytes.
-
-The exact original paths, sizes, SHA-256 values, Git blob IDs, provenance
-classes, and licensing obligations are recorded in
-[`archive-index.tsv`](../graphics-v2/pipeline-experiments/archive-index.tsv).
-The verified iCloud Drive archive ID is
-`graphics-v2-pipeline-experiments-b467cae6-20260826T020635Z-manifest-078b3883c20c`;
-its full manifest SHA-256 is
-`078b3883c20c43e8da72b422329d8b99b82ea893d52206735eb1218bf6d8671e`.
-All 474 payload checks passed after the archive was copied. The pre-rewrite
-rollback mirror independently contains all 393 blobs.
+The Graphics V2 research corpus and the person-art experiment and review-packet
+files were removed from the active tree. Their full source history remains on the
+preserved [`feat/graphics-v2` branch](https://github.com/dmooney/Rundale/tree/feat/graphics-v2).
+See [`graphics-v2-archive.md`](../graphics-v2-archive.md) for the removal scope,
+retained generation inputs, and hashes. Approved person-art records remain
+unchanged and keep their original historical source paths.
 
 ### Wave 4: Bug-report screenshots
 

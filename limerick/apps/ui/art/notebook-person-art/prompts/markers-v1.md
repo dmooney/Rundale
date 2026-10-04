@@ -5,7 +5,7 @@ Use case: historical-scene
 Asset type: production source sheet for tiny in-scene NPC markers/sprites in
 the Rundale illustrated notebook
 
-Input image: Use only `docs/graphics-v2/illustrated-rundale-notebook.png` as
+Input image: Use only `limerick/apps/ui/art/notebook-person-art/references/illustrated-rundale-notebook.png` as
 the visual authority. Match the tiny standing villagers in the scene: small
 readable ink-and-wash people placed on the painted parish background. Do not
 use or imitate any other existing art, experiment, marker concept sheet,

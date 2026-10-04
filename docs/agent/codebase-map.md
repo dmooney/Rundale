@@ -25,7 +25,7 @@ are likely to see. Scoped instructions live in `AGENTS.md`.
 | `promptfoo/`                                      | v2 benchmark of record + generated GitHub Pages site (`bench-site/`)              | `leaderboard/`, `bench-site/`           | -                                             |
 | `docs/`                                           | Project documentation hub                                                         | [`index.md`](../index.md)               | -                                             |
 | `docs/agent/`                                     | Agent-facing engineering docs                                                     | [`README.md`](README.md)                | -                                             |
-| `docs/graphics-v2/`                               | Visual-client research, art provenance, and reproducible rendering evidence       | [`README.md`](../graphics-v2/README.md) | [AGENTS.md](../graphics-v2/AGENTS.md)         |
+| Graphics V2 historical corpus                     | [`graphics-v2-archive.md`](../graphics-v2-archive.md)                             | Preserved on `feat/graphics-v2`         | -                                             |
 | `docs/proofs/`                                    | Ignored local/iCloud proof archives (`local-perf/`, `rundale-bench/`)             | -                                       | -                                             |
 | `docs/screenshots/`                               | Current, referenced documentation images                                          | `*.png`                                 | -                                             |
 | `docs/adr/`, `docs/design/`, `docs/plans/`        | Architecture records, design notes, and planning docs                             | `*.md`                                  | -                                             |
@@ -105,7 +105,7 @@ See [README Ways to run Limerick](../../README.md#ways-to-run-limerick) for the 
 - **Harness map (sensors / skills / gates):** [`harness.md`](harness.md)
 - **Scaling seam checklist:** [`scaling-rules.md`](scaling-rules.md)
 - **Proof-evidence gate:** [`agent-check.md`](agent-check.md)
-- **Visual-client and graphics research:** [`../graphics-v2/README.md`](../graphics-v2/README.md)
+- **Archived visual-client research and retained art inputs:** [`../graphics-v2-archive.md`](../graphics-v2-archive.md)
 
 ## Refresh Checklist
 

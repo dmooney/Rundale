@@ -7,7 +7,7 @@ chat-first stabilization migration. Approved scene and portrait assets were
 retained for responsive DOM use.
 
 This implementation plan follows the canonical
-[`illustrated-rundale-notebook.png`](../graphics-v2/illustrated-rundale-notebook.png)
+[illustrated notebook concept](https://github.com/dmooney/Rundale/blob/feat/graphics-v2/docs/graphics-v2/illustrated-rundale-notebook.png)
 concept and the active
 [`illustrated-notebook-roadmap.md`](illustrated-notebook-roadmap.md). The first
 implementation attempt is rejected as a visual source: its renderer, layout,

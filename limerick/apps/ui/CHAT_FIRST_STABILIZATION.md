@@ -143,7 +143,7 @@ an updated per-assertion appendix.
 | NPC map markers                    | `notebook-ui/people/marker-*.png`                                                    | Preserve with provenance; use only if a DOM map/player task demonstrates value                                       |
 | Parchment frames and utility icons | 24 notebook-v2 UI PNGs plus manifests                                                | Preserve initially; promote selected assets only after portraits; delete unused runtime copies at experiment closure |
 | Notebook/Pixi-only layout assets   | Sewn page, index rail, tab/action-strip composition assets                           | Candidate deletion when renderer removal proves no remaining import                                                  |
-| Graphics research corpus           | `docs/graphics-v2` (1,356 files at baseline)                                         | Preserve as immutable provenance/source material; never ship solely because it exists                                |
+| Graphics V2 historical corpus      | [`docs/graphics-v2-archive.md`](../../../docs/graphics-v2-archive.md)                | Historical sources remain on `feat/graphics-v2`; only required art inputs are retained here                          |
 | Production art metadata            | runtime READMEs, manifests, contact sheet, provenance                                | Retain and update to record chat use or archival-only status                                                         |
 
 ## Ordered verification checkpoints

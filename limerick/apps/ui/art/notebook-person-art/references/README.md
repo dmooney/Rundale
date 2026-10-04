@@ -25,7 +25,7 @@ hair, shawl, apron, and pose into unrelated women even when their structured
 geometry differed and the prompt said “style only.”
 
 `generation-config-v1.json` now uploads only
-`docs/graphics-v2/illustrated-parish-notebook.png`, the authoritative concept
+`illustrated-rundale-notebook.png`, the authoritative concept
 named in the issue. The model reads the notebook portrait surface from the UI
 and the marker surface from the painted world while identity comes from each
 NPC's structured facial geometry. The Roisin files remain useful for human

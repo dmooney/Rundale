@@ -12,7 +12,7 @@ Status: Retired experiment; superseded by the chat-first stabilization contract
 
 Rundale opens directly into a full-screen illustrated game scene that follows
 the named
-[notebook concept](../graphics-v2/illustrated-rundale-notebook.png), not a web
+[notebook concept](https://github.com/dmooney/Rundale/blob/feat/graphics-v2/docs/graphics-v2/illustrated-rundale-notebook.png), not a web
 dashboard. The player sees a watercolor parish plate with in-world labels and
 people, a parchment ribbon, nearby portrait strip, right-hand hand-sewn notebook
 page, action strip, and handwritten intent strip. The approved sewn page has no

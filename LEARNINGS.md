@@ -279,8 +279,8 @@ rather than reading it end to end. Keep items to 2-3 lines.
 - **Server subprocess tests must isolate both user-data and user-config roots.** Setting only `LIMERICK_USER_DATA_DIR` still lets strict v2 startup read the developer's platform `limerick.toml`; give every spawned server a dedicated `LIMERICK_USER_CONFIG_DIR` so host configuration cannot determine the result.
 - **Cycle CF county proof renders are reproducible intermediates.** The large
   supertile, reassembly, grid, seam, and contract-overlay PNGs are retired from
-  the current tree; regenerate them with `docs/graphics-v2/scripts/county_tile_pipeline.py`
-  or recover their original blobs from Git history.
+  the current tree. Their source pipeline and original blobs are retained on the
+  [`feat/graphics-v2` branch](https://github.com/dmooney/Rundale/tree/feat/graphics-v2).
 - **zsh reserves lowercase `path` as its executable-search array.** A
   `while read path` loop rewrites command lookup and makes tools appear missing;
   use a task-specific name such as `candidate_path` in cleanup scripts.
