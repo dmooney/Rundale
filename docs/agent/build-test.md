@@ -190,7 +190,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 
 ## Quality gates
 
-- `/check` — both gate levels: `just check` (fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint, then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run

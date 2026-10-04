@@ -57,8 +57,10 @@ web PORT="3001":
 
 # ─── Quality Gates ──────────────────────────────────────────────────────────
 
-# Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
-check:
+# Pre-commit gate: docs/data formatting and Markdown lint (CI's
+# "Docs/data formatting" job), then the engine's format, lint, tests,
+# placeholder scan, and doc-paths
+check: fmt-docs-check lint-docs
     cd limerick && just check
 
 # PR evidence gate (local mode): rejects .proofs/ paths and placeholder debt
@@ -83,7 +85,7 @@ repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
 
 # Pre-push gate: check + game harness walkthrough
-verify:
+verify: fmt-docs-check lint-docs
     cd limerick && just verify
 
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
