@@ -173,7 +173,7 @@ impl CommandSpec {
             CommandArgument::DebugView => debug_view::SUBCOMMANDS
                 .iter()
                 .map(|sub| CompletionWord {
-                    takes_npc: sub.takes_npc,
+                    takes_npc: sub.takes_npc(),
                     ..CompletionWord::leaf(sub.name, sub.summary)
                 })
                 .collect(),
