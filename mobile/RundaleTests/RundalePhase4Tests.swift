@@ -341,5 +341,6 @@ private final class Phase4TestSession: RundaleSessionControlling {
     func step() async -> FixtureStepResult { FixtureStepResult(event: nil, isFinished: true) }
     func answerClarification(choiceID: String) async throws { throw FixtureAdapterError.noClarificationPending }
     func suggestions(for text: String) -> [CompletionItem] { [] }
+    var advertisedCommands: [CompletionItem] { [] }
     func insert(_ item: CompletionItem, into text: String) -> String { text }
 }

@@ -7,12 +7,16 @@
 //! inference call, and commits like any turn. The four product spec §5.4
 //! commands are advertised by `/help` and the host's command list; the time
 //! and inspection commands work but are not advertised.
+//!
+//! [`COMMANDS`] is the registry a host completes from (#2146): every command,
+//! and the words that may follow it, so completion and the parser agree.
 
 use crate::debug_view::{self, DebugView};
 use crate::game_loop::GameLoopContext;
 use crate::input::{Command, parse_system_command};
 use crate::ipc::{handle_command, text_log};
 use crate::world::description::format_exits;
+use crate::world::time::minute_word;
 use crate::world::transport::TransportMode;
 
 /// A slash command the turn engine answers locally.
@@ -38,13 +42,148 @@ pub enum LocalCommand {
     Flags,
 }
 
-/// The commands `/help` and a host's command list offer, with what each does.
-pub const ADVERTISED: &[(&str, &str)] = &[
-    ("/look", "Look around"),
-    ("/people", "Who is here"),
-    ("/exits", "Where you can go"),
-    ("/help", "These commands"),
+/// A command a host offers, as completion shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandSpec {
+    /// The command, with its `/`.
+    pub name: &'static str,
+    /// What it does.
+    pub summary: &'static str,
+    /// Whether `/help` and the host's short command list name it.
+    pub advertised: bool,
+    /// What may follow it.
+    pub argument: CommandArgument,
+}
+
+/// What may follow a command's name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandArgument {
+    /// Nothing.
+    None,
+    /// A number of minutes; these are suggestions, any number works.
+    Minutes(&'static [u32]),
+    /// A `/debug` view ([`debug_view::SUBCOMMANDS`]), some followed by an
+    /// NPC's name.
+    DebugView,
+}
+
+/// Every command the turn engine runs, in completion order. Aliases
+/// (`/npcs`) are accepted but not listed.
+pub const COMMANDS: &[CommandSpec] = &[
+    CommandSpec {
+        name: "/look",
+        summary: "Look around",
+        advertised: true,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/people",
+        summary: "Who is here",
+        advertised: true,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/exits",
+        summary: "Where you can go",
+        advertised: true,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/help",
+        summary: "These commands",
+        advertised: true,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/wait",
+        summary: "Let time pass",
+        advertised: false,
+        argument: CommandArgument::Minutes(&[15, 30, 60]),
+    },
+    CommandSpec {
+        name: "/pause",
+        summary: "Hold the clock",
+        advertised: false,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/resume",
+        summary: "Let the clock run",
+        advertised: false,
+        argument: CommandArgument::None,
+    },
+    CommandSpec {
+        name: "/debug",
+        summary: "Inspect engine state",
+        advertised: false,
+        argument: CommandArgument::DebugView,
+    },
+    CommandSpec {
+        name: "/flags",
+        summary: "Feature flags",
+        advertised: false,
+        argument: CommandArgument::None,
+    },
 ];
+
+/// The commands `/help` and a host's command list offer.
+pub fn advertised() -> impl Iterator<Item = &'static CommandSpec> {
+    COMMANDS.iter().filter(|command| command.advertised)
+}
+
+/// A word completion offers, and what may follow it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionWord {
+    /// The word, as inserted.
+    pub word: String,
+    /// What it does.
+    pub summary: String,
+    /// The words that may follow it.
+    pub next: Vec<CompletionWord>,
+    /// Whether an NPC's name follows instead (any NPC in the world).
+    pub takes_npc: bool,
+}
+
+impl CompletionWord {
+    fn leaf(word: impl Into<String>, summary: impl Into<String>) -> Self {
+        Self {
+            word: word.into(),
+            summary: summary.into(),
+            next: Vec::new(),
+            takes_npc: false,
+        }
+    }
+}
+
+impl CommandSpec {
+    /// This command and what may follow it, as a completion tree.
+    pub fn completion(&self) -> CompletionWord {
+        let next = match self.argument {
+            CommandArgument::None => Vec::new(),
+            CommandArgument::Minutes(minutes) => minutes
+                .iter()
+                .map(|minutes| {
+                    CompletionWord::leaf(
+                        minutes.to_string(),
+                        format!("{minutes} {}", minute_word(*minutes)),
+                    )
+                })
+                .collect(),
+            CommandArgument::DebugView => debug_view::SUBCOMMANDS
+                .iter()
+                .map(|sub| CompletionWord {
+                    takes_npc: sub.takes_npc,
+                    ..CompletionWord::leaf(sub.name, sub.summary)
+                })
+                .collect(),
+        };
+        CompletionWord {
+            next,
+            ..CompletionWord::leaf(self.name, self.summary)
+        }
+    }
+}
 
 impl LocalCommand {
     /// The command `text` names, or `None` when it is not one of these
@@ -118,16 +257,69 @@ impl LocalCommand {
 
 /// `/help`: one line per advertised command.
 fn help_text() -> String {
-    ADVERTISED
-        .iter()
-        .map(|(command, what)| format!("{command}: {what}"))
+    advertised()
+        .map(|command| format!("{}: {}", command.name, command.summary))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::LocalCommand;
+    use super::{COMMANDS, LocalCommand, advertised};
+
+    #[test]
+    fn every_completion_parses_as_the_command_it_names() {
+        let names: Vec<_> = advertised().map(|command| command.name).collect();
+        assert_eq!(names, ["/look", "/people", "/exits", "/help"]);
+        for command in COMMANDS {
+            let tree = command.completion();
+            assert!(LocalCommand::parse(&tree.word).is_some(), "{}", tree.word);
+            for next in &tree.next {
+                let text = format!("{} {}", tree.word, next.word);
+                let parsed = LocalCommand::parse(&text);
+                assert!(parsed.is_some(), "{text}");
+                if next.takes_npc {
+                    let named = format!("{text} micheal");
+                    assert_eq!(
+                        LocalCommand::parse(&named),
+                        Some(LocalCommand::Debug(Some(format!("{} micheal", next.word)))),
+                        "{named}"
+                    );
+                }
+            }
+        }
+        let debug = COMMANDS
+            .iter()
+            .find(|c| c.name == "/debug")
+            .unwrap()
+            .completion();
+        let views: Vec<_> = debug.next.iter().map(|next| next.word.as_str()).collect();
+        assert_eq!(
+            views,
+            [
+                "memory",
+                "schedule",
+                "relationships",
+                "gossip",
+                "clock",
+                "here",
+                "npcs",
+                "tiers",
+                "language",
+                "reactions",
+                "help"
+            ]
+        );
+        let wait = COMMANDS
+            .iter()
+            .find(|c| c.name == "/wait")
+            .unwrap()
+            .completion();
+        assert_eq!(
+            LocalCommand::parse(&format!("/wait {}", wait.next[0].word)),
+            Some(LocalCommand::Wait(15))
+        );
+    }
 
     #[test]
     fn parses_the_advertised_and_unadvertised_commands_only() {

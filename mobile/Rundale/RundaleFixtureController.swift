@@ -330,6 +330,8 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         completionRegistry.suggestions(for: text)
     }
 
+    var advertisedCommands: [CompletionItem] { completionRegistry.advertisedCommands }
+
     func insert(_ item: CompletionItem, into text: String) -> String {
         completionRegistry.applying(item, to: text)
     }

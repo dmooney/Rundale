@@ -1282,3 +1282,61 @@ fn the_phone_slash_commands_answer_locally_as_turns() {
         "the wait commits: {clock}"
     );
 }
+
+/// #2146: the read model carries the completion tree for every command the
+/// phone runs, and every NPC a `/debug` name may complete to; a name typed
+/// without fadas resolves on the engine.
+#[test]
+fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
+    let (game, opening) = Game::new();
+    let read_model = &opening["readModel"];
+    let words = |tree: &Value| -> Vec<String> {
+        tree.as_array()
+            .unwrap()
+            .iter()
+            .map(|word| word["word"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let completions = &read_model["commandCompletions"];
+    assert_eq!(
+        words(completions),
+        [
+            "/look", "/people", "/exits", "/help", "/wait", "/pause", "/resume", "/debug", "/flags"
+        ]
+    );
+    let debug = completions
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|word| word["word"] == "/debug")
+        .unwrap();
+    assert_eq!(
+        words(&debug["next"])[..4],
+        ["memory", "schedule", "relationships", "gossip"]
+    );
+    assert_eq!(debug["next"][0]["takesNpc"], true);
+    assert_eq!(debug["next"][4]["word"], "clock");
+    assert_eq!(debug["next"][4]["takesNpc"], false);
+
+    let everyone: Vec<&str> = read_model["everyone"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|npc| npc["name"].as_str().unwrap())
+        .collect();
+    for name in ["Peig Hannigan", "Mícheál Connolly", "Róisín Connolly"] {
+        assert!(everyone.contains(&name), "{name} in {everyone:?}");
+    }
+
+    // Away from the cottage: every NPC, not only nearby ones.
+    let memory = command(&game, "/debug memory micheal");
+    assert!(
+        memory.starts_with("[DEBUG MEMORY: Mícheál Connolly]"),
+        "{memory}"
+    );
+    let schedule = command(&game, "/debug schedule roisin");
+    assert!(
+        schedule.starts_with("[DEBUG SCHEDULE: Róisín Connolly]"),
+        "{schedule}"
+    );
+}

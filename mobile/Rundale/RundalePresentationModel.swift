@@ -347,19 +347,19 @@ final class RundalePresentationModel: ObservableObject {
                 id: $0.id,
                 label: $0.label,
                 insertion: $0.insertionText,
-                detail: $0.entityID == nil ? nil : "Nearby person"
+                detail: $0.detail ?? ($0.entityID == nil ? nil : "Nearby person")
             )
         }
     }
 
-    /// Whether the session offers any slash commands (the engine offers
-    /// none on the phone; the fixtures do).
-    var offersCommands: Bool { !session.suggestions(for: "/").isEmpty }
+    /// Whether the session advertises any slash commands for the Commands
+    /// button.
+    var offersCommands: Bool { !session.advertisedCommands.isEmpty }
 
     func browseCompletions(_ trigger: String) {
         completionBrowser = completionBrowser == trigger ? nil : trigger
         completions = completionBrowser.map { query in
-            session.suggestions(for: query).map {
+            browsed(query).map {
                 PresentedCompletion(id: $0.id, label: $0.label,
                                     insertion: $0.insertionText,
                                     detail: $0.entityID == nil
@@ -369,8 +369,8 @@ final class RundalePresentationModel: ObservableObject {
     }
 
     func selectCompletion(_ completion: PresentedCompletion) {
-        guard let source = session.suggestions(for: completionBrowser ?? draft)
-            .first(where: { $0.id == completion.id }) else {
+        let sources = completionBrowser.map(browsed) ?? session.suggestions(for: draft)
+        guard let source = sources.first(where: { $0.id == completion.id }) else {
             return
         }
         if let completionBrowser {
@@ -382,6 +382,12 @@ final class RundalePresentationModel: ObservableObject {
         }
         completionBrowser = nil
         completions = []
+    }
+
+    /// What a shortcut button offers: the advertised commands for `/`
+    /// (typing `/` offers every command), nearby people for `@`.
+    private func browsed(_ trigger: String) -> [CompletionItem] {
+        trigger == "/" ? session.advertisedCommands : session.suggestions(for: trigger)
     }
 
     func selectClarification(_ option: PresentedClarification.Option) {

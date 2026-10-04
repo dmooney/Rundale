@@ -79,7 +79,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         // The Rust read model is not available until the runtime opens. The
         // first snapshot refresh replaces this empty projection with the
         // authoritative nearby-person list.
-        completionRegistry = FixtureCompletionRegistry(slashCommands: [], nearbyNPCs: [])
+        completionRegistry = FixtureCompletionRegistry(commands: [], nearbyNPCs: [])
 
         if configuration.phase2MockTransport {
             let credentials = StaticEndpointCredentialProvider(
@@ -346,6 +346,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         completionRegistry.suggestions(for: text)
     }
 
+    var advertisedCommands: [CompletionItem] { completionRegistry.advertisedCommands }
+
     func insert(_ item: CompletionItem, into text: String) -> String {
         completionRegistry.applying(item, to: text)
     }
@@ -388,18 +390,17 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
-        // The engine names the slash commands it advertises on the phone.
+        // The engine's command registry: every command the phone runs and
+        // what may follow each, the advertised short list, and everyone a
+        // `/debug` name may complete to.
         completionRegistry = FixtureCompletionRegistry(
-            slashCommands: snapshot.readModel.commands.map {
-                CompletionItem(
-                    id: String($0.name.drop(while: { $0 == "/" })),
-                    kind: .slashCommand,
-                    label: $0.name,
-                    insertionText: $0.name
-                )
-            },
+            commands: snapshot.readModel.commandCompletions,
+            advertised: snapshot.readModel.commands.map(\.name),
             nearbyNPCs: snapshot.readModel.nearbyPeople.map {
                 FixtureNPCReference(id: $0.id, displayName: $0.displayName)
+            },
+            everyone: snapshot.readModel.everyone.map {
+                FixtureNPCReference(id: $0.id, displayName: $0.name)
             }
         )
 
@@ -806,6 +807,15 @@ private struct EngineReadModel: Decodable {
     let weather: String
     /// The slash commands `/help` and the Commands list offer.
     let commands: [EngineCommand]
+    /// Every command the phone runs, with the words that may follow each.
+    let commandCompletions: [SlashCompletionWord]
+    /// Everyone in the world, by name, for `/debug` names.
+    let everyone: [EngineWorldPerson]
+}
+
+private struct EngineWorldPerson: Decodable {
+    let id: String
+    let name: String
 }
 
 private struct EngineCommand: Decodable {

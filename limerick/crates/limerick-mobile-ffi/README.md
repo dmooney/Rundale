@@ -88,6 +88,13 @@ list: `/look`, `/people` (also `/npcs`), `/exits`, and `/help`. `/wait
 build but are not advertised. Any other `/` input is refused with
 `command_unavailable`.
 
+Completion comes from the same registry (`limerick_core::turn::COMMANDS`).
+`commandCompletions` lists every command as a tree of words: each has `word`,
+`summary`, `next` (the words that may follow), and `takesNpc` (a name follows
+instead). `everyone` lists every NPC in the world (`id`, `name`) for those
+names. `/debug` finds a name without case or diacritics, so `micheal` finds
+Mícheál Connolly.
+
 ## Inference
 
 `pending_endpoint` returns the call the attempt is suspended on:
