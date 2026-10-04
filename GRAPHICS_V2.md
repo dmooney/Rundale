@@ -17,6 +17,16 @@ replacing current files with older versions:
 | `codex/graphics-v2-style-crop-doors`         | `2510ebe6e6faf8b847e7bc28329cd16c6f5e17c8` | Earlier graphics corpus, style-crop fixes, and map annotator work |
 | `graphic`                                    | `ab0fd1c5bee9af647bb04190df1411656c1400d5` | Visual client and Kilteevan sprite compositor                     |
 
+The follow-up preservation merge also retains local graphical work that had not
+reached the remote branch tips:
+
+| Local branch                      | Preserved tip                              | Contents                      |
+| --------------------------------- | ------------------------------------------ | ----------------------------- |
+| `graphic`                         | `c3873c7002a3919482374ae3d7b1ac224af0e911` | Later graphical-game planning |
+| `codex/graphic-compositor-m1`     | `65a9a371b2ccc0bb249acb2dff0d0548c3bc6156` | Compositor milestone work     |
+| `codex/graphic-main-ci-sync`      | `c4263f2732e52fc8b9d40571483a125556da1036` | Graphical/main CI integration |
+| `agent/durable-graphical-harness` | `19d4c504071e7e74e7d36d0e675dce4c4ee428fc` | Graphical harness work        |
+
 Browse a preserved tip with `git show <tip>:<path>` or create a separate worktree
 at that tip to run its historical tools. Those snapshots use the layouts and
 requirements of their time; the current mobile product specs govern main.
