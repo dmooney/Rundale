@@ -23,6 +23,15 @@ class RundalePhase3UITestCase: XCTestCase {
         app.launch()
     }
 
+    /// Launches the real Endpoint client (no mock transport) against a base
+    /// URL that never resolves, so every Endpoint request fails as it would
+    /// with the network down.
+    func launchWithUnreachableEndpoint() {
+        app.launchArguments = ["--ui-tests", "--phase3", "--no-auto-focus", "--reset-fixture"]
+        app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = "https://endpoints.invalid"
+        app.launch()
+    }
+
     func submit(_ command: String) {
         let input = app.descendants(matching: .any)
             .matching(identifier: "composer.input")
@@ -92,6 +101,37 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
         submit("/wait 10")
         submit("/people")
         XCTAssertTrue(waitForText("Letter-office keeper", timeout: 8))
+    }
+
+    /// Spec Milestones 2 and 3: gameplay that needs no inference works with
+    /// every Endpoint request failing, and a failed conversation leaves the
+    /// session playable.
+    func testLocalCommandsAndTravelWorkWhenEveryEndpointRequestFails() {
+        launchWithUnreachableEndpoint()
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 15))
+
+        submit("/look")
+        XCTAssertTrue(waitForText("A muddy road runs between low stone walls", timeout: 8))
+        submit("/exits")
+        XCTAssertTrue(waitForText("Connolly Cottage (4 min on foot)", timeout: 8))
+        submit("go to Connolly Cottage")
+        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
+        submit("/people")
+        XCTAssertTrue(waitForText("Smallholder and cattle drover", timeout: 8))
+        XCTAssertFalse(app.buttons["composer.retry"].exists, "No local command needed an Endpoint")
+
+        submit("ask Mícheál about the cattle")
+        XCTAssertTrue(waitForText("The road out of the parish is washed away", timeout: 30),
+                      "The mod's offline line")
+        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 5),
+                      "The failed conversation offers Retry")
+        attach("Conversation failed with every Endpoint request failing")
+
+        submit("go to Kilteevan Village")
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        submit("/exits")
+        XCTAssertTrue(waitForText("Letter Office", timeout: 8))
+        attach("Travel still works after the failed conversation")
     }
 
     func testPlaceNameTravelWithoutEndpointInference() {
