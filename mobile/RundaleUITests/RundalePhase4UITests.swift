@@ -155,12 +155,12 @@ final class RundalePhase4UITests: RundalePhase4UITestCase {
     func testCompletedActionStaysCompletedThroughRepeatedAppSwitching() {
         launch(reset: true)
         goToTheCottage()
-        submit("ask Mícheál about the cattle")
+        submit("ask Mícheál Connolly about the cattle")
         waitForCompletedDialogue()
         backgroundAndReturn()
         backgroundAndReturn()
         XCTAssertEqual(completedDialogue.count, 1)
-        assertSingleCommand("ask Mícheál about the cattle")
+        assertSingleCommand("ask Mícheál Connolly about the cattle")
         XCTAssertFalse(app.buttons["composer.retry"].exists)
         relaunch()
         XCTAssertEqual(completedDialogue.count, 1)
@@ -205,7 +205,7 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
     func testBackgroundInterruptsStreamAndPreservesNewDraftForRetry() {
         launch(reset: true)
         goToTheCottage()
-        submit("ask Mícheál about the cattle slowly")
+        submit("ask Mícheál Connolly about the cattle slowly")
         XCTAssertTrue(rows(containing: "The wet ground").firstMatch.waitForExistence(timeout: 10))
         input.tap()
         input.typeText("My next question")
@@ -219,7 +219,7 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         retry.tap()
         waitForCompletedDialogue()
         XCTAssertEqual(input.value as? String, "My next question")
-        assertSingleCommand("ask Mícheál about the cattle slowly")
+        assertSingleCommand("ask Mícheál Connolly about the cattle slowly")
         XCTAssertFalse(retry.exists)
         attach("Background interruption recovered")
     }
@@ -227,7 +227,7 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
     func testTerminationDuringStreamingRecoversOneRequestAndRetriesOnce() {
         launch(reset: true)
         goToTheCottage()
-        let command = "ask Mícheál about the cattle slowly"
+        let command = "ask Mícheál Connolly about the cattle slowly"
         submit(command)
         XCTAssertTrue(rows(containing: "The wet ground").firstMatch.waitForExistence(timeout: 10))
         app.terminate()
@@ -251,11 +251,11 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
 @MainActor
 final class RundalePhase4NetworkUITests: RundalePhase4UITestCase {
     func testConnectionLossBeforeResponseCanRetryWithoutRestart() {
-        assertNetworkRecovery(command: "ask Mícheál offline once", partialExpected: false)
+        assertNetworkRecovery(command: "ask Mícheál Connolly offline once", partialExpected: false)
     }
 
     func testConnectionLossDuringStreamCanRetryWithoutDuplicatingDialogue() {
-        assertNetworkRecovery(command: "ask Mícheál disconnect once", partialExpected: true)
+        assertNetworkRecovery(command: "ask Mícheál Connolly disconnect once", partialExpected: true)
     }
 }
 

@@ -23,7 +23,7 @@ final class RundaleFailureLinesUITests: XCTestCase {
     }
 
     func testAnUnavailableStorytellerHasItsOwnLine() {
-        submit("ask Mícheál to fail")
+        submit("ask Mícheál Connolly to fail")
         XCTAssertTrue(row(containing: "The storyteller has gone out to the bog and isn't back yet.")
             .waitForExistence(timeout: 10))
         XCTAssertFalse(row(containing: "could not be completed").exists, "Not the generic line")
@@ -32,7 +32,7 @@ final class RundaleFailureLinesUITests: XCTestCase {
     }
 
     func testALostConnectionHasItsOwnLineAndRetryRecovers() {
-        submit("ask Mícheál offline once")
+        submit("ask Mícheál Connolly offline once")
         XCTAssertTrue(row(containing: "The road out of the parish is washed away")
             .waitForExistence(timeout: 10))
         hold(3)

@@ -192,7 +192,7 @@ final class RundalePhase2DialogueUITests: RundalePhase2UITestCase {
         waitForInitialScene()
         goToTheCottage()
 
-        submit("ask Mícheál about the cattle")
+        submit("ask Mícheál Connolly about the cattle")
 
         let provisional = dialogueRow(containing: "The wet ground")
         XCTAssertTrue(provisional.waitForExistence(timeout: 8))
@@ -214,7 +214,7 @@ final class RundalePhase2DialogueUITests: RundalePhase2UITestCase {
         waitForInitialScene()
         goToTheCottage()
 
-        submit("ask Mícheál to fail")
+        submit("ask Mícheál Connolly to fail")
 
         // The mod's line for an unavailable provider, not the generic one.
         XCTAssertTrue(
@@ -235,7 +235,7 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         waitForInitialScene()
         goToTheCottage()
 
-        submit("ask Mícheál about the cattle slowly")
+        submit("ask Mícheál Connolly about the cattle slowly")
         let stop = app.buttons["composer.stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 8))
         stop.tap()
@@ -258,7 +258,7 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         waitForInitialScene()
         goToTheCottage()
 
-        let command = "ask Mícheál about the cattle"
+        let command = "ask Mícheál Connolly about the cattle"
         submit(command)
         XCTAssertTrue(waitForDialogue(containing: "difficult this week", timeout: 12))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))

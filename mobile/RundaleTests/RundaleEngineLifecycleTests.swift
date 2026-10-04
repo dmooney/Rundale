@@ -283,7 +283,7 @@ private final class Game {
 
     func talkToMicheal() async throws -> (LogicalRequestID, LimerickPendingInvocation) {
         try await goToTheCottage()
-        let (request, _) = try await submit("Mícheál, how are the cattle this week?")
+        let (request, _) = try await submit("Mícheál Connolly, how are the cattle this week?")
         return (request, try await untilDialogue())
     }
 
