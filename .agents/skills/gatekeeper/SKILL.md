@@ -1,7 +1,7 @@
 ---
 name: gatekeeper
 description: Independent maintainer review of open pull requests — read the repo, the linked issue, the patch, and the PR conversation (never the developer's session), then either squash-merge, send it back to the author with review comments, or hand it to the owner. Trigger for "run the gatekeeper", "gatekeeper pass", "review open PRs", "gatekeeper #N", or a scheduled/looped review job.
-argument-hint: 'Optional PR number (e.g. "1234"). If omitted, run one pass over every eligible open PR.'
+argument-hint: 'Optional PR number (e.g. "1234"). If omitted, run one pass over every eligible open PR. A named draft or not-yet-green PR gets a review-only pass.'
 ---
 
 # Gatekeeper
@@ -68,14 +68,18 @@ The standards are Linus's:
    gh pr list --state open --base main --json number,title,author,isDraft,headRefOid,labels,updatedAt
    ```
 
-   With an argument, the only candidate is that PR.
+   With an argument, the only candidate is that PR. If the owner named it and
+   it is a draft or its required checks have not all completed, run a
+   [review-only pass](#review-only-pass) instead of the steps below.
 
 2. **Filter.** Skip a PR when any of these hold:
    - it is a draft;
    - it carries the `needs-owner` label;
    - your latest verdict marker names the current head SHA **and** no
      non-gatekeeper comment, review, or thread reply has been posted since
-     that review (a reply without a push re-opens the conversation);
+     that review (a reply without a push re-opens the conversation), unless
+     that verdict is a review-only `approve` (go straight to
+     [Merging](#merging); its conditions recheck draft state and checks);
    - required checks on the head are still pending (look again next pass).
 
 3. **Cheap gates before a full review.** If the head has failing required
@@ -88,6 +92,24 @@ The standards are Linus's:
 
 5. **Report** one line per candidate: PR, head SHA, action taken
    (merged / changes requested / handed off / blocked / skipped and why).
+
+## Review-only pass
+
+When the owner asks for a specific PR that is a draft or whose required checks
+are pending, failing, or not yet started, review it in full anyway and record
+the verdict, but **never merge it**, whatever the verdict. Everything else in
+this file applies unchanged: independence, hard rules, the full review, round
+counting, hand-off labels, and escalation.
+
+- Skip the [cheap gates](#a-pass): review the code even when checks fail or the
+  branch conflicts. List each failing check or conflict as a blocking finding,
+  and each pending check as a note that the verdict does not cover its outcome.
+- Add `mode=review-only` to the verdict marker, and state in the first line of
+  the body that this review does not make the PR merge-eligible.
+- An `approve` verdict here means no blocking finding in the code at this head.
+  A later pass may merge that head only once every
+  [merge condition](#merging) holds; any new push needs a fresh review.
+- Report the verdict and the review URL to the owner, and stop.
 
 ## Reviewing a PR
 
@@ -226,7 +248,7 @@ grouped as Blocking and Non-blocking, each numbered so the author can reply by
 number:
 
 ```text
-<!-- gatekeeper: sha=<head sha> verdict=<changes|approve|handoff|blocked|escalated> round=<n> -->
+<!-- gatekeeper: sha=<head sha> verdict=<changes|approve|handoff|blocked|escalated> round=<n> [mode=review-only] -->
 **Gatekeeper: <verdict>**
 
 Blocking
