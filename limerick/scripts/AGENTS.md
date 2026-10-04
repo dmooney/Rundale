@@ -31,7 +31,7 @@ bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's e
 ### `check-docs-format.sh` — Docs/data formatting gate
 
 - Prettier and markdownlint over `git ls-files` only, so git-ignored copies (worktrees under `.claude/worktrees/`) never fail it; markdownlint runs with `--no-globs` so the config's `globs` cannot re-add every file on disk.
-- Fails, not skips, without root `node_modules` (`npm ci`). `just docs-check`, `just check`, `just verify`, and `.githooks/pre-push` run it; `tests/check-docs-format.test.sh` covers it.
+- Fails, not skips, without root `node_modules` (`npm ci`). `just docs-check`, `just check`, `just verify`, and `.githooks/pre-push` run it; `tests/check-docs-format.test.sh` covers it (fully only with root `node_modules`, so CI runs it in the docs-format job).
 
 ### `publish-pr-page.sh` — Publish a PR's evidence page
 

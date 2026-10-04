@@ -25,6 +25,13 @@ grep -q "npm ci" out.txt || {
     exit 1
 }
 
+# The tooling cases need the repo's root dev tooling. The shell-quality CI job
+# has none and checks only the case above; the docs-format job runs `npm ci`
+# and this whole test.
+if [ ! -x "$repo_root/node_modules/.bin/markdownlint-cli2" ]; then
+    echo "check-docs-format: ok (missing-tooling case only; no root node_modules)"
+    exit 0
+fi
 ln -s "$repo_root/node_modules" node_modules
 bash "$checker" >out.txt 2>&1 || {
     cat out.txt >&2
