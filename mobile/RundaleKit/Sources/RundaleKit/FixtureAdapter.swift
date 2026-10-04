@@ -269,7 +269,7 @@ public struct FixtureScript: Codable, Equatable, Sendable {
                                 ClarificationChoice(id: "micheal", label: "Mícheál Connolly", entityID: "npc-micheal"),
                                 ClarificationChoice(id: "roisin", label: "Róisín Connolly", entityID: "npc-roisin")
                             ],
-                            ),
+                        ),
                         itemKey: "clarification"
                     )
                 ],
@@ -409,9 +409,9 @@ public actor FixtureSessionAdapter: SessionAdapter {
     public var isStreaming: Bool { activeRequest != nil }
     public var activeRequestID: LogicalRequestID? { activeRequest?.logicalRequestID }
     public var activeAttemptID: ExecutionAttemptID? { activeRequest?.attemptID }
-    // `eventLog` intentionally omits already-persisted events after restore,
-    // so the cursor must include the restored baseline even when no new
-    // event has been synthesized yet.
+    /// `eventLog` intentionally omits already-persisted events after restore,
+    /// so the cursor must include the restored baseline even when no new
+    /// event has been synthesized yet.
     public var currentCursor: EventCursor { EventCursor(nextSequenceValue) }
 
     public func allEvents() -> [SemanticEvent] {

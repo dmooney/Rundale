@@ -29,4 +29,6 @@ Run the automated gates with `just mobile-verify --phase N`; the
 report format, and [build/test](../agent/build-test.md) places it among the
 other commands. Deterministic regression checks,
 opt-in real-inference integration, and physical-iPhone acceptance remain separate;
-passing one does not establish the others.
+passing one does not establish the others. Record physical-iPhone results as the
+[Swift quality gates](../agent/swift-quality-gates.md#physical-device-acceptance)
+describe.

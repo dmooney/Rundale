@@ -13,7 +13,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     @Published private(set) var state: SessionState
     @Published private(set) var lastEvent: SemanticEvent?
     @Published private(set) var persistenceError: String?
-    // Retained locally for diagnostics; never rendered or sent to inference.
+    /// Retained locally for diagnostics; never rendered or sent to inference.
     private(set) var persistenceDiagnostic: String?
 
     private let configuration: LaunchConfiguration
@@ -477,7 +477,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         if !viewport.isFollowingNewest, let anchor = viewport.anchor {
             if let page = restoredHistoryPage {
                 let older = Self.transcriptItems(from: page.events, sessionID: snapshot.sessionID,
-                                                capacity: replayed.transcriptCapacity)
+                                                 capacity: replayed.transcriptCapacity)
                 if older.contains(where: { $0.id == anchor.itemID }) {
                     transcript = older
                     historyWindowShifted = true
@@ -649,9 +649,9 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     // Endpoint failure here for diagnosis. No credentials
                     // are part of these errors.
                     Self.log.error("""
-                        Endpoint \(invocation.slug, privacy: .public) v\(invocation.version, privacy: .public) \
-                        failed (\(failure.reason.rawValue, privacy: .public)): \(String(describing: error), privacy: .public)
-                        """)
+                    Endpoint \(invocation.slug, privacy: .public) v\(invocation.version, privacy: .public) \
+                    failed (\(failure.reason.rawValue, privacy: .public)): \(String(describing: error), privacy: .public)
+                    """)
                     let response = try await runtime.fail(
                         invocation, kind: failure.kind, message: failure.diagnostic, reason: failure.reason
                     )
@@ -779,7 +779,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     .map { EventCursor($0.lastEventSequence.rawValue) }
             }
             try projectionStore.save(Phase2Projection(draft: draft, viewport: viewport,
-                                                     sessionID: state.sessionID, anchorEventCursor: cursor))
+                                                      sessionID: state.sessionID, anchorEventCursor: cursor))
             return nil
         } catch {
             persistenceError = Self.playerFacingPersistenceError(error)
@@ -888,7 +888,7 @@ private struct Phase2ProjectionStore: Sendable {
     init(configuration: LaunchConfiguration) {
         let base = configuration.draftFileURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Rundale/phase2-projection.json")
+            .appendingPathComponent("Rundale/phase2-projection.json")
         url = base
         engineURL = base.deletingLastPathComponent().appendingPathComponent("phase2.sqlite")
         if FileManager.default.fileExists(atPath: base.path) {

@@ -7,16 +7,16 @@ import XCTest
 class RundalePhase2UITestCase: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         app?.terminate()
         app = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     /// The opening scene on the canonical world (`mods/rundale`).
@@ -102,8 +102,8 @@ class RundalePhase2UITestCase: XCTestCase {
     }
 
     func waitForValue(_ value: String,
-                              on element: XCUIElement,
-                              timeout: TimeInterval) -> Bool {
+                      on element: XCUIElement,
+                      timeout: TimeInterval) -> Bool {
         let predicate = value.isEmpty
             ? NSPredicate(format: "value == '' OR value == nil")
             : NSPredicate(format: "value == %@", value)
@@ -147,9 +147,9 @@ final class RundalePhase2UITests: RundalePhase2UITestCase {
     }
 
     func testSimulatorReturnKeySubmitsDraft() throws {
-#if !targetEnvironment(simulator)
+        #if !targetEnvironment(simulator)
         throw XCTSkip("The simulator return-key contract does not apply to a physical iPhone")
-#else
+        #else
         launch(reset: true, simulatorReturnKey: true)
         waitForInitialScene()
 
@@ -164,7 +164,7 @@ final class RundalePhase2UITests: RundalePhase2UITestCase {
         })
         XCTAssertTrue(waitForValue("", on: input, timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
-#endif
+        #endif
     }
 
     func testPhase2CompletionsUseRustNearbyPeople() {

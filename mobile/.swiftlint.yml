@@ -1,0 +1,62 @@
+# SwiftLint configuration for the native client. The pinned binary and its
+# checksum are in mobile/scripts/install-swift-tools.sh; `just mobile-verify` runs
+# `swiftlint lint --strict`, so every warning fails the gate.
+# Exclusions are justified in docs/agent/swift-quality-gates.md.
+
+included:
+  - Rundale
+  - RundaleKit
+  - RundaleBridge
+  - LimerickEndpointKit
+  - RundaleTests
+  - RundaleUITests
+  - scripts
+
+excluded:
+  - .build
+  - Rundale.xcodeproj
+  - RundaleKit/.build
+  - RundaleBridge/.build
+  - LimerickEndpointKit/.build
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - joined_default_parameter
+  - last_where
+  - modifier_order
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - vertical_parameter_alignment_on_call
+  - yoda_condition
+
+disabled_rules:
+  # Exhaustive switches over protocol events and reducer actions score one
+  # point per case; splitting them would hide the exhaustiveness check.
+  - cyclomatic_complexity
+  # Size limits: SwiftUI views and UI test classes keep one screen or one
+  # scenario per type; size alone is not a defect this gate should block.
+  - file_length
+  - type_body_length
+  - function_body_length
+  # Long string literals (Endpoint error text, accessibility labels, URLs) are
+  # clearer unwrapped; SwiftFormat owns layout.
+  - line_length
+  # SwiftFormat preserves the existing trailing commas in multiline literals.
+  - trailing_comma
+
+identifier_name:
+  # `id` (Identifiable), coordinates, and the FFI's `ok` flag are conventional.
+  excluded:
+    - x
+    - y
+    - ok
+    - id
+
+nesting:
+  # Codable payloads mirror the FFI's nested JSON shapes.
+  type_level: 2

@@ -284,7 +284,7 @@ public struct SessionReducer: Sendable {
         if event.accepted,
            let sourceDraftID = event.sourceDraftID,
            state.draft.id == sourceDraftID,
-           (state.draft.text == text || state.draft.text.trimmingCharacters(in: .whitespacesAndNewlines) == text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+           state.draft.text == text || state.draft.text.trimmingCharacters(in: .whitespacesAndNewlines) == text.trimmingCharacters(in: .whitespacesAndNewlines) {
             state.updateDraft(.empty)
         }
     }
@@ -524,5 +524,4 @@ public final class PresentationSession {
     public func showNewestTranscript(items: [TranscriptItem], hasOlderItems: Bool) {
         reducer.reduce(.showNewestTranscript(items: items, hasOlderItems: hasOlderItems), in: &state)
     }
-
 }

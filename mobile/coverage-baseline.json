@@ -1,0 +1,25 @@
+{
+  "tolerance_percentage_points": 1.0,
+  "packages": {
+    "RundaleKit": { "line_percent": 86.72, "covered": 1398, "lines": 1612 },
+    "RundaleBridge": { "line_percent": 37.93, "covered": 165, "lines": 435 },
+    "LimerickEndpointKit": {
+      "line_percent": 75.64,
+      "covered": 705,
+      "lines": 932
+    }
+  },
+  "app_reference": {
+    "note": "Rundale.app line coverage per simulator suite; recorded, not gated (docs/agent/swift-quality-gates.md#coverage).",
+    "phase1-simulator": 72.82,
+    "phase2-simulator": 67.37,
+    "phase3-simulator": 64.33,
+    "phase4-simulator": 64.88,
+    "phase4-controller": 63.62
+  },
+  "measured": {
+    "date": "2026-10-04",
+    "source": "just mobile-verify --phase all on commit bdbbc0630",
+    "toolchain": "Xcode 26.6 (17F113), Swift 6.3.3, macOS 26.6.2"
+  }
+}

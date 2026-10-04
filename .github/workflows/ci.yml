@@ -50,6 +50,7 @@ jobs:
       differential: ${{ steps.filter.outputs.differential == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -92,6 +93,9 @@ jobs:
             bench_site:
               - 'promptfoo/bench-site/**'
               - 'promptfoo/leaderboard/**'
+              - '.github/workflows/ci.yml'
+            swift:
+              - 'mobile/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
       # the Markdown sits inside a runtime directory (crates, mods, scripts).
@@ -355,6 +359,44 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
+  # SwiftLint, SwiftFormat, and the three Swift package suites with their
+  # coverage floors (`mobile/scripts/verify.py --fast`). The Xcode app build and
+  # simulator suites need the Rust XCFramework and run in `just mobile-verify`
+  # (docs/agent/swift-quality-gates.md).
+  swift-quality:
+    name: Swift quality (lint, format, packages)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.swift == 'true'
+    # Hosted macOS runners are free for this public repository. Pin the image
+    # and Xcode so lint, compiler, and coverage results match local runs.
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+
+      - name: Swift lint, format, and package tests
+        run: python3 mobile/scripts/verify.py --fast
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-quality-report
+          path: |
+            mobile/.verification/verify.json
+            mobile/.verification/verify.junit.xml
+            mobile/.verification/summary.txt
+            mobile/.verification/logs/
+          if-no-files-found: warn
+          retention-days: 14
+
   runtime-suite:
     name: Runtime correctness suite
     needs: changes
@@ -479,6 +521,7 @@ jobs:
         playwright-launcher-windows,
         promptfoo-quality,
         shell-quality,
+        swift-quality,
         toml-quality,
         runtime-suite,
         differential-proof,

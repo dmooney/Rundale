@@ -255,6 +255,7 @@ private final class Phase4TestSession: RundaleSessionControlling {
         presentation = PresentationSession(state: state)
         subject.send(state)
     }
+
     func readHistory(anchor: TranscriptAnchor?) {}
     func loadOlderTranscript() async {}
 
@@ -338,6 +339,7 @@ private final class Phase4TestSession: RundaleSessionControlling {
         state = SessionState(requests: state.requests, activeRequestID: request.id)
         subject.send(state)
     }
+
     func step() async -> FixtureStepResult { FixtureStepResult(event: nil, isFinished: true) }
     func answerClarification(choiceID: String) async throws { throw FixtureAdapterError.noClarificationPending }
     func suggestions(for text: String) -> [CompletionItem] { [] }

@@ -52,7 +52,11 @@ build_target() {
     # and `mobile` on, so building only this package compiles the shared
     # engine in its portable configuration (no desktop dependencies).
     echo "Building limerick-mobile-ffi for $target with Rust $rust_toolchain"
-    CARGO_TARGET_DIR="$target_root" \
+    # rustc and the cc crate (sqlite, ring) both read the deployment target
+    # from the environment; without it the C objects default to the SDK's
+    # version and the app's link warns that they are newer than iOS 17.
+    IPHONEOS_DEPLOYMENT_TARGET="$minimum_ios" \
+        CARGO_TARGET_DIR="$target_root" \
         RUSTC_WRAPPER='' \
         RUSTC="$rustc_path" \
         RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=$minimum_flag" \

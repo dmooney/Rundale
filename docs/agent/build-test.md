@@ -22,6 +22,14 @@ end, and never edit a worktree while a gate is building from it.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 
+Every `just mobile-verify` run starts with pinned SwiftLint and SwiftFormat
+checks. Swift builds treat warnings as errors, and each Swift package must hold
+its line-coverage baseline. CI's `Swift quality` job runs those checks and the
+three package suites on hosted macOS (`just mobile-verify --fast`).
+The Xcode app and simulator suites run only locally. The
+[Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
+exclusions, the coverage policy, and where physical-device evidence goes.
+
 Phase 1 must report deterministic fixture/UI checks; Phase 2 adds portable Rust,
 persistence fault injection, binding contracts, device/simulator builds, and
 Endpoint protocol checks. Reports must distinguish pass, fail, skipped,

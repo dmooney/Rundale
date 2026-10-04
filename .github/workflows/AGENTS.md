@@ -45,7 +45,8 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Swift contract:** `swift-quality` runs `python3 mobile/scripts/verify.py --fast` (pinned SwiftLint/SwiftFormat, the three Swift packages, coverage floors) on hosted `macos-26` with Xcode 26.6 when `changes.swift` is true (`mobile/**`). It is skipped otherwise, which `ci-gate.sh` accepts. The Xcode app and simulator suites are local-only ([Swift quality gates](../../docs/agent/swift-quality-gates.md)).
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`, which requires the evidence-page link in the PR body for runtime-shipping diffs. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.

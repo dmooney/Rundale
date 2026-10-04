@@ -344,9 +344,9 @@ public struct SessionState: Codable, Equatable, Sendable {
 
     public var canSubmit: Bool { activeRequestID == nil }
 
-    // These mutation helpers remain internal to the reducer. Keeping state
-    // mutation in one place prevents a UI callback from becoming a second
-    // authority for request or transcript transitions.
+    /// These mutation helpers remain internal to the reducer. Keeping state
+    /// mutation in one place prevents a UI callback from becoming a second
+    /// authority for request or transcript transitions.
     mutating func updateDraft(_ draft: Draft) {
         self.draft = draft
     }

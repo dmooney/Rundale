@@ -77,25 +77,25 @@ struct LaunchConfiguration: Sendable {
             .map { URL(fileURLWithPath: String($0.dropFirst("--draft-file=".count))) }
             ?? (isUITesting
                 ? FileManager.default
-                    .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent(phase2 ? "RundaleUITests/engine/phase2-projection.json"
-                        : "RundaleUITests/fixture/phase1-draft.json")
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(phase2 ? "RundaleUITests/engine/phase2-projection.json"
+                    : "RundaleUITests/fixture/phase1-draft.json")
                 : nil)
         resetFixture = arguments.contains("--reset-fixture")
         forceDarkAppearance = isUITesting && arguments.contains("--force-dark-appearance")
 
         let configuredBaseURL = Self.configuredValue(BundleKey.endpointBaseURL,
-                                                      environment: environment,
-                                                      bundle: bundle)
+                                                     environment: environment,
+                                                     bundle: bundle)
         endpointBaseURL = configuredBaseURL.flatMap(URL.init(string:))
         endpointOrganization = Self.configuredValue(BundleKey.endpointOrganization,
-                                                     environment: environment,
-                                                     bundle: bundle) ?? "rundale"
+                                                    environment: environment,
+                                                    bundle: bundle) ?? "rundale"
     }
 
     private static func configuredValue(_ key: String,
-                                       environment: [String: String],
-                                       bundle: [String: Any]) -> String? {
+                                        environment: [String: String],
+                                        bundle: [String: Any]) -> String? {
         if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !value.isEmpty {
             return value
