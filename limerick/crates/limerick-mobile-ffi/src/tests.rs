@@ -427,7 +427,7 @@ fn returning_somewhere_lists_who_is_there_without_repeating_the_description() {
 fn a_talk_turn_streams_provisional_text_and_commits_the_endpoint_reply_once() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
     assert_eq!(submitted["accepted"], true);
     assert_eq!(
         kinds(&submitted),
@@ -519,7 +519,7 @@ fn a_talk_turn_streams_provisional_text_and_commits_the_endpoint_reply_once() {
 fn stop_wins_and_a_late_result_cannot_commit_until_a_retry_runs_a_new_attempt() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
     let request = submitted["logicalRequestID"].clone();
     let dialogue = game.until_dialogue(submitted);
     game.frame(&dialogue, 1, "The wet ");
@@ -582,7 +582,7 @@ fn a_failed_call_shows_the_mods_line_for_its_reason() {
     {
         let (game, _) = Game::new();
         game.go_to_the_cottage();
-        let submitted = game.submit("Mícheál, how are the cattle this week?");
+        let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
         let dialogue = game.until_dialogue(submitted);
         let mut failure = json!({
             "op": "fail",
@@ -613,7 +613,7 @@ fn a_failed_call_shows_the_mods_line_for_its_reason() {
 
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let dialogue = game.until_dialogue(game.submit("Mícheál, how are the cattle?"));
+    let dialogue = game.until_dialogue(game.submit("Mícheál Connolly, how are the cattle?"));
     let (status, envelope) = game.dispatch(json!({
         "op": "fail",
         "call_id": dialogue["callID"],
@@ -637,7 +637,7 @@ fn a_failed_call_shows_the_mods_line_for_its_reason() {
 fn an_endpoint_failure_ends_the_attempt_failed_and_a_retry_can_commit() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
     let request = submitted["logicalRequestID"].clone();
     let dialogue = game.until_dialogue(submitted);
     let base = revision(&game.snapshot());
@@ -698,7 +698,7 @@ fn an_endpoint_failure_ends_the_attempt_failed_and_a_retry_can_commit() {
 fn a_relaunch_interrupts_the_open_request_without_rerunning_it() {
     let (mut game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
     let request = submitted["logicalRequestID"].clone();
     let dialogue = game.until_dialogue(submitted);
     let base = revision(&game.snapshot());
@@ -936,7 +936,7 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
 fn dialogue_content_guards_are_off_on_the_endpoint_path() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, who keeps the chapel in Tulsk?");
+    let submitted = game.submit("Mícheál Connolly, who keeps the chapel in Tulsk?");
     let dialogue = game.until_dialogue(submitted);
     let reply = "Father Brennan keeps the chapel in Tulsk, and he'll see you after Mass.";
     let committed = game.resolve(&dialogue, json!({"dialogue": reply}));
@@ -987,7 +987,7 @@ fn transcript_pages_are_bounded_in_both_directions() {
 fn a_second_submission_while_a_request_is_open_is_rejected() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
-    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let submitted = game.submit("Mícheál Connolly, how are the cattle this week?");
     game.until_dialogue(submitted);
     let (status, envelope) =
         game.dispatch(json!({"op": "submit", "text": "go to the Letter Office"}));

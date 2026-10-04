@@ -16,7 +16,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         try launch(reset: true)
         waitForInitialScene()
         goToTheCottage()
-        let sentAt = submit("Mícheál, how are the cattle this week?")
+        let sentAt = submit("Mícheál Connolly, how are the cattle this week?")
 
         // Free-form speech goes to rundale-intent v1, then rundale-dialogue v1.
         let completed = dialogueRow(inProgress: false)
@@ -64,7 +64,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         try launch(reset: true)
         waitForInitialScene()
         goToTheCottage()
-        _ = submit("Mícheál, how are the cattle this week?")
+        _ = submit("Mícheál Connolly, how are the cattle this week?")
 
         // Stop while the turn is in flight: the intent call, then the
         // dialogue call, each take a moment against the deployed Endpoints.
