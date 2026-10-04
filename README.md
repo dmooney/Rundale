@@ -16,6 +16,22 @@ part of Limerick, alongside terminal play and developer tools. Their capabilitie
 are reusable engine work, rather than a feature-parity target for the mobile game.
 Rundale is building back up feature by feature, starting with a tiny world.
 
+## News at the Letter Office
+
+“Is there any news in the post today?” The keeper is careful about other people's
+letters. Ask “What is your name, Miss?” and she introduces herself as Peig Hannigan.
+
+<p align="center">
+  <a href="https://dmooney.github.io/rundale-pages/pr/2161/">
+    <img src="https://dmooney.github.io/rundale-pages/pr/2161/mobile-conversation.gif" alt="Native Rundale gameplay: asking naturally about the post, reading the keeper's reply, and learning her name" width="360"/>
+  </a>
+</p>
+
+[Watch the conversation with playback controls](https://dmooney.github.io/rundale-pages/pr/2161/).
+
+Recorded in the native iPhone app on a simulator, using the shared engine and live
+Limerick Endpoints, on 4 October 2026.
+
 ## Where we are going
 
 The app now loads the canonical world—Kilteevan Village, Letter Office and Connolly
