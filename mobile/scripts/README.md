@@ -17,6 +17,25 @@ and the pinned Rust toolchain with the iOS targets (see the
 [mobile README](../README.md#build-and-run)). It is separate from `just verify`,
 which runs the engine's checks and harness walkthrough.
 
+## Swift style, warnings, and coverage
+
+Every phase run starts with `install-swift-tools.sh`, which installs the pinned
+SwiftLint and SwiftFormat release binaries after checking their SHA-256, then
+runs `swiftlint lint --strict` and `swiftformat --lint` over `mobile/`. The
+Swift package suites build with `-warnings-as-errors` and
+`--enable-code-coverage`. Each package's line coverage over its own `Sources/`
+becomes a `<suite>-coverage` gate checked against
+`mobile/coverage-baseline.json`. The policy and the lint exclusions are in
+[Swift quality gates](../../docs/agent/swift-quality-gates.md).
+
+`--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`, and
+`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator.
+It is CI's `Swift quality` job and a quick local check:
+
+```sh
+just mobile-verify --fast
+```
+
 ## Phases
 
 "Phase N" is product spec Milestone N, not a "Mobile Phase N" GitHub milestone.
@@ -53,6 +72,7 @@ The runner accepts these options:
 
 ```text
 --phase 1-6|all
+--fast
 --project-spec PATH
 --project PATH
 --scheme NAME
@@ -107,7 +127,9 @@ each have a key built from:
 Documentation that no gate reads is left out of the tree hash: `docs/`,
 Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
 `LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
-it is compiled with `include_str!`.
+it is compiled with `include_str!`. `mobile/coverage-baseline.json` is left out
+too: the coverage gate rechecks a reused package pass against the current
+baseline.
 
 Only passes are stored, under `mobile/.verification/cache/`. Failures, skips,
 physical-device, soak, and performance suites always run. A reused suite is

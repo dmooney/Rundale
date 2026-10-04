@@ -30,9 +30,9 @@ The app plays the canonical world on the shared engine:
   without the engine.
 
 Background simulation that needs inference (NPC reactions, banter, tier 2–4)
-waits for #2025. The Phase 2–4 engine-mode UI suites still assert `ios-port` fixture text
-and are brought onto the canonical world with the `just mobile-verify` gates (#2046).
-Physical-device and TestFlight gates are #2046.
+waits for issue 2025. Simulator suites and fixtures do not establish
+physical-iPhone acceptance, which is recorded separately
+([Swift quality gates](../docs/agent/swift-quality-gates.md#physical-device-acceptance)).
 
 ## Build and run
 
@@ -68,6 +68,12 @@ just testflight-update         # verify, sign, and upload an internal beta
 
 `just mobile-verify` writes its JSON, JUnit, and summary reports under
 `mobile/.verification/` and reuses suites that passed with identical inputs.
+Every run starts with pinned SwiftLint and SwiftFormat checks, and every Swift
+build treats warnings as errors. The package suites must hold their coverage
+baselines. The CI `Swift quality` job runs the lint, format, and package gates
+(`just mobile-verify --fast`) on each mobile pull request. The
+[Swift quality gates](../docs/agent/swift-quality-gates.md) set out the policy,
+the exclusions, and what runs where.
 The [scripts README](scripts/README.md) covers its gates and options, recording
 one UI test, and frame analysis of a streamed reply. The
 [TestFlight runbook](testflight.md) covers signing, upload, and export compliance.

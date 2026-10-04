@@ -16,6 +16,7 @@ just mobile-verify --phase N               # iPhone gate for product spec Milest
 just mobile-build                          # unsigned Release build
 just testflight-update                      # verify, sign, upload an internal beta
 swift test --package-path mobile/RundaleKit
+just mobile-verify --fast                  # CI's Swift lane: lint, format, three packages
 ```
 
 `just mobile-verify` is the app's gate and `just verify` is the engine's; one
@@ -42,6 +43,12 @@ is set (recording only).
   TestFlight build per [testflight.md](testflight.md).
 
 ## Traps
+
+- **Every Swift warning is an error.** The app targets set
+  `SWIFT_TREAT_WARNINGS_AS_ERRORS` and the package gate passes
+  `-warnings-as-errors`; SwiftLint runs `--strict`. Fix the warning; any
+  exclusion goes in [swift-quality-gates.md](../docs/agent/swift-quality-gates.md)
+  with its reason.
 
 - **The app pins its Firebase app.** `FirebaseEndpointCredentialConfiguration`
   rejects a `GoogleService-Info.plist` from another project

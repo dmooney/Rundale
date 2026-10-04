@@ -25,6 +25,7 @@ alongside the full product milestone requirements.
 | Topic                                                             | File                                                       |
 | ----------------------------------------------------------------- | ---------------------------------------------------------- |
 | Build, test, lint, harness commands                               | [build-test.md](build-test.md)                             |
+| Swift lint, compiler, coverage, and CI gates for the iPhone app   | [swift-quality-gates.md](swift-quality-gates.md)           |
 | Workspace layout & module ownership                               | [architecture.md](architecture.md)                         |
 | Code style & dependencies                                         | [code-style.md](code-style.md)                             |
 | Tokio / SQLite / Ollama gotchas                                   | [gotchas.md](gotchas.md)                                   |
