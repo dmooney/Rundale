@@ -64,6 +64,8 @@ class FakeRunner:
         self.calls = []
         self.results = results or {}
         self.fail_swift = False
+        # None leaves no coverage report, like a toolchain that wrote none.
+        self.coverage_percent: float | None = 80.0
         self.swift_output = "Executed 8 tests, with 0 failures (0 unexpected) in 0.01 seconds\n"
         self.rust_output = (
             "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
@@ -115,8 +117,31 @@ class FakeRunner:
         if self.fail_swift and command[:2] == ("swift", "test"):
             return CommandResult(7, stderr="swift tests failed")
         if command[:2] == ("swift", "test"):
+            if self.coverage_percent is not None:
+                write_codecov(Path(cwd), command, self.coverage_percent)
             return CommandResult(0, stdout=self.swift_output)
         return CommandResult(0, stdout="ok\n")
+
+
+def write_codecov(root: Path, command: tuple[str, ...], percent: float) -> None:
+    """Write the llvm-cov export `swift test --enable-code-coverage` leaves behind."""
+
+    package = root / command[command.index("--package-path") + 1]
+    scratch = root / command[command.index("--scratch-path") + 1]
+    report = scratch / "arm64-apple-macosx" / "debug" / "codecov" / f"{package.name}.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    files = [
+        {
+            "filename": str(package / "Sources" / package.name / "Code.swift"),
+            "summary": {"lines": {"count": 200, "covered": int(percent * 2)}},
+        },
+        {
+            # Test and dependency files are outside the package's Sources.
+            "filename": str(package / "Tests" / "FixtureTests.swift"),
+            "summary": {"lines": {"count": 100, "covered": 0}},
+        },
+    ]
+    report.write_text(json.dumps({"data": [{"files": files}]}), encoding="utf-8")
 
 
 def create_phase1_fixture(root: Path) -> None:
@@ -131,6 +156,18 @@ def create_phase1_fixture(root: Path) -> None:
         "// fixture\n", encoding="utf-8"
     )
     (root / "mobile" / "project.yml").write_text("name: Rundale\n", encoding="utf-8")
+    (root / "mobile" / "coverage-baseline.json").write_text(
+        json.dumps(
+            {
+                "tolerance_percentage_points": 1.0,
+                "packages": {
+                    name: {"line_percent": 80.0}
+                    for name in ("RundaleKit", "RundaleBridge", "LimerickEndpointKit")
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     (root / "mobile" / "Rundale.xcodeproj").mkdir(parents=True)
 
 
@@ -418,6 +455,159 @@ class VerificationRunnerTests(unittest.TestCase):
             suite = next(s for s in report["suites"] if s["id"] == "physical-iphone-soak")
             self.assertEqual(suite["status"], "skipped")
             self.assertTrue(suite["blocking"])
+
+    def test_swift_style_gates_run_pinned_tools_and_block_on_violations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            lint = (
+                "mobile/.build/swift-tools/bin/swiftlint",
+                "lint",
+                "--strict",
+                "--quiet",
+                "--config",
+                "mobile/.swiftlint.yml",
+                "mobile",
+            )
+            fake = FakeRunner(
+                {lint: CommandResult(2, stdout="Foo.swift:1:1: error: Force Try Violation")}
+            )
+            report = VerificationRun(root, command_runner=fake).run(1)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(by_id["swift-tools"]["status"], "passed")
+            self.assertEqual(by_id["swiftlint"]["status"], "failed")
+            self.assertTrue(by_id["swiftlint"]["blocking"])
+            self.assertIn("Force Try Violation", by_id["swiftlint"]["reason"])
+            self.assertEqual(by_id["swiftformat"]["status"], "passed")
+            self.assertEqual(
+                by_id["swiftformat"]["command"],
+                [
+                    "mobile/.build/swift-tools/bin/swiftformat",
+                    "--lint",
+                    "--config",
+                    "mobile/.swiftformat",
+                    "mobile",
+                ],
+            )
+
+    def test_swift_tool_install_failure_blocks_both_style_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            install = ("bash", "mobile/scripts/install-swift-tools.sh")
+            fake = FakeRunner({install: CommandResult(1, stderr="digest mismatch")})
+            report = VerificationRun(root, command_runner=fake).run(1)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(by_id["swift-tools"]["status"], "failed")
+            for identifier in ("swiftlint", "swiftformat"):
+                self.assertEqual(by_id[identifier]["status"], "skipped")
+                self.assertTrue(by_id[identifier]["blocking"])
+            self.assertFalse(any(call["argv"][0].endswith("/swiftlint") for call in fake.calls))
+
+    def test_package_tests_treat_warnings_as_errors_and_collect_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run(1)
+
+            swift = next(
+                call["argv"] for call in fake.calls if call["argv"][:2] == ("swift", "test")
+            )
+            self.assertIn("--enable-code-coverage", swift)
+            self.assertEqual(swift[swift.index("-Xswiftc") + 1], "-warnings-as-errors")
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            coverage = by_id["swift-package-tests-coverage"]
+            self.assertEqual(coverage["status"], "passed")
+            # Only the package's Sources count; the test file is excluded.
+            self.assertEqual(coverage["details"]["measured"]["count"], 200)
+            self.assertEqual(coverage["details"]["measured"]["percent"], 80.0)
+
+    def test_coverage_drop_beyond_tolerance_fails_and_within_tolerance_passes(self):
+        for percent, status in ((79.0, "passed"), (78.5, "failed")):
+            with self.subTest(percent=percent), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "mobile").mkdir()
+                create_phase1_fixture(root)
+                fake = FakeRunner()
+                fake.coverage_percent = percent
+                report = VerificationRun(root, command_runner=fake).run(1)
+
+                by_id = {suite["id"]: suite for suite in report["suites"]}
+                self.assertEqual(by_id["swift-package-tests"]["status"], "passed")
+                coverage = by_id["swift-package-tests-coverage"]
+                self.assertEqual(coverage["status"], status)
+                self.assertEqual(coverage["blocking"], status == "failed")
+                if status == "failed":
+                    self.assertIn("below the 80.00% baseline", coverage["reason"])
+
+    def test_missing_coverage_baseline_or_report_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            (root / "mobile" / "coverage-baseline.json").unlink()
+            report = VerificationRun(root, command_runner=FakeRunner()).run(1)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["swift-package-tests-coverage"]["status"], "failed")
+            self.assertIn(
+                "no usable RundaleKit baseline", by_id["swift-package-tests-coverage"]["reason"]
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            fake = FakeRunner()
+            fake.coverage_percent = None
+            report = VerificationRun(root, command_runner=fake).run(1)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["swift-package-tests"]["status"], "failed")
+            self.assertIn("no coverage report", by_id["swift-package-tests"]["reason"])
+
+    def test_fast_lane_runs_style_and_all_three_packages_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run(fast=True)
+
+            self.assertEqual(report["exit_code"], 0)
+            self.assertEqual(report["phase"], "fast")
+            self.assertEqual(
+                [suite["id"] for suite in report["suites"]],
+                [
+                    "swift-tools",
+                    "swiftlint",
+                    "swiftformat",
+                    "swift-package-tests",
+                    "swift-package-tests-coverage",
+                    "swift-bridge-tests",
+                    "swift-bridge-tests-coverage",
+                    "swift-endpoint-kit-tests",
+                    "swift-endpoint-kit-tests-coverage",
+                ],
+            )
+            self.assertFalse(
+                any(
+                    call["argv"][0] in {"xcodebuild", "xcodegen", "xcrun", "rustup"}
+                    for call in fake.calls
+                )
+            )
+
+    def test_fast_lane_rejects_phase_and_device(self):
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test")).run(2, fast=True)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), device="device").run(fast=True)
 
     def test_opt_in_suites_reject_early_phases(self):
         run = VerificationRun(Path("/tmp/rundale-test"), device="device", soak=True)
@@ -885,6 +1075,24 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
             self.assertIn("9 passed suite(s) reused", summary)
+
+    def test_reused_package_pass_still_checks_coverage_against_the_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            self.run_phase(root)
+            # Raising the floor after the pass was cached must still fail.
+            baseline = root / "mobile" / "coverage-baseline.json"
+            payload = json.loads(baseline.read_text())
+            payload["packages"]["RundaleBridge"]["line_percent"] = 95.0
+            baseline.write_text(json.dumps(payload))
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            _, report = self.run_phase(root)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(by_id["swift-endpoint-kit-tests-coverage"]["status"], "passed")
+            self.assertEqual(by_id["swift-bridge-tests-coverage"]["status"], "failed")
+            self.assertTrue(by_id["swift-bridge-tests"]["details"]["cache"]["reused"])
 
     def test_cumulative_phase_reuses_prior_phase_passes(self):
         with tempfile.TemporaryDirectory() as directory:

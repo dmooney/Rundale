@@ -76,8 +76,13 @@ CACHE_IGNORED_PATHSPECS = (
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    # Read only by the coverage gate, which reapplies it to reused passes.
+    "mobile/coverage-baseline.json",
 )
 PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plist")
+# Measured Swift package line coverage and the allowed drop (#2103).
+COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
+SWIFT_TOOLS_BIN = Path("mobile/.build/swift-tools/bin")
 FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-engine",
     "limerick-server",
@@ -779,10 +784,12 @@ class VerificationRun:
             identifier=identifier,
             name=name,
             phase=phase,
-            inputs={"tool": "swift-test", "package": package},
+            inputs={"tool": "swift-test", "package": package, "coverage": True},
         )
         if reused is not None:
+            self._coverage_gate(reused, package_path.name)
             return
+        scratch = self.report_dir / "swift-scratch" / self.run_stamp / package_path.name
         record = self._run(
             identifier=identifier,
             name=name,
@@ -795,18 +802,154 @@ class VerificationRun:
                 "--cache-path",
                 _relative(self.report_dir / "tool-cache" / "swiftpm", self.root),
                 "--scratch-path",
-                _relative(self.report_dir / "swift-scratch" / self.run_stamp, self.root),
+                _relative(scratch, self.root),
                 "--manifest-cache",
                 "local",
                 "--disable-dependency-cache",
                 "--skip-update",
                 "--no-parallel",
+                "--enable-code-coverage",
+                # The compiler warning policy: package code and tests build
+                # warning-free (docs/agent/swift-quality-gates.md).
+                "-Xswiftc",
+                "-warnings-as-errors",
             ],
             env=self._env(),
             details={"package_path": package, **({"cache_key": key} if key else {})},
         )
         if record["status"] == PASSED:
             self._validate_swift_result(record)
+        if record["status"] == PASSED:
+            coverage = self._package_line_coverage(scratch, package_path)
+            if isinstance(coverage, str):
+                self._change(record, FAILED, coverage)
+            else:
+                self._change(record, PASSED, details={"line_coverage": coverage})
+                self._coverage_gate(record, package_path.name)
+
+    def _package_line_coverage(self, scratch: Path, package_path: Path) -> dict[str, Any] | str:
+        """Sum `swift test` line coverage over the package's own Sources."""
+
+        reports = sorted(
+            path
+            for path in scratch.glob("*/debug/codecov/*.json")
+            if path.stem == package_path.name
+        )
+        if not reports:
+            return f"swift test wrote no coverage report under {_relative(scratch, self.root)}"
+        try:
+            payload = json.loads(reports[0].read_text(encoding="utf-8"))
+            files = payload["data"][0]["files"]
+        except (OSError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            return f"unreadable coverage report {_relative(reports[0], self.root)}: {exc}"
+        sources = (package_path / "Sources").resolve()
+        count = covered = 0
+        for entry in files:
+            path = Path(str(entry.get("filename", ""))).resolve()
+            if path.is_relative_to(sources):
+                lines = entry["summary"]["lines"]
+                count += int(lines["count"])
+                covered += int(lines["covered"])
+        if count == 0:
+            return "the coverage report has no lines from the package's Sources"
+        return {
+            "covered": covered,
+            "count": count,
+            "percent": round(100 * covered / count, 2),
+            "report": _relative(reports[0], self.root),
+        }
+
+    def _coverage_gate(self, test_record: dict[str, Any], package: str) -> None:
+        """Fail when a package's line coverage drops below its measured baseline."""
+
+        identifier, name = f"{test_record['id']}-coverage", f"{package} line coverage"
+        if test_record["status"] != PASSED:
+            return
+        measured = test_record.get("details", {}).get("line_coverage")
+        if not isinstance(measured, Mapping):
+            self._record(
+                identifier=identifier,
+                name=name,
+                phase=int(test_record["phase"]),
+                status=FAILED,
+                required=True,
+                reason="the passing package run recorded no line coverage",
+            )
+            return
+        try:
+            baseline = json.loads((self.root / COVERAGE_BASELINE).read_text(encoding="utf-8"))
+            floor = float(baseline["packages"][package]["line_percent"])
+            tolerance = float(baseline["tolerance_percentage_points"])
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            self._record(
+                identifier=identifier,
+                name=name,
+                phase=int(test_record["phase"]),
+                status=FAILED,
+                required=True,
+                reason=f"no usable {package} baseline in {COVERAGE_BASELINE}: {exc!r}",
+                details={"measured": dict(measured)},
+            )
+            return
+        percent = float(measured["percent"])
+        details = {"measured": dict(measured), "baseline": floor, "tolerance": tolerance}
+        if percent + tolerance < floor:
+            status: str = FAILED
+            reason: str | None = (
+                f"{package} line coverage {percent:.2f}% is more than {tolerance:g} "
+                f"percentage points below the {floor:.2f}% baseline"
+            )
+        else:
+            status, reason = PASSED, None
+        self._record(
+            identifier=identifier,
+            name=name,
+            phase=int(test_record["phase"]),
+            status=status,
+            required=True,
+            reason=reason,
+            details=details,
+        )
+
+    def _swift_style(self, *, phase: int) -> None:
+        """Pinned SwiftLint and SwiftFormat checks over every mobile Swift file."""
+
+        install = self._run(
+            identifier="swift-tools",
+            name="Pinned SwiftLint and SwiftFormat",
+            phase=phase,
+            command=["bash", "mobile/scripts/install-swift-tools.sh"],
+            kind="infrastructure",
+        )
+        checks = (
+            (
+                "swiftlint",
+                "SwiftLint (strict)",
+                ["swiftlint", "lint", "--strict", "--quiet", "--config", "mobile/.swiftlint.yml"],
+            ),
+            (
+                "swiftformat",
+                "SwiftFormat check",
+                ["swiftformat", "--lint", "--config", "mobile/.swiftformat"],
+            ),
+        )
+        for identifier, name, command in checks:
+            if install["status"] != PASSED:
+                self._skip(
+                    identifier,
+                    name,
+                    phase,
+                    "blocked because the pinned Swift tools did not install",
+                    required=True,
+                )
+                continue
+            tool = (SWIFT_TOOLS_BIN / command[0]).as_posix()
+            self._run(
+                identifier=identifier,
+                name=name,
+                phase=phase,
+                command=[tool, *command[1:], "mobile"],
+            )
 
     def _swift_tests(self, *, phase: int = 1, identifier: str = "swift-package-tests") -> None:
         self._swift_package_tests(
@@ -2236,10 +2379,34 @@ class VerificationRun:
             "device": dict(self.physical_device) if self.physical_device else None,
         }
 
-    def run(self, phase: int | None = None) -> dict[str, Any]:
-        if phase in {1, 2, 3} and (self.live_endpoint or self.soak or self.performance):
-            raise ValueError("device opt-in suites require --phase 4 or all")
+    def _fast(self) -> None:
+        """The pull-request CI lane: Swift style and the three Swift packages.
+
+        It needs no Xcode project, Rust build, or simulator, so a hosted macOS
+        runner can run it on every mobile change.
+        """
+
+        self._swift_style(phase=1)
+        self._swift_tests()
+        for package, identifier, name in (
+            ("RundaleBridge", "swift-bridge-tests", "RundaleBridge Swift bridge tests"),
+            (
+                "LimerickEndpointKit",
+                "swift-endpoint-kit-tests",
+                "LimerickEndpointKit Swift Endpoint tests",
+            ),
+        ):
+            self._swift_package_tests(
+                package_path=self.root / "mobile" / package,
+                identifier=identifier,
+                name=name,
+                phase=2,
+            )
+
+    def _phases(self, phase: int | None) -> None:
         self._device_preflight()
+        if phase is None or phase in IMPLEMENTED_PHASES:
+            self._swift_style(phase=1 if phase is None else phase)
         if phase is None or phase == 4:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
@@ -2267,11 +2434,21 @@ class VerificationRun:
                 required=True,
                 kind="future-phase",
             )
+
+    def run(self, phase: int | None = None, *, fast: bool = False) -> dict[str, Any]:
+        if phase in {1, 2, 3} and (self.live_endpoint or self.soak or self.performance):
+            raise ValueError("device opt-in suites require --phase 4 or all")
+        if fast and (phase is not None or self.physical_device is not None):
+            raise ValueError("--fast runs no phase or device suites")
+        if fast:
+            self._fast()
+        else:
+            self._phases(phase)
         summary = self._summary()
         report = {
             "schema_version": 1,
             "tool": "rundale-mobile-verify",
-            "phase": "all" if phase is None else str(phase),
+            "phase": "fast" if fast else "all" if phase is None else str(phase),
             "implemented_phases": list(IMPLEMENTED_PHASES),
             "started_at": self.started_at,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -2376,6 +2553,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="1-6|all",
         help="phase to run; default runs all currently implemented phases",
     )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="run only SwiftLint, SwiftFormat, and the Swift package tests (the PR CI lane)",
+    )
     parser.add_argument("--project-spec", type=Path)
     parser.add_argument("--project", type=Path)
     parser.add_argument("--scheme", default="Rundale")
@@ -2441,6 +2623,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--live-endpoint, --soak, and --performance require --device")
     if args.phase in {1, 2, 3} and (args.live_endpoint or args.soak or args.performance):
         parser.error("device opt-in suites require --phase 4 or all")
+    if args.fast and (args.phase is not None or args.device):
+        parser.error("--fast runs no phase or device suites")
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(
         root,
@@ -2460,7 +2644,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
     )
-    report = run.run(args.phase)
+    report = run.run(args.phase, fast=args.fast)
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
     return int(report["exit_code"])
 
