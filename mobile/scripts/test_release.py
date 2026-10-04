@@ -169,7 +169,7 @@ class ReleaseTests(unittest.TestCase):
         leaks = {
             "Limerick Endpoints consumer key": b"sfk_live_0123456789ab_" + b"x" * 43,
             "Anthropic API key": b"sk-ant-" + b"a" * 40,
-            "OpenAI-style API key": b"sk-proj-" + b"b" * 40,
+            "OpenAI-style API key": b"sk-proj-" + b"bQ7x" * 10,
             "Google API key": b"AIza" + b"G" * 35,
             "provider secret variable": b"OPENAI_API_KEY=abc",
         }
@@ -182,6 +182,20 @@ class ReleaseTests(unittest.TestCase):
                 self.assertNotIn(
                     secret.decode(), str(raised.exception), "findings must be redacted"
                 )
+
+        # A key packed straight after other string constants is still found.
+        (app / "Rundale").write_bytes(b"binary tasksk-" + b"Zr4kQ9mW" * 6)
+        with self.assertRaisesRegex(RuntimeError, "OpenAI-style API key"):
+            runner.validate_archive(expected_build=8)
+
+        # The engine's packed lowercase constants are not a key (build 1271).
+        packed = (
+            b"blocked-weatherplayer-task-progressionarrival-reactions---break"
+            b"bringcarrycleancollectcutdigfetchgatherharvesthoeplantrepairsow"
+            b"stacksweeptake_care_ofsee_to'don't"
+        )
+        (app / "Rundale").write_bytes(b"binary " + packed)
+        runner.validate_archive(expected_build=8)
 
         (app / "Rundale").write_bytes(b"binary")
         foreign = {**firebase, "PROJECT_ID": "someone-else"}

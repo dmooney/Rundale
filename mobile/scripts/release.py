@@ -93,7 +93,10 @@ EXPECTED_FIREBASE = {
 FORBIDDEN_CREDENTIALS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ("Limerick Endpoints consumer key", re.compile(rb"sfk_live_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}")),
     ("Anthropic API key", re.compile(rb"sk-ant-[A-Za-z0-9_-]{20,}")),
-    ("OpenAI-style API key", re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{32,}")),
+    # A key is random, so its body has a capital or a digit; the lookahead
+    # demands one. Without it, "ta" + "sk-" + the engine's lowercase string
+    # constants, packed side by side in the binary, read as a key.
+    ("OpenAI-style API key", re.compile(rb"sk-(?:proj-)?(?=[a-z_-]*[A-Z0-9])[A-Za-z0-9_-]{32,}")),
     ("Google API key", re.compile(rb"AIza[0-9A-Za-z_-]{35}")),
     ("private key block", re.compile(rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----")),
     (
