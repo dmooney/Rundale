@@ -50,7 +50,7 @@ final class RundalePresentationModel: ObservableObject {
     @Published private(set) var isFollowingNewest: Bool
     @Published private(set) var streamRevision = 0
     @Published private(set) var submissionMessage: String?
-    @Published private(set) var accessibilityNotice: String? = nil
+    @Published private(set) var accessibilityNotice: String?
     @Published private(set) var uiTestCheckpoint = ""
     /// UI-test-only JSON log of every transcript-row state published to the
     /// view. A provisional row can last well under an XCUITest poll interval,
@@ -521,7 +521,7 @@ final class RundalePresentationModel: ObservableObject {
             transcriptTraceEntries.removeFirst(transcriptTraceEntries.count - 400)
         }
         if let data = try? JSONEncoder().encode(transcriptTraceEntries) {
-            uiTestTranscriptTrace = String(decoding: data, as: UTF8.self)
+            uiTestTranscriptTrace = String(bytes: data, encoding: .utf8) ?? ""
         }
     }
 

@@ -664,7 +664,7 @@ final class RundaleKitTests: XCTestCase {
         var iterator = stream.makeAsyncIterator()
 
         do {
-            while let _ = try await iterator.next() { }
+            while try await iterator.next() != nil {}
             XCTFail("the bounded stream should terminate with an overflow")
         } catch let error as FixtureAdapterError {
             XCTAssertEqual(error, .eventBufferOverflow)

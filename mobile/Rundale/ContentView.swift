@@ -153,12 +153,12 @@ private struct StatusHeader: View {
 
     private var headerHost: some View {
         headerContent
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Keep one stable host element for UI automation and VoiceOver while
-        // retaining the compact semantic summary for the header region.
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Current place, \(model.header.location). \(model.header.timeOfDay). \(model.header.weather).")
-        .accessibilityIdentifier("status.header")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Keep one stable host element for UI automation and VoiceOver while
+            // retaining the compact semantic summary for the header region.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Current place, \(model.header.location). \(model.header.timeOfDay). \(model.header.weather).")
+            .accessibilityIdentifier("status.header")
     }
 
     private var headerContent: some View {
@@ -367,8 +367,8 @@ private final class TranscriptCollectionView: UICollectionView {
 
 @MainActor
 final class TranscriptCollectionViewController: UIViewController,
-                                                        UICollectionViewDataSource,
-                                                        UICollectionViewDelegate {
+    UICollectionViewDataSource,
+    UICollectionViewDelegate {
     private struct LockedAnchor {
         let id: String
         let viewportOffset: CGFloat
@@ -380,7 +380,6 @@ final class TranscriptCollectionViewController: UIViewController,
     private var anchorLock: LockedAnchor?
     private var isApplyingPosition = false
     private var lastBoundsSize: CGSize = .zero
-    private var lastContentSize: CGSize = .zero
     // Where pinToNewest last left the viewport, and whether the rows changed
     // since. Growth and self-sizing leave the offset alone; a scroll moves it.
     private var lastPinnedOffsetY: CGFloat?
@@ -439,8 +438,7 @@ final class TranscriptCollectionViewController: UIViewController,
         return view
     }()
 
-    private lazy var cellRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> {
-        [weak self] cell, indexPath, _ in
+    private lazy var cellRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> { [weak self] cell, indexPath, _ in
         guard let self, self.items.indices.contains(indexPath.item) else { return }
         let transcriptItem = self.items[indexPath.item]
         cell.contentConfiguration = UIHostingConfiguration {
@@ -478,9 +476,7 @@ final class TranscriptCollectionViewController: UIViewController,
         collectionView.layoutIfNeeded()
 
         let boundsChanged = collectionView.bounds.size != lastBoundsSize
-        let contentChanged = collectionView.contentSize != lastContentSize
         lastBoundsSize = collectionView.bounds.size
-        lastContentSize = collectionView.contentSize
 
         let isScrollable = collectionView.contentSize.height > collectionView.bounds.height + 1
         if isScrollable, !wasScrollable {
@@ -699,7 +695,6 @@ final class TranscriptCollectionViewController: UIViewController,
             animated: false
         )
         isApplyingPosition = false
-        lastContentSize = collectionView.contentSize
         lastPinnedOffsetY = collectionView.contentOffset.y
     }
 
@@ -724,7 +719,6 @@ final class TranscriptCollectionViewController: UIViewController,
             collectionView.layoutIfNeeded()
         }
         isApplyingPosition = false
-        lastContentSize = collectionView.contentSize
     }
 
     private func currentAnchor(preferFullyVisible: Bool) -> TranscriptAnchor? {
@@ -814,7 +808,6 @@ private struct TranscriptEntry: View {
         item.kind == .playerCommand
     }
 
-    @ViewBuilder
     private var renderedContent: some View {
         Group {
             switch item.kind {
@@ -1193,7 +1186,6 @@ private struct Composer: View {
                         .accessibilityValue(canSubmitDraft ? "Ready to send" : "Enter a command to enable")
                         .accessibilityIdentifier("composer.send")
                     }
-
                 }
             }
 
@@ -1326,7 +1318,7 @@ private struct Composer: View {
             forTextStyle: .body,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
         ).lineHeight
-        let budget = availableHeight * 0.3 - 20  // the field's vertical padding
+        let budget = availableHeight * 0.3 - 20 // the field's vertical padding
         return min(5, max(1, Int(budget / lineHeight)))
     }
 

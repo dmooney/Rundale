@@ -200,7 +200,7 @@ public enum FixtureJSON {
         return decoder
     }
 
-    public static func encode<T: Encodable>(_ value: T) throws -> Data {
+    public static func encode(_ value: some Encodable) throws -> Data {
         try encoder().encode(value)
     }
 

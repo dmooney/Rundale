@@ -207,7 +207,7 @@ public final class FirebaseEndpointCredentialProvider: EndpointCredentialProvidi
         }
 
         guard let url = configuration.googleServiceInfoURL
-                ?? Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") else {
+            ?? Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") else {
             throw EndpointCredentialError.missingFirebaseConfiguration
         }
         guard let options = FirebaseOptions(contentsOfFile: url.path) else {

@@ -1,0 +1,9 @@
+--swiftversion 6.0
+--exclude .build,DerivedData,Rundale.xcodeproj,RundaleKit/.build,RundaleBridge/.build,LimerickEndpointKit/.build
+--ifdef no-indent
+--indent 4
+--wraparguments preserve
+--wrapparameters preserve
+--wrapcollections preserve
+--decimal-grouping ignore
+--disable wrapIfStatementBodies,wrapFunctionBodies,wrapPropertyBodies,wrapLoopBodies,wrapMultilineStatementBraces,trailingCommas,redundantSelf,hoistTry,hoistAwait,spaceAroundOperators,sortImports,unusedArguments,redundantReturn,conditionalAssignment,redundantSwiftUIGroup,noForceUnwrapInTests,noForceTryInTests,andOperator

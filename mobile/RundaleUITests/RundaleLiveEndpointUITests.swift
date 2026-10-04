@@ -3,11 +3,12 @@ import XCTest
 /// Opt-in evidence against the deployed mobile data plane. The standard Phase
 /// 2 verifier does not select this class; callers must provide the live origin
 /// and private App Check debug-token environment explicitly.
+@MainActor
 final class RundaleLiveEndpointUITests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }

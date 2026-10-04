@@ -10,7 +10,7 @@ final class Phase1AuditVolumeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let draftPath = folder.appendingPathComponent("draft.json").path
         let configuration = LaunchConfiguration(arguments: ["--ui-tests", "--fixture=paged-history", "--reset-fixture",
-            "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
+                                                            "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
         let controller = RundaleFixtureController(configuration: configuration)
         controller.start()
         _ = try await controller.submit("/look")
@@ -28,7 +28,7 @@ final class Phase1AuditVolumeTests: XCTestCase {
         await controller.persistLifecycleSnapshot()
 
         let restoredConfiguration = LaunchConfiguration(arguments: ["--ui-tests", "--fixture=paged-history",
-            "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
+                                                                    "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
         let restored = RundaleFixtureController(configuration: restoredConfiguration)
         restored.start()
         XCTAssertEqual(restored.state.transcript.count, 500)
@@ -70,7 +70,7 @@ final class Phase1AuditVolumeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let draftPath = folder.appendingPathComponent("draft.json").path
         let initial = LaunchConfiguration(arguments: ["--ui-tests", "--fixture=paged-history", "--reset-fixture",
-            "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
+                                                      "--draft-file=\(draftPath)"], environment: [:], bundle: [:])
         let controller = RundaleFixtureController(configuration: initial)
         controller.start()
         let receipt = try await controller.submit("long stream")
@@ -124,7 +124,7 @@ final class Phase1AuditVolumeTests: XCTestCase {
         XCTAssertEqual(controller.state.transcript, retained)
     }
 
-    func testThousandRowsRenderAndReachBothEndsWithinBudget() async {
+    func testThousandRowsRenderAndReachBothEndsWithinBudget() async throws {
         let controller = TranscriptCollectionViewController()
         var followModes: [Bool] = []
         controller.onFollowModeChanged = { follows, _ in followModes.append(follows) }
@@ -134,14 +134,14 @@ final class Phase1AuditVolumeTests: XCTestCase {
         defer { window.isHidden = true }
         let rows = (0..<1000).map { index in
             PresentedTranscriptItem(id: "audit-row-\(index)", kind: .npcDialogue,
-                text: "Authored row \(index). " + String(repeating: "The rain falls on the road. ", count: index % 4 + 1),
-                speaker: "Peig", state: .committed, metadata: [:])
+                                    text: "Authored row \(index). " + String(repeating: "The rain falls on the road. ", count: index % 4 + 1),
+                                    speaker: "Peig", state: .committed, metadata: [:])
         }
         let start = Date()
         controller.update(items: rows, followsNewest: true, initialFollowsNewest: true, initialAnchor: nil)
         try? await Task.sleep(for: .milliseconds(500))
         controller.view.layoutIfNeeded()
-        let scroll = try! XCTUnwrap(controller.view.subviews.compactMap { $0 as? UICollectionView }.first)
+        let scroll = try XCTUnwrap(controller.view.subviews.compactMap { $0 as? UICollectionView }.first)
         XCTAssertEqual(scroll.numberOfItems(inSection: 0), 1000)
         XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 999, section: 0)))
         scroll.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)

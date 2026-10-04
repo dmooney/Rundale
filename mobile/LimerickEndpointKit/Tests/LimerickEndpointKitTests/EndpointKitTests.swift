@@ -325,7 +325,7 @@ final class EndpointKitTests: XCTestCase {
             requestID: "r", attemptID: "a", invocationID: "i", body: Data("{}".utf8)
         )
         let task = Task {
-            for try await _ in client.stream(request) { }
+            for try await _ in client.stream(request) {}
         }
         try await Task.sleep(nanoseconds: 50_000_000)
         task.cancel()
@@ -345,7 +345,7 @@ final class EndpointKitTests: XCTestCase {
             requestID: "r", attemptID: "a", invocationID: "i", body: Data("{}".utf8)
         )
         let task = Task {
-            for try await _ in client.stream(request) { }
+            for try await _ in client.stream(request) {}
         }
         for _ in 0..<20 where !credentials.hasWaiter() {
             try await Task.sleep(nanoseconds: 10_000_000)

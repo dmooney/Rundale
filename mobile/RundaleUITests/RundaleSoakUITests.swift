@@ -6,16 +6,16 @@ import XCTest
 final class RundaleSoakUITests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         app?.terminate()
         app = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testOptInLocalWorldSoak() throws {

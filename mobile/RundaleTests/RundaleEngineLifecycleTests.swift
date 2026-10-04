@@ -23,7 +23,7 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    // RundaleKit `testCompletionCommitsAndLateOldAttemptCannotWin`.
+    /// RundaleKit `testCompletionCommitsAndLateOldAttemptCannotWin`.
     func testCompletionCommitsAndLateOldAttemptCannotWin() async throws {
         let game = try await Game.open(directory: directory)
         let (request, dialogue) = try await game.talkToMicheal()
@@ -46,11 +46,11 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         let late = try await game.apply(game.runtime.resolve(dialogue, output: Game.dialogue("A second answer.")))
         XCTAssertTrue(late.isEmpty, "the engine ignores a late result")
         XCTAssertEqual(game.state.stateRevision, revision)
-        XCTAssertEqual(game.state.transcript.filter { $0.id == streamed.id }.first?.content, Self.cattleLine)
+        XCTAssertEqual(game.state.transcript.first(where: { $0.id == streamed.id })?.content, Self.cattleLine)
         try await game.close()
     }
 
-    // RundaleKit `testRetryCreatesCurrentAttemptBeforeRejectingOldAttemptEvents`.
+    /// RundaleKit `testRetryCreatesCurrentAttemptBeforeRejectingOldAttemptEvents`.
     func testRetryCreatesCurrentAttemptBeforeRejectingOldAttemptEvents() async throws {
         let game = try await Game.open(directory: directory)
         let (request, dialogue) = try await game.talkToMicheal()
@@ -79,7 +79,7 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         try await game.close()
     }
 
-    // RundaleKit `testLateCallbacksFromCancelledAttemptCannotCommit`.
+    /// RundaleKit `testLateCallbacksFromCancelledAttemptCannotCommit`.
     func testLateCallbacksFromCancelledAttemptCannotCommit() async throws {
         let game = try await Game.open(directory: directory)
         let (request, dialogue) = try await game.talkToMicheal()
@@ -102,7 +102,7 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         try await game.close()
     }
 
-    // RundaleKit `testFailedCompletionCannotAdvanceCommittedStateRevision`.
+    /// RundaleKit `testFailedCompletionCannotAdvanceCommittedStateRevision`.
     func testFailedCompletionCannotAdvanceCommittedStateRevision() async throws {
         let game = try await Game.open(directory: directory)
         let (request, dialogue) = try await game.talkToMicheal()
@@ -117,7 +117,7 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         try await game.close()
     }
 
-    // RundaleKit `testFixtureClarificationContinuesSameLogicalRequest`.
+    /// RundaleKit `testFixtureClarificationContinuesSameLogicalRequest`.
     func testClarificationContinuesSameLogicalRequest() async throws {
         let world = try Game.worldWithTwoDrovers(in: directory)
         let game = try await Game.open(directory: directory, world: world)
@@ -143,7 +143,7 @@ final class RundaleEngineLifecycleTests: XCTestCase {
         try await game.close()
     }
 
-    // RundaleKit `testRestoredAdapterSuppressesOpeningReplayAndInterruptsActiveAttempt`.
+    /// RundaleKit `testRestoredAdapterSuppressesOpeningReplayAndInterruptsActiveAttempt`.
     func testRestoredAdapterSuppressesOpeningReplayAndInterruptsActiveAttempt() async throws {
         let first = try await Game.open(directory: directory)
         let opening = try XCTUnwrap(first.state.transcript.first)

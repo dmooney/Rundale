@@ -1,10 +1,11 @@
 import XCTest
 
+@MainActor
 final class RundaleUITests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--ui-tests", "--no-auto-focus", "--reset-fixture"]

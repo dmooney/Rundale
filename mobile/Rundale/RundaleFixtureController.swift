@@ -101,8 +101,8 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         completionRegistry = .phase1
         let draftURL = configuration.draftFileURL
             ?? FileManager.default
-                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Rundale/phase1-draft.json")
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Rundale/phase1-draft.json")
         draftStore = FixtureDraftStore(fileURL: draftURL)
         sessionStore = store
         if configuration.resetFixture {
@@ -149,7 +149,6 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
                 }
             }
         }
-
     }
 
     func setInferenceAllowed(_ allowed: Bool) {}
@@ -424,5 +423,4 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
             streamProgress: state.streamProgress
         )
     }
-
 }

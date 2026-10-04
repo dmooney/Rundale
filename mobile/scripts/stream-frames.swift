@@ -138,6 +138,7 @@ while let sample = trackOutput.copyNextSampleBuffer() {
     previous = current
     times.append(time)
 }
+
 times.sort()
 changed.sort { $0.time < $1.time }
 
@@ -181,14 +182,17 @@ if let firstFinal {
     report["final_seconds"] = firstFinal.time
     report["final_characters"] = replyText(firstFinal.lines, options: options)?.count ?? 0
 }
+
 if let firstProvisional, let firstFinal {
     report["provisional_visible_ms"] = (firstFinal.time - firstProvisional.time) * 1000
     report["cadence_streaming"] = cadence(times, from: firstProvisional.time, to: firstFinal.time)
 }
+
 if let firstBusy, let end = firstProvisional?.time {
     report["cadence_waiting"] = cadence(times, from: firstBusy, to: end)
 }
+
 let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
 try data.write(to: outputURL.appendingPathComponent("stream-frames.json"))
-print(String(decoding: data, as: UTF8.self))
+print(String(bytes: data, encoding: .utf8) ?? "")
 exit(firstProvisional != nil && firstFinal != nil ? 0 : 1)

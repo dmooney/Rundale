@@ -3,13 +3,15 @@ import XCTest
 /// Audit-only coverage of the real fixture scheduler. The default cases use
 /// the ordinary simulator field; the combined route also proves automatic
 /// delivery with the same multiline composer used on an iPhone.
+@MainActor
 final class RundalePhase1TimerAuditUITests: XCTestCase {
     private var app: XCUIApplication!
     private let first = "The first part arrives."
     private let second = "The first part arrives. Then the road opens into rain and light."
     private let final = "The first part arrives. Then the road opens into rain and light. At last, the whole thought is clear."
 
-    override func setUp() {
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--fixture=long-history", "--reset-fixture", "--no-auto-focus"]
@@ -23,10 +25,12 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
             format: "identifier BEGINSWITH 'transcript.item.' AND label == %@", label
         )).firstMatch
     }
+
     private func wait(_ predicate: @escaping () -> Bool, timeout: TimeInterval = 6) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in predicate() }, object: nil)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
+
     private func submitStream() {
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap()
@@ -36,9 +40,11 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.stop"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["fixture.step"].exists)
     }
+
     private func assertVisible(_ element: XCUIElement) {
         XCTAssertTrue(wait { element.exists && element.frame.minY >= self.scroll.frame.minY - 2
-            && element.frame.maxY <= self.scroll.frame.maxY + 2 })
+                && element.frame.maxY <= self.scroll.frame.maxY + 2
+        })
         XCTAssertTrue(element.isHittable)
     }
 
