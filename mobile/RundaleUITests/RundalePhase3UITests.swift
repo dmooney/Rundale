@@ -193,6 +193,35 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
         XCTAssertTrue(waitForText("household work allows", timeout: 15))
     }
 
+    func testUnaddressedGreetingAsksWhoBeforeAnyoneAnswers() {
+        assertUnaddressedSpeechContinuesWithRoisin("Hello")
+    }
+
+    func testNaturalSpinningQuestionAsksWhoWithoutRewritingSpeech() {
+        assertUnaddressedSpeechContinuesWithRoisin("Would you teach me how to spin, Miss?")
+    }
+
+    private func assertUnaddressedSpeechContinuesWithRoisin(_ speech: String) {
+        launch(reset: true)
+        submit("go to Connolly Cottage")
+        submit(speech)
+
+        let clarification = app.otherElements["clarification"]
+        XCTAssertTrue(clarification.waitForExistence(timeout: 8))
+        let roisin = app.buttons["clarification.option.choose-npc-3"]
+        XCTAssertTrue(roisin.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["composer.stop"].exists)
+        XCTAssertFalse(waitForText("moving cattle", timeout: 1))
+        XCTAssertFalse(waitForText("household work allows", timeout: 1))
+        roisin.tap()
+
+        XCTAssertTrue(clarification.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(waitForText("household work allows", timeout: 15))
+        XCTAssertEqual(app.playerCommandRows(containing: speech).count, 1,
+                       "Choosing a recipient continues the original speech exactly once")
+        attach("Natural speech continues with the chosen recipient")
+    }
+
     func testTaggedNearbyPersonBypassesClarification() {
         launch(reset: true)
         submit("go to Connolly Cottage")

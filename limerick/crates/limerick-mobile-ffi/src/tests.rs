@@ -804,6 +804,71 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
     assert_eq!(committed["terminalOutcome"], "succeeded");
 }
 
+#[test]
+fn unaddressed_speech_clarifies_before_endpoint_and_choice_targets_roisin() {
+    let (game, _) = Game::new();
+    game.go_to_the_cottage();
+    let text = "Would you teach me how to spin, Miss?";
+    let mut result = game.submit(text);
+    assert_eq!(result["status"], "awaiting_clarification", "{result}");
+    assert!(game.pending().is_null(), "no Endpoint call before a choice");
+    let request = result["logicalRequestID"].clone();
+    let prompt = &events_of_kind(&result, "clarification_required")[0]["clarification"];
+    let roisin = prompt["choices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|choice| choice["entityID"] == "3")
+        .unwrap();
+    let answered = game.op(json!({
+        "op": "answer_clarification",
+        "logical_request_id": request,
+        "choice_id": roisin["id"],
+    }));
+    assert_eq!(answered["status"], "awaiting_inference");
+    let intent = game.pending();
+    assert_eq!(intent["endpoint"]["role"], "intent");
+    assert!(intent["input"].to_string().contains(text));
+    result = game.resolve(
+        &intent,
+        json!({"intent": "talk", "target": "Mícheál Connolly", "dialogue": text, "atmosphere": null}),
+    );
+    assert_eq!(result["status"], "awaiting_inference");
+    let dialogue = game.pending();
+    assert_eq!(dialogue["endpoint"]["role"], "dialogue");
+    assert_eq!(
+        dialogue["input"]["speaker"]["displayName"],
+        "Róisín Connolly"
+    );
+}
+
+#[test]
+fn the_spinner_grounding_wins_over_an_unrelated_intent_target() {
+    let (game, _) = Game::new();
+    game.go_to_the_cottage();
+    let result = game.submit(
+        "Ask the spinner to teach me to spin. I have two clumsy hands and no money for lessons.",
+    );
+    assert_eq!(result["status"], "awaiting_inference", "{result}");
+    let intent = game.pending();
+    assert_eq!(intent["endpoint"]["role"], "intent");
+    game.resolve(
+        &intent,
+        json!({
+            "intent": "talk",
+            "target": "Mícheál Connolly",
+            "dialogue": "Please teach me to spin.",
+            "atmosphere": null
+        }),
+    );
+    let dialogue = game.pending();
+    assert_eq!(dialogue["endpoint"]["role"], "dialogue");
+    assert_eq!(
+        dialogue["input"]["speaker"]["displayName"],
+        "Róisín Connolly"
+    );
+}
+
 /// How the intent Endpoint answered "ask Connolly about the household".
 enum IntentAnswer {
     Target(&'static str),

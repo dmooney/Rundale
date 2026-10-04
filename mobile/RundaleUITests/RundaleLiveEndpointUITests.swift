@@ -142,6 +142,41 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(5)
     }
 
+    /// Natural player speech is not an instruction to an invisible narrator.
+    /// The engine asks who is being addressed before any NPC answers.
+    func test05LiveNaturalSpinningQuestionContinuesWithChosenRoisin() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        hold(3)
+        goToTheCottage()
+        hold(7)
+        let speech = "Would you teach me how to spin, Miss?"
+        _ = submit(speech)
+
+        let clarification = app.otherElements["clarification"]
+        XCTAssertTrue(clarification.waitForExistence(timeout: 8))
+        XCTAssertFalse(dialogueRow(inProgress: false).exists,
+                       "Nobody may answer before the recipient is selected")
+        XCTAssertFalse(app.buttons["composer.stop"].exists,
+                       "No model request should be open while choosing a recipient")
+        let roisin = app.buttons["clarification.option.choose-npc-3"]
+        XCTAssertTrue(roisin.waitForExistence(timeout: 3))
+        hold(5)
+        roisin.tap()
+
+        XCTAssertTrue(clarification.waitForNonExistence(timeout: 8))
+        let completed = dialogueRow(inProgress: false)
+        XCTAssertTrue(completed.waitForExistence(timeout: 45))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        let commands = app.transcriptRows().filter {
+            $0.kind == "player_command" && $0.text == speech
+        }
+        XCTAssertEqual(commands.count, 1, "The original question is submitted only once")
+        XCTAssertTrue(completed.label.contains("young woman") || completed.label.contains("Róisín"),
+                      "Róisín, rather than the cattle drover, must answer")
+        hold(12)
+    }
+
     /// Pauses for a human viewer when recording; a no-op in normal runs.
     private func hold(_ seconds: TimeInterval) {
         guard let value = ProcessInfo.processInfo.environment["RUNDALE_DEMO_HOLD"],

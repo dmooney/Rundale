@@ -16,24 +16,22 @@ part of Limerick, alongside terminal play and developer tools. Their capabilitie
 are reusable engine work, rather than a feature-parity target for the mobile game.
 Rundale is building back up feature by feature, starting with a tiny world.
 
-## A visit to Connolly Cottage
+## A question for Róisín
 
-A newcomer asks for a spinning lesson despite having “two clumsy hands and no
-money for lessons.” The cattle drover points them toward his sister Róisín by
-the hearth, and they address her directly.
+“Would you teach me how to spin, Miss?” At Connolly Cottage, two people are
+present. The game asks who you mean; choosing Róisín continues that same question
+and streams her reply. Speech stays in the player's own words.
 
-These are captures of the native SwiftUI app in an iPhone simulator, using the
-shared Limerick engine and live Limerick Endpoints dialogue on October 3, 2026.
-The replies are generated during play; this is not a scripted presentation fixture
-or physical-iPhone validation.
+<p align="center">
+  <a href="https://dmooney.github.io/rundale-pages/pr/2152/">
+    <img src="https://dmooney.github.io/rundale-pages/pr/2152/natural-speech.gif" alt="Native Rundale gameplay: entering a natural spinning question, choosing Róisín, and reading her live response" width="360"/>
+  </a>
+</p>
 
-<table>
-  <tr>
-    <td align="center" valign="top"><a href="docs/screenshots/mobile/connolly-cottage.png"><img src="docs/screenshots/mobile/connolly-cottage.png" alt="Native Rundale app showing the walk to Connolly Cottage and its peat-fire scene" width="240"/></a><br/><b>Arriving at the cottage</b></td>
-    <td align="center" valign="top"><a href="docs/screenshots/mobile/meet-the-connollys.png"><img src="docs/screenshots/mobile/meet-the-connollys.png" alt="The cattle drover replies that his sister Róisín is the person to ask about spinning" width="240"/></a><br/><b>Meeting the Connollys</b></td>
-    <td align="center" valign="top"><a href="docs/screenshots/mobile/spinning-lesson.png"><img src="docs/screenshots/mobile/spinning-lesson.png" alt="Róisín's live dialogue response to a newcomer asking for a spinning lesson" width="240"/></a><br/><b>Asking Róisín for a lesson</b></td>
-  </tr>
-</table>
+[Watch the recording with playback controls](https://dmooney.github.io/rundale-pages/pr/2152/).
+Captured October 4, 2026 in the native SwiftUI app on an iPhone simulator, with
+the shared Limerick engine and live Limerick Endpoints. This is live gameplay,
+not a scripted presentation fixture or physical-iPhone validation.
 
 ## Where we are going
 
@@ -106,7 +104,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Multiline input and editable command recall                                      | Implemented | Implemented | Implemented | Not planned  | Not planned |
 | @mention NPC targeting                                                           | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Clarification of ambiguous addressees                                            | Implemented | Implemented | Implemented | Planned      | Implemented |
-| Ask who unnamed speech addresses in a crowd (#2143)                              | Planned     | Planned     | Planned     | Planned      | Planned     |
+| Ask who unnamed speech addresses in a crowd (#2143)                              | Implemented | Implemented | Implemented | Planned      | Implemented |
 | Short clarification-choice labels (#2128)                                        | Planned     | Planned     | Planned     | Planned      | Planned     |
 | Local look, people, exits and help commands                                      | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Wait, pause and resume commands                                                  | Implemented | Implemented | Implemented | Implemented  | Implemented |

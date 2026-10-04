@@ -227,6 +227,101 @@ fn normalize_addressed_to(addressed_to: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+fn is_unaddressed_speech_form(raw: &str) -> bool {
+    let text = raw.trim().trim_end_matches(['?', '!', '.', ',']).trim();
+    let lower = text.to_lowercase();
+    matches!(lower.as_str(), "hello" | "hi" | "hey")
+        || ["hello ", "hi ", "hey "]
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
+        || [
+            "would you ",
+            "could you ",
+            "can you ",
+            "will you ",
+            "do you ",
+            "did you ",
+            "have you ",
+            "are you ",
+            "would ye ",
+            "could ye ",
+            "can ye ",
+            "will ye ",
+            "what do you ",
+            "where do you ",
+            "how do you ",
+        ]
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
+}
+
+fn is_unaddressed_conversational_intent(raw: &str, is_talk: bool, is_unknown: bool) -> bool {
+    is_talk
+        || (is_unknown
+            && (is_unaddressed_speech_form(raw)
+                || raw.trim_end().ends_with('?')
+                || ["who ", "what ", "where ", "when ", "why ", "how "]
+                    .iter()
+                    .any(|prefix| raw.trim_start().to_lowercase().starts_with(prefix))))
+}
+
+async fn unaddressed_speech_clarification(
+    ctx: &GameLoopContext<'_>,
+    raw: &str,
+) -> Option<crate::game_loop::AddresseeClarification> {
+    if ctx
+        .config
+        .lock()
+        .await
+        .flags
+        .is_disabled(ADDRESSEE_CLARIFICATION_FLAG)
+    {
+        return None;
+    }
+    let world = ctx.world.lock().await;
+    let manager = ctx.npc_manager.lock().await;
+    let mentions = extract_npc_mentions(raw, &world, &manager);
+    let has_grounded_target = leading_vocative(raw)
+        .or_else(|| asked_addressee(raw))
+        .is_some_and(|name| {
+            !matches!(
+                manager.resolve_reference_at(name, world.player_location),
+                crate::npc::manager::NpcReference::NotFound
+            )
+        })
+        || !mentions.names.is_empty()
+        || explicit_talk_recipient_clause(raw).is_some_and(|clause| {
+            !extract_npc_mentions(clause, &world, &manager)
+                .names
+                .is_empty()
+        });
+    if has_grounded_target {
+        return None;
+    }
+    let mut present = manager.npcs_at_ids(world.player_location);
+    present.sort_by_key(|id| id.0);
+    if present.len() < 2 {
+        return None;
+    }
+    let choices = present
+        .iter()
+        .filter_map(|id| manager.get(*id))
+        .map(|npc| crate::turn::ClarificationChoice {
+            id: format!("choose-npc-{}", npc.id.0),
+            label: manager.display_name(npc).to_string(),
+            entity_id: Some(npc.id.0.to_string()),
+        })
+        .collect();
+    Some(crate::game_loop::AddresseeClarification {
+        prompt: crate::turn::ClarificationPrompt {
+            question: "Who are you speaking to?".to_string(),
+            choices,
+            reference: None,
+        },
+        intent: None,
+    })
+}
+
 /// Handles free-form player input: parses intent (with LLM fallback) then
 /// dispatches to movement, look, or NPC conversation.
 ///
@@ -301,21 +396,43 @@ pub async fn handle_game_input_settled(
         }
     }
 
+    // A small set of unmistakable speech forms needs a recipient before the
+    // Intent role runs. This keeps a model-supplied `target` from choosing a
+    // speaker for an unaddressed greeting or direct request. Travel and
+    // physical commands deliberately remain on the ordinary interpretation
+    // path.
+    if ctx.inference_override.is_some()
+        && settled.is_none()
+        && addressed_to.is_empty()
+        && is_unaddressed_speech_form(&raw)
+        && let Some(clarification) = unaddressed_speech_clarification(ctx, &raw).await
+    {
+        return GameInputOutcome {
+            clarification: Some(clarification),
+            ..GameInputOutcome::default()
+        };
+    }
+
     // Parse intent: local keywords first, then the Intent role for input the
     // local parser does not recognise. A failed or malformed Intent reply is
     // `Unknown`, never an error.
     let inference = ctx.inference();
     let intent_route = match settled {
-        Some(_) => RouteStatus::Unavailable,
+        Some(settled) if settled.intent.is_some() => RouteStatus::Unavailable,
         None => {
             inference
                 .route(limerick_config::InferenceSubrole::Intent)
                 .await
         }
+        Some(_) => {
+            inference
+                .route(limerick_config::InferenceSubrole::Intent)
+                .await
+        }
     };
-    let intent = if let Some(settled) = settled {
+    let intent = if let Some(intent) = settled.and_then(|settled| settled.intent.as_ref()) {
         // An earlier run of this request resolved the intent; reuse it.
-        settled.intent.clone()
+        Some(intent.clone())
     } else if intent_route != RouteStatus::Unavailable {
         // Capture generation before releasing the lock so we can detect TOCTOU
         // races on re-acquire (#283).
@@ -553,6 +670,24 @@ pub async fn handle_game_input_settled(
         )
     };
 
+    let answered = settled.map_or(&[][..], |settled| settled.addressees.as_slice());
+    let has_grounded_recipient = !addressed_to.is_empty()
+        || !answered.is_empty()
+        || explicit_recipient_names.is_some()
+        || vocative.is_some()
+        || asked.is_some()
+        || !mentions.names.is_empty();
+    if ctx.inference_override.is_some()
+        && !has_grounded_recipient
+        && is_unaddressed_conversational_intent(&raw, is_talk, is_unknown)
+        && let Some(clarification) = unaddressed_speech_clarification(ctx, &raw).await
+    {
+        return GameInputOutcome {
+            clarification: Some(clarification),
+            ..GameInputOutcome::default()
+        };
+    }
+
     // Explicit recipients are authoritative. A chip-selected addressee, or the
     // recipient clause in `talk to X about Y`, must not be polluted by other
     // parish names mentioned in the message body. Otherwise asking Seamus
@@ -565,11 +700,18 @@ pub async fn handle_game_input_settled(
         for name in addressed_to {
             push_unique_target(&mut targets, name);
         }
+    } else if !answered.is_empty() {
+        // A clarification choice is authoritative for the resumed request;
+        // do not let an Intent target add another speaker.
+        for (reference, _) in answered {
+            push_unique_target(&mut targets, reference.clone());
+        }
     } else if let Some(explicit_names) = explicit_recipient_names {
+        let has_grounded_recipient = !explicit_names.is_empty();
         for name in explicit_names {
             push_unique_target(&mut targets, name);
         }
-        if let Some(target) = validated_talk_target {
+        if !has_grounded_recipient && let Some(target) = validated_talk_target {
             push_unique_target(&mut targets, target);
         }
         if targets.is_empty()
@@ -578,6 +720,8 @@ pub async fn handle_game_input_settled(
             push_unique_target(&mut targets, clause.to_string());
         }
     } else {
+        let grounded_recipient =
+            vocative.is_some() || asked.is_some() || !mentions.names.is_empty();
         if let Some(vocative) = vocative {
             push_unique_target(&mut targets, vocative);
         }
@@ -587,12 +731,11 @@ pub async fn handle_game_input_settled(
         for name in mentions.names {
             push_unique_target(&mut targets, name);
         }
-        if let Some(target) = validated_talk_target {
+        if !grounded_recipient && let Some(target) = validated_talk_target {
             push_unique_target(&mut targets, target);
         }
     }
 
-    let answered = settled.map_or(&[][..], |settled| settled.addressees.as_slice());
     let mut outcome =
         handle_npc_conversation_settled(ctx, mentions.remaining, targets, answered, spawn_loading)
             .await;
@@ -696,7 +839,7 @@ fn asked_addressee(raw: &str) -> Option<&str> {
         }
         offset += word.len() + 1;
     }
-    let head = rest[..end?]
+    let head = without_openers(&rest[..end?])
         .trim()
         .trim_matches(|ch: char| !ch.is_alphanumeric());
     (!head.is_empty() && head.split_whitespace().count() <= 4).then_some(head)
@@ -781,10 +924,7 @@ mod tests {
             asked_addressee("ask Mícheál whether the cattle are sold"),
             Some("Mícheál")
         );
-        assert_eq!(
-            asked_addressee("ask the widow, what news?"),
-            Some("the widow")
-        );
+        assert_eq!(asked_addressee("ask the widow, what news?"), Some("widow"));
         assert_eq!(asked_addressee("ask about the fair"), None);
         assert_eq!(asked_addressee("ask around"), None);
         assert_eq!(asked_addressee("ask for directions"), None);
@@ -794,6 +934,22 @@ mod tests {
             None,
             "longer than a name"
         );
+        assert_eq!(
+            asked_addressee("Ask the spinner to teach me to spin"),
+            Some("spinner")
+        );
+    }
+
+    #[test]
+    fn only_known_unaddressed_speech_forms_preflight_for_a_recipient() {
+        use super::is_unaddressed_speech_form;
+
+        assert!(is_unaddressed_speech_form("Hello"));
+        assert!(is_unaddressed_speech_form(
+            "Would you teach me how to spin, Miss?"
+        ));
+        assert!(!is_unaddressed_speech_form("go to Connolly Cottage"));
+        assert!(!is_unaddressed_speech_form("open the door"));
     }
 
     #[test]

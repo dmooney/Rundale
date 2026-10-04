@@ -1704,14 +1704,13 @@ async fn a_leading_vocative_addresses_that_person_not_whoever_is_first() {
     assert_eq!(speakers(&events).len(), 1);
     assert!(speakers(&events)[0].eq_ignore_ascii_case(&widow));
 
-    // An opening that names no one present is not an address.
-    let (_, events, _) = submit_scripted(&mut engine, &live, said("Well, it is a fine day.")).await;
-    assert_eq!(speakers(&events).len(), 1);
-    assert!(
-        !contents(&events)
-            .iter()
-            .any(|line| line.contains("not here"))
-    );
+    // An opening that names no one present is not an address. With two
+    // possible listeners, the player is asked instead of falling back to
+    // whichever NPC happens to be first.
+    let (unaddressed, events, _) =
+        submit_scripted(&mut engine, &live, said("Well, it is a fine day.")).await;
+    assert_eq!(asking(&unaddressed).choices.len(), 2);
+    assert!(speakers(&events).is_empty());
 }
 
 #[tokio::test]
@@ -1723,6 +1722,99 @@ async fn an_ambiguous_leading_vocative_asks_which_person() {
         submit_scripted(&mut engine, &live, said("Mícheál, is the mill working?")).await;
     assert_eq!(asking(&asked).choices.len(), 2);
     assert!(!calls.contains(&InferenceSubrole::Dialogue));
+}
+
+#[tokio::test]
+async fn unaddressed_speech_preflights_recipient_before_intent_and_reuses_choice() {
+    for text in [
+        "Hello",
+        "Would you teach me how to spin, Miss?",
+        "What do you know of the fair?",
+    ] {
+        let live = Live::rundale();
+        let names =
+            only_present(&live, &["Roisin Connolly", "Padraig Darcy", "Cormac Duffy"]).await;
+        let roisin = names[0];
+        let roisin_label = {
+            let manager = live.npc_manager.lock().await;
+            manager
+                .display_name(manager.get(roisin).unwrap())
+                .to_string()
+        };
+        let (mut engine, journal) = engine(&live);
+        let asked = engine.submit(&live.ctx(), said(text)).await.unwrap();
+        let prompt = asking(&asked).clone();
+        let request = asked.request_id.clone().unwrap();
+        assert_eq!(prompt.question, "Who are you speaking to?");
+        let selected_ids: Vec<&str> = prompt
+            .choices
+            .iter()
+            .filter_map(|choice| choice.entity_id.as_deref())
+            .collect();
+        let roisin_id = roisin.0.to_string();
+        assert_eq!(selected_ids.len(), 3);
+        assert!(selected_ids.contains(&roisin_id.as_str()));
+        assert_eq!(journal.request(&request).unwrap().resolved_intent, None);
+        assert!(matches!(asked.status, TurnStatus::AwaitingClarification(_)));
+
+        let roisin_choice = prompt
+            .choices
+            .iter()
+            .find(|choice| choice.entity_id.as_deref() == Some(roisin_id.as_str()))
+            .unwrap();
+        let answered = engine
+            .answer_clarification(&live.ctx(), &request, &roisin_choice.id)
+            .await
+            .unwrap();
+        let intent = awaiting(&answered).clone();
+        assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+        assert_eq!(intent.call.prompt, text, "the original words are retained");
+        let dialogue = engine
+            .resume(
+                &live.ctx(),
+                resolution(
+                    &intent,
+                    completed(
+                        &serde_json::json!({
+                            "intent": "talk",
+                            "target": if text == "Hello" {
+                                "Padraig Darcy"
+                            } else {
+                                "Cormac Duffy"
+                            },
+                            "dialogue": text
+                        })
+                        .to_string(),
+                    ),
+                ),
+            )
+            .await
+            .unwrap();
+        let (done, events, _) = run_scripted(&mut engine, &live, dialogue, "").await;
+        assert!(matches!(done.status, TurnStatus::Completed { .. }));
+        let replied_by = speakers(&events);
+        assert_eq!(replied_by.len(), 1);
+        assert!(replied_by[0].eq_ignore_ascii_case(&roisin_label));
+    }
+}
+
+#[tokio::test]
+async fn direct_speech_with_one_present_npc_does_not_ask_for_a_recipient() {
+    let live = Live::rundale();
+    only_present(&live, &["Roisin Connolly"]).await;
+    let (mut engine, _) = engine(&live);
+    let (done, events, calls) = submit_scripted(
+        &mut engine,
+        &live,
+        said("Would you teach me how to spin, Miss?"),
+    )
+    .await;
+    assert!(matches!(done.status, TurnStatus::Completed { .. }));
+    assert_eq!(
+        calls,
+        vec![InferenceSubrole::Intent, InferenceSubrole::Dialogue]
+    );
+    assert_eq!(speakers(&events).len(), 1);
 }
 
 // Oracle: ios-port `dialogue_body_mention_does_not_address_absent_npc`.
@@ -1975,6 +2067,11 @@ async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
     ));
     assert!(contents(&events).contains(&"Mícheál is not here.".to_string()));
     assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
+
+    let (done, events, _) = submit_scripted(&mut engine, &live, said("Hello")).await;
+    assert!(matches!(done.status, TurnStatus::Completed { .. }));
+    assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
+    assert_eq!(speakers(&events).len(), 1);
 }
 
 #[tokio::test]
