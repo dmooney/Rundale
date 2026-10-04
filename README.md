@@ -16,6 +16,25 @@ part of Limerick, alongside terminal play and developer tools. Their capabilitie
 are reusable engine work, rather than a feature-parity target for the mobile game.
 Rundale is building back up feature by feature, starting with a tiny world.
 
+## A visit to Connolly Cottage
+
+A newcomer asks for a spinning lesson despite having “two clumsy hands and no
+money for lessons.” The cattle drover points them toward his sister Róisín by
+the hearth, and they address her directly.
+
+These are captures of the native SwiftUI app in an iPhone simulator, using the
+shared Limerick engine and live Limerick Endpoints dialogue on October 3, 2026.
+The replies are generated during play; this is not a scripted presentation fixture
+or physical-iPhone validation.
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/screenshots/mobile/connolly-cottage.png"><img src="docs/screenshots/mobile/connolly-cottage.png" alt="Native Rundale app showing the walk to Connolly Cottage and its peat-fire scene" width="240"/></a><br/><b>Arriving at the cottage</b></td>
+    <td align="center" valign="top"><a href="docs/screenshots/mobile/meet-the-connollys.png"><img src="docs/screenshots/mobile/meet-the-connollys.png" alt="The cattle drover replies that his sister Róisín is the person to ask about spinning" width="240"/></a><br/><b>Meeting the Connollys</b></td>
+    <td align="center" valign="top"><a href="docs/screenshots/mobile/spinning-lesson.png"><img src="docs/screenshots/mobile/spinning-lesson.png" alt="Róisín's live dialogue response to a newcomer asking for a spinning lesson" width="240"/></a><br/><b>Asking Róisín for a lesson</b></td>
+  </tr>
+</table>
+
 ## Where we are going
 
 The app now loads the canonical world—Kilteevan Village, Letter Office and Connolly
