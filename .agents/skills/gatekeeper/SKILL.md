@@ -68,18 +68,21 @@ The standards are Linus's:
    gh pr list --state open --base main --json number,title,author,isDraft,headRefOid,labels,updatedAt
    ```
 
-   With an argument, the only candidate is that PR. If the owner named it and
-   it is a draft or its required checks have not all completed, run a
-   [review-only pass](#review-only-pass) instead of the steps below.
+   With an argument, the only candidate is that PR. If it is a draft or its
+   required checks have not all completed, run a
+   [review-only pass](#review-only-pass) instead of the steps below. (Agents
+   spawn the gatekeeper only after checks pass, so this arises when the owner
+   asks for a PR early.)
 
 2. **Filter.** Skip a PR when any of these hold:
    - it is a draft;
    - it carries the `needs-owner` label;
    - your latest verdict marker names the current head SHA **and** no
      non-gatekeeper comment, review, or thread reply has been posted since
-     that review (a reply without a push re-opens the conversation), unless
-     that verdict is a review-only `approve` (go straight to
-     [Merging](#merging); its conditions recheck draft state and checks);
+     that review (a reply without a push re-opens the conversation). If that
+     verdict is a review-only `approve` and nothing has been posted since, go
+     straight to [Merging](#merging) instead of skipping; its conditions
+     recheck draft state and checks;
    - required checks on the head are still pending (look again next pass).
 
 3. **Cheap gates before a full review.** If the head has failing required
@@ -102,8 +105,10 @@ this file applies unchanged: independence, hard rules, the full review, round
 counting, hand-off labels, and escalation.
 
 - Skip the [cheap gates](#a-pass): review the code even when checks fail or the
-  branch conflicts. List each failing check or conflict as a blocking finding,
-  and each pending check as a note that the verdict does not cover its outcome.
+  branch conflicts. Report failing, pending, and unstarted checks and any
+  conflict in a separate **Status** section, not as findings. They do not
+  decide the verdict, so they never turn it into `changes` or use up an
+  [escalation](#escalation) round; the verdict judges the code alone.
 - Add `mode=review-only` to the verdict marker, and state in the first line of
   the body that this review does not make the PR merge-eligible.
 - An `approve` verdict here means no blocking finding in the code at this head.
