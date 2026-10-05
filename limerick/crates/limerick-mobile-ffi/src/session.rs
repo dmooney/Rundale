@@ -40,8 +40,8 @@ use limerick_core::turn_inference::{
     CallReport, FailureReason, InferenceFailureKind, InferenceOutcome, RouteStatus,
 };
 use limerick_core::world::WorldState;
-use limerick_diagnostics::feedback_report::{
-    self, ExchangeOutcome, ExchangeRecord, FeedbackReport, TranscriptLine,
+use limerick_diagnostics::mobile_report::{
+    self, ExchangeOutcome, ExchangeRecord, MobileReport, TranscriptLine,
 };
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
@@ -766,8 +766,8 @@ impl Session {
         self.exchanges.push_back(record);
     }
 
-    /// The bounded plain-text report a beta tester pastes into TestFlight
-    /// feedback (#2022). Reads only: nothing is journaled and no state
+    /// The bounded plain-text report the app files as a GitHub issue through
+    /// `limerick-bug-report` (#2022). Reads only: nothing is journaled and no state
     /// changes.
     pub fn bug_report(&self, description: &str, build: Option<String>) -> Result<Value, OpError> {
         let (events, _) = self
@@ -831,7 +831,7 @@ impl Session {
             (None, Some(_)) => Some("waiting on the player's answer".to_string()),
             (None, None) => None,
         };
-        let report = FeedbackReport {
+        let report = MobileReport {
             description: description.to_string(),
             build,
             contract_version: format!("{}.{}", wire::CONTRACT_VERSION.0, wire::CONTRACT_VERSION.1),
@@ -843,7 +843,7 @@ impl Session {
             transcript,
             exchanges: self.exchanges.iter().cloned().collect(),
         };
-        let text = feedback_report::compose(&report, feedback_report::FEEDBACK_BUDGET);
+        let text = mobile_report::compose(&report, mobile_report::REPORT_BUDGET);
         Ok(json!({
             "text": text,
             "characters": text.chars().count(),

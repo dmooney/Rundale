@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 publish = false
-description = "Backend-agnostic diagnostics for Limerick: debug-snapshot builders, bug-report orchestration, and the TestFlight feedback report"
+description = "Backend-agnostic diagnostics for Limerick: debug-snapshot builders, bug-report orchestration, and the iPhone app's bug report"
 
 [features]
 # `github` (default) is the desktop bug reporter: GitHub issue filing, the
 # token lookup (env and the `gh` CLI subprocess), and the offline bundle. A
 # portable build (the iPhone engine) turns it off and keeps the debug snapshot
-# and the TestFlight feedback report.
+# and the iPhone app's bug report (`mobile_report`).
 default = ["github"]
 github = ["dep:reqwest", "dep:uuid", "dep:base64", "dep:tokio", "dep:thiserror", "dep:tracing"]
 

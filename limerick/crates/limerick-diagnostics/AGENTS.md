@@ -11,8 +11,8 @@ cargo test -p limerick-diagnostics -- --nocapture    # with stdout for debugging
 
 ## Gotchas
 
-- **The `github` feature (default) holds everything that touches the network or the environment:** `bug_report`, with `reqwest`, `tokio`, the `gh` subprocess, and token lookup. `limerick-mobile-ffi` depends on this crate with `default-features = false`, so the iPhone engine carries only `debug_snapshot` and `feedback_report`. Check both: `cargo test -p limerick-diagnostics` and `cargo test -p limerick-diagnostics --no-default-features`.
-- **`feedback_report` counts characters, not bytes.** TestFlight comments hold 4,000 characters; `FEEDBACK_BUDGET` is 90% of that (3,600), and a test pins the ratio.
+- **The `github` feature (default) holds everything that touches the network or the environment:** `bug_report`, with `reqwest`, `tokio`, the `gh` subprocess, and token lookup. `limerick-mobile-ffi` depends on this crate with `default-features = false`, so the iPhone engine carries only `debug_snapshot` and `mobile_report`. Check both: `cargo test -p limerick-diagnostics` and `cargo test -p limerick-diagnostics --no-default-features`.
+- **`mobile_report` counts characters, not bytes.** `REPORT_BUDGET` (50,000) leaves room under limerick-bug-report's issue-sized cap; a compile-time assertion pins it below 90% of GitHub's 65,536-character body limit, since triage pastes reports into issues.
 
 - **Cycle-breaking traits are the seam.** `limerick-diagnostics` cannot depend on `limerick-core` (that would be circular). `InferenceCategoryConfig` and `WorldSnapshotFields` are local traits that `limerick-core` implements for its concrete types so builders and body-composition helpers stay in this crate without reaching back.
 - **Body budget is enforced at `BODY_BUDGET` (58,982 bytes = 90% of GitHub's 65,536-char limit, [external API payload caps](../../../docs/agent/test-tooling-rules.md#external-api-payload-caps)).** `compose_issue_body` truncates the diagnostic section first (tail kept), then applies a hard cap. Tests pin the constant — do not raise it without verifying GitHub's current limit.
@@ -24,4 +24,4 @@ cargo test -p limerick-diagnostics -- --nocapture    # with stdout for debugging
 
 ## Module map
 
-Three modules: `bug_report.rs` (issue composition, budget cap, offline bundle; behind the default `github` feature), `debug_snapshot/` (DTOs in `types.rs`, construction in `build.rs`), and `feedback_report.rs` (the iPhone beta's TestFlight feedback report, #2022).
+Three modules: `bug_report.rs` (issue composition, budget cap, offline bundle; behind the default `github` feature), `debug_snapshot/` (DTOs in `types.rs`, construction in `build.rs`), and `mobile_report.rs` (the iPhone app's bug report, sent to limerick-bug-report, #2022).

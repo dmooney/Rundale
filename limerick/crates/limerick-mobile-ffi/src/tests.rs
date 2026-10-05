@@ -1420,7 +1420,7 @@ fn bug_report(game: &Game, description: &str) -> String {
         report["characters"].as_u64().unwrap() as usize,
         text.chars().count()
     );
-    assert!(text.chars().count() <= limerick_diagnostics::feedback_report::FEEDBACK_BUDGET);
+    assert!(text.chars().count() <= limerick_diagnostics::mobile_report::REPORT_BUDGET);
     text
 }
 

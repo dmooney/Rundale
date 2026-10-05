@@ -11,8 +11,9 @@
 //!   well-formed GitHub issue (or an offline disk bundle in dry-run mode),
 //!   folding a world snapshot + a [`debug_snapshot::DebugSnapshot`] into the
 //!   issue body. Behind the default `github` feature.
-//! - [`feedback_report`] — the bounded text report an iPhone beta tester
-//!   pastes into TestFlight feedback. Portable: no network, no credentials.
+//! - [`mobile_report`] — the bounded text report the iPhone app files as a
+//!   GitHub issue through `limerick-bug-report`. Portable: no network, no
+//!   credentials.
 //!
 //! `limerick-core` re-exports both modules under their historical paths
 //! (`limerick_core::debug_snapshot::*` and `limerick_core::ipc::bug_report::*`) so
@@ -21,4 +22,4 @@
 #[cfg(feature = "github")]
 pub mod bug_report;
 pub mod debug_snapshot;
-pub mod feedback_report;
+pub mod mobile_report;

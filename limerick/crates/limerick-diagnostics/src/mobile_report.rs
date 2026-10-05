@@ -1,33 +1,33 @@
-//! The bug report an iPhone beta tester pastes into TestFlight feedback.
+//! The bug report the iPhone app files as a GitHub issue.
 //!
-//! TestFlight feedback carries a screenshot and a comment of at most
-//! [`TESTFLIGHT_COMMENT_LIMIT`] characters; the app cannot attach anything
-//! else. This module turns the game's context (scene, recent transcript,
-//! recent Endpoint exchanges) into one plain-text report that fits the
-//! comment, so the tester can paste it. Pure and portable: no network, no
-//! credentials, no clock. Plan: `docs/plans/mobile-bug-report.md` (#2022).
+//! `/bug` or a shake sends this report, with a screenshot, to the
+//! `limerick-bug-report` service, which files it in the repository
+//! (`bug-report/`, #2022). This module turns the game's context (scene,
+//! recent transcript, recent Endpoint exchanges) into one plain-text report.
+//! Pure and portable: no network, no credentials, no clock. Plan:
+//! `docs/plans/mobile-bug-report.md`.
 //!
 //! Lengths are counted in Unicode scalar values (`char`s), not bytes, so an
-//! Irish name such as "Mícheál" costs what the tester sees.
+//! Irish name such as "Mícheál" costs what the reader sees.
 
-/// The most characters a TestFlight feedback comment holds.
-pub const TESTFLIGHT_COMMENT_LIMIT: usize = 4_000;
-/// The report's ceiling: 90% of [`TESTFLIGHT_COMMENT_LIMIT`], per the
-/// external payload rule (`docs/agent/test-tooling-rules.md`).
-pub const FEEDBACK_BUDGET: usize = 3_600;
-/// The most characters of the tester's own description the report keeps.
-pub const DESCRIPTION_LIMIT: usize = 1_000;
+/// The report's ceiling. The service wraps it in an issue body whose own cap
+/// is 90% of GitHub's 65,536-character limit (58,982), per the external
+/// payload rule (`docs/agent/test-tooling-rules.md`); this leaves room for the
+/// description and screenshot link it adds.
+pub const REPORT_BUDGET: usize = 50_000;
+/// The most characters of the player's own description the report keeps.
+pub const DESCRIPTION_LIMIT: usize = 2_000;
 /// The most characters one transcript line keeps.
-const TRANSCRIPT_LINE_LIMIT: usize = 240;
+const TRANSCRIPT_LINE_LIMIT: usize = 1_000;
 /// The most characters of what an exchange asked the report keeps.
-const EXCHANGE_ASKED_LIMIT: usize = 160;
+const EXCHANGE_ASKED_LIMIT: usize = 1_000;
 /// The most characters of an exchange's reply or failure the report keeps.
-const EXCHANGE_OUTPUT_LIMIT: usize = 280;
+const EXCHANGE_OUTPUT_LIMIT: usize = 4_000;
 
 /// Everything a report can say, gathered by the host.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FeedbackReport {
-    /// What the tester typed after `/bug`; may be empty.
+pub struct MobileReport {
+    /// What the player typed after `/bug`; may be empty.
     pub description: String,
     /// The app's version and build, when the host knows it.
     pub build: Option<String>,
@@ -98,7 +98,7 @@ pub enum ExchangeOutcome {
 /// filled newest first and rendered oldest first, so the moments closest to
 /// the report survive and older ones are dropped. Each line has its own cap,
 /// so one long reply cannot crowd out the rest.
-pub fn compose(report: &FeedbackReport, budget: usize) -> String {
+pub fn compose(report: &MobileReport, budget: usize) -> String {
     let head = render_head(report);
     let transcript: Vec<String> = report.transcript.iter().map(render_line).collect();
     let exchanges: Vec<String> = report.exchanges.iter().map(render_exchange).collect();
@@ -146,7 +146,7 @@ pub fn compose(report: &FeedbackReport, budget: usize) -> String {
     clip_chars(&out, budget)
 }
 
-fn render_head(report: &FeedbackReport) -> String {
+fn render_head(report: &MobileReport) -> String {
     let description = one_line(&report.description);
     let description = if description.is_empty() {
         "(no description)".to_string()
@@ -251,8 +251,11 @@ fn clip_chars(text: &str, max: usize) -> String {
 mod tests {
     use super::*;
 
-    fn report() -> FeedbackReport {
-        FeedbackReport {
+    /// A budget small enough that trimming shows.
+    const SMALL: usize = 3_600;
+
+    fn report() -> MobileReport {
+        MobileReport {
             description: "the miller ignored me".to_string(),
             build: Some("0.1 (42)".to_string()),
             contract_version: "3".to_string(),
@@ -287,7 +290,7 @@ mod tests {
 
     #[test]
     fn small_report_renders_every_section_in_order() {
-        let text = compose(&report(), FEEDBACK_BUDGET);
+        let text = compose(&report(), REPORT_BUDGET);
         let expected = "Rundale bug report\n\
             the miller ignored me\n\n\
             Build: 0.1 (42) · engine contract 3\n\
@@ -310,17 +313,16 @@ mod tests {
         report.exchanges.clear();
         report.present.clear();
         report.open_request = Some("awaiting rundale-dialogue.v1".to_string());
-        let text = compose(&report, FEEDBACK_BUDGET);
+        let text = compose(&report, REPORT_BUDGET);
         assert!(text.contains("Rundale bug report\n(no description)\n"));
         assert!(text.contains("Present: no one\n"));
         assert!(text.contains("Open request: awaiting rundale-dialogue.v1\n"));
         assert!(text.ends_with("\nEndpoint calls since launch: none\n"));
     }
 
-    #[test]
-    fn budget_pins_ninety_percent_of_the_testflight_limit() {
-        assert_eq!(FEEDBACK_BUDGET, TESTFLIGHT_COMMENT_LIMIT * 9 / 10);
-    }
+    // The service's issue body (the report, the description again, and the
+    // screenshot link) stays under 90% of GitHub's 65,536-character limit.
+    const _: () = assert!(REPORT_BUDGET + DESCRIPTION_LIMIT + 2_000 <= 58_982);
 
     #[test]
     fn long_history_fits_the_budget_and_keeps_the_newest() {
@@ -342,12 +344,8 @@ mod tests {
                 },
             })
             .collect();
-        let text = compose(&report, FEEDBACK_BUDGET);
-        assert!(
-            text.chars().count() <= FEEDBACK_BUDGET,
-            "{}",
-            text.chars().count()
-        );
+        let text = compose(&report, SMALL);
+        assert!(text.chars().count() <= SMALL, "{}", text.chars().count());
         assert!(text.contains("line 199 "), "newest transcript line kept");
         assert!(!text.contains("line 0 "), "oldest transcript line dropped");
         assert!(
@@ -373,7 +371,7 @@ mod tests {
             from_player: false,
             text: format!("a\n\nb {}", "y".repeat(1_000)),
         }];
-        let text = compose(&report, FEEDBACK_BUDGET);
+        let text = compose(&report, REPORT_BUDGET);
         let description = text.lines().nth(1).expect("description line");
         assert!(description.starts_with("first second "));
         assert_eq!(description.chars().count(), DESCRIPTION_LIMIT);
@@ -399,12 +397,12 @@ mod tests {
                 },
             })
             .collect();
-        let text = compose(&report, FEEDBACK_BUDGET);
+        let text = compose(&report, SMALL);
         let kept = text.matches("- rundale-dialogue.v").count();
         // Each exchange costs about 430 characters, so half the budget holds
         // three or four; the transcript's unused half must hold more.
         assert!(kept >= 7, "kept {kept}");
-        assert!(text.chars().count() <= FEEDBACK_BUDGET);
+        assert!(text.chars().count() <= SMALL);
     }
 
     #[test]
