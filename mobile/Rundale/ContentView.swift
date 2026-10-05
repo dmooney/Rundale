@@ -163,6 +163,9 @@ private struct BugReportNotice: View {
             Text(notice)
                 .font(.footnote)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // The transcript's layout priority would otherwise squeeze
+                // the instructions to one truncated line.
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("bugReport.notice")
             Button(action: dismiss) {
                 Image(systemName: "xmark")
