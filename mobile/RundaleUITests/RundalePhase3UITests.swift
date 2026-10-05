@@ -59,13 +59,6 @@ class RundalePhase3UITestCase: XCTestCase {
         ))
     }
 
-    /// Pauses for a human viewer when recording; a no-op in normal runs.
-    func hold(_ seconds: TimeInterval) {
-        guard let value = ProcessInfo.processInfo.environment["RUNDALE_DEMO_HOLD"],
-              let minimum = TimeInterval(value), minimum > 0 else { return }
-        Thread.sleep(forTimeInterval: max(seconds, minimum))
-    }
-
     func attach(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
