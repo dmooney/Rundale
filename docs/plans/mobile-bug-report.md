@@ -1,99 +1,91 @@
-# Plan: mobile bug reporting through TestFlight feedback
+# Plan: mobile bug reporting
 
-> Status: Accepted · Created: 2026-10-05 · Issue: #2022 · Milestone: Mobile Phase 7
+> Status: Accepted · Created: 2026-10-05 · Revised: 2026-10-05 · Issue: #2022 · Decision: [ADR-027](../adr/027-bug-report-intake.md)
 
-Testers of the iPhone beta report bugs through TestFlight's own feedback, with
-the game's context pasted into the comment. Nothing leaves the phone except
-what the tester sends, and no credential ships in the app.
+A tester reports a bug from the iPhone app in one step: type `/bug` with an
+optional description, or shake the phone. The app sends a report and a
+screenshot to `limerick-bug-report`, which keeps them in a private inbox. An
+agent triages the inbox with the [`bug-triage`](../../.agents/skills/bug-triage/SKILL.md)
+skill and files a GitHub issue only when one is needed.
 
 ## Decisions (owner, 2026-10-05)
 
-| Question                      | Decision                                                                                     |
-| ----------------------------- | -------------------------------------------------------------------------------------------- |
-| How a report leaves the phone | TestFlight feedback (screenshot plus comment). No Endpoints route, no GitHub token.          |
-| How a report starts           | `/bug` with an optional description, or shaking the phone.                                   |
-| What a report carries         | Screenshot (TestFlight's), world state, recent transcript, recent Endpoint exchanges.        |
-| Who can report                | Beta builds only: debug builds and TestFlight installs. Not offered in an App Store build.   |
-| Where reports go              | They stay in App Store Connect. No sync to GitHub.                                           |
-| Large payloads                | The app composes a bounded text report and copies it; the tester pastes it into the comment. |
+| Question            | Decision                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| How a report starts | `/bug` with an optional description, or a shake. Nothing else for the tester to do.                 |
+| Who can report      | Beta builds only (`RUNDALE_BETA_FEEDBACK=YES`). Not offered in an App Store build.                  |
+| Where it goes       | `limerick-bug-report`, its own Cloud Run service in limerick-prod, never Limerick Endpoints.        |
+| Storage             | A private Cloud Storage inbox. Nothing is public; the service holds no GitHub credential.           |
+| Triage              | The `bug-triage` skill, run on demand. It pulls each report locally and deletes it from the bucket. |
+| Screenshots         | Stay private. An issue describes the screenshot in words.                                           |
 
-The issue's earlier proposal (a `BugReportSink` trait with an Endpoints sink
-holding a GitHub token) is superseded by these decisions.
+### Rejected
 
-## Constraints
-
-- The app cannot open or fill TestFlight's feedback sheet. The tester opens it
-  by taking a screenshot. It carries the screenshot, the tester's comment, and
-  device, OS, and build details.
-- A TestFlight feedback comment holds up to 4,000 characters. The report
-  targets 90% of that (3,600 characters, counted as Unicode scalar values so
-  Irish text is measured as typed), per
-  [external API payload caps](../agent/test-tooling-rules.md#external-api-payload-caps).
-- Reporting is diagnostics, not gameplay: `/bug` never becomes a logical
-  request, never reaches an Endpoint, and leaves the save unchanged.
+- **TestFlight feedback with a pasted report** (shipped in #2181, then
+  replaced). Apple offers no way for an app to open or fill TestFlight's
+  feedback sheet: the tester had to screenshot, open the sheet, and paste.
+- **The iOS share sheet.** Still several taps and a choice of app.
+- **Filing GitHub issues directly from the service.** GitHub's API cannot
+  attach images, so screenshots would need a public home. The owner chose to
+  keep them private and to file only after triage.
 
 ## Flow
 
 1. The tester types `/bug the miller ignored me`, or shakes the phone.
-2. The app asks the engine for the report (`bug_report` operation), copies it
-   to the clipboard, and shows: "Bug report copied. Take a screenshot, send it
-   as TestFlight feedback, and paste the report into the comment."
-3. The tester screenshots, opens TestFlight feedback, and pastes.
-4. The owner reads feedback in App Store Connect.
+2. The app takes a screenshot of what the player sees, asks the engine for
+   the report (`bug_report` operation), and saves both to disk. It then sends
+   them with the same Firebase ID and App Check tokens it sends to Endpoints.
+   The notice reads "Sending the bug report…", then "Bug report sent. Thank
+   you."
+3. Offline, or if the service is down: "No connection. The bug report will be
+   sent when you're back online." The report is sent at the next launch or
+   foreground.
+4. The service checks both tokens and the app ID, applies a per-player hourly
+   limit, and writes `inbox/<id>/screenshot.png` and then
+   `inbox/<id>/report.json` to `gs://limerick-prod-bug-reports`. Both writes
+   are create-only, so a resent report is stored once.
+5. The `bug-triage` skill pulls and deletes each report, investigates, and
+   files an issue, comments on an existing one, or sets the report aside.
 
-`/bug` clears the draft only when it was typed; shaking leaves the draft alone.
+`/bug` never becomes a game turn and leaves the save unchanged. It works while
+a reply streams. A typed `/bug` clears the draft; a shake keeps it.
 
 ## Report
 
-Composed by `limerick-diagnostics::feedback_report` (portable, pure):
+Composed by `limerick-diagnostics::mobile_report` (portable, pure), at most
+50,000 characters:
 
-- the description (whole, up to 1,000 characters);
+- the description;
 - app build and engine contract version;
 - scene, time of day, weather, and who is present;
 - the open request and what it waits on, if any;
-- the newest transcript lines from the journal (survive relaunch);
-- the newest Endpoint exchanges since launch: Endpoint slug and version, how
-  long it took, an excerpt of its input, and its reply or failure.
+- the newest transcript lines from the journal (these survive a relaunch);
+- the last eight Endpoint calls answered since launch: Endpoint, duration,
+  what was asked, and the reply or failure.
 
-Sections are filled newest first until the budget runs out, then rendered in
-time order. Each line has its own cap so one long reply cannot crowd out the
-rest.
+Sections are filled newest first and rendered in time order; each line has its
+own cap.
 
-## Changes
+## Pieces
 
-1. **`limerick-diagnostics`.** Add `feedback_report` (report types, the
-   composer, the budget). Put the GitHub bug-report module behind a default
-   `github` feature, so a portable build carries none of the token lookup,
-   `gh` subprocess, or GitHub HTTP code. Desktop is unchanged.
-2. **`limerick-mobile-ffi`.** Keep the last eight Endpoint exchanges in memory
-   (recorded when `resolve` or `fail` answers the awaited call). Add the
-   `bug_report` operation (`description`, optional `build`) that returns the
-   report text. It reads only; tests prove the journal and revision stay
-   unchanged. Building it found that a stale `resolve` or `fail` (which the
-   engine ignores) cleared the session's awaited call, so `pending_endpoint`
-   answered `null` while the engine still waited; `settle` now keeps the call
-   on an ignored step.
-3. **iPhone app.** `RundaleBridge` gains `bugReport(description:build:)`. The
-   presentation model handles `/bug` before submit (even while a reply
-   streams) and a shake from a `UIWindow` motion override, in beta builds
-   only; shake-to-undo is turned off there so a shake does not also offer to
-   undo typing. Completions offer `/bug` as the player types.
-   Beta builds are marked by the `RUNDALE_BETA_FEEDBACK` build setting (`YES`
-   in `project.yml`; `testflight-update` sets it and checks the archive). A
-   runtime TestFlight check was rejected: StoreKit's `AppTransaction` can
-   throw on TestFlight builds, and the receipt-file check is deprecated, which
-   fails a build that treats warnings as errors.
-4. **Docs.** Tester steps in [mobile/testflight.md](../../mobile/testflight.md),
-   the operation in the FFI README, and this plan.
+| Piece                                                    | Role                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `limerick-diagnostics::mobile_report`                    | Composes the report. The GitHub reporter sits behind the `github` feature. |
+| `limerick-mobile-ffi` `bug_report`                       | Returns the report; keeps the Endpoint exchange log. Read-only.            |
+| `mobile/Rundale/BugReportFiler.swift`                    | Outbox on disk, HTTP transport, screenshot capture.                        |
+| `RundalePresentationModel`                               | `/bug`, shake, notices, sending queued reports at launch and foreground.   |
+| [`bug-report/`](../../bug-report/README.md)              | The `limerick-bug-report` service and its deploy and inbox script.         |
+| [`bug-triage`](../../.agents/skills/bug-triage/SKILL.md) | Turns the inbox into GitHub issues.                                        |
 
 ## Verification
 
+- `pnpm check` in `bug-report/`: format, lint, typecheck, tests, build. The
+  phone's encoding and the service's parsing are both tested against
+  `bug-report/test/fixtures/phone-report.json`.
 - `cargo test -p limerick-diagnostics` (with and without default features) and
   `cargo test -p limerick-mobile-ffi`.
-- `just check`, and `just mobile-verify --phase all` (builds the iOS device and
-  simulator libraries and runs the UI suites).
-- A UI test: `/bug` copies a report that names the scene and the description,
-  shows the notice, clears the draft, and creates no request.
-- A simulator recording of `/bug` and the Simulator's Shake command. The
-  simulator is not a physical iPhone; the TestFlight sheet itself is checked
-  on a TestFlight build.
+- `just mobile-verify --phase all`, including `RundaleBugReportTests` and
+  `RundaleCommandsUITests.testBugCommandSendsAReportWithoutATurn`.
+- Live: the simulator app, with an App Check debug token, sent a shake report
+  to the deployed service. `limerick-prod.sh pull` retrieved the report and
+  screenshot and emptied the inbox.
