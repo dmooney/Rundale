@@ -68,6 +68,7 @@ final class RundalePresentationModel: ObservableObject {
     static let bugCommandWord = "/bug"
     static let bugReportSendingNotice = "Sending the bug report…"
     static let bugReportQueuedNotice = "No connection. The bug report will be sent when you're back online."
+    static let bugReportLaterNotice = "The bug report couldn't be sent just now. It will be tried again later."
     static let bugReportRejectedNotice = "The bug report could not be sent."
     static let bugReportUnavailableNotice = "Bug reporting is not set up in this build."
     static let bugReportSentNotice = "Bug report sent. Thank you."
@@ -78,6 +79,11 @@ final class RundalePresentationModel: ObservableObject {
     private let bugReports: BugReportOutbox?
     private let captureScreenshot: @MainActor () -> Data?
     private var isSendingBugReports = false
+    /// The report the player just made, whose outcome the notice reports,
+    /// until it is sent, rejected, or left queued.
+    private var announcedBugReportID: String?
+    /// limerick-bug-report's description limit, in Unicode scalars.
+    static let bugDescriptionLimit = 2_000
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
     private var transcriptTraceEntries: [UITestTranscriptTraceEntry] = []
@@ -306,6 +312,11 @@ final class RundalePresentationModel: ObservableObject {
         bugReportNotice = Self.bugReportSendingNotice
         Task {
             do {
+                // The service refuses a longer description; a refused report
+                // would be dropped, so keep what fits.
+                let description = String(String.UnicodeScalarView(
+                    description.unicodeScalars.prefix(Self.bugDescriptionLimit)
+                ))
                 let pending = PendingBugReport(
                     reportID: UUID().uuidString,
                     description: description,
@@ -333,9 +344,10 @@ final class RundalePresentationModel: ObservableObject {
     }
 
     /// Sends every queued report, oldest first, stopping at the first that
-    /// must wait for a connection. `announcing` names the report the player
-    /// just made, whose outcome the notice reports.
+    /// must wait. `announcing` names the report the player just made, whose
+    /// outcome the notice reports; a send already under way picks it up.
     private func sendQueuedBugReports(announcing reportID: String?) {
+        if let reportID { announcedBugReportID = reportID }
         guard let bugReports, !isSendingBugReports else { return }
         isSendingBugReports = true
         Task {
@@ -343,23 +355,40 @@ final class RundalePresentationModel: ObservableObject {
             var attempted = Set<String>()
             while let next = bugReports.pending.first(where: { !attempted.contains($0.reportID) }) {
                 attempted.insert(next.reportID)
-                let isNew = next.reportID == reportID
+                // Read after each send returns: the player may make a new
+                // report, and so change which one is announced, meanwhile.
+                var isAnnounced: Bool { next.reportID == announcedBugReportID }
                 do {
                     try await bugReports.send(next)
-                    let notice = isNew ? Self.bugReportSentNotice : Self.earlierBugReportSentNotice
-                    bugReportNotice = notice
-                    accessibilityNotice = notice
+                    if isAnnounced {
+                        announcedBugReportID = nil
+                        announceBugReport(Self.bugReportSentNotice)
+                    } else if announcedBugReportID == nil {
+                        announceBugReport(Self.earlierBugReportSentNotice)
+                    }
                     if launch.isUITesting {
                         uiTestBugReport = Self.uiTestSummary(next)
                     }
                 } catch BugReportSendError.rejected {
-                    if isNew { bugReportNotice = Self.bugReportRejectedNotice }
+                    if isAnnounced {
+                        announcedBugReportID = nil
+                        announceBugReport(Self.bugReportRejectedNotice)
+                    }
                 } catch {
-                    if reportID != nil { bugReportNotice = Self.bugReportQueuedNotice }
+                    if announcedBugReportID != nil {
+                        announcedBugReportID = nil
+                        let offline = (error as? BugReportSendError) == .offline
+                        announceBugReport(offline ? Self.bugReportQueuedNotice : Self.bugReportLaterNotice)
+                    }
                     return
                 }
             }
         }
+    }
+
+    private func announceBugReport(_ notice: String) {
+        bugReportNotice = notice
+        accessibilityNotice = notice
     }
 
     private static func uiTestSummary(_ report: PendingBugReport) -> String {

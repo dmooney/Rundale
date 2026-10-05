@@ -50,8 +50,8 @@ struct LaunchConfiguration: Sendable {
     /// its own Endpoint slug and version (the engine reads them from the
     /// world's Endpoint definitions).
     let endpointOrganization: String
-    /// Beta builds offer `/bug` and shake-to-report, which file a GitHub issue
-    /// through `limerick-bug-report` (#2022). Set by the
+    /// Beta builds offer `/bug` and shake-to-report, which send a report to
+    /// `limerick-bug-report`'s private inbox (#2022, ADR-027). Set by the
     /// `RUNDALE_BETA_FEEDBACK` build setting; an App Store build sets it to NO.
     let allowsBugReports: Bool
     /// The `limerick-bug-report` service, supplied like the Endpoint origin.

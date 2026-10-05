@@ -41,11 +41,27 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(rateLimit, { max: options.perMinuteLimit ?? 30, timeWindow: "1 minute" });
   const recent = new Map<string, number[]>();
 
-  const allowed = (uid: string): boolean => {
+  /** Claims one of the player's hourly slots before storing, so concurrent
+   * requests cannot all pass the check; returns the claim's time, or `null`
+   * over the limit. Players with no recent reports are forgotten. */
+  const claim = (uid: string): number | null => {
     const cutoff = now() - HOUR_MS;
-    const times = (recent.get(uid) ?? []).filter((time) => time > cutoff);
+    for (const [player, times] of recent) {
+      const current = times.filter((time) => time > cutoff);
+      if (current.length === 0) recent.delete(player);
+      else recent.set(player, current);
+    }
+    const times = recent.get(uid) ?? [];
+    if (times.length >= options.hourlyLimit) return null;
+    const at = now();
+    times.push(at);
     recent.set(uid, times);
-    return times.length < options.hourlyLimit;
+    return at;
+  };
+  const release = (uid: string, at: number) => {
+    const times = recent.get(uid);
+    const index = times?.indexOf(at) ?? -1;
+    if (times !== undefined && index >= 0) times.splice(index, 1);
   };
 
   app.get("/health", async () => ({ ok: true }));
@@ -55,12 +71,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (reporter === null) return reply.code(401).send({ error: "unauthenticated" });
     const parsed = parseReport(request.body);
     if (!parsed.ok) return reply.code(400).send({ error: parsed.error });
-    if (!allowed(reporter.uid)) return reply.code(429).send({ error: "too many reports" });
+    const claimed = claim(reporter.uid);
+    if (claimed === null) return reply.code(429).send({ error: "too many reports" });
     try {
       const outcome = await options.store.save(parsed.value, reporter, new Date(now()));
-      if (outcome === "stored") recent.get(reporter.uid)?.push(now());
+      // A resend stores nothing, so it gives its slot back.
+      if (outcome === "duplicate") release(reporter.uid, claimed);
       return reply.code(202).send({ reportId: parsed.value.reportId });
     } catch (error) {
+      release(reporter.uid, claimed);
       request.log.error({ err: error }, "report storage failed");
       return reply.code(503).send({ error: "the report could not be stored" });
     }

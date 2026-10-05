@@ -22,8 +22,10 @@ struct PendingBugReport: Codable, Equatable, Sendable {
 }
 
 enum BugReportSendError: Error, Equatable {
-    /// Worth trying again later: no connection, a timeout, a busy or
-    /// failing service, or expired credentials.
+    /// The phone has no usable connection; try again when it does.
+    case offline
+    /// Worth trying again later: a busy or failing service, or credentials
+    /// that could not be had.
     case retryLater
     /// The service will never accept this report.
     case rejected
@@ -90,6 +92,11 @@ final class BugReportOutbox {
 /// Posts reports to `<base>/v1/reports` with the same Firebase ID and App
 /// Check tokens the app sends to Limerick Endpoints.
 struct HTTPBugReportTransport: BugReportTransport {
+    private static let offlineCodes: Set<URLError.Code> = [
+        .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
+        .timedOut, .dataNotAllowed, .internationalRoamingOff,
+    ]
+
     let baseURL: URL
     let credentials: any LimerickEndpointKit.EndpointCredentialProvider
     var session: URLSession = .shared
@@ -113,6 +120,8 @@ struct HTTPBugReportTransport: BugReportTransport {
             throw status == 400 || status == 413 ? BugReportSendError.rejected : .retryLater
         } catch let error as BugReportSendError {
             throw error
+        } catch let error as URLError where Self.offlineCodes.contains(error.code) {
+            throw .offline
         } catch {
             throw .retryLater
         }

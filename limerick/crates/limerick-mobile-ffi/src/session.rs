@@ -766,8 +766,8 @@ impl Session {
         self.exchanges.push_back(record);
     }
 
-    /// The bounded plain-text report the app files as a GitHub issue through
-    /// `limerick-bug-report` (#2022). Reads only: nothing is journaled and no state
+    /// The bounded plain-text report the app sends to `limerick-bug-report`
+    /// (#2022, ADR-027). Reads only: nothing is journaled and no state
     /// changes.
     pub fn bug_report(&self, description: &str, build: Option<String>) -> Result<Value, OpError> {
         let (events, _) = self

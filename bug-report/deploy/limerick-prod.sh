@@ -38,11 +38,19 @@ ensure_infrastructure() {
             --display-name "limerick-bug-report runtime" >/dev/null
     fi
     # A new service account takes a few seconds to reach IAM.
+    local granted=false
     for _ in 1 2 3 4 5 6; do
-        gcloud projects add-iam-policy-binding "$project" --member "serviceAccount:$runtime_account" \
-            --role roles/logging.logWriter --condition=None >/dev/null 2>&1 && break
+        if gcloud projects add-iam-policy-binding "$project" --member "serviceAccount:$runtime_account" \
+            --role roles/logging.logWriter --condition=None >/dev/null 2>&1; then
+            granted=true
+            break
+        fi
         sleep 10
     done
+    if [[ $granted != true ]]; then
+        echo "limerick-prod.sh: could not grant $runtime_account roles/logging.logWriter" >&2
+        exit 1
+    fi
     # verifyIdToken(checkRevoked) reads the Firebase user.
     gcloud projects add-iam-policy-binding "$project" --member "serviceAccount:$runtime_account" \
         --role roles/firebaseauth.viewer --condition=None >/dev/null

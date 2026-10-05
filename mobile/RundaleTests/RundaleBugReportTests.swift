@@ -91,7 +91,7 @@ final class RundaleBugReportTests: XCTestCase {
     }
 
     func testAReportMadeOfflineWaitsAndIsSentAtTheNextLaunch() async {
-        transport.next = [.failure(.retryLater)]
+        transport.next = [.failure(.offline)]
         let first = model(beta: true, session: Phase4TestSession(active: false))
         first.reportBug(description: "no signal in the bog")
         await waitUntil { first.bugReportNotice == RundalePresentationModel.bugReportQueuedNotice }
@@ -105,6 +105,38 @@ final class RundaleBugReportTests: XCTestCase {
         XCTAssertTrue(outbox().pending.isEmpty)
         XCTAssertEqual(transport.sent.map(\.description), ["no signal in the bog", "no signal in the bog"])
         XCTAssertEqual(Set(transport.sent.map(\.reportID)).count, 1, "a resend keeps its identity")
+    }
+
+    func testAServiceRefusalOtherThanOfflineSaysItWillBeTriedLater() async {
+        transport.next = [.failure(.retryLater)]
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug()
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportLaterNotice }
+        XCTAssertEqual(outbox().pending.count, 1, "the report waits")
+    }
+
+    /// A report made while an older one is still sending is announced, not
+    /// left at "Sending…" or called an earlier report.
+    func testAReportMadeWhileAnOlderOneSendsIsAnnounced() async {
+        transport.gateFirstSend = true
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug(description: "first")
+        await waitUntil { self.transport.sent.count == 1 }
+        model.reportBug(description: "second")
+        await waitUntil { self.outbox().pending.count == 2 }
+        transport.releaseFirstSend()
+        await waitUntil { self.transport.sent.count == 2 }
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportSentNotice }
+        XCTAssertEqual(model.bugReportNotice, RundalePresentationModel.bugReportSentNotice)
+        XCTAssertEqual(transport.sent.map(\.description), ["first", "second"])
+        XCTAssertEqual(outbox().pending.map(\.description), [])
+    }
+
+    func testADescriptionIsCutToTheServicesLimit() async {
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug(description: String(repeating: "á", count: 2_500))
+        await waitUntil { self.transport.sent.count == 1 }
+        XCTAssertEqual(transport.sent.first?.description.unicodeScalars.count, 2_000)
     }
 
     func testARejectedReportLeavesTheQueue() async {
@@ -226,15 +258,41 @@ final class RundaleBugReportTests: XCTestCase {
     }
 }
 
-/// Answers each send from `next`, then accepts.
+/// Answers each send from `next`, then accepts. With `gateFirstSend`, the
+/// first send waits until `releaseFirstSend()`.
 private final class ScriptedTransport: BugReportTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var _sent: [PendingBugReport] = []
+    private var gate: CheckedContinuation<Void, Never>?
+    private var released = false
     var next: [Result<Void, BugReportSendError>] = []
+    var gateFirstSend = false
 
     var sent: [PendingBugReport] { lock.withLock { _sent } }
 
+    func releaseFirstSend() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            released = true
+            defer { gate = nil }
+            return gate
+        }
+        waiting?.resume()
+    }
+
     func send(_ report: PendingBugReport) async throws(BugReportSendError) {
+        let mustWait = lock.withLock { gateFirstSend && _sent.isEmpty && !released }
+        if mustWait {
+            lock.withLock { _sent.append(report) }
+            await withCheckedContinuation { continuation in
+                let resumeNow = lock.withLock { () -> Bool in
+                    if released { return true }
+                    gate = continuation
+                    return false
+                }
+                if resumeNow { continuation.resume() }
+            }
+            return
+        }
         let outcome: Result<Void, BugReportSendError> = lock.withLock {
             _sent.append(report)
             if !next.isEmpty, case let .failure(error) = next.removeFirst() {

@@ -185,6 +185,15 @@ describe("POST /v1/reports", () => {
     expect((await send(report(), from("10.0.0.3"))).statusCode).toBe(429);
   });
 
+  it("counts concurrent reports from one player against the limit", async () => {
+    const { store, send } = await setup(2);
+    const results = await Promise.all(
+      ["aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd"].map((id) => send(report({ reportId: id }))),
+    );
+    expect(results.map((r) => r.statusCode).sort()).toEqual([202, 202, 429, 429]);
+    expect(store.saved).toHaveLength(2);
+  });
+
   it("limits reports per player per hour", async () => {
     const { send } = await setup(2);
     for (const id of ["aaaaaaaa", "bbbbbbbb"])
