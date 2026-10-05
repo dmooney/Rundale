@@ -51,6 +51,7 @@ jobs:
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -96,6 +97,9 @@ jobs:
               - '.github/workflows/ci.yml'
             swift:
               - 'mobile/**'
+              - '.github/workflows/ci.yml'
+            bug_report:
+              - 'bug-report/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
       # the Markdown sits inside a runtime directory (crates, mods, scripts).
@@ -300,6 +304,39 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # limerick-bug-report, the iPhone app's private bug-report intake
+  # (bug-report/, ADR-027): format, lint, typecheck, tests, and build.
+  bug-report-quality:
+    name: Bug-report service (format, lint, typecheck, tests, build)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.bug_report == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: bug-report
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: bug-report/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
 
   shell-quality:
     name: Shell quality (shellcheck + shfmt)
@@ -515,6 +552,7 @@ jobs:
         changes,
         agent-check,
         bench-site-build,
+        bug-report-quality,
         docs-consistency,
         format-quality,
         python-quality,
