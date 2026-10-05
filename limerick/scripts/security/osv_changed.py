@@ -10,8 +10,9 @@ including uncommitted changes.
 
     python3 limerick/scripts/security/osv_changed.py [--base origin/main]
 
-Needs `osv-scanner` on PATH (`brew install osv-scanner`); it fails without it,
-because a skipped gate is not a passed one.
+Needs `osv-scanner` on PATH (`brew install osv-scanner`) and, when a lockfile
+changed, network access to osv.dev; it fails without them, because a skipped
+gate is not a passed one.
 """
 
 from __future__ import annotations
@@ -36,6 +37,8 @@ LOCKFILE_NAMES = {
     "go.sum",
 }
 
+NO_PACKAGES = "No package sources found"
+
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
 
 
@@ -48,10 +51,14 @@ def is_lockfile(path: str) -> bool:
     return name in LOCKFILE_NAMES or (name.startswith("requirements") and name.endswith(".txt"))
 
 
-def changed_lockfiles(base: str, runner: Runner) -> list[str]:
+def merge_base_with(base: str, runner: Runner) -> str:
     merge_base = runner(["git", "merge-base", base, "HEAD"]).stdout.strip()
     if not merge_base:
         raise SystemExit(f"osv-changed: cannot find the merge base with {base}")
+    return merge_base
+
+
+def changed_lockfiles(merge_base: str, runner: Runner) -> list[str]:
     committed = runner(["git", "diff", "--name-only", "--diff-filter=AMR", f"{merge_base}...HEAD"])
     uncommitted = runner(["git", "diff", "--name-only", "--diff-filter=AMR", "HEAD"])
     untracked = runner(["git", "ls-files", "--others", "--exclude-standard"])
@@ -86,7 +93,11 @@ def scan(lockfile: Path, runner: Runner) -> dict[tuple[str, str], str]:
     result = runner(
         ["osv-scanner", "scan", "source", "--format", "json", "--lockfile", str(lockfile)]
     )
-    # 0: none found; 1: vulnerabilities found. Anything else did not scan.
+    # 0: none found; 1: vulnerabilities found. 128 with "No package sources
+    # found" is a lockfile listing no packages (an empty Package.resolved),
+    # which has nothing to report. Anything else did not scan.
+    if result.returncode == 128 and NO_PACKAGES in result.stderr:
+        return {}
     if result.returncode not in (0, 1):
         raise SystemExit(
             f"osv-changed: osv-scanner failed on {lockfile} ({result.returncode}): {result.stderr[-500:]}"
@@ -114,11 +125,11 @@ def main(argv: Sequence[str] | None = None, runner: Runner = run) -> int:
             "osv-changed: osv-scanner is not installed (brew install osv-scanner)", file=sys.stderr
         )
         return 1
-    lockfiles = changed_lockfiles(args.base, runner)
+    merge_base = merge_base_with(args.base, runner)
+    lockfiles = changed_lockfiles(merge_base, runner)
     if not lockfiles:
         print("osv-changed: no lockfile changed")
         return 0
-    merge_base = runner(["git", "merge-base", args.base, "HEAD"]).stdout.strip()
     new: list[str] = []
     for path in lockfiles:
         head = scan(Path(path), runner)
