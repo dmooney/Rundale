@@ -865,8 +865,6 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
     }
 }
 
-/// The Endpoint path commits a reply after structural checks only: a reply
-/// naming a person and place the world does not have is not rewritten.
 /// Submits `text` and answers any intent call (naming `target`) until the
 /// turn ends or waits on a dialogue call; returns the last result.
 fn submit_through_intent(game: &Game, text: &str, target: &str) -> Value {
@@ -935,6 +933,8 @@ fn a_person_named_who_is_elsewhere_is_reported_absent_without_an_endpoint_call()
     );
 }
 
+/// The Endpoint path commits a reply after structural checks only: a reply
+/// naming a person and place the world does not have is not rewritten.
 #[test]
 fn dialogue_content_guards_are_off_on_the_endpoint_path() {
     let (game, _) = Game::new();
