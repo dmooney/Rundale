@@ -281,10 +281,9 @@ public actor LimerickRuntime: SessionAdapter {
         )
     }
 
-    /// The plain-text bug report a beta tester pastes into TestFlight
-    /// feedback (#2022): scene, recent transcript, and the Endpoint calls
-    /// answered since launch, bounded to fit the comment. Reads only; the
-    /// engine journals nothing and no state changes.
+    /// The plain-text bug report `/bug` sends to limerick-bug-report (#2022):
+    /// scene, recent transcript, and the Endpoint calls answered since
+    /// launch. Reads only; the engine journals nothing and no state changes.
     public func bugReport(description: String, build: String?) throws -> String {
         var operation: [String: Any] = ["op": "bug_report", "description": description]
         if let build { operation["build"] = build }

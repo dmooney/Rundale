@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import RundaleKit
-import UIKit
 
 struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     let id: String
@@ -59,21 +58,26 @@ final class RundalePresentationModel: ObservableObject {
     /// a small screen, so tests read this record instead of racing the poll or
     /// depending on the viewport.
     @Published private(set) var uiTestTranscriptTrace = "[]"
-    /// What the last bug report did: copied, or why it could not be made.
+    /// What the last bug report did: sending, sent, or waiting to be sent.
     @Published private(set) var bugReportNotice: String?
-    /// UI-test-only: the last report copied. Reading the pasteboard from the
-    /// test runner would raise the paste permission prompt.
+    /// UI-test-only: the last report sent and its screenshot's size.
     @Published private(set) var uiTestBugReport = ""
     @Published var draft: String
 
-    /// The command that copies a bug report in beta builds.
+    /// The command that sends a bug report in beta builds.
     static let bugCommandWord = "/bug"
-    static let bugReportCopiedNotice = "Bug report copied. Take a screenshot, send it as "
-        + "TestFlight feedback, and paste the report into the comment."
+    static let bugReportSendingNotice = "Sending the bug report…"
+    static let bugReportQueuedNotice = "No connection. The bug report will be sent when you're back online."
+    static let bugReportRejectedNotice = "The bug report could not be sent."
+    static let bugReportUnavailableNotice = "Bug reporting is not set up in this build."
+    static let bugReportSentNotice = "Bug report sent. Thank you."
+    static let earlierBugReportSentNotice = "An earlier bug report was sent."
 
     let launch: LaunchConfiguration
     private let session: any RundaleSessionControlling
-    private let copyToPasteboard: @MainActor (String) -> Void
+    private let bugReports: BugReportOutbox?
+    private let captureScreenshot: @MainActor () -> Data?
+    private var isSendingBugReports = false
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
     private var transcriptTraceEntries: [UITestTranscriptTraceEntry] = []
@@ -94,9 +98,11 @@ final class RundalePresentationModel: ObservableObject {
 
     init(launch: LaunchConfiguration,
          session: (any RundaleSessionControlling)? = nil,
-         copyToPasteboard: @escaping @MainActor (String) -> Void = { UIPasteboard.general.string = $0 }) {
+         bugReports: BugReportOutbox? = nil,
+         captureScreenshot: @escaping @MainActor () -> Data? = ScreenCapture.keyWindowPNG) {
         self.launch = launch
-        self.copyToPasteboard = copyToPasteboard
+        self.bugReports = bugReports ?? Self.defaultBugReports(launch)
+        self.captureScreenshot = captureScreenshot
         if let session {
             self.session = session
         } else if launch.phase2 {
@@ -122,6 +128,7 @@ final class RundalePresentationModel: ObservableObject {
     func start() {
         guard eventTask == nil else { return }
         session.start()
+        sendQueuedBugReports(announcing: nil)
         eventTask = Task { [weak self, session] in
             // The controller publishes state on the main actor after every
             // semantic event. Polling is intentionally absent: fixture tests
@@ -188,6 +195,7 @@ final class RundalePresentationModel: ObservableObject {
             allowsSubmission = true
             session.setInferenceAllowed(true)
             refreshFromSession()
+            sendQueuedBugReports(announcing: nil)
             lifecycleTask = nil
         }
     }
@@ -280,21 +288,33 @@ final class RundalePresentationModel: ObservableObject {
         return rest.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Copies a bug report for TestFlight feedback (#2022): from `/bug`, or
-    /// from shaking the phone. A typed `/bug` draft is cleared once copied,
-    /// unless the player has changed it since; a shake leaves the draft alone.
+    /// Sends a bug report to `limerick-bug-report` (#2022), whose private
+    /// inbox the `/bug-triage` skill turns into GitHub issues where needed:
+    /// from `/bug`, or from shaking the phone. The screenshot is
+    /// taken first, so it shows what the player saw. A typed `/bug` draft is
+    /// cleared once the report is queued, unless the player has changed it
+    /// since; a shake leaves the draft alone. A report that cannot be sent
+    /// now waits on disk and is sent at the next launch or foreground.
     func reportBug(description: String = "", clearingDraft sourceDraft: String? = nil) {
         guard launch.allowsBugReports else { return }
+        guard let bugReports else {
+            bugReportNotice = Self.bugReportUnavailableNotice
+            return
+        }
+        let screenshot = captureScreenshot()
         let sourceRevision = draftRevision
+        bugReportNotice = Self.bugReportSendingNotice
         Task {
             do {
-                let report = try await session.bugReport(description: description)
-                copyToPasteboard(report)
-                if launch.isUITesting {
-                    uiTestBugReport = report
-                }
-                bugReportNotice = Self.bugReportCopiedNotice
-                accessibilityNotice = Self.bugReportCopiedNotice
+                let pending = PendingBugReport(
+                    reportID: UUID().uuidString,
+                    description: description,
+                    report: try await session.bugReport(description: description),
+                    build: launch.buildDescription,
+                    device: ScreenCapture.deviceDescription,
+                    screenshot: screenshot?.base64EncodedString()
+                )
+                try bugReports.enqueue(pending)
                 if let sourceDraft, draftRevision == sourceRevision, draft == sourceDraft {
                     draft = ""
                     draftRevision &+= 1
@@ -305,10 +325,63 @@ final class RundalePresentationModel: ObservableObject {
                         submissionMessage = error
                     }
                 }
+                sendQueuedBugReports(announcing: pending.reportID)
             } catch {
                 bugReportNotice = "The bug report could not be made. \(error.localizedDescription)"
             }
         }
+    }
+
+    /// Sends every queued report, oldest first, stopping at the first that
+    /// must wait for a connection. `announcing` names the report the player
+    /// just made, whose outcome the notice reports.
+    private func sendQueuedBugReports(announcing reportID: String?) {
+        guard let bugReports, !isSendingBugReports else { return }
+        isSendingBugReports = true
+        Task {
+            defer { isSendingBugReports = false }
+            var attempted = Set<String>()
+            while let next = bugReports.pending.first(where: { !attempted.contains($0.reportID) }) {
+                attempted.insert(next.reportID)
+                let isNew = next.reportID == reportID
+                do {
+                    try await bugReports.send(next)
+                    let notice = isNew ? Self.bugReportSentNotice : Self.earlierBugReportSentNotice
+                    bugReportNotice = notice
+                    accessibilityNotice = notice
+                    if launch.isUITesting {
+                        uiTestBugReport = Self.uiTestSummary(next)
+                    }
+                } catch BugReportSendError.rejected {
+                    if isNew { bugReportNotice = Self.bugReportRejectedNotice }
+                } catch {
+                    if reportID != nil { bugReportNotice = Self.bugReportQueuedNotice }
+                    return
+                }
+            }
+        }
+    }
+
+    private static func uiTestSummary(_ report: PendingBugReport) -> String {
+        let bytes = report.screenshot.flatMap { Data(base64Encoded: $0) }?.count ?? 0
+        return "screenshot bytes: \(bytes)\n\(report.report)"
+    }
+
+    private static func defaultBugReports(_ launch: LaunchConfiguration) -> BugReportOutbox? {
+        guard launch.allowsBugReports else { return nil }
+        let directory = BugReportOutbox.defaultDirectory(isUITesting: launch.isUITesting)
+        if launch.isUITesting {
+            try? FileManager.default.removeItem(at: directory)
+            return BugReportOutbox(directory: directory, transport: RecordingBugReportTransport())
+        }
+        guard let url = launch.bugReportURL else { return nil }
+        return BugReportOutbox(
+            directory: directory,
+            transport: HTTPBugReportTransport(
+                baseURL: url,
+                credentials: FirebaseEndpointCredentialAdapter(provider: FirebaseEndpointCredentialProvider())
+            )
+        )
     }
 
     func dismissBugReportNotice() {
