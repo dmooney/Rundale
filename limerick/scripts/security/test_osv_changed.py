@@ -114,6 +114,24 @@ def test_a_scanner_failure_is_not_a_pass(lockfile):
         osv_changed.main([], broken)
 
 
+def test_a_lockfile_with_no_packages_has_nothing_to_report(lockfile):
+    def empty(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        argv = list(argv)
+        if argv[0] == "osv-scanner":
+            return subprocess.CompletedProcess(
+                argv, 128, "", "No package sources found, --help for usage information."
+            )
+        return FakeRunner([lockfile], head="", base=None)(argv)
+
+    assert osv_changed.main([], empty) == 0
+
+
+def test_the_merge_base_is_computed_once(lockfile):
+    runner = FakeRunner([lockfile], head=report(), base=report())
+    osv_changed.main([], runner)
+    assert sum(call[:2] == ["git", "merge-base"] for call in runner.calls) == 1
+
+
 @pytest.mark.parametrize(
     "path, expected",
     [
