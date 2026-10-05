@@ -46,12 +46,13 @@ class FakeStore implements ReportStore {
   }
 }
 
-function setup(hourlyLimit = 20) {
+async function setup(hourlyLimit = 20, perMinuteLimit = 100) {
   const store = new FakeStore();
-  const app = buildApp({
+  const app = await buildApp({
     authenticator: new ReporterAuthenticator(verifier, [APP_ID]),
     store,
     hourlyLimit,
+    perMinuteLimit,
     now: () => Date.parse("2026-10-05T16:00:00Z"),
   });
   const send = (body: unknown, headers: Record<string, string> = {}) =>
@@ -84,14 +85,14 @@ describe("POST /v1/reports", () => {
     const fixture = JSON.parse(
       readFileSync(new URL("./fixtures/phone-report.json", import.meta.url), "utf8"),
     );
-    const { store, send } = setup();
+    const { store, send } = await setup();
     expect((await send(fixture)).statusCode).toBe(202);
     expect(store.saved[0]?.json.reportId).toBe(fixture.reportId);
     expect(store.saved[0]?.json.screenshot).toBe(true);
   });
 
   it("stores the report and screenshot privately and answers 202", async () => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     const response = await send(report());
     expect(response.statusCode).toBe(202);
     expect(response.json()).toEqual({ reportId: "8d6c1b0e-5a37-4c1e-9d55-0a1f2b3c4d5e" });
@@ -113,27 +114,27 @@ describe("POST /v1/reports", () => {
   });
 
   it("answers a resend over the limit with 429 like any report", async () => {
-    const { store, send } = setup(1);
+    const { store, send } = await setup(1);
     expect((await send(report())).statusCode).toBe(202);
     expect((await send(report())).statusCode).toBe(429);
     expect(store.saved).toHaveLength(1);
   });
 
   it("answers a resend of a stored report with 202", async () => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     expect((await send(report())).statusCode).toBe(202);
     expect((await send(report())).statusCode).toBe(202);
     expect(store.saved).toHaveLength(1);
   });
 
   it("stores a report without a screenshot", async () => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     expect((await send(report({ screenshot: undefined }))).statusCode).toBe(202);
     expect(store.saved[0]?.json.screenshot).toBe(false);
   });
 
   it("answers 503 when storage fails, so the phone keeps the report", async () => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     store.fail = true;
     expect((await send(report())).statusCode).toBe(503);
     store.fail = false;
@@ -147,7 +148,7 @@ describe("POST /v1/reports", () => {
     ["a bad App Check token", { "x-firebase-appcheck": "bad" }],
     ["another app", { "x-firebase-appcheck": "1:1:ios:other" }],
   ])("refuses %s", async (_, headers) => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     expect((await send(report(), headers)).statusCode).toBe(401);
     expect(store.saved).toHaveLength(0);
   });
@@ -160,13 +161,21 @@ describe("POST /v1/reports", () => {
     ["a long description", { description: "x".repeat(2_001) }],
     ["a screenshot that is not PNG", { screenshot: Buffer.from("GIF89a....").toString("base64") }],
   ])("rejects %s", async (_, overrides) => {
-    const { store, send } = setup();
+    const { store, send } = await setup();
     expect((await send(report(overrides))).statusCode).toBe(400);
     expect(store.saved).toHaveLength(0);
   });
 
+  it("limits each address per minute before checking credentials", async () => {
+    const { send } = await setup(20, 2);
+    const forged = { authorization: "Bearer nope" };
+    expect((await send(report(), forged)).statusCode).toBe(401);
+    expect((await send(report(), forged)).statusCode).toBe(401);
+    expect((await send(report(), forged)).statusCode).toBe(429);
+  });
+
   it("limits reports per player per hour", async () => {
-    const { send } = setup(2);
+    const { send } = await setup(2);
     for (const id of ["aaaaaaaa", "bbbbbbbb"])
       expect((await send(report({ reportId: id }))).statusCode).toBe(202);
     expect((await send(report({ reportId: "cccccccc" }))).statusCode).toBe(429);

@@ -1,3 +1,4 @@
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ReporterAuthenticator } from "./auth.js";
 import { parseReport } from "./report.js";
@@ -8,6 +9,8 @@ export interface AppOptions {
   store: ReportStore;
   /** Reports one reporter may send per hour. */
   hourlyLimit: number;
+  /** Requests one address may make per minute, checked before credentials. */
+  perMinuteLimit?: number;
   logger?: boolean;
   now?: () => number;
 }
@@ -23,9 +26,13 @@ const HOUR_MS = 60 * 60 * 1000;
  * limit answers 429, and the phone keeps it for later. Nothing the phone
  * sends is logged.
  */
-export function buildApp(options: AppOptions): FastifyInstance {
+export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const now = options.now ?? Date.now;
-  const app = Fastify({ logger: options.logger ?? false, bodyLimit: BODY_LIMIT });
+  // Cloud Run's front end sets X-Forwarded-For; trust it for the client address.
+  const app = Fastify({ logger: options.logger ?? false, bodyLimit: BODY_LIMIT, trustProxy: true });
+  // Per-address limit before any credential check, so unauthenticated floods
+  // cannot spend Firebase verification calls.
+  await app.register(rateLimit, { max: options.perMinuteLimit ?? 30, timeWindow: "1 minute" });
   const recent = new Map<string, number[]>();
 
   const allowed = (uid: string): boolean => {

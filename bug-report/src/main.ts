@@ -29,7 +29,7 @@ const authenticator = new ReporterAuthenticator(
     .map((id) => id.trim())
     .filter((id) => id.length > 0),
 );
-const app = buildApp({
+const app = await buildApp({
   authenticator,
   store: new BucketReportStore(new Storage().bucket(required("REPORT_BUCKET"))),
   hourlyLimit: Number(process.env.HOURLY_REPORT_LIMIT ?? "20"),
