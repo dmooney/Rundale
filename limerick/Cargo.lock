@@ -3423,6 +3423,7 @@ name = "limerick-mobile-ffi"
 version = "0.1.0"
 dependencies = [
  "limerick-core",
+ "limerick-diagnostics",
  "rand 0.10.3",
  "serde_json",
  "tempfile",
