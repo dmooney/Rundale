@@ -246,6 +246,31 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
         XCTAssertTrue(waitForText("household work allows", timeout: 15))
     }
 
+    /// Spec Milestone 3: asking for someone who is elsewhere is answered
+    /// "not here", never by whoever is present (#2047).
+    func testAskingForSomeoneElsewhereSaysTheyAreNotHere() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        // 08:00: Peig waits on the village road; the Connollys are at home.
+        submit("/wait 60")
+        submit("/people")
+        XCTAssertTrue(waitForText("Letter-office keeper", timeout: 8))
+        hold(3)
+
+        submit("ask Mícheál about the cattle")
+        XCTAssertTrue(waitForText("Mícheál is not here.", timeout: 8))
+        hold(2)
+        submit("Mícheál, how are the cattle?")
+        XCTAssertEqual(rows(containing: "Mícheál is not here.").count, 2)
+        let dialogue = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue'"
+        ))
+        XCTAssertEqual(dialogue.count, 0, "Peig does not answer for Mícheál")
+        XCTAssertFalse(app.buttons["composer.retry"].exists)
+        attach("Asking for Mícheál in the village")
+        hold(5)
+    }
+
     func testTaggedNearbyPersonBypassesClarification() {
         launch(reset: true)
         submit("go to Connolly Cottage")

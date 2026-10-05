@@ -987,6 +987,28 @@ fn resolve_reference_matches_a_family_name_without_an_introduction() {
 }
 
 #[test]
+fn names_someone_elsewhere_only_for_people_not_present() {
+    let mut mgr = NpcManager::new();
+    mgr.add_npc(named_npc(1, "Peig Hannigan", "Postmistress", 2));
+    mgr.add_npc(named_npc(2, "Mícheál Connolly", "Drover", 3));
+
+    for name in ["Mícheál Connolly", "mícheál", "Connolly", " Connolly "] {
+        assert!(mgr.names_someone_elsewhere(name, LocationId(2)), "{name}");
+    }
+    // Present, even before an introduction: never reported absent.
+    for name in ["Peig", "Hannigan", "Peig Hannigan"] {
+        assert!(!mgr.names_someone_elsewhere(name, LocationId(2)), "{name}");
+    }
+    assert!(!mgr.names_someone_elsewhere("Mícheál", LocationId(3)));
+    for words in ["around", "the cattle", "Drover", ""] {
+        assert!(
+            !mgr.names_someone_elsewhere(words, LocationId(2)),
+            "{words:?} names no one"
+        );
+    }
+}
+
+#[test]
 fn resolve_reference_prefers_an_introduced_first_name_over_a_family_name() {
     let mut mgr = NpcManager::new();
     mgr.add_npc(named_npc(1, "Kelly Walsh", "Farmer", 2));

@@ -847,17 +847,13 @@ pub async fn handle_npc_conversation_settled(
         } else {
             // #1493: all named targets are absent. The player may have typed a
             // farewell ("Goodbye, Mary") to someone who has already departed.
-            // Emit the player's own line so it appears in the log, then follow
-            // with a graceful system message so the interaction is not silent.
+            // Emit the player's own line so it appears in the log; the
+            // "{name} is not here." lines above already answer it. No "they've
+            // gone" line: the person named may never have been here.
             if !trimmed.is_empty() {
                 ctx.emitter.emit_event(
                     "text-log",
                     serde_json::to_value(text_log_typed("You", &trimmed, "dialogue"))
-                        .unwrap_or(serde_json::Value::Null),
-                );
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log("system", "They've already gone."))
                         .unwrap_or(serde_json::Value::Null),
                 );
             }

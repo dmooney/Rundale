@@ -506,25 +506,30 @@ pub async fn handle_game_input_settled(
         // A message that opens by addressing a name or role ("Widow, any
         // news?") is spoken to whoever that resolves to, not to whoever is
         // first. A leading word that matches no one ("Well, ...") is not an
-        // address.
+        // address; the name of someone elsewhere is, so the turn says they
+        // are not here.
         let vocative = leading_vocative(&raw)
             .filter(|_| clarify)
             .filter(|vocative| {
                 !matches!(
                     npc_manager.resolve_reference_at(vocative, world.player_location),
                     crate::npc::manager::NpcReference::NotFound
-                )
+                ) || npc_manager.names_someone_elsewhere(vocative, world.player_location)
             })
             .map(str::to_string);
         // "ask Connolly about the household" names who is asked, whatever
-        // the intent model returns for it; words that match no one present
-        // ("ask around if ...") are not an address.
+        // the intent model returns for it. Words that name no one ("ask
+        // around if ...") are not an address; the name of someone elsewhere
+        // is, so the turn says they are not here rather than letting whoever
+        // is present answer for them.
         let asked = asked_addressee(&raw)
             .filter(
                 |asked| match npc_manager.resolve_reference_at(asked, world.player_location) {
                     crate::npc::manager::NpcReference::Unique(_) => true,
                     crate::npc::manager::NpcReference::Ambiguous(_) => clarify,
-                    crate::npc::manager::NpcReference::NotFound => false,
+                    crate::npc::manager::NpcReference::NotFound => {
+                        npc_manager.names_someone_elsewhere(asked, world.player_location)
+                    }
                 },
             )
             .map(str::to_string);

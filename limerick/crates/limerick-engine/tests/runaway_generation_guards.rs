@@ -860,9 +860,12 @@ fn real_loop_known_place_history_not_replaced_by_person_denial() {
 
     h.mock().push_for(&speaker_name, lake_history.to_string());
     let mut rx = h.app.world.event_bus.subscribe();
-    let _events = h.execute_via_real_loop(
-        "Aoife, I never saw a lake this grand. What is the history of Lough Ree?",
-    );
+    // Address the speaker: a vocative naming someone elsewhere is answered
+    // "not here" (#2047), not by whoever is present.
+    let first_name = speaker_name.split_whitespace().next().unwrap();
+    let _events = h.execute_via_real_loop(&format!(
+        "{first_name}, I never saw a lake this grand. What is the history of Lough Ree?"
+    ));
 
     let dialogue_events = drain(&mut rx);
     let shown: Vec<String> = dialogue_events
