@@ -21,7 +21,6 @@ struct PendingBugReport: Codable, Equatable, Sendable {
     }
 }
 
-
 enum BugReportSendError: Error, Equatable {
     /// Worth trying again later: no connection, a timeout, a busy or
     /// failing service, or expired credentials.
