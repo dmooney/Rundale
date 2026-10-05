@@ -325,6 +325,13 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         beginAutomaticStepping()
     }
 
+    /// Fixture sessions have no engine; the report says so, with the
+    /// scene, so a UI test can check what was copied.
+    func bugReport(description: String) async throws -> String {
+        let said = description.isEmpty ? "(no description)" : description
+        return "Rundale bug report\n\(said)\n\nFixture scene: \(currentHeader.location)\n"
+    }
+
     func suggestions(for text: String) -> [CompletionItem] {
         completionRegistry.suggestions(for: text)
     }

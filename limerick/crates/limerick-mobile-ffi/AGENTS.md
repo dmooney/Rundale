@@ -38,3 +38,8 @@ just ios-sim-save-lock                                             # save-lock t
 - **Endpoint definitions are mod files.** `pending_endpoint` reports the slug,
   version, and `stream` flag from `mods/rundale/endpoints/`; see
   [mods/rundale/AGENTS.md](../../../mods/rundale/AGENTS.md) before changing one.
+- **An ignored step leaves the awaited call pending.** `settle` keeps
+  `Session::pending` when the engine answers `TurnStatus::Ignored` (a stale
+  call, attempt, or revision): the engine still waits on the same call.
+  Clearing it made `pending_endpoint` answer `null` while the engine waited,
+  and dropped the real answer from the bug report's exchange log (#2022).

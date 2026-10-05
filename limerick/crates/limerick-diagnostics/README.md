@@ -21,7 +21,13 @@ the lower leaf crates (`limerick-types`, `limerick-config`, `limerick-inference`
   `bug-evidence` release, or, in dry-run / no-token mode, an offline
   disk bundle (`issue.md` + optional `screenshot.png`). `BugReportState`
   folds a world snapshot + a `DebugSnapshot` into the issue body and validates
-  the payload against GitHub's body-size limit before sending.
+  the payload against GitHub's body-size limit before sending. Behind the
+  default `github` feature, with its network, `gh` subprocess, and token
+  lookup.
+- `feedback_report` — the plain-text report an iPhone beta tester pastes into
+  TestFlight feedback (`compose`, at most `FEEDBACK_BUDGET` characters). Pure
+  and portable; `limerick-mobile-ffi` builds this crate without default
+  features to use it ([plan](../../../docs/plans/mobile-bug-report.md)).
 
 ## Dependency inversion
 

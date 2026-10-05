@@ -10,9 +10,10 @@
 //! off on this path (`DIALOGUE_CONTENT_GUARDS_FLAG`): the reply is committed
 //! after structural checks only.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{EndpointInput, InvocationEnvelope};
@@ -39,6 +40,9 @@ use limerick_core::turn_inference::{
     CallReport, FailureReason, InferenceFailureKind, InferenceOutcome, RouteStatus,
 };
 use limerick_core::world::WorldState;
+use limerick_diagnostics::feedback_report::{
+    self, ExchangeOutcome, ExchangeRecord, FeedbackReport, TranscriptLine,
+};
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
@@ -48,6 +52,10 @@ use crate::wire::{self, EventIndex, Provisional};
 pub const MAX_PAGE: usize = 100;
 /// Most requests a snapshot projects (the newest, plus any still open).
 pub const MAX_SNAPSHOT_REQUESTS: usize = 100;
+/// Most answered Endpoint calls a session keeps for a bug report.
+pub const MAX_RECORDED_EXCHANGES: usize = 8;
+/// Most journaled events a bug report reads its transcript from.
+const BUG_REPORT_EVENTS: usize = 40;
 
 /// Why an operation could not be carried out. Nothing changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -221,6 +229,11 @@ pub struct Session {
     /// order, with their speaker label. The committed line takes over its
     /// reply's row, so the final text replaces the streamed text in place.
     streamed: HashMap<ExecutionAttemptId, Vec<(String, Option<String>)>>,
+    /// The newest answered Endpoint calls, oldest first, for a bug report.
+    /// In memory only: a relaunch starts with none.
+    exchanges: VecDeque<ExchangeRecord>,
+    /// When the awaited call was handed to the host.
+    pending_since: Option<Instant>,
     cursor: u64,
     _lock: SaveFileLock,
 }
@@ -317,6 +330,8 @@ impl Session {
             pending: None,
             index: EventIndex::default(),
             streamed: HashMap::new(),
+            exchanges: VecDeque::new(),
+            pending_since: None,
             cursor: 0,
             _lock: lock,
         };
@@ -407,10 +422,17 @@ impl Session {
                 _ => break,
             }
         }
-        self.pending = match &step.status {
+        let next = match &step.status {
             TurnStatus::AwaitingInference(pending) => Some(pending.clone()),
+            // An ignored operation (a stale call, attempt, or revision)
+            // changed nothing: the engine still awaits the same call.
+            TurnStatus::Ignored(_) => self.pending.clone(),
             _ => None,
         };
+        if next.as_ref().map(|p| &p.id) != self.pending.as_ref().map(|p| &p.id) {
+            self.pending_since = next.as_ref().map(|_| Instant::now());
+        }
+        self.pending = next;
         self.observe(&events);
         Ok(self.result(&step, events, accepted))
     }
@@ -646,6 +668,14 @@ impl Session {
                 .or_default()
                 .push(row);
         }
+        self.record_exchange(
+            call_id,
+            attempt_id,
+            base_revision,
+            ExchangeOutcome::Completed {
+                output: output.to_string(),
+            },
+        );
         let outcome = InferenceOutcome::Completed {
             text: output.to_string(),
             report: self.report(),
@@ -666,6 +696,19 @@ impl Session {
         message: String,
         reason: Option<FailureReason>,
     ) -> Result<Value, OpError> {
+        let described = match reason {
+            Some(reason) => format!("{}/{}", failure_kind_key(kind), reason.key()),
+            None => failure_kind_key(kind).to_string(),
+        };
+        self.record_exchange(
+            call_id,
+            attempt_id,
+            base_revision,
+            ExchangeOutcome::Failed {
+                kind: described,
+                message: message.clone(),
+            },
+        );
         let outcome = InferenceOutcome::Failed {
             kind,
             message,
@@ -678,6 +721,133 @@ impl Session {
         let ctx = self.live.ctx();
         let step = self.runtime.block_on(self.engine.resume(&ctx, resolution));
         self.settle(step, false)
+    }
+
+    /// Keeps an answer to the awaited Endpoint call for a bug report. An
+    /// answer to anything else is ignored by the engine and not recorded.
+    fn record_exchange(
+        &mut self,
+        call_id: &str,
+        attempt_id: &str,
+        base_revision: u64,
+        outcome: ExchangeOutcome,
+    ) {
+        let Some(pending) = self.pending.as_ref().filter(|pending| {
+            pending.id.as_str() == call_id
+                && pending.attempt_id.as_str() == attempt_id
+                && pending.base_revision.0 == base_revision
+        }) else {
+            return;
+        };
+        let Some(endpoint) = &pending.call.endpoint else {
+            return;
+        };
+        let asked = match &endpoint.input {
+            EndpointInput::Dialogue(input) => format!(
+                "{} at {}: {}",
+                input.speaker.display_name, input.current_location.display_name, input.player_input
+            ),
+            EndpointInput::Intent(input) => input.player_input.clone(),
+        };
+        let record = ExchangeRecord {
+            endpoint: format!(
+                "{}.v{}",
+                endpoint.reference.slug, endpoint.reference.version
+            ),
+            duration_ms: self
+                .pending_since
+                .map(|since| u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)),
+            asked,
+            outcome,
+        };
+        if self.exchanges.len() == MAX_RECORDED_EXCHANGES {
+            self.exchanges.pop_front();
+        }
+        self.exchanges.push_back(record);
+    }
+
+    /// The bounded plain-text report a beta tester pastes into TestFlight
+    /// feedback (#2022). Reads only: nothing is journaled and no state
+    /// changes.
+    pub fn bug_report(&self, description: &str, build: Option<String>) -> Result<Value, OpError> {
+        let (events, _) = self
+            .journal
+            .events_before(u64::MAX, BUG_REPORT_EVENTS)
+            .map_err(OpError::storage)?;
+        let transcript = events
+            .iter()
+            .filter_map(|event| {
+                let text = event.event.content.as_deref()?.trim();
+                if text.is_empty() {
+                    return None;
+                }
+                let speaker = match event.event.kind {
+                    TranscriptEventKind::PlayerCommand => {
+                        return Some(TranscriptLine {
+                            speaker: None,
+                            from_player: true,
+                            text: text.to_string(),
+                        });
+                    }
+                    TranscriptEventKind::NpcDialogue | TranscriptEventKind::ActionResult => {
+                        event.event.speaker.clone()
+                    }
+                    TranscriptEventKind::Narration
+                    | TranscriptEventKind::SceneChanged
+                    | TranscriptEventKind::ClarificationRequired
+                    | TranscriptEventKind::Error => None,
+                    _ => return None,
+                };
+                Some(TranscriptLine {
+                    speaker,
+                    from_player: false,
+                    text: text.to_string(),
+                })
+            })
+            .collect();
+        let (scene, time_of_day, weather, present) = self.runtime.block_on(async {
+            let world = self.live.world.lock().await;
+            let npcs = self.live.npc_manager.lock().await;
+            let mut people: Vec<_> = npcs.npcs_at(world.player_location);
+            people.sort_by_key(|npc| npc.id.0);
+            (
+                world.current_location().name.clone(),
+                world.clock.time_of_day().to_string(),
+                world.weather.to_string(),
+                people
+                    .iter()
+                    .map(|npc| capitalize_first(npcs.display_name(npc)))
+                    .collect::<Vec<_>>(),
+            )
+        });
+        let open_request = match (&self.pending, self.engine.open_request()) {
+            (Some(pending), _) => Some(match &pending.call.endpoint {
+                Some(endpoint) => format!(
+                    "waiting on {}.v{}",
+                    endpoint.reference.slug, endpoint.reference.version
+                ),
+                None => "waiting on a model call".to_string(),
+            }),
+            (None, Some(_)) => Some("waiting on the player's answer".to_string()),
+            (None, None) => None,
+        };
+        let report = FeedbackReport {
+            description: description.to_string(),
+            build,
+            contract_version: format!("{}.{}", wire::CONTRACT_VERSION.0, wire::CONTRACT_VERSION.1),
+            scene,
+            time_of_day,
+            weather,
+            present,
+            open_request,
+            transcript,
+            exchanges: self.exchanges.iter().cloned().collect(),
+        };
+        let text = feedback_report::compose(&report, feedback_report::FEEDBACK_BUDGET);
+        Ok(json!({
+            "text": text,
+            "characters": text.chars().count(),
+        }))
     }
 
     /// The label a dialogue call's committed line carries: the speaker as
@@ -966,5 +1136,15 @@ fn failure_message(step: &TurnStep, events: &[TranscriptEvent]) -> Option<String
             .find(|event| event.event.kind == TranscriptEventKind::Error)
             .and_then(|event| event.event.content.clone()),
         _ => None,
+    }
+}
+
+/// The FFI spelling of a failure kind, as the host sends it.
+fn failure_kind_key(kind: InferenceFailureKind) -> &'static str {
+    match kind {
+        InferenceFailureKind::Transport => "transport",
+        InferenceFailureKind::Protocol => "protocol",
+        InferenceFailureKind::TimedOut => "timed_out",
+        InferenceFailureKind::Interrupted => "interrupted",
     }
 }

@@ -4,7 +4,15 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 publish = false
-description = "Backend-agnostic diagnostics for Limerick: debug-snapshot builders and bug-report orchestration"
+description = "Backend-agnostic diagnostics for Limerick: debug-snapshot builders, bug-report orchestration, and the TestFlight feedback report"
+
+[features]
+# `github` (default) is the desktop bug reporter: GitHub issue filing, the
+# token lookup (env and the `gh` CLI subprocess), and the offline bundle. A
+# portable build (the iPhone engine) turns it off and keeps the debug snapshot
+# and the TestFlight feedback report.
+default = ["github"]
+github = ["dep:reqwest", "dep:uuid", "dep:base64", "dep:tokio", "dep:thiserror", "dep:tracing"]
 
 [dependencies]
 limerick-types = { workspace = true }
@@ -12,17 +20,17 @@ limerick-config = { workspace = true }
 limerick-inference = { workspace = true }
 limerick-world = { workspace = true }
 limerick-npc = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, optional = true }
 # reqwest stays a direct dep: bug_report.rs makes its own GitHub REST calls
 # (issue create + screenshot upload). Only the `json` feature is needed.
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-uuid = { workspace = true }
-base64 = "0.23"
+thiserror = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+base64 = { version = "0.23", optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

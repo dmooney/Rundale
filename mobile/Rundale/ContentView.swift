@@ -64,6 +64,10 @@ struct ContentView: View {
                         .accessibilityIdentifier("composer.error")
                 }
 
+                if let notice = model.bugReportNotice {
+                    BugReportNotice(notice: notice) { model.dismissBugReportNotice() }
+                }
+
                 CompletionStrip(model: model, compactLayout: constrained)
                 ClarificationStrip(model: model, compactLayout: constrained)
                 Composer(
@@ -88,6 +92,12 @@ struct ContentView: View {
                         .accessibilityLabel("Transcript trace")
                         .accessibilityValue(model.uiTestTranscriptTrace)
                         .accessibilityIdentifier("uitest.transcriptTrace")
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel("Bug report")
+                        .accessibilityValue(model.uiTestBugReport)
+                        .accessibilityIdentifier("uitest.bugReport")
                 }
             }
         }
@@ -100,6 +110,11 @@ struct ContentView: View {
             followsNewest = model.initialFollowsNewest
             hasNewText = model.initialUnreadCount > 0 && !followsNewest
             model.start()
+            if model.launch.allowsBugReports {
+                // A shake reports a bug; without this, a shake while typing
+                // would also offer to undo the typing.
+                UIApplication.shared.applicationSupportsShakeToEdit = false
+            }
             if model.launch.autoFocusComposer {
                 composerFocused = true
             }
@@ -118,6 +133,9 @@ struct ContentView: View {
                 hasNewText = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .rundaleDeviceDidShake)) { _ in
+            model.reportBug()
+        }
         .onChange(of: model.accessibilityNotice) { _, notice in
             guard let notice, !notice.isEmpty else { return }
             UIAccessibility.post(notification: .announcement, argument: notice)
@@ -131,6 +149,33 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(model.launch.forceDarkAppearance ? .dark : nil)
+    }
+}
+
+/// What the last bug report did, until the player dismisses it or sends
+/// their next command.
+private struct BugReportNotice: View {
+    let notice: String
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(notice)
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // The transcript's layout priority would otherwise squeeze
+                // the instructions to one truncated line.
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("bugReport.notice")
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+            }
+            .accessibilityLabel("Dismiss")
+            .accessibilityIdentifier("bugReport.dismiss")
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
     }
 }
 

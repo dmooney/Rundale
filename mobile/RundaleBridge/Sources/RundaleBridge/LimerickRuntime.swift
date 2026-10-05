@@ -281,6 +281,16 @@ public actor LimerickRuntime: SessionAdapter {
         )
     }
 
+    /// The plain-text bug report a beta tester pastes into TestFlight
+    /// feedback (#2022): scene, recent transcript, and the Endpoint calls
+    /// answered since launch, bounded to fit the comment. Reads only; the
+    /// engine journals nothing and no state changes.
+    public func bugReport(description: String, build: String?) throws -> String {
+        var operation: [String: Any] = ["op": "bug_report", "description": description]
+        if let build { operation["build"] = build }
+        return try decodeValue(LimerickBugReport.self, from: dispatch(operation)).text
+    }
+
     /// The model call the engine is waiting for, or `nil`.
     public func pendingInvocation() throws -> LimerickPendingInvocation? {
         try LimerickPendingInvocation.decode(pendingEndpointJSON())
@@ -569,6 +579,11 @@ public actor LimerickRuntime: SessionAdapter {
     private func throwIfNeeded(_ status: limerick_mobile_status_t, response: Data) throws {
         try Self.throwIfNeeded(status, response: response)
     }
+}
+
+/// The engine's `bug_report` result.
+struct LimerickBugReport: Decodable, Sendable {
+    let text: String
 }
 
 public struct LimerickEventPage: Decodable, Sendable {

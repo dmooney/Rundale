@@ -321,6 +321,10 @@ fn run_operation(session: &mut Session, object: &Map<String, Value>) -> Result<V
         "read_event_page_before" => {
             session.events_before(required_number(object, "before")?, limit(object)?)
         }
+        "bug_report" => session.bug_report(
+            &optional_string(object, "description")?.unwrap_or_default(),
+            optional_string(object, "build")?,
+        ),
         other => Err(OpError::new(
             "protocol_error",
             format!("unknown operation `{other}`"),

@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import RundaleKit
+import UIKit
 
 struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     let id: String
@@ -58,10 +59,21 @@ final class RundalePresentationModel: ObservableObject {
     /// a small screen, so tests read this record instead of racing the poll or
     /// depending on the viewport.
     @Published private(set) var uiTestTranscriptTrace = "[]"
+    /// What the last bug report did: copied, or why it could not be made.
+    @Published private(set) var bugReportNotice: String?
+    /// UI-test-only: the last report copied. Reading the pasteboard from the
+    /// test runner would raise the paste permission prompt.
+    @Published private(set) var uiTestBugReport = ""
     @Published var draft: String
+
+    /// The command that copies a bug report in beta builds.
+    static let bugCommandWord = "/bug"
+    static let bugReportCopiedNotice = "Bug report copied. Take a screenshot, send it as "
+        + "TestFlight feedback, and paste the report into the comment."
 
     let launch: LaunchConfiguration
     private let session: any RundaleSessionControlling
+    private let copyToPasteboard: @MainActor (String) -> Void
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
     private var transcriptTraceEntries: [UITestTranscriptTraceEntry] = []
@@ -81,8 +93,10 @@ final class RundalePresentationModel: ObservableObject {
     var initialTranscriptAnchor: TranscriptAnchor? { session.state.viewport.anchor }
 
     init(launch: LaunchConfiguration,
-         session: (any RundaleSessionControlling)? = nil) {
+         session: (any RundaleSessionControlling)? = nil,
+         copyToPasteboard: @escaping @MainActor (String) -> Void = { UIPasteboard.general.string = $0 }) {
         self.launch = launch
+        self.copyToPasteboard = copyToPasteboard
         if let session {
             self.session = session
         } else if launch.phase2 {
@@ -188,9 +202,16 @@ final class RundalePresentationModel: ObservableObject {
 
     func submitDraft() {
         let command = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `/bug` is the app's own command: it reports, even while a reply
+        // streams, and never reaches the engine as a turn.
+        if launch.allowsBugReports, let description = Self.bugDescription(in: command) {
+            reportBug(description: description, clearingDraft: draft)
+            return
+        }
         guard !command.isEmpty, !isStreaming, allowsSubmission else { return }
 
         submissionMessage = nil
+        bugReportNotice = nil
         let sourceDraftID = session.state.draft.id
         activeSourceDraftID = sourceDraftID
         let sourceDraftRevision = draftRevision
@@ -248,6 +269,50 @@ final class RundalePresentationModel: ObservableObject {
                 refreshFromSession()
             }
         }
+    }
+
+    /// The description after `/bug`, or `nil` when `command` is not `/bug`.
+    static func bugDescription(in command: String) -> String? {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().hasPrefix(bugCommandWord) else { return nil }
+        let rest = trimmed.dropFirst(bugCommandWord.count)
+        guard rest.first.map(\.isWhitespace) ?? true else { return nil }
+        return rest.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Copies a bug report for TestFlight feedback (#2022): from `/bug`, or
+    /// from shaking the phone. A typed `/bug` draft is cleared once copied,
+    /// unless the player has changed it since; a shake leaves the draft alone.
+    func reportBug(description: String = "", clearingDraft sourceDraft: String? = nil) {
+        guard launch.allowsBugReports else { return }
+        let sourceRevision = draftRevision
+        Task {
+            do {
+                let report = try await session.bugReport(description: description)
+                copyToPasteboard(report)
+                if launch.isUITesting {
+                    uiTestBugReport = report
+                }
+                bugReportNotice = Self.bugReportCopiedNotice
+                accessibilityNotice = Self.bugReportCopiedNotice
+                if let sourceDraft, draftRevision == sourceRevision, draft == sourceDraft {
+                    draft = ""
+                    draftRevision &+= 1
+                    completionBrowser = nil
+                    completions = []
+                    session.updateDraft("")
+                    if let error = session.persistDraft("") {
+                        submissionMessage = error
+                    }
+                }
+            } catch {
+                bugReportNotice = "The bug report could not be made. \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func dismissBugReportNotice() {
+        bugReportNotice = nil
     }
 
     var canRetry: Bool {
