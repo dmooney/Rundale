@@ -41,11 +41,15 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fixture.step"].exists)
     }
 
+    /// The row lies wholly inside the transcript viewport, which ends above
+    /// the composer and keyboard. No `isHittable` check: a streaming row's
+    /// label changes with each chunk, and querying hittability as the next
+    /// chunk replaces it fails with "activation point invalid" instead of
+    /// returning false.
     private func assertVisible(_ element: XCUIElement) {
         XCTAssertTrue(wait { element.exists && element.frame.minY >= self.scroll.frame.minY - 2
                 && element.frame.maxY <= self.scroll.frame.maxY + 2
         })
-        XCTAssertTrue(element.isHittable)
     }
 
     func testAutomaticChunksStayVisibleAndCompleteWithoutNext() {
