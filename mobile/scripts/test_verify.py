@@ -916,6 +916,47 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["mobile-dependency-graph"]["status"], "failed")
             self.assertIn("limerick-engine", by_id["mobile-dependency-graph"]["reason"])
 
+    def test_phase2_dependency_gate_rejects_desktop_features_but_allows_portable_diagnostics(self):
+        cases = {
+            # limerick-diagnostics without its features is portable (#2022).
+            "limerick-mobile-ffi v0.1.0\n"
+            "├── limerick-diagnostics v0.1.0\n"
+            '├── limerick-core feature "mobile"\n': [],
+            "limerick-mobile-ffi v0.1.0\n"
+            '├── limerick-diagnostics feature "default"\n'
+            '│   └── limerick-diagnostics feature "github"\n': [
+                "limerick-diagnostics/default",
+                "limerick-diagnostics/github",
+            ],
+            "limerick-mobile-ffi v0.1.0\n"
+            '├── limerick-core feature "desktop"\n'
+            '│   └── limerick-inference feature "desktop"\n'
+            "│   └── limerick-chronicle v0.1.0\n": [
+                "limerick-chronicle",
+                "limerick-core/desktop",
+                "limerick-inference/desktop",
+            ],
+        }
+        for tree, forbidden in cases.items():
+            with self.subTest(forbidden=forbidden), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "mobile").mkdir()
+                create_phase2_fixture(root)
+                fake = FakeRunner()
+                fake.cargo_tree_output = tree
+                report = VerificationRun(root, command_runner=fake).run(2)
+
+                graph = {suite["id"]: suite for suite in report["suites"]}[
+                    "mobile-dependency-graph"
+                ]
+                if forbidden:
+                    self.assertEqual(graph["status"], "failed")
+                    self.assertEqual(graph["details"]["forbidden_found"], forbidden)
+                else:
+                    self.assertEqual(graph["status"], "passed", graph.get("reason"))
+                tree_command = next(call["argv"] for call in fake.calls if "tree" in call["argv"])
+                self.assertIn("normal,features", tree_command)
+
     def test_phase2_missing_packaging_script_is_blocking(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

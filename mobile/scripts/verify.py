@@ -88,9 +88,18 @@ FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-server",
     "limerick-tauri",
     "limerick-editor",
-    "limerick-diagnostics",
+    "limerick-chronicle",
     "tauri",
     "axum",
+)
+# Desktop-only features of crates the phone may link. `limerick-diagnostics`
+# is portable without its `github` feature (GitHub filing, the `gh` subprocess,
+# token lookup); its default enables it (#2022).
+FORBIDDEN_MOBILE_FEATURES = (
+    ("limerick-core", "desktop"),
+    ("limerick-inference", "desktop"),
+    ("limerick-diagnostics", "github"),
+    ("limerick-diagnostics", "default"),
 )
 
 
@@ -1114,7 +1123,7 @@ class VerificationRun:
             "-p",
             "limerick-mobile-ffi",
             "--edges",
-            "normal",
+            "normal,features",
         ]
         record = self._run(
             identifier="mobile-dependency-graph",
@@ -1122,15 +1131,25 @@ class VerificationRun:
             phase=2,
             command=command,
             env=self._rust_env(),
-            details={"forbidden_dependencies": list(FORBIDDEN_MOBILE_DEPENDENCIES)},
+            details={
+                "forbidden_dependencies": list(FORBIDDEN_MOBILE_DEPENDENCIES),
+                "forbidden_features": [f"{c}/{f}" for c, f in FORBIDDEN_MOBILE_FEATURES],
+            },
         )
         if record["status"] != PASSED:
             return
         output = self.results[record["id"]].output
         found = sorted(
-            dependency
-            for dependency in FORBIDDEN_MOBILE_DEPENDENCIES
-            if re.search(rf"\b{re.escape(dependency)}\b", output)
+            [
+                dependency
+                for dependency in FORBIDDEN_MOBILE_DEPENDENCIES
+                if re.search(rf"\b{re.escape(dependency)}\b", output)
+            ]
+            + [
+                f"{crate}/{feature}"
+                for crate, feature in FORBIDDEN_MOBILE_FEATURES
+                if re.search(rf"\b{re.escape(crate)} feature \"{re.escape(feature)}\"", output)
+            ]
         )
         if not output.strip():
             self._change(record, FAILED, "cargo tree produced no dependency graph")
@@ -1138,7 +1157,7 @@ class VerificationRun:
             self._change(
                 record,
                 FAILED,
-                f"portable dependency graph contains forbidden crate(s): {', '.join(found)}",
+                f"portable dependency graph contains forbidden crate(s) or feature(s): {', '.join(found)}",
                 {"forbidden_found": found},
             )
         else:
