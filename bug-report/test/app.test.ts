@@ -174,6 +174,17 @@ describe("POST /v1/reports", () => {
     expect((await send(report(), forged)).statusCode).toBe(429);
   });
 
+  it("keys the address limit on the front end's entry, not a client's", async () => {
+    const { send } = await setup(20, 2);
+    const from = (spoofed: string) => ({
+      authorization: "Bearer nope",
+      "x-forwarded-for": `${spoofed}, 203.0.113.7`,
+    });
+    expect((await send(report(), from("10.0.0.1"))).statusCode).toBe(401);
+    expect((await send(report(), from("10.0.0.2"))).statusCode).toBe(401);
+    expect((await send(report(), from("10.0.0.3"))).statusCode).toBe(429);
+  });
+
   it("limits reports per player per hour", async () => {
     const { send } = await setup(2);
     for (const id of ["aaaaaaaa", "bbbbbbbb"])

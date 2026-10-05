@@ -28,8 +28,14 @@ const HOUR_MS = 60 * 60 * 1000;
  */
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const now = options.now ?? Date.now;
-  // Cloud Run's front end sets X-Forwarded-For; trust it for the client address.
-  const app = Fastify({ logger: options.logger ?? false, bodyLimit: BODY_LIMIT, trustProxy: true });
+  // Cloud Run's front end is one proxy hop and appends the real client
+  // address last in X-Forwarded-For. Trusting exactly one hop takes that entry;
+  // anything a client put earlier in the header is ignored.
+  const app = Fastify({
+    logger: options.logger ?? false,
+    bodyLimit: BODY_LIMIT,
+    trustProxy: (_address, hop) => hop === 0,
+  });
   // Per-address limit before any credential check, so unauthenticated floods
   // cannot spend Firebase verification calls.
   await app.register(rateLimit, { max: options.perMinuteLimit ?? 30, timeWindow: "1 minute" });
