@@ -1408,3 +1408,122 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
         "{schedule}"
     );
 }
+
+fn bug_report(game: &Game, description: &str) -> String {
+    let report = game.op(json!({
+        "op": "bug_report",
+        "description": description,
+        "build": "0.1 (42)",
+    }));
+    let text = report["text"].as_str().unwrap().to_string();
+    assert_eq!(
+        report["characters"].as_u64().unwrap() as usize,
+        text.chars().count()
+    );
+    assert!(text.chars().count() <= limerick_diagnostics::feedback_report::FEEDBACK_BUDGET);
+    text
+}
+
+/// What a bug report must leave alone: the journal, the revision, and the
+/// requests (#2022).
+fn untouched(game: &Game) -> (Value, Value, Value) {
+    let snapshot = game.snapshot();
+    (
+        snapshot["eventCursor"].clone(),
+        snapshot["stateRevision"].clone(),
+        snapshot["requests"].clone(),
+    )
+}
+
+#[test]
+fn a_bug_report_carries_the_scene_transcript_and_answered_calls_and_changes_nothing() {
+    let (game, _) = Game::new();
+    game.go_to_the_cottage();
+    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let dialogue = game.until_dialogue(submitted);
+
+    // A stale answer is ignored by the engine and must not be reported.
+    game.op(json!({
+        "op": "fail",
+        "call_id": dialogue["callID"],
+        "attempt_id": dialogue["attemptID"],
+        "base_revision": dialogue["baseRevision"]["rawValue"].as_u64().unwrap() + 7,
+        "error_kind": "transport",
+        "message": "stale",
+    }));
+    assert_eq!(
+        game.pending()["callID"],
+        dialogue["callID"],
+        "a stale answer leaves the awaited call pending"
+    );
+    let waiting = bug_report(&game, "");
+    assert!(
+        waiting.contains("Open request: waiting on rundale-dialogue.v1\n"),
+        "{waiting}"
+    );
+    assert!(!waiting.contains("stale"), "{waiting}");
+
+    game.op(json!({
+        "op": "fail",
+        "call_id": dialogue["callID"],
+        "attempt_id": dialogue["attemptID"],
+        "base_revision": dialogue["baseRevision"],
+        "error_kind": "timed_out",
+        "reason": "offline",
+        "message": "the network went away",
+    }));
+
+    let before = untouched(&game);
+    let text = bug_report(&game, "Mícheál never answered");
+    assert_eq!(untouched(&game), before, "a bug report changes nothing");
+
+    assert!(
+        text.starts_with("Rundale bug report\nMícheál never answered\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Build: 0.1 (42) · engine contract 1.0\n"),
+        "{text}"
+    );
+    assert!(text.contains("Scene: Connolly Cottage · "), "{text}");
+    assert!(!text.contains("Open request:"), "the request ended: {text}");
+    assert!(
+        text.contains("> Mícheál, how are the cattle this week?\n"),
+        "the player's words: {text}"
+    );
+    assert!(
+        text.contains("- rundale-intent.v1 "),
+        "the intent call: {text}"
+    );
+    assert!(
+        text.contains("failed (timed_out/offline)\n"),
+        "the dialogue failure: {text}"
+    );
+    assert!(text.contains("error: the network went away\n"), "{text}");
+    assert!(
+        text.contains("asked: Mícheál Connolly at Connolly Cottage: "),
+        "who was asked, and where: {text}"
+    );
+}
+
+#[test]
+fn a_bug_report_after_relaunch_keeps_the_transcript_but_no_calls() {
+    let (mut game, _) = Game::new();
+    game.go_to_the_cottage();
+    let submitted = game.submit("Mícheál, how are the cattle this week?");
+    let dialogue = game.until_dialogue(submitted);
+    game.resolve(&dialogue, json!({"dialogue": CATTLE_LINE}));
+    assert!(bug_report(&game, "").contains("rundale-dialogue.v1"));
+
+    game.relaunch();
+    let text = bug_report(&game, "");
+    assert!(
+        text.contains("Rundale bug report\n(no description)\n"),
+        "{text}"
+    );
+    assert!(text.contains(CATTLE_LINE), "the journal survives: {text}");
+    assert!(
+        text.ends_with("\nEndpoint calls since launch: none\n"),
+        "calls are kept in memory only: {text}"
+    );
+}
