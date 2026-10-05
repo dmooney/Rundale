@@ -19,6 +19,14 @@ to follow App Store Connect's existing builds. Check the actual uploaded number
 before reporting it to the user. Applicable feature-specific
 checks and save compatibility checks still apply.
 
+Before the upload, `testflight-update` also exports the archive locally as a
+distribution-signed `.ipa` (`mobile/.build/release/distribution-export/`) and
+checks that copy: one app, an Apple Distribution signature that `codesign`
+verifies, the expected build number and bundle metadata, and no provider or
+Endpoint credential anywhere in the bundle. The upload export re-signs the
+same archive the same way but keeps no local copy, so this is the inspectable
+form of what TestFlight receives. A failed check stops the upload.
+
 Both commands write logs and build products under ignored mobile output paths.
 Use `just mobile-build --dry-run` or `just testflight-update --dry-run` to preview
 the commands without building, editing the version, or uploading. The commands
