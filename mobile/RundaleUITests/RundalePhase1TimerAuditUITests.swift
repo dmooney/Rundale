@@ -45,10 +45,14 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
     /// the composer and keyboard. No `isHittable` check: a streaming row's
     /// label changes with each chunk, and querying hittability as the next
     /// chunk replaces it fails with "activation point invalid" instead of
-    /// returning false.
+    /// returning false. The row is re-queried by its stable identifier: a
+    /// streaming row keeps its identifier while each chunk replaces its
+    /// label, so a label query can stop resolving between the existence and
+    /// frame reads.
     private func assertVisible(_ element: XCUIElement) {
-        XCTAssertTrue(wait { element.exists && element.frame.minY >= self.scroll.frame.minY - 2
-                && element.frame.maxY <= self.scroll.frame.maxY + 2
+        let stable = app.descendants(matching: .any).matching(identifier: element.identifier).firstMatch
+        XCTAssertTrue(wait { stable.exists && stable.frame.minY >= self.scroll.frame.minY - 2
+                && stable.frame.maxY <= self.scroll.frame.maxY + 2
         })
     }
 
