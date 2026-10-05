@@ -3,8 +3,9 @@
 > Status: Accepted · Created: 2026-09-25 · Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md)
 
 Put the iPhone app on the shared Limerick engine and remove the parallel mobile
-runtime that grew on `ios-port`. Fix before adding: mobile feature work stays
-frozen until Mobile Phase 4 exits. Each step is one logical change with its own PR.
+runtime that grew on `ios-port`. Fix before adding: mobile feature work stayed
+frozen until Mobile Phase 5 re-accepted spec Milestones 1–3 on the new line; the
+freeze was lifted on 2026-10-04 (#2048). Each step is one logical change with its own PR.
 Desktop tests and the harness walkthrough stay green at every step.
 
 ## Tracking
@@ -25,8 +26,8 @@ the issues record what depends on what. Refer to work by issue number.
 | 8            | [Living-world proof](https://github.com/dmooney/Rundale/milestone/7) (spec Milestone 5)               | Phase 6                         |
 | 9            | [Controlled expansion](https://github.com/dmooney/Rundale/milestone/8) (spec Milestone 6)             | Phase 8                         |
 
-Mobile Phase 7 holds the player-facing features deferred by the feature freeze; they
-start once Mobile Phase 5 lifts it.
+Mobile Phase 7 holds the player-facing features deferred by the feature freeze. Mobile
+Phase 5 lifted the freeze on 2026-10-04, so they can start.
 
 "Milestone N" in the [product specification](../product-specs/product-technical-spec.md)
 §17, and "Phase N" in the test plans, audits, and `just mobile-verify --phase N`, mean
@@ -34,8 +35,10 @@ product spec Milestone N, not Mobile Phase N.
 
 ## Where things stand
 
-- `main` has the engine and the reset specs, but no `mobile/` or `endpoints/`
-  directories.
+- `main` carries the engine, the reset specs, the SwiftUI app under `mobile/`,
+  and the Endpoints service under `endpoints/` (Mobile Phase 4). Spec Milestones
+  1–3 were re-accepted on this line on 2026-10-04
+  ([results](../test-plans/results/2026-10-04-milestones-1-3-reacceptance.md)).
 - Mobile Phase 1 (portable turn API) and Mobile Phase 2 (one save system) are
   built on `main`: the `TurnEngine` and `InProcessTurns` drive server, Tauri,
   and the MCP bridge; the save database journals requests and transcript
@@ -44,16 +47,16 @@ product spec Milestone N, not Mobile Phase N.
   headless REPL still runs its own pipeline (#2023, outside this plan), and the
   background-inference host seam (#2025) is postponed to Mobile Phase 8. See
   [the design doc](../design/portable-turn-api.md) for the as-built API.
-- `ios-port` has a working SwiftUI app, the Swift/Rust boundary (FFI), the
-  Endpoints service, and verification and release tooling. These sit on a
-  mobile-only runtime:
+- `ios-port` is archived as the tag `archive/ios-port` (2026-10-04, #2048) and
+  is no longer updated. Its app, FFI, Endpoints service, and tooling were
+  carried to `main`; its mobile-only runtime was not:
   - `limerick-core/src/mobile`: turn pipeline, parser, world builder;
   - `limerick-persistence/src/mobile`: second save store;
   - `mobile/content/phase3-tiny-world.json`: third content format.
 - Limerick Endpoints is deployed in the dedicated `limerick-prod` project. It
-  serves `rundale-dialogue` v1 and v2 and `rundale-intent` v1, and the live
-  simulator suite passes against it. TestFlight build 10 comes from the
-  `ios-port` line.
+  serves v1 of `rundale-dialogue` and `rundale-intent`, published from
+  `mods/rundale/endpoints/`, and the live simulator suite passes against it. TestFlight
+  builds come from `main`.
 - The owner's TestFlight save is test data and may be discarded. On the device,
   reinstalling the app starts fresh.
 
@@ -228,12 +231,15 @@ Exit:
 - The live Endpoint suite passes against `limerick-prod`.
 - A TestFlight build from the new line is uploaded.
 
-## Mobile Phase 5: re-audit, then resume features
+## Mobile Phase 5: re-audit, then resume features (done)
 
-Issues: #2047, #2048.
+Issues: #2047, #2048. Results: [re-acceptance of spec Milestones 1–3](../test-plans/results/2026-10-04-milestones-1-3-reacceptance.md).
+The owner waived the physical-device checks on 2026-10-04 and accepted
+simulator evidence. `ios-port` is tagged `archive/ios-port`, and the feature
+freeze is lifted.
 
 - Re-run spec Milestones 1–3 on the new line: automated gates first, then the
-  deferred physical-device checks.
+  deferred physical-device checks (waived by the owner on 2026-10-04).
 - Re-base the `ios-port` audits of spec Milestones 1 and 2 (#1990, #1992; open
   findings carried to #2047) on the new line, and close findings that no longer
   apply.

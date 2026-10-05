@@ -36,7 +36,7 @@ The Product & Technical Specification defines a native iPhone experience: SwiftU
 
 - Shared game behavior is composed through limerick-core and its leaf crates under limerick/crates/, including world, input, NPC, inference, persistence, and type layers. limerick-engine is a thin headless/CLI entry point, not a second copy of the engine.
 - The desktop frontend is the Svelte 5 application under limerick/apps/ui/, hosted by limerick-tauri; limerick-server provides the Axum HTTP/WebSocket server; limerick-client is a thin HTTP client.
-- The SwiftUI app, Swift/Rust boundary, Limerick Endpoints service, and mobile verification tooling were first built on the `ios-port` branch on top of a mobile-only runtime. They are being brought onto `main` in the order set by the [convergence plan](../plans/mobile-engine-convergence.md). `ios-port`'s runtime, save store, and content bundle are not carried over.
+- The SwiftUI app, Swift/Rust boundary, Limerick Endpoints service, and mobile verification tooling were first built on the `ios-port` branch on top of a mobile-only runtime. They now live on `main`, brought over in the order set by the [convergence plan](../plans/mobile-engine-convergence.md); `ios-port` is archived as the tag `archive/ios-port`. Its runtime, save store, and content bundle were not carried over.
 - Existing local inference and desktop setup paths include provider, process, and server concerns that the iOS runtime must not inherit. The `desktop` / `mobile` Cargo features separate them, and CI builds the mobile configuration.
 
 ## Boundary map
