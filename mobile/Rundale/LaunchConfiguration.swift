@@ -7,6 +7,7 @@ struct LaunchConfiguration: Sendable {
     private enum BundleKey {
         static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
+        static let betaFeedback = "RUNDALE_BETA_FEEDBACK"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -48,6 +49,12 @@ struct LaunchConfiguration: Sendable {
     /// its own Endpoint slug and version (the engine reads them from the
     /// world's Endpoint definitions).
     let endpointOrganization: String
+    /// Beta builds offer `/bug` and shake-to-report, which copy a report for
+    /// TestFlight feedback (#2022). Set by the `RUNDALE_BETA_FEEDBACK` build
+    /// setting; an App Store build sets it to NO.
+    let allowsBugReports: Bool
+    /// The app's version and build, as a bug report names them.
+    let buildDescription: String?
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
          environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -91,6 +98,14 @@ struct LaunchConfiguration: Sendable {
         endpointOrganization = Self.configuredValue(BundleKey.endpointOrganization,
                                                     environment: environment,
                                                     bundle: bundle) ?? "rundale"
+        allowsBugReports = (bundle[BundleKey.betaFeedback] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() == "YES"
+        let version = bundle["CFBundleShortVersionString"] as? String
+        let build = bundle["CFBundleVersion"] as? String
+        buildDescription = version.map { version in
+            build.map { "\(version) (\($0))" } ?? version
+        }
     }
 
     private static func configuredValue(_ key: String,

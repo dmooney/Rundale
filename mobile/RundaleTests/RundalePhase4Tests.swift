@@ -185,7 +185,9 @@ final class RundalePhase4Tests: XCTestCase {
 }
 
 @MainActor
-private final class Phase4TestSession: RundaleSessionControlling {
+/// A scripted session for presentation-model tests (also used by
+/// `RundaleBugReportTests`).
+final class Phase4TestSession: RundaleSessionControlling {
     private var presentation: PresentationSession
     private let subject = CurrentValueSubject<SessionState, Never>(SessionState())
 
@@ -200,6 +202,7 @@ private final class Phase4TestSession: RundaleSessionControlling {
     private(set) var inferenceAllowed = true
     private var submitContinuation: CheckedContinuation<Void, Never>?
     private(set) var lifecycleEvents: [String] = []
+    private(set) var bugReportDescriptions: [String] = []
 
     init(active: Bool, failedRequests: Int = 0) {
         let request = RequestRecord(
@@ -342,6 +345,10 @@ private final class Phase4TestSession: RundaleSessionControlling {
 
     func step() async -> FixtureStepResult { FixtureStepResult(event: nil, isFinished: true) }
     func answerClarification(choiceID: String) async throws { throw FixtureAdapterError.noClarificationPending }
+    func bugReport(description: String) async throws -> String {
+        bugReportDescriptions.append(description)
+        return "Rundale bug report\n\(description)\n"
+    }
     func suggestions(for text: String) -> [CompletionItem] { [] }
     var advertisedCommands: [CompletionItem] { [] }
     func insert(_ item: CompletionItem, into text: String) -> String { text }

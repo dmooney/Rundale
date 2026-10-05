@@ -120,6 +120,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleExecutable": "Rundale",
             "ITSAppUsesNonExemptEncryption": False,
             **release.ENDPOINT_SETTINGS,
+            **release.BETA_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
         firebase_key = "AIza" + "F" * 35
@@ -147,6 +148,17 @@ class ReleaseTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "encryption exemption"):
                     runner.validate_archive(expected_build=8)
 
+        for value in (None, "NO"):
+            with self.subTest(beta_feedback=value):
+                beta_off = dict(info)
+                if value is None:
+                    del beta_off["RUNDALE_BETA_FEEDBACK"]
+                else:
+                    beta_off["RUNDALE_BETA_FEEDBACK"] = value
+                (app / "Info.plist").write_bytes(plistlib.dumps(beta_off))
+                with self.assertRaisesRegex(RuntimeError, "RUNDALE_BETA_FEEDBACK"):
+                    runner.validate_archive(expected_build=8)
+
         del info["CFBundleExecutable"]
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
         with self.assertRaisesRegex(RuntimeError, "CFBundleExecutable"):
@@ -162,6 +174,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleExecutable": "Rundale",
             "ITSAppUsesNonExemptEncryption": False,
             **release.ENDPOINT_SETTINGS,
+            **release.BETA_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
         firebase = {**release.EXPECTED_FIREBASE, "API_KEY": "AIza" + "F" * 35}
@@ -266,6 +279,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleExecutable": "Rundale",
             "ITSAppUsesNonExemptEncryption": False,
             **release.ENDPOINT_SETTINGS,
+            **release.BETA_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
         firebase = {**release.EXPECTED_FIREBASE, "API_KEY": "AIza" + "F" * 35}

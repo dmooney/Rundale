@@ -28,6 +28,11 @@ ENDPOINT_SETTINGS = {
     "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-endpoints-877612517009.us-east1.run.app",
     "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
 }
+# Internal TestFlight builds offer `/bug` and shake-to-report (#2022). An App
+# Store build must set this to NO.
+BETA_SETTINGS = {
+    "RUNDALE_BETA_FEEDBACK": "YES",
+}
 
 
 @dataclass(frozen=True)
@@ -154,7 +159,8 @@ def command_text(argv: Sequence[str]) -> str:
 
 
 def endpoint_args() -> list[str]:
-    return [f"{key}={value}" for key, value in ENDPOINT_SETTINGS.items()]
+    settings = {**ENDPOINT_SETTINGS, **BETA_SETTINGS}
+    return [f"{key}={value}" for key, value in settings.items()]
 
 
 def release_build_number(root: Path) -> int:
@@ -520,6 +526,7 @@ class Release:
             ),
             "RUNDALE_ENDPOINT_BASE_URL": ENDPOINT_SETTINGS["RUNDALE_ENDPOINT_BASE_URL"],
             "RUNDALE_ENDPOINT_ORGANIZATION": ENDPOINT_SETTINGS["RUNDALE_ENDPOINT_ORGANIZATION"],
+            **BETA_SETTINGS,
         }
         for key, value in expected.items():
             if info.get(key) != value:

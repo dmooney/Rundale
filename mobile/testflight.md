@@ -39,6 +39,23 @@ export compliance prompts may require completion in App Store Connect. The
 command reports that distinction; the releasing agent must finish the portal
 steps below and confirm **Testing** in **Internal Beta** before declaring delivery.
 
+## Reporting bugs from a beta build
+
+Beta builds (`RUNDALE_BETA_FEEDBACK=YES`, which `testflight-update` sets and
+checks) let a tester report a bug through TestFlight feedback
+([plan](../docs/plans/mobile-bug-report.md), #2022):
+
+1. Type `/bug` and what went wrong (`/bug the miller ignored me`), or shake the
+   phone. The app copies a bug report and says so.
+2. Take a screenshot, send it as TestFlight feedback, and paste the report
+   into the comment.
+
+The report names the build, scene, who is present, the newest transcript
+lines, and the Endpoint calls answered since launch, within 3,600 characters
+(TestFlight comments hold 4,000). It leaves the save unchanged. Feedback stays
+in App Store Connect (**TestFlight** > **Feedback**); nothing files it to
+GitHub. An App Store build must set `RUNDALE_BETA_FEEDBACK=NO`.
+
 ## Manual release and recovery
 
 The Release build reads its Endpoint deployment identity from the app bundle.

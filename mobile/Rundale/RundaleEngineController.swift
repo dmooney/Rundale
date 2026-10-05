@@ -342,6 +342,12 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         }
     }
 
+    func bugReport(description: String) async throws -> String {
+        guard let runtime else { throw LimerickRuntimeError.closed }
+        return try await runtime.bugReport(description: description,
+                                           build: configuration.buildDescription)
+    }
+
     func suggestions(for text: String) -> [CompletionItem] {
         completionRegistry.suggestions(for: text)
     }
@@ -386,6 +392,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = presentation.state
     }
 
+    private static let bugCommand = SlashCompletionWord(
+        word: RundalePresentationModel.bugCommandWord,
+        summary: "Report a bug through TestFlight"
+    )
+
     private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: LimerickEventPage? = nil) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
@@ -393,8 +404,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         // The engine's command registry: every command the phone runs and
         // what may follow each, the advertised short list, and everyone a
         // `/debug` name may complete to.
+        // `/bug` is the app's, not the engine's: it reports, and never
+        // reaches the turn pipeline.
+        let appCommands = configuration.allowsBugReports ? [Self.bugCommand] : []
         completionRegistry = FixtureCompletionRegistry(
-            commands: snapshot.readModel.commandCompletions,
+            commands: snapshot.readModel.commandCompletions + appCommands,
             advertised: snapshot.readModel.commands.map(\.name),
             nearbyNPCs: snapshot.readModel.nearbyPeople.map {
                 FixtureNPCReference(id: $0.id, displayName: $0.displayName)

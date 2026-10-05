@@ -1958,6 +1958,7 @@ class VerificationRun:
                 "RundaleUITests/RundaleCommandsUITests",
                 "RundaleUITests/RundaleFailureLinesUITests",
                 "RundaleTests/RundaleEngineLifecycleTests",
+                "RundaleTests/RundaleBugReportTests",
             ],
         )
         if record["status"] == PASSED:

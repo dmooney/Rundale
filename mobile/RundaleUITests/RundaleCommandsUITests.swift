@@ -119,6 +119,41 @@ final class RundaleCommandsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["completion.debug"].exists, "Commands lists only the advertised four")
     }
 
+    /// #2022: in a beta build `/bug` is offered as you type, copies a report
+    /// for TestFlight feedback, and never becomes a turn.
+    func testBugCommandCopiesAReportWithoutATurn() {
+        submit("go to Connolly Cottage")
+        input.tap()
+        input.typeText("/bu")
+        XCTAssertTrue(app.buttons["completion.bug"].waitForExistence(timeout: 3))
+        hold(3)
+        app.buttons["completion.bug"].tap()
+        XCTAssertEqual(input.value as? String, "/bug ")
+        input.typeText("Mícheál never looked up")
+        hold(2)
+        app.buttons["composer.send"].tap()
+
+        let notice = app.staticTexts["bugReport.notice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 8))
+        XCTAssertTrue(notice.label.hasPrefix("Bug report copied."), notice.label)
+        let report = app.descendants(matching: .any).matching(identifier: "uitest.bugReport").firstMatch
+        let text = report.value as? String ?? ""
+        XCTAssertTrue(text.hasPrefix("Rundale bug report\nMícheál never looked up\n"), text)
+        XCTAssertTrue(text.contains("Scene: Connolly Cottage · "), text)
+        XCTAssertTrue(text.contains("> go to Connolly Cottage\n"), text)
+        XCTAssertTrue(text.hasSuffix("\nEndpoint calls since launch: none\n"), text)
+        let cleared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed, "the /bug draft is cleared")
+        XCTAssertFalse(row(containing: "/bug").exists, "/bug is not a turn")
+        XCTAssertFalse(app.buttons["composer.retry"].exists)
+        hold(4)
+
+        app.buttons["bugReport.dismiss"].tap()
+        XCTAssertFalse(notice.exists)
+    }
+
     /// Swipes the completion strip until `id`, off screen at first, is
     /// wholly on screen, then checks it can be tapped.
     private func swipeStrip(until id: String, direction: SwipeDirection) {
