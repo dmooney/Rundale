@@ -131,6 +131,11 @@ def scan_bundle_credentials(app: Path, allowed: set[bytes]) -> list[str]:
     return findings
 
 
+# Leaf certificates that sign for App Store and TestFlight distribution:
+# today's "Apple Distribution" and the legacy "iPhone Distribution".
+DISTRIBUTION_AUTHORITIES = ("Apple Distribution:", "iPhone Distribution:")
+
+
 def signing_authorities(app: Path) -> list[str]:
     """Return the certificate chain codesign reports for a signed bundle."""
     details = subprocess.run(
@@ -198,6 +203,15 @@ class Release:
         self.paths = paths
         self.dry_run = dry_run
         self._runner = runner
+
+    def note(self, message: str) -> None:
+        """Print a line and keep it in the release log beside command output."""
+        print(message, flush=True)
+        if self.dry_run:
+            return
+        self.paths.output.mkdir(parents=True, exist_ok=True)
+        with self.paths.log.open("a", encoding="utf-8") as log:
+            log.write(message + "\n")
 
     def run_command(self, argv: Sequence[str], *, cwd: Path | None = None) -> None:
         print(f"$ {command_text(argv)}", flush=True)
@@ -542,11 +556,13 @@ class Release:
         if len(apps) != 1:
             raise RuntimeError(f"expected one app in the exported .ipa, found {len(apps)}")
         self.validate_app(apps[0], expected_build=expected_build, verify_code_sign=True)
-        if not any(
-            authority.startswith("Apple Distribution:")
-            for authority in signing_authorities(apps[0])
-        ):
-            raise RuntimeError("exported app is not signed with an Apple Distribution certificate")
+        authorities = signing_authorities(apps[0])
+        self.note("distribution signing chain: " + "; ".join(authorities))
+        if not any(authority.startswith(DISTRIBUTION_AUTHORITIES) for authority in authorities):
+            raise RuntimeError(
+                "exported app is not signed with a distribution certificate; found: "
+                + ("; ".join(authorities) or "no signing authority")
+            )
 
     def write_export_options(self, *, upload: bool = True) -> Path:
         options = {

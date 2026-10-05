@@ -297,10 +297,21 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.commands[-1][:2], ["codesign", "--verify"])
         self.assertEqual(self.commands[-1][-1], str(app))
 
+        self.assertIn(
+            "distribution signing chain: Apple Distribution: Rundale (MBPRPZ283R)",
+            self.paths.log.read_text(),
+        )
+
+        legacy = ["iPhone Distribution: Rundale (MBPRPZ283R)", "Apple Root CA"]
+        with patch.object(release, "signing_authorities", return_value=legacy):
+            runner.validate_distribution_ipa(expected_build=1259)
+
         development = ["Apple Development: Someone (ABCDE12345)"]
         with (
             patch.object(release, "signing_authorities", return_value=development),
-            self.assertRaisesRegex(RuntimeError, "Apple Distribution"),
+            self.assertRaisesRegex(
+                RuntimeError, "not signed with a distribution certificate; found: Apple Development"
+            ),
         ):
             runner.validate_distribution_ipa(expected_build=1259)
 
