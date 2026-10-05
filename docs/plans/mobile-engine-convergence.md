@@ -54,8 +54,8 @@ product spec Milestone N, not Mobile Phase N.
   - `limerick-persistence/src/mobile`: second save store;
   - `mobile/content/phase3-tiny-world.json`: third content format.
 - Limerick Endpoints is deployed in the dedicated `limerick-prod` project. It
-  serves `rundale-dialogue` v1 and v2 and `rundale-intent` v1, published from
-  the mod's files, and the live simulator suite passes against it. TestFlight
+  serves v1 of `rundale-dialogue` and `rundale-intent`, published from
+  `mods/rundale/endpoints/`, and the live simulator suite passes against it. TestFlight
   builds come from `main`.
 - The owner's TestFlight save is test data and may be discarded. On the device,
   reinstalling the app starts fresh.
@@ -239,7 +239,7 @@ simulator evidence. `ios-port` is tagged `archive/ios-port`, and the feature
 freeze is lifted.
 
 - Re-run spec Milestones 1–3 on the new line: automated gates first, then the
-  deferred physical-device checks.
+  deferred physical-device checks (waived by the owner on 2026-10-04).
 - Re-base the `ios-port` audits of spec Milestones 1 and 2 (#1990, #1992; open
   findings carried to #2047) on the new line, and close findings that no longer
   apply.
