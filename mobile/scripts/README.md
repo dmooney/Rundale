@@ -61,7 +61,8 @@ Phase 2 adds the shared engine: `limerick-core` in the portable `mobile`
 configuration the phone links (turn API, Endpoint calls, saves), the
 `limerick-persistence` save-format and kernel save-lock tests, the
 `limerick-mobile-ffi` tests, a check that the FFI's dependency graph has no
-desktop crates, the device and simulator `LimerickMobileFFI.xcframework`, the
+desktop crates or desktop features (`limerick-core`/`limerick-inference`
+`desktop`, `limerick-diagnostics` `github`), the device and simulator `LimerickMobileFFI.xcframework`, the
 `RundaleBridge` and `LimerickEndpointKit` packages, and the Phase 2 and scene UI
 suites with the engine lifecycle tests. Phase 3 adds the canonical tiny-world
 sheet test (`limerick-engine --test world_sheet`) and the Phase 3 UI suite.
