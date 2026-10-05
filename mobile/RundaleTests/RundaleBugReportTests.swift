@@ -138,4 +138,3 @@ final class RundaleBugReportTests: XCTestCase {
         XCTFail("condition did not become true", file: file, line: line)
     }
 }
-

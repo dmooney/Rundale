@@ -184,9 +184,9 @@ final class RundalePhase4Tests: XCTestCase {
     }
 }
 
-@MainActor
 /// A scripted session for presentation-model tests (also used by
 /// `RundaleBugReportTests`).
+@MainActor
 final class Phase4TestSession: RundaleSessionControlling {
     private var presentation: PresentationSession
     private let subject = CurrentValueSubject<SessionState, Never>(SessionState())
@@ -349,6 +349,7 @@ final class Phase4TestSession: RundaleSessionControlling {
         bugReportDescriptions.append(description)
         return "Rundale bug report\n\(description)\n"
     }
+
     func suggestions(for text: String) -> [CompletionItem] { [] }
     var advertisedCommands: [CompletionItem] { [] }
     func insert(_ item: CompletionItem, into text: String) -> String { text }
