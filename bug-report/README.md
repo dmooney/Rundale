@@ -27,13 +27,13 @@ generic AI runtime.
 }
 ```
 
-| Answer | Meaning                                                                    |
-| ------ | -------------------------------------------------------------------------- |
-| 202    | Stored, or already stored under this `reportId`. The phone drops its copy. |
-| 400    | Malformed; it will never be accepted. The phone drops it.                  |
-| 401    | Missing or invalid credentials, or another app. The phone keeps it.        |
-| 429    | Over the per-player hourly limit (20). The phone keeps it.                 |
-| 503    | Storage failed. The phone keeps it.                                        |
+| Answer | Meaning                                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| 202    | Stored, or already stored under this `reportId`. The phone drops its copy.                                                    |
+| 400    | Malformed; it will never be accepted. The phone drops it.                                                                     |
+| 401    | Missing or invalid credentials, or another app. The phone keeps it.                                                           |
+| 429    | Over the per-address limit (30 a minute, checked before credentials) or the per-player hourly limit (20). The phone keeps it. |
+| 503    | Storage failed. The phone keeps it.                                                                                           |
 
 `GET /health` answers `{"ok": true}`. Cloud Run reserves `/healthz`.
 
