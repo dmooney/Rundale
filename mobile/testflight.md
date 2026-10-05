@@ -21,8 +21,9 @@ checks and save compatibility checks still apply.
 
 Before the upload, `testflight-update` also exports the archive locally as a
 distribution-signed `.ipa` (`mobile/.build/release/distribution-export/`) and
-checks that copy: one app, an Apple Distribution signature that `codesign`
-verifies, the expected build number and bundle metadata, and no provider or
+checks that copy: one app, a distribution signature (Apple Distribution, or
+the legacy iPhone Distribution) that `codesign` verifies, with the chain
+written to `release.log`, the expected build number and bundle metadata, and no provider or
 Endpoint credential anywhere in the bundle. The upload export re-signs the
 same archive the same way but keeps no local copy, so this is the inspectable
 form of what TestFlight receives. A failed check stops the upload.
