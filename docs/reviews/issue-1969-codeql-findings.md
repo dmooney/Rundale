@@ -33,18 +33,18 @@ or path parameter.
 
 ## Summary
 
-| Alerts | Rule | Location | Disposition |
-| --- | --- | --- | --- |
-| #65 | `cleartext-logging` | `limerick-engine/src/headless.rs` (inference log paths) | False positive |
-| #66 | `cleartext-logging` | `limerick-engine/src/headless.rs` (atmosphere text) | False positive |
-| #67 | `cleartext-storage-database` | `limerick-server/src/session/persistence.rs:258` | False positive |
-| #68, #70–#73 | `path-injection` | `limerick-core/src/tile_cache.rs:145,195,198,199,199` | False positive; no longer reported |
-| #69, #74, #75 | `path-injection` | `limerick-diagnostics/src/bug_report.rs:805,812,821` | False positive |
-| #76, #82 | `path-injection` | `limerick-server/src/routes/mods.rs:29,110` | False positive |
-| #77, #78 | `path-injection` | `limerick-harness/src/dashboard/routes.rs:85,116` | Reported flow not exploitable; adjacent flaw fixed |
-| #79 | `path-injection` | `limerick-editor/src/mod_io.rs:29` | False positive |
-| #80, #83 | `path-injection` | `limerick-editor/src/save_inspect.rs:73,78` | False positive |
-| #81 | `path-injection` | `limerick-persistence/src/picker.rs:144` | False positive |
+| Alerts        | Rule                         | Location                                                | Disposition                         |
+| ------------- | ---------------------------- | ------------------------------------------------------- | ----------------------------------- |
+| #65           | `cleartext-logging`          | `limerick-engine/src/headless.rs` (inference log paths) | False positive                      |
+| #66           | `cleartext-logging`          | `limerick-engine/src/headless.rs` (atmosphere text)     | False positive                      |
+| #67           | `cleartext-storage-database` | `limerick-server/src/session/persistence.rs:258`        | False positive                      |
+| #68, #70–#73  | `path-injection`             | `limerick-core/src/tile_cache.rs:145,195,198,199,199`   | False positive; no longer reported  |
+| #69, #74, #75 | `path-injection`             | `limerick-diagnostics/src/bug_report.rs:805,812,821`    | False positive                      |
+| #76, #82      | `path-injection`             | `limerick-server/src/routes/mods.rs:29,110`             | False positive                      |
+| #77, #78      | `path-injection`             | `limerick-harness/src/dashboard/routes.rs:85,116`       | Fixed (adjacent traversal confined) |
+| #79           | `path-injection`             | `limerick-editor/src/mod_io.rs:29`                      | False positive                      |
+| #80, #83      | `path-injection`             | `limerick-editor/src/save_inspect.rs:73,78`             | False positive                      |
+| #81           | `path-injection`             | `limerick-persistence/src/picker.rs:144`                | False positive                      |
 
 Within a file with more than one alert, the issue lists alert numbers without
 lines, so the number-to-line pairing inside that group is not established here.
@@ -118,7 +118,7 @@ Flow: `submit_bug_report`'s `Extension<Arc<AppState>>` →
 `saves_dir` is resolved once at startup (`resolve_project_saves_dir`), and `id`
 is a server-generated UUID v4 (`bug_report.rs:757`). The request supplies only
 the title, description, and screenshot bytes, which are written as file
-*contents*, never as path components. **False positive.**
+_contents_, never as path components. **False positive.**
 
 ### #76, #82 — mod selector
 
@@ -166,16 +166,16 @@ Fixed in this change:
   disabled. The existing ingest and transcript tests still pass, so supported
   layouts keep working.
 
-After the fix, CodeQL still reports the `u32` flow into the joined path (see
-"Fresh analysis" below). Dismiss #77 and #78 as false positives that cite this
-section.
+CodeQL recognises the canonicalise-and-prefix check as a barrier, so after this
+change #77 and #78 are no longer reported. They should close as fixed on the
+next default-branch analysis.
 
 ### #79 — editor mod listing
 
 Flow: `editor_list_mods`'s `Extension<Arc<AppState>>` → `state.mods_root()` →
 `handle_editor_list_mods` → `mod_io::list_mods` → `read_dir(mods_root)`
 (`limerick-editor/src/mod_io.rs:29`). This lists the server-determined mods
-directory and takes no request input. The editor routes that *do* take a path
+directory and takes no request input. The editor routes that _do_ take a path
 (`editor-open-mod`, `editor-list-branches`, and others) canonicalise it and
 require containment under `mods_root()` / `saves_dir` via
 `editor::validate_within` (#371). Those routes are not part of this alert.
@@ -197,16 +197,17 @@ directory with no request input. **False positive.**
 
 ## Fresh analysis
 
-On this branch, the same command reports 14 alerts, the same set as on `main`.
-The harness ingest and dashboard fix is a boundary CodeQL's Rust model does not
-recognise as a sanitizer, so it does not change the count. No CodeQL
-configuration, severity threshold, or path filter was changed.
+On this branch, the same command reports 12 alerts: the `main` set minus the two
+dashboard alerts (#77, #78). It reports no new alerts. All 12 are covered
+by the false-positive dispositions above. No CodeQL configuration, severity
+threshold, or path filter was changed.
 
 ## Dismissal
 
 Dismissing an alert requires write access to code scanning, which the agent
 session did not have. With that access, run the following from the repository
-root to apply the dispositions above:
+root to apply the false-positive dispositions above. #77 and #78 are fixed, not
+dismissed, so they are not in this list.
 
 ```sh
 dismiss() {
@@ -225,9 +226,6 @@ for n in 69 74 75; do
 done
 for n in 76 82; do
   dismiss "$n" "Server-derived mods_root and constant file name; mod_id validated and used as content."
-done
-for n in 77 78; do
-  dismiss "$n" "u32 turn index; artifact dir confined to the artifact root by #1969 fix."
 done
 dismiss 79 "Lists server-derived mods_root; no request input."
 for n in 80 83; do
