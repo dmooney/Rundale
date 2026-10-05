@@ -82,14 +82,14 @@ pub async fn get_frame(
     };
 
     let frame_path = artifact_dir.join(format!("turns/{turn_idx:03}/frame.png"));
-    match std::fs::read(&frame_path) {
-        Ok(bytes) => (
+    match read_within_artifact_root(&state.artifact_root, &frame_path) {
+        Some(bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "image/png")],
             Body::from(bytes),
         )
             .into_response(),
-        Err(_) => error_response(StatusCode::NOT_FOUND, "frame not found"),
+        None => error_response(StatusCode::NOT_FOUND, "frame not found"),
     }
 }
 
@@ -113,8 +113,8 @@ pub async fn get_turn_transcript(
     };
 
     let log_path = artifact_dir.join(format!("turns/{turn_idx:03}/llm.json"));
-    match std::fs::read(&log_path) {
-        Ok(bytes) => (
+    match read_within_artifact_root(&state.artifact_root, &log_path) {
+        Some(bytes) => (
             StatusCode::OK,
             [(
                 axum::http::header::CONTENT_TYPE,
@@ -123,7 +123,7 @@ pub async fn get_turn_transcript(
             Body::from(bytes),
         )
             .into_response(),
-        Err(_) => error_response(StatusCode::NOT_FOUND, "turn inference log not found"),
+        None => error_response(StatusCode::NOT_FOUND, "turn inference log not found"),
     }
 }
 
@@ -271,6 +271,27 @@ fn parse_github_base(remote: &str) -> Option<String> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Reads `path` only if it resolves (symlinks included) inside the configured
+/// artifact root. The dashboard listens on every interface without
+/// authentication, so a `runs.artifact_dir` row pointing elsewhere must not
+/// turn it into a reader of arbitrary `frame.png` / `llm.json` files.
+fn read_within_artifact_root(
+    artifact_root: &std::path::Path,
+    path: &std::path::Path,
+) -> Option<Vec<u8>> {
+    let root = artifact_root.canonicalize().ok()?;
+    let resolved = path.canonicalize().ok()?;
+    if !resolved.starts_with(&root) {
+        tracing::warn!(
+            path = %resolved.display(),
+            root = %root.display(),
+            "dashboard: refusing artifact outside the artifact root"
+        );
+        return None;
+    }
+    std::fs::read(&resolved).ok()
+}
+
 fn error_response(status: StatusCode, msg: &str) -> Response {
     (
         status,
@@ -288,11 +309,105 @@ mod tests {
     use tower::ServiceExt as _;
 
     fn make_state(db_path: PathBuf) -> AppState {
+        make_state_with_root(db_path, PathBuf::from("/tmp"))
+    }
+
+    fn make_state_with_root(db_path: PathBuf, artifact_root: PathBuf) -> AppState {
         AppState {
             db_path,
-            artifact_root: PathBuf::from("/tmp"),
+            artifact_root,
             live: Arc::new(crate::dashboard::sse::channel()),
         }
+    }
+
+    /// Ingests a one-turn run under `<tmp>/artifacts` and returns
+    /// `(artifacts_root, db_path, run_id)`.
+    fn ingest_one_turn_run(tmp: &std::path::Path, uuid: &str) -> (PathBuf, PathBuf, i64) {
+        let artifacts = tmp.join("artifacts");
+        let tdir = artifacts.join("runs").join(uuid).join("turns").join("000");
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(tdir.join("frame.png"), b"frame-bytes").unwrap();
+        std::fs::write(tdir.join("lines.json"), b"[]").unwrap();
+        std::fs::write(
+            tdir.join("llm.json"),
+            br#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
+        )
+        .unwrap();
+        let payload_json = format!(
+            r#"{{
+              "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
+              "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
+              "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
+              "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
+              "turns": [ {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }} ],
+              "axes": [], "findings": []
+            }}"#
+        );
+        let ppath = tmp.join("p.json");
+        std::fs::write(&ppath, &payload_json).unwrap();
+        let db_path = tmp.join("t.db");
+        let db = Db::open(&db_path).unwrap();
+        let run_id = crate::ingest::load_and_ingest(&db, &ppath, &artifacts).unwrap();
+        (artifacts, db_path, run_id)
+    }
+
+    async fn status_of(app: &axum::Router, uri: String) -> StatusCode {
+        app.clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn artifacts_outside_root_are_not_served() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (artifacts, db_path, run_id) =
+            ingest_one_turn_run(tmp.path(), "00000000-0000-0000-0000-0000000000a8");
+        let app = build_router(make_state_with_root(db_path.clone(), artifacts.clone()));
+        let frame = format!("/api/runs/{run_id}/turns/0/frame.png");
+        let transcript = format!("/api/runs/{run_id}/turns/0/transcript");
+        assert_eq!(status_of(&app, frame.clone()).await, StatusCode::OK);
+        assert_eq!(status_of(&app, transcript.clone()).await, StatusCode::OK);
+
+        // A run row pointing at a directory outside the served root holds real
+        // files, but the dashboard must not read them.
+        let outside = tmp.path().join("outside");
+        let odir = outside.join("turns").join("000");
+        std::fs::create_dir_all(&odir).unwrap();
+        std::fs::write(odir.join("frame.png"), b"secret").unwrap();
+        std::fs::write(odir.join("llm.json"), b"{}").unwrap();
+        rusqlite::Connection::open(&db_path)
+            .unwrap()
+            .execute(
+                "UPDATE runs SET artifact_dir = ?1 WHERE id = ?2",
+                rusqlite::params![outside.to_string_lossy(), run_id],
+            )
+            .unwrap();
+        assert_eq!(status_of(&app, frame).await, StatusCode::NOT_FOUND);
+        assert_eq!(status_of(&app, transcript).await, StatusCode::NOT_FOUND);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn symlinked_artifact_escaping_root_is_not_served() {
+        let tmp = tempfile::tempdir().unwrap();
+        let uuid = "00000000-0000-0000-0000-0000000000a9";
+        let (artifacts, db_path, run_id) = ingest_one_turn_run(tmp.path(), uuid);
+        let secret = tmp.path().join("secret.png");
+        std::fs::write(&secret, b"secret").unwrap();
+        let frame = artifacts
+            .join("runs")
+            .join(uuid)
+            .join("turns/000/frame.png");
+        std::fs::remove_file(&frame).unwrap();
+        std::os::unix::fs::symlink(&secret, &frame).unwrap();
+
+        let app = build_router(make_state_with_root(db_path, artifacts));
+        assert_eq!(
+            status_of(&app, format!("/api/runs/{run_id}/turns/0/frame.png")).await,
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]
@@ -450,36 +565,11 @@ mod tests {
 
     #[tokio::test]
     async fn get_turn_transcript_serves_log_then_404() {
-        use crate::ingest::load_and_ingest;
         let tmp = tempfile::tempdir().unwrap();
-        let artifacts = tmp.path().join("artifacts");
-        let uuid = "00000000-0000-0000-0000-0000000000a7";
-        let tdir = artifacts.join("runs").join(uuid).join("turns").join("000");
-        std::fs::create_dir_all(&tdir).unwrap();
-        std::fs::write(tdir.join("frame.png"), b"frame-bytes").unwrap();
-        std::fs::write(tdir.join("lines.json"), b"[]").unwrap();
-        std::fs::write(
-            tdir.join("llm.json"),
-            br#"{"turn_index":0,"player_input":"hi","exchanges":[],"inferences":[]}"#,
-        )
-        .unwrap();
-        let payload_json = format!(
-            r#"{{
-              "config": {{ "player": {{ "mode": "subagent" }}, "judge": {{ "mode": "subagent" }} }},
-              "git": {{ "sha": "abc", "branch": "main", "dirty": false, "pr_number": null }},
-              "rubric_sha256": "r", "uuid": "{uuid}", "status": "completed", "quality_score": 70.0,
-              "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
-              "turns": [ {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }} ],
-              "axes": [], "findings": []
-            }}"#
-        );
-        let ppath = tmp.path().join("p.json");
-        std::fs::write(&ppath, &payload_json).unwrap();
-        let db_path = tmp.path().join("t.db");
-        let db = Db::open(&db_path).unwrap();
-        let run_id = load_and_ingest(&db, &ppath, &artifacts).unwrap();
+        let (artifacts, db_path, run_id) =
+            ingest_one_turn_run(tmp.path(), "00000000-0000-0000-0000-0000000000a7");
 
-        let app = build_router(make_state(db_path));
+        let app = build_router(make_state_with_root(db_path, artifacts));
         // Present → 200 JSON.
         let ok = app
             .clone()

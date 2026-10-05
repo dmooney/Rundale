@@ -11,7 +11,7 @@
 //! ([`Db::ingest_complete_run`]). The result is indistinguishable from a binary
 //! run to the dashboard read paths.
 
-use std::path::Path;
+use std::path::{Component, Path};
 
 use serde::Deserialize;
 
@@ -176,6 +176,7 @@ fn build_record(
     // Force the config label so every skill run content-hashes to one config row.
     payload.config.label = Some("skill:quality-harness".to_string());
 
+    ensure_run_dir_name(&payload.uuid)?;
     let artifact_dir = artifacts_root.join("runs").join(&payload.uuid);
     let artifact_dir_str = artifact_dir.to_string_lossy().into_owned();
 
@@ -186,6 +187,11 @@ fn build_record(
     // warning so the caller can flag a half-blank run without rejecting it.
     let mut empty_lines_warnings = 0usize;
     for t in payload.turns {
+        ensure_relative_artifact_path("frame_path", t.turn_index, &t.frame_path)?;
+        ensure_relative_artifact_path("lines_path", t.turn_index, &t.lines_path)?;
+        if let Some(rel) = &t.llm_transcript_path {
+            ensure_relative_artifact_path("llm_transcript_path", t.turn_index, rel)?;
+        }
         let frame_abs = artifact_dir.join(&t.frame_path);
         let meta = std::fs::metadata(&frame_abs)
             .map_err(|e| HarnessError::io(frame_abs.display().to_string(), e))?;
@@ -305,6 +311,32 @@ fn build_record(
         judge_tokens: payload.cost.judge_tokens,
     };
     Ok((record, empty_lines_warnings))
+}
+
+/// The payload's `uuid` names a directory under `<artifacts>/runs/`, and the
+/// stored result is later served by the dashboard, so it must be exactly one
+/// plain path component: no separators, `..`, or absolute prefix.
+fn ensure_run_dir_name(uuid: &str) -> Result<()> {
+    let mut components = Path::new(uuid).components();
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(name)), None) if name == uuid => Ok(()),
+        _ => Err(HarnessError::Config(format!(
+            "ingest payload uuid {uuid:?} must be a single directory name"
+        ))),
+    }
+}
+
+/// Per-turn artifact paths are joined onto the run directory; an absolute path
+/// would replace it and a `..` would climb out of it.
+fn ensure_relative_artifact_path(field: &str, turn_index: u32, rel: &str) -> Result<()> {
+    let path = Path::new(rel);
+    let all_normal = path.components().all(|c| matches!(c, Component::Normal(_)));
+    if rel.is_empty() || !all_normal {
+        return Err(HarnessError::Config(format!(
+            "turn {turn_index} {field} {rel:?} must be a relative path inside the run directory"
+        )));
+    }
+    Ok(())
 }
 
 /// True when a turn's `lines.json` carries no narration — missing, unreadable,
@@ -432,6 +464,49 @@ mod tests {
             build_record(payload_for(uuid, one_turn("dialogue", true)), root.path()).unwrap();
         assert_eq!(rec.turns.len(), 1);
         assert_eq!(warns, 0);
+    }
+
+    #[test]
+    fn uuid_that_escapes_runs_dir_rejected() {
+        let root = layout("00000000-0000-0000-0000-0000000000ee", r#"["x"]"#, false);
+        for dir_name in ["..", "../outside", "a/b", "/etc", ""] {
+            let payload = payload_for(dir_name, one_turn("movement", false));
+            let err = match build_record(payload, root.path()) {
+                Ok(_) => panic!("run dir {dir_name:?} should be rejected"),
+                Err(e) => e,
+            };
+            assert!(
+                err.to_string().contains("single directory name"),
+                "run dir {dir_name:?}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn turn_paths_outside_run_dir_rejected() {
+        let uuid = "00000000-0000-0000-0000-0000000000ff";
+        let root = layout(uuid, r#"["x"]"#, true);
+        let outside = root.path().join("outside.png");
+        std::fs::write(&outside, b"not-blank").unwrap();
+        let cases = [
+            ("frame_path", outside.to_string_lossy().into_owned()),
+            ("frame_path", "../../outside.png".to_string()),
+            ("lines_path", "turns/../../../outside.png".to_string()),
+            ("llm_transcript_path", "/etc/hosts".to_string()),
+        ];
+        for (field, value) in cases {
+            let mut turn = one_turn("dialogue", true);
+            turn[field] = json!(value);
+            let err = match build_record(payload_for(uuid, turn), root.path()) {
+                Ok(_) => panic!("{field} {value:?} should be rejected"),
+                Err(e) => e,
+            };
+            let msg = err.to_string();
+            assert!(
+                msg.contains(field) && msg.contains("inside the run directory"),
+                "{field} {value:?}: {msg}"
+            );
+        }
     }
 
     #[test]
