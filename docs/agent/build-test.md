@@ -198,7 +198,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 
 ## Quality gates
 
-- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which needs `npm ci` at the repo root, then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which needs `npm ci` at the repo root; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run
