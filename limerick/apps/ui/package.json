@@ -68,6 +68,8 @@
 	},
 	"// overrides": "Force cookie>=0.7.0 transitive dep (GHSA-pxg6-pf52-xh8x / SvelteKit GHSA-7w22-3g77-7m57). Remove when @sveltejs/kit bumps its peer.",
 	"overrides": {
-		"cookie": "^0.7.0"
+		"cookie": "^0.7.0",
+		"http-cache-semantics": "4.3.0",
+		"source-map-js": "1.2.2"
 	}
 }

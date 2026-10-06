@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+reason = "OSV lists no fixed node-forge release. The sole dependency is jks-js in the development-only promptfoo benchmark toolchain; node-forge is not shipped in the iPhone app or production Endpoints. Reassess when upstream publishes a fix."

@@ -74,8 +74,12 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
   if (googleProviderAuth !== "api-key" && googleProviderAuth !== "vertex-ai") {
     throw new Error("GOOGLE_PROVIDER_AUTH must be 'api-key' or 'vertex-ai'.");
   }
-  if (providerMode === "live" && !environment.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is required when PROVIDER_MODE=live.");
+  if (
+    providerMode === "live" &&
+    (environment.OPENAI_ALLOWED_MODELS ?? "").split(",").some((model) => model.trim()) &&
+    !environment.OPENAI_API_KEY
+  ) {
+    throw new Error("OPENAI_API_KEY is required when OpenAI models are enabled.");
   }
   if (providerMode === "live" && googleProviderAuth === "api-key" && !environment.GOOGLE_API_KEY) {
     throw new Error("GOOGLE_API_KEY is required when Google provider auth uses an API key.");
