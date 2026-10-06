@@ -27,6 +27,13 @@ Open Dependabot PRs #2176–#2179 and #2186–#2188 were checked for overlap.
 This remediation includes the relevant Python, UI, and promptfoo security fixes;
 the unrelated Tauri and UI major upgrades remain outside its scope.
 
+During the subsequent merge of main, a fresh scan identified
+[GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)
+in Sharp 0.35.4 in both promptfoo toolchains. Their overrides now pin 0.35.5;
+the Endpoints lockfile already resolved 0.35.5, and its security floor is raised
+to prevent regression. The merged Python requirements retain main's newer Ruff
+and mypy plus the fixed Pygments pin.
+
 ## Accepted advisories
 
 The lockfile-scoped OSV configuration records five exceptions:
