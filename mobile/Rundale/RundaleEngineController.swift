@@ -394,7 +394,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     private static let bugCommand = SlashCompletionWord(
         word: RundalePresentationModel.bugCommandWord,
-        summary: "Report a bug through TestFlight"
+        summary: "Report a bug"
     )
 
     private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: LimerickEventPage? = nil) throws {
@@ -963,8 +963,9 @@ private enum Phase2ProjectionStoreError: LocalizedError {
     }
 }
 
+/// Firebase credentials for Limerick Endpoints and `limerick-bug-report`.
 @MainActor
-private final class FirebaseEndpointCredentialAdapter: LimerickEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
+final class FirebaseEndpointCredentialAdapter: LimerickEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
     private let provider: FirebaseEndpointCredentialProvider
 
     init(provider: FirebaseEndpointCredentialProvider) {

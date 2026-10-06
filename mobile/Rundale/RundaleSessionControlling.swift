@@ -37,7 +37,7 @@ protocol RundaleSessionControlling: AnyObject {
     func retryLastFailed() async throws
     func step() async -> FixtureStepResult
     func answerClarification(choiceID: String) async throws
-    /// The plain-text report a beta tester pastes into TestFlight feedback.
+    /// The plain-text report `/bug` sends to `limerick-bug-report`.
     /// Reads only: it never becomes a request and changes no state.
     func bugReport(description: String) async throws -> String
 

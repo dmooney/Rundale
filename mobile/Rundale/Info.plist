@@ -24,6 +24,8 @@
 	<false/>
 	<key>RUNDALE_BETA_FEEDBACK</key>
 	<string>$(RUNDALE_BETA_FEEDBACK)</string>
+	<key>RUNDALE_BUG_REPORT_URL</key>
+	<string>$(RUNDALE_BUG_REPORT_URL)</string>
 	<key>RUNDALE_ENDPOINT_BASE_URL</key>
 	<string>$(RUNDALE_ENDPOINT_BASE_URL)</string>
 	<key>RUNDALE_ENDPOINT_ORGANIZATION</key>

@@ -13,7 +13,7 @@ crate-type = ["staticlib", "rlib"]
 # The shared engine in its portable configuration. There is no mobile-only
 # runtime: the boundary drives `limerick_core::turn::TurnEngine`.
 limerick-core = { path = "../limerick-core", default-features = false, features = ["mobile"] }
-# The TestFlight feedback report (`bug_report`). Portable only: the GitHub
+# The iPhone app's bug report (`bug_report`). Portable only: the GitHub
 # reporter (`github` feature) stays off.
 limerick-diagnostics = { path = "../limerick-diagnostics", default-features = false }
 serde_json = { workspace = true }

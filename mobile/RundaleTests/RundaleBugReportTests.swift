@@ -3,60 +3,86 @@ import XCTest
 import RundaleKit
 @testable import Rundale
 
-/// `/bug` and shake-to-report copy a report for TestFlight feedback in beta
-/// builds, never as a turn (#2022, docs/plans/mobile-bug-report.md).
+/// `/bug` and shake-to-report send a report to `limerick-bug-report` in beta
+/// builds, never as a turn, and a report made offline waits on disk (#2022,
+/// docs/plans/mobile-bug-report.md).
 @MainActor
 final class RundaleBugReportTests: XCTestCase {
-    private var copied: [String] = []
+    private var directory: URL!
+    private var transport: ScriptedTransport!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RundaleBugReportTests-\(UUID().uuidString)")
+        transport = ScriptedTransport()
+    }
+
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(at: directory)
+        try await super.tearDown()
+    }
+
+    private func outbox() -> BugReportOutbox {
+        BugReportOutbox(directory: directory, transport: transport)
+    }
 
     private func model(beta: Bool, session: Phase4TestSession) -> RundalePresentationModel {
         RundalePresentationModel(
             launch: LaunchConfiguration(
                 arguments: ["--fixture=standard"],
                 environment: [:],
-                bundle: beta ? ["RUNDALE_BETA_FEEDBACK": "YES"] : [:]
+                bundle: beta ? ["RUNDALE_BETA_FEEDBACK": "YES",
+                                "CFBundleShortVersionString": "0.1.0",
+                                "CFBundleVersion": "1284"] : [:]
             ),
             session: session,
-            copyToPasteboard: { [weak self] in self?.copied.append($0) }
+            bugReports: outbox(),
+            captureScreenshot: { Data([0x89, 0x50, 0x4E, 0x47]) }
         )
     }
 
-    func testBugCommandCopiesTheReportAndClearsTheDraftWithoutSubmitting() async {
+    func testBugCommandSendsTheReportAndClearsTheDraftWithoutSubmitting() async {
         let session = Phase4TestSession(active: false)
         let model = model(beta: true, session: session)
         model.draft = "/bug  the miller ignored me "
         model.noteDraftMutation()
 
         model.submitDraft()
-        await waitUntil { model.bugReportNotice != nil }
+        XCTAssertEqual(model.bugReportNotice, RundalePresentationModel.bugReportSendingNotice)
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportSentNotice }
 
         XCTAssertEqual(session.bugReportDescriptions, ["the miller ignored me"])
         XCTAssertEqual(session.submitCalls, 0, "/bug never becomes a turn")
-        XCTAssertEqual(copied, ["Rundale bug report\nthe miller ignored me\n"])
-        XCTAssertEqual(model.bugReportNotice, RundalePresentationModel.bugReportCopiedNotice)
+        let sent = transport.sent
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertEqual(sent.first?.description, "the miller ignored me")
+        XCTAssertEqual(sent.first?.report, "Rundale bug report\nthe miller ignored me\n")
+        XCTAssertEqual(sent.first?.build, "0.1.0 (1284)")
+        XCTAssertEqual(sent.first?.screenshot, Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString())
         XCTAssertEqual(model.draft, "")
+        XCTAssertTrue(outbox().pending.isEmpty, "a sent report leaves the queue")
     }
 
     func testBugCommandWorksWhileAReplyStreams() async {
         let session = Phase4TestSession(active: true)
         let model = model(beta: true, session: session)
-        model.start()
         XCTAssertTrue(model.isStreaming)
         model.draft = "/BUG"
         model.submitDraft()
-        await waitUntil { !self.copied.isEmpty }
+        await waitUntil { self.transport.sent.count == 1 }
         XCTAssertEqual(session.bugReportDescriptions, [""])
         XCTAssertEqual(session.submitCalls, 0)
     }
 
-    func testShakeCopiesTheReportAndKeepsTheDraft() async {
+    func testShakeSendsTheReportAndKeepsTheDraft() async {
         let session = Phase4TestSession(active: false)
         let model = model(beta: true, session: session)
         model.draft = "half a thought"
         model.noteDraftMutation()
 
         model.reportBug()
-        await waitUntil { !self.copied.isEmpty }
+        await waitUntil { self.transport.sent.count == 1 }
 
         XCTAssertEqual(session.bugReportDescriptions, [""])
         XCTAssertEqual(model.draft, "half a thought")
@@ -64,15 +90,71 @@ final class RundaleBugReportTests: XCTestCase {
         XCTAssertNil(model.bugReportNotice)
     }
 
+    func testAReportMadeOfflineWaitsAndIsSentAtTheNextLaunch() async {
+        transport.next = [.failure(.offline)]
+        let first = model(beta: true, session: Phase4TestSession(active: false))
+        first.reportBug(description: "no signal in the bog")
+        await waitUntil { first.bugReportNotice == RundalePresentationModel.bugReportQueuedNotice }
+        XCTAssertEqual(outbox().pending.map(\.description), ["no signal in the bog"])
+
+        let relaunched = model(beta: true, session: Phase4TestSession(active: false))
+        relaunched.start()
+        await waitUntil {
+            relaunched.bugReportNotice == RundalePresentationModel.earlierBugReportSentNotice
+        }
+        XCTAssertTrue(outbox().pending.isEmpty)
+        XCTAssertEqual(transport.sent.map(\.description), ["no signal in the bog", "no signal in the bog"])
+        XCTAssertEqual(Set(transport.sent.map(\.reportID)).count, 1, "a resend keeps its identity")
+    }
+
+    func testAServiceRefusalOtherThanOfflineSaysItWillBeTriedLater() async {
+        transport.next = [.failure(.retryLater)]
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug()
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportLaterNotice }
+        XCTAssertEqual(outbox().pending.count, 1, "the report waits")
+    }
+
+    /// A report made while an older one is still sending is announced, not
+    /// left at "Sending…" or called an earlier report.
+    func testAReportMadeWhileAnOlderOneSendsIsAnnounced() async {
+        transport.gateFirstSend = true
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug(description: "first")
+        await waitUntil { self.transport.sent.count == 1 }
+        model.reportBug(description: "second")
+        await waitUntil { self.outbox().pending.count == 2 }
+        transport.releaseFirstSend()
+        await waitUntil { self.transport.sent.count == 2 }
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportSentNotice }
+        XCTAssertEqual(model.bugReportNotice, RundalePresentationModel.bugReportSentNotice)
+        XCTAssertEqual(transport.sent.map(\.description), ["first", "second"])
+        XCTAssertEqual(outbox().pending.map(\.description), [])
+    }
+
+    func testADescriptionIsCutToTheServicesLimit() async {
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug(description: String(repeating: "á", count: 2_500))
+        await waitUntil { self.transport.sent.count == 1 }
+        XCTAssertEqual(transport.sent.first?.description.unicodeScalars.count, 2_000)
+    }
+
+    func testARejectedReportLeavesTheQueue() async {
+        transport.next = [.failure(.rejected)]
+        let model = model(beta: true, session: Phase4TestSession(active: false))
+        model.reportBug()
+        await waitUntil { model.bugReportNotice == RundalePresentationModel.bugReportRejectedNotice }
+        XCTAssertTrue(outbox().pending.isEmpty)
+    }
+
     func testDraftEditedWhileTheReportIsMadeIsKept() async {
-        let session = Phase4TestSession(active: false)
-        let model = model(beta: true, session: session)
+        let model = model(beta: true, session: Phase4TestSession(active: false))
         model.draft = "/bug"
         model.noteDraftMutation()
         model.submitDraft()
         model.draft = "go to the cottage"
         model.noteDraftMutation()
-        await waitUntil { !self.copied.isEmpty }
+        await waitUntil { self.transport.sent.count == 1 }
         XCTAssertEqual(model.draft, "go to the cottage")
     }
 
@@ -85,8 +167,42 @@ final class RundaleBugReportTests: XCTestCase {
         model.submitDraft()
         await waitUntil { session.submitCalls == 1 }
         XCTAssertEqual(session.bugReportDescriptions, [])
-        XCTAssertEqual(copied, [])
+        XCTAssertTrue(transport.sent.isEmpty)
         XCTAssertNil(model.bugReportNotice)
+    }
+
+    func testABetaBuildWithoutTheServiceSaysSo() {
+        let model = RundalePresentationModel(
+            launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:],
+                                        bundle: ["RUNDALE_BETA_FEEDBACK": "YES"]),
+            session: Phase4TestSession(active: false)
+        )
+        model.reportBug()
+        XCTAssertEqual(model.bugReportNotice, RundalePresentationModel.bugReportUnavailableNotice)
+    }
+
+    /// The phone and limerick-bug-report agree on the wire: both sides test
+    /// against bug-report/test/fixtures/phone-report.json.
+    func testTheReportEncodesAsTheServiceExpects() throws {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("../../bug-report/test/fixtures/phone-report.json")
+            .standardizedFileURL
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: String]
+        )
+        let report = PendingBugReport(
+            reportID: try XCTUnwrap(fixture["reportId"]),
+            description: try XCTUnwrap(fixture["description"]),
+            report: try XCTUnwrap(fixture["report"]),
+            build: fixture["build"],
+            device: try XCTUnwrap(fixture["device"]),
+            screenshot: fixture["screenshot"]
+        )
+        let encoded = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(report)) as? [String: String]
+        )
+        XCTAssertEqual(encoded, fixture)
     }
 
     func testOnlyTheBugWordIsTheCommand() {
@@ -97,18 +213,21 @@ final class RundaleBugReportTests: XCTestCase {
         XCTAssertNil(RundalePresentationModel.bugDescription(in: "ask about the /bug"))
     }
 
-    func testBetaFlagAndBuildComeFromTheBundle() {
+    func testBetaFlagServiceAndBuildComeFromTheBundle() {
         let beta = LaunchConfiguration(arguments: [], environment: [:], bundle: [
             "RUNDALE_BETA_FEEDBACK": "YES",
+            "RUNDALE_BUG_REPORT_URL": "https://bugs.example.test",
             "CFBundleShortVersionString": "0.1.0",
             "CFBundleVersion": "2180"
         ])
         XCTAssertTrue(beta.allowsBugReports)
+        XCTAssertEqual(beta.bugReportURL?.absoluteString, "https://bugs.example.test")
         XCTAssertEqual(beta.buildDescription, "0.1.0 (2180)")
         let store = LaunchConfiguration(arguments: [], environment: [:], bundle: [
             "RUNDALE_BETA_FEEDBACK": "NO"
         ])
         XCTAssertFalse(store.allowsBugReports)
+        XCTAssertNil(store.bugReportURL)
         XCTAssertNil(store.buildDescription)
     }
 
@@ -131,10 +250,56 @@ final class RundaleBugReportTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        for _ in 0..<200 {
+        for _ in 0..<500 {
             if condition() { return }
             await Task.yield()
         }
         XCTFail("condition did not become true", file: file, line: line)
+    }
+}
+
+/// Answers each send from `next`, then accepts. With `gateFirstSend`, the
+/// first send waits until `releaseFirstSend()`.
+private final class ScriptedTransport: BugReportTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _sent: [PendingBugReport] = []
+    private var gate: CheckedContinuation<Void, Never>?
+    private var released = false
+    var next: [Result<Void, BugReportSendError>] = []
+    var gateFirstSend = false
+
+    var sent: [PendingBugReport] { lock.withLock { _sent } }
+
+    func releaseFirstSend() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            released = true
+            defer { gate = nil }
+            return gate
+        }
+        waiting?.resume()
+    }
+
+    func send(_ report: PendingBugReport) async throws(BugReportSendError) {
+        let mustWait = lock.withLock { gateFirstSend && _sent.isEmpty && !released }
+        if mustWait {
+            lock.withLock { _sent.append(report) }
+            await withCheckedContinuation { continuation in
+                let resumeNow = lock.withLock { () -> Bool in
+                    if released { return true }
+                    gate = continuation
+                    return false
+                }
+                if resumeNow { continuation.resume() }
+            }
+            return
+        }
+        let outcome: Result<Void, BugReportSendError> = lock.withLock {
+            _sent.append(report)
+            if !next.isEmpty, case let .failure(error) = next.removeFirst() {
+                return .failure(error)
+            }
+            return .success(())
+        }
+        try outcome.get()
     }
 }

@@ -8,6 +8,7 @@ struct LaunchConfiguration: Sendable {
         static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
         static let betaFeedback = "RUNDALE_BETA_FEEDBACK"
+        static let bugReportURL = "RUNDALE_BUG_REPORT_URL"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -49,10 +50,12 @@ struct LaunchConfiguration: Sendable {
     /// its own Endpoint slug and version (the engine reads them from the
     /// world's Endpoint definitions).
     let endpointOrganization: String
-    /// Beta builds offer `/bug` and shake-to-report, which copy a report for
-    /// TestFlight feedback (#2022). Set by the `RUNDALE_BETA_FEEDBACK` build
-    /// setting; an App Store build sets it to NO.
+    /// Beta builds offer `/bug` and shake-to-report, which send a report to
+    /// `limerick-bug-report`'s private inbox (#2022, ADR-027). Set by the
+    /// `RUNDALE_BETA_FEEDBACK` build setting; an App Store build sets it to NO.
     let allowsBugReports: Bool
+    /// The `limerick-bug-report` service, supplied like the Endpoint origin.
+    let bugReportURL: URL?
     /// The app's version and build, as a bug report names them.
     let buildDescription: String?
 
@@ -101,6 +104,9 @@ struct LaunchConfiguration: Sendable {
         allowsBugReports = (bundle[BundleKey.betaFeedback] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased() == "YES"
+        bugReportURL = Self.configuredValue(BundleKey.bugReportURL,
+                                            environment: environment,
+                                            bundle: bundle).flatMap(URL.init(string:))
         let version = bundle["CFBundleShortVersionString"] as? String
         let build = bundle["CFBundleVersion"] as? String
         buildDescription = version.map { version in

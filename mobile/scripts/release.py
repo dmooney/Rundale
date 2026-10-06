@@ -28,10 +28,12 @@ ENDPOINT_SETTINGS = {
     "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-endpoints-877612517009.us-east1.run.app",
     "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
 }
-# Internal TestFlight builds offer `/bug` and shake-to-report (#2022). An App
-# Store build must set this to NO.
+# Internal TestFlight builds offer `/bug` and shake-to-report, which send a
+# report to limerick-bug-report's private inbox (#2022, ADR-027). An App Store
+# build must set RUNDALE_BETA_FEEDBACK to NO.
 BETA_SETTINGS = {
     "RUNDALE_BETA_FEEDBACK": "YES",
+    "RUNDALE_BUG_REPORT_URL": "https://limerick-bug-report-877612517009.us-east1.run.app",
 }
 
 

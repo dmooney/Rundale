@@ -119,9 +119,10 @@ final class RundaleCommandsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["completion.debug"].exists, "Commands lists only the advertised four")
     }
 
-    /// #2022: in a beta build `/bug` is offered as you type, copies a report
-    /// for TestFlight feedback, and never becomes a turn.
-    func testBugCommandCopiesAReportWithoutATurn() {
+    /// #2022: in a beta build `/bug` is offered as you type and sends the
+    /// report, with a screenshot, to limerick-bug-report; it never becomes a
+    /// turn. UI tests send into memory instead of the live service.
+    func testBugCommandSendsAReportWithoutATurn() {
         submit("go to Connolly Cottage")
         input.tap()
         input.typeText("/bu")
@@ -135,20 +136,25 @@ final class RundaleCommandsUITests: XCTestCase {
 
         let notice = app.staticTexts["bugReport.notice"]
         XCTAssertTrue(notice.waitForExistence(timeout: 8))
-        XCTAssertTrue(notice.label.hasPrefix("Bug report copied."), notice.label)
+        let sent = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "Bug report sent. Thank you."),
+            object: notice
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [sent], timeout: 8), .completed, notice.label)
         let report = app.descendants(matching: .any).matching(identifier: "uitest.bugReport").firstMatch
         let text = report.value as? String ?? ""
-        XCTAssertTrue(text.hasPrefix("Rundale bug report\nMícheál never looked up\n"), text)
+        XCTAssertTrue(text.hasPrefix("screenshot bytes: "), text)
+        XCTAssertFalse(text.hasPrefix("screenshot bytes: 0\n"), "a screenshot was taken")
+        XCTAssertTrue(text.contains("Rundale bug report\nMícheál never looked up\n"), text)
         XCTAssertTrue(text.contains("Scene: Connolly Cottage · "), text)
         XCTAssertTrue(text.contains("> go to Connolly Cottage\n"), text)
-        XCTAssertTrue(text.hasSuffix("\nEndpoint calls since launch: none\n"), text)
         let cleared = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
         )
         XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed, "the /bug draft is cleared")
         XCTAssertFalse(row(containing: "/bug").exists, "/bug is not a turn")
         XCTAssertFalse(app.buttons["composer.retry"].exists)
-        hold(4)
+        hold(5)
 
         app.buttons["bugReport.dismiss"].tap()
         XCTAssertFalse(notice.exists)

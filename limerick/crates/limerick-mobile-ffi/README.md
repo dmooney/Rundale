@@ -45,20 +45,20 @@ transcript opens with the launch-refusal notice.
 
 ## Operations
 
-| `op`                     | Fields                                                                               | Result                                                |
-| ------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `snapshot`               | none                                                                                 | read model, requests, newest 100 events               |
-| `submit`                 | `text`, optional `draft_id`, `logical_request_id`                                    | operation result                                      |
-| `retry`                  | `logical_request_id`                                                                 | operation result (new attempt)                        |
-| `answer_clarification`   | `logical_request_id`, `choice_id`                                                    | operation result (same request)                       |
-| `stop`                   | none                                                                                 | operation result (`cancelled`, or `ignored`)          |
-| `pending_endpoint`       | none                                                                                 | the invocation the host owes, or `null`               |
-| `resolve`                | `call_id`, `attempt_id`, `base_revision`, `output`                                   | operation result                                      |
-| `fail`                   | `call_id`, `attempt_id`, `base_revision`, `error_kind`, `message`, optional `reason` | operation result                                      |
-| `frame`                  | `call_id`, `attempt_id`, `sequence`, `text`                                          | one provisional event, or `ignored`                   |
-| `read_events`            | optional `after`, `limit` (1–100)                                                    | events after `after`, `cursor`, `hasMore`             |
-| `read_event_page_before` | `before`, `limit` (1–100)                                                            | newest events before `before`, `cursor`, `hasMore`    |
-| `bug_report`             | optional `description`, `build`                                                      | `text` (the TestFlight feedback report), `characters` |
+| `op`                     | Fields                                                                               | Result                                             |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `snapshot`               | none                                                                                 | read model, requests, newest 100 events            |
+| `submit`                 | `text`, optional `draft_id`, `logical_request_id`                                    | operation result                                   |
+| `retry`                  | `logical_request_id`                                                                 | operation result (new attempt)                     |
+| `answer_clarification`   | `logical_request_id`, `choice_id`                                                    | operation result (same request)                    |
+| `stop`                   | none                                                                                 | operation result (`cancelled`, or `ignored`)       |
+| `pending_endpoint`       | none                                                                                 | the invocation the host owes, or `null`            |
+| `resolve`                | `call_id`, `attempt_id`, `base_revision`, `output`                                   | operation result                                   |
+| `fail`                   | `call_id`, `attempt_id`, `base_revision`, `error_kind`, `message`, optional `reason` | operation result                                   |
+| `frame`                  | `call_id`, `attempt_id`, `sequence`, `text`                                          | one provisional event, or `ignored`                |
+| `read_events`            | optional `after`, `limit` (1–100)                                                    | events after `after`, `cursor`, `hasMore`          |
+| `read_event_page_before` | `before`, `limit` (1–100)                                                            | newest events before `before`, `cursor`, `hasMore` |
+| `bug_report`             | optional `description`, `build`                                                      | `text` (the bug report), `characters`              |
 
 An operation result carries `accepted`, `logicalRequestID`, `attemptID`,
 `events` (the journaled transcript events it produced, projected onto the
@@ -68,13 +68,14 @@ player-facing `error` of a failed attempt, and `eventCursor`. Numeric
 identities (`sequence`, `stateRevision`, `baseRevision`, cursors) are
 `{"rawValue": n}`; the operations accept either form.
 
-`bug_report` composes the plain-text report a beta tester pastes into
-TestFlight feedback (#2022, [plan](../../../docs/plans/mobile-bug-report.md)):
-the description, build, scene and who is present, the open request, the newest
-journaled transcript lines, and the Endpoint calls answered since the session
-opened (the last eight, kept in memory only). It is at most 3,600 characters
-(`limerick_diagnostics::feedback_report::FEEDBACK_BUDGET`). It reads only:
-nothing is journaled and no state changes.
+`bug_report` composes the plain-text report the app sends to
+`limerick-bug-report` with `/bug` or a shake (#2022,
+[plan](../../../docs/plans/mobile-bug-report.md)): the description, build,
+scene and who is present, the open request, the newest journaled transcript
+lines, and the Endpoint calls answered since the session opened (the last
+eight, kept in memory only). It is at most 50,000 characters
+(`limerick_diagnostics::mobile_report::REPORT_BUDGET`). It reads only: nothing
+is journaled and no state changes.
 
 A refused request (a request is still open, the request already committed, a
 slash command the phone does not offer) answers

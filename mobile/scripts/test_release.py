@@ -53,6 +53,15 @@ class ReleaseTests(unittest.TestCase):
             },
         )
 
+    def test_beta_builds_report_bugs_to_the_limerick_prod_service(self):
+        self.assertEqual(
+            release.BETA_SETTINGS,
+            {
+                "RUNDALE_BETA_FEEDBACK": "YES",
+                "RUNDALE_BUG_REPORT_URL": "https://limerick-bug-report-877612517009.us-east1.run.app",
+            },
+        )
+
     def test_release_build_number_is_the_commit_count(self):
         git = [
             "git",
