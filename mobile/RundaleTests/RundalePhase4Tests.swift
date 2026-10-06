@@ -203,6 +203,9 @@ final class Phase4TestSession: RundaleSessionControlling {
     private var submitContinuation: CheckedContinuation<Void, Never>?
     private(set) var lifecycleEvents: [String] = []
     private(set) var bugReportDescriptions: [String] = []
+    var gateBugReport = false
+    private(set) var bugReportStarted = false
+    private var bugReportContinuation: CheckedContinuation<Void, Never>?
 
     init(active: Bool, failedRequests: Int = 0) {
         let request = RequestRecord(
@@ -347,7 +350,19 @@ final class Phase4TestSession: RundaleSessionControlling {
     func answerClarification(choiceID: String) async throws { throw FixtureAdapterError.noClarificationPending }
     func bugReport(description: String) async throws -> String {
         bugReportDescriptions.append(description)
+        bugReportStarted = true
+        if gateBugReport {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                bugReportContinuation = continuation
+            }
+        }
         return "Rundale bug report\n\(description)\n"
+    }
+
+    func releaseBugReport() {
+        gateBugReport = false
+        bugReportContinuation?.resume()
+        bugReportContinuation = nil
     }
 
     func suggestions(for text: String) -> [CompletionItem] { [] }

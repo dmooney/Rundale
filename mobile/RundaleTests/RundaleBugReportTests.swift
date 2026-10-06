@@ -158,6 +158,38 @@ final class RundaleBugReportTests: XCTestCase {
         XCTAssertEqual(model.draft, "go to the cottage")
     }
 
+    func testSameTextDraftMutationAfterBugCommandStillClears() async {
+        let session = Phase4TestSession(active: false)
+        session.gateBugReport = true
+        let model = model(beta: true, session: session)
+        model.draft = "/bug the composer stayed full"
+        model.noteDraftMutation()
+
+        model.submitDraft()
+        await waitUntil { session.bugReportStarted }
+        model.noteDraftMutation()
+        session.releaseBugReport()
+        await waitUntil { self.transport.sent.count == 1 }
+        XCTAssertEqual(model.draft, "")
+    }
+
+    func testNewDraftAfterBugCommandSurvivesQueueing() async {
+        let session = Phase4TestSession(active: false)
+        session.gateBugReport = true
+        let model = model(beta: true, session: session)
+        model.draft = "/bug the composer stayed full"
+        model.noteDraftMutation()
+
+        model.submitDraft()
+        await waitUntil { session.bugReportStarted }
+        model.draft = "a genuinely new command"
+        model.noteDraftMutation()
+        session.releaseBugReport()
+
+        await waitUntil { self.transport.sent.count == 1 }
+        XCTAssertEqual(model.draft, "a genuinely new command")
+    }
+
     func testOutsideBetaBuildsBugIsAnOrdinaryCommandAndShakeDoesNothing() async {
         let session = Phase4TestSession(active: false)
         let model = model(beta: false, session: session)
