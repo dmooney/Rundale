@@ -7370,7 +7370,7 @@ SOFTWARE.
 - [tauri-runtime-wry 2.12.1](https://github.com/tauri-apps/tauri)
 - [tauri-runtime 2.12.1](https://github.com/tauri-apps/tauri)
 - [tauri-utils 2.10.1](https://github.com/tauri-apps/tauri)
-- [tauri 2.12.0](https://github.com/tauri-apps/tauri)
+- [tauri 2.12.1](https://github.com/tauri-apps/tauri)
 
 ```
 MIT License

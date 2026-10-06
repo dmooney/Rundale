@@ -82,6 +82,9 @@ is set (recording only).
 - **XCUITest cannot see rows scrolled out of the lazy transcript.** Assert on
   what a command produced, not on a command row a long narration pushed
   off-screen.
+- **Stop stalled mobile verification at the parent process.** Killing only its
+  `xcodebuild` child can leave `verify.py` running and starting later suites on
+  the same simulator.
 - **Product identifiers say Limerick; geography keeps "parish".** Swift, FFI,
   and Endpoints identifiers use `Limerick*`, `limerick_mobile_*`, and
   `@limerick/*` (#2007). Leave Irish geography, ADR text, and historical

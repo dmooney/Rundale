@@ -308,7 +308,6 @@ final class RundalePresentationModel: ObservableObject {
             return
         }
         let screenshot = captureScreenshot()
-        let sourceRevision = draftRevision
         bugReportNotice = Self.bugReportSendingNotice
         Task {
             do {
@@ -326,7 +325,9 @@ final class RundalePresentationModel: ObservableObject {
                     screenshot: screenshot?.base64EncodedString()
                 )
                 try bugReports.enqueue(pending)
-                if let sourceDraft, draftRevision == sourceRevision, draft == sourceDraft {
+                if let sourceDraft,
+                   draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                   == sourceDraft.trimmingCharacters(in: .whitespacesAndNewlines) {
                     draft = ""
                     draftRevision &+= 1
                     completionBrowser = nil
