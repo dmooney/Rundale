@@ -86,6 +86,11 @@ Serves the UI at `/` and a JSON API: `GET /api/runs`, `/api/runs/{id}`,
 `/api/compare?a=&b=`, `/api/cost`. The UI has Runs / Trends / A/B tabs (run list, 7-axis
 radial chart, per-turn frame gallery, findings, score-vs-commit trend, A/B delta table).
 
+The dashboard listens on every interface without authentication, so `--artifacts` is also
+the boundary of what it reads: a frame or transcript is served only when its resolved path
+(symlinks followed) lies inside that directory. Point `serve` at the same `--artifacts` root
+that `run`, `worker`, and `ingest` wrote to; runs recorded under another root return 404.
+
 ### `queue` + `worker` — run many, unattended
 
 ```sh
@@ -121,7 +126,9 @@ so the run shows on the dashboard indistinguishably from a binary run (quality s
 bars, findings, per-turn frames, cost). Prints `ingested run <id>`.
 
 `--artifacts <root>` must contain `runs/<uuid>/turns/NNN/frame.png` for every turn the payload
-references (each frame must be non-empty — rule #14). The run's `artifact_dir` is stored as
+references (each frame must be non-empty — rule #14). The payload's `uuid` must be a single
+directory name, and every per-turn path must be relative without `..`; ingest rejects anything
+that would resolve outside `runs/<uuid>/`. The run's `artifact_dir` is stored as
 `<root>/runs/<uuid>` so the dashboard's frame route resolves unchanged.
 
 Payload schema (one JSON object):
