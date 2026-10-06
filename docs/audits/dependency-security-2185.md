@@ -62,6 +62,14 @@ Endpoints format, lint, typecheck, test, and build passed: 126 tests passed;
 eight opt-in database/provider tests were skipped. `just notices`, documentation
 format checks, and workflow actionlint also passed.
 
+Coverage also exposed a pre-existing clock-boundary test whose arrival anchor
+included seconds elapsed while loading the fixture. Adding 59 seconds could
+therefore enter the next minute. The test now normalizes its anchor to a full
+minute and retains the 0/1/59/60-second assertions; no gameplay behavior changes.
+The focused regression passed. The local tarpaulin 0.35.4 parser failed on the
+installed LLVM profile format; the full coverage threshold is checked with
+upstream tarpaulin 0.37.5.
+
 Final deployment and simulator live-suite receipts are recorded in the linked
 pull request.
 Simulator live gameplay is distinct from physical-iPhone acceptance. This change
