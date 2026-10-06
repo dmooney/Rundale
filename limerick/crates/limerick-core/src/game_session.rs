@@ -1065,6 +1065,8 @@ mod tests {
 
     #[test]
     fn travel_encounter_roll_ignores_seconds_within_the_minute() {
+        use chrono::Timelike;
+
         // Game dates precede 1970, so a truncating `timestamp() / 60` put
         // 08:13:01 in the 08:14 bucket: wall-clock seconds left on the live
         // clock before a pause changed which encounter fired.
@@ -1081,7 +1083,15 @@ mod tests {
             &FeatureFlags::default(),
         );
         assert!(effects.world_changed);
-        let arrival = world.clock.now();
+        // Fixture loading can advance the live clock before it is paused,
+        // especially under coverage. Anchor every sample to one full minute.
+        let arrival = world
+            .clock
+            .now()
+            .with_second(0)
+            .unwrap()
+            .with_nanosecond(0)
+            .unwrap();
         let mut roll_at = |seconds: i64| {
             let mut clock =
                 limerick_types::GameClock::new(arrival + chrono::Duration::seconds(seconds));

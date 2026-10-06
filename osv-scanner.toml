@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = "No fixed release is listed. The affected braces 3.0.3 instances are development/build tooling in the root and Endpoints lockfiles; their glob patterns come from repository-controlled configuration, not user input. Reassess when upstream publishes a fix."

@@ -1,0 +1,11 @@
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18.5 is confined to the Linux Tauri GTK3 desktop stack, whose gtk-rs dependencies require glib 0.18; the fixed glib 0.20 line requires a coordinated GTK stack major upgrade. It is absent from the iOS mobile dependency tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+reason = "proc-macro-error 1.0.4 is unmaintained with no fixed release. It is only pulled by glib-macros for compile-time expansion of repository-controlled desktop GTK code; it is absent from the iOS mobile dependency tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "The RSA advisory has no fixed release. The server uses rsa only to verify externally supplied JWT signatures with public JWK modulus/exponent via jsonwebtoken; it performs no RSA private-key decryption or signing, the vulnerable operation."

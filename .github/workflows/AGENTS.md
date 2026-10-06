@@ -79,8 +79,9 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `osv-scanner.yml` — OSV vulnerability scanner
 
-- **Triggers:** `pull_request`/`push`/`merge_group` to `main`, `schedule` (weekly 22:42 UTC Saturday).
+- **Triggers:** `pull_request`/`push`/`merge_group` to `main`, `schedule` (daily 22:42 UTC), and `workflow_dispatch`.
 - Uses Google's reusable `osv-scanner-reusable.yml`/`osv-scanner-reusable-pr.yml` v2.6.0. Scan args: `-r ./` (`--skip-git` was removed upstream; do not pass it).
+- Full push/scheduled/manual scans fail on all unaccepted advisories; PR scans only fail on additions. Keep both gates when updating the scanner.
 - **Permissions:** `security-events: write` (uploads SARIF to Security tab).
 
 ### `build-vllm-mlx-bundle.yml` — Build vllm-mlx distribution bundle

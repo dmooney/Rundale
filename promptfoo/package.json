@@ -14,5 +14,18 @@
   },
   "devDependencies": {
     "promptfoo": "^0.123.1"
+  },
+  "overrides": {
+    "@opentelemetry/core": "2.11.0",
+    "@simple-git/argv-parser": "2.0.1",
+    "basic-ftp": "6.2.1",
+    "body-parser": "2.3.0",
+    "compression": "1.8.2",
+    "ip-address": "10.7.1",
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.0",
+    "simple-git": "4.0.1",
+    "smol-toml": "1.9.0",
+    "sharp": "0.35.5"
   }
 }

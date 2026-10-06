@@ -60,3 +60,5 @@
 - Keep terminology consistent with the product vision and software architecture.
 - Write public contracts and examples in provider-neutral terms unless documenting an adapter.
 - Update examples when routes, schemas, names, or lifecycle rules change so the two core documents do not drift.
+
+- **Live deployments may enable only Google Vertex AI.** Require an OpenAI key and instantiate its adapter only when configured; never add a synthetic credential to satisfy startup. Keep the Google-only configuration regression and live startup proof.

@@ -56,6 +56,23 @@ describe("server configuration", () => {
     ).toThrow(/price every allowed live model/);
   });
 
+  it("starts a Google-only live deployment without an OpenAI credential", () => {
+    const environment = {
+      AUTH_MODE: "development",
+      PROVIDER_MODE: "live",
+      GOOGLE_PROVIDER_AUTH: "vertex-ai",
+      GOOGLE_CLOUD_PROJECT: "synthetic-project",
+      GOOGLE_ALLOWED_MODELS: "model-a",
+      MODEL_PRICES_JSON: JSON.stringify({
+        "google/model-a": { inputPerMillionUsd: 1, outputPerMillionUsd: 2 },
+      }),
+    };
+    expect(readServerConfig(environment).openaiApiKey).toBeUndefined();
+    expect(() => readServerConfig({ ...environment, OPENAI_ALLOWED_MODELS: "model-b" })).toThrow(
+      /OPENAI_API_KEY/,
+    );
+  });
+
   it("accepts non-negative versioned price configuration", () => {
     const config = readServerConfig({
       AUTH_MODE: "development",

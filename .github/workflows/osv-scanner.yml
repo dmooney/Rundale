@@ -3,7 +3,8 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-# A sample workflow which sets up periodic OSV-Scanner scanning for vulnerabilities,
+# Full main scans fail on every unaccepted advisory; PR scans compare changes.
+# This workflow sets up periodic OSV-Scanner scanning for vulnerabilities,
 # in addition to a PR check which fails if new vulnerabilities are introduced.
 #
 # For more examples and options, including how to ignore specific vulnerabilities,
@@ -16,8 +17,9 @@ on:
     branches: ["main"]
   merge_group:
     branches: ["main"]
+  workflow_dispatch:
   schedule:
-    - cron: "42 22 * * 6"
+    - cron: "42 22 * * *"
   push:
     branches: ["main"]
 
@@ -31,7 +33,7 @@ permissions:
 
 jobs:
   scan-scheduled:
-    if: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0"
     with:
       # --skip-git was removed in osv-scanner; do not pass it (v2.6+ rejects it).
