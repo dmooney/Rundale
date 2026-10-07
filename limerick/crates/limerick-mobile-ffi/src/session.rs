@@ -1118,8 +1118,9 @@ fn restore_save(
     Ok((world, npcs, db, branch.id))
 }
 
-/// Moves a save this build will not open (and its SQLite sidecars) aside
-/// unchanged: `game.sqlite` becomes `game.<label>-<unix seconds>.sqlite`.
+/// Moves a save this build will not open, and its SQLite sidecars, aside
+/// as they are: with the label `refused`, `game.sqlite` becomes
+/// `game.refused-<unix seconds>.sqlite`.
 fn set_aside(path: &Path, label: &str) -> Result<PathBuf, OpError> {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1130,8 +1131,8 @@ fn set_aside(path: &Path, label: &str) -> Result<PathBuf, OpError> {
     Ok(aside)
 }
 
-/// `path` with `label` before its extension: `game.sqlite` becomes
-/// `game.<label>.sqlite`.
+/// `path` with `label` before its extension: with the label `creating`,
+/// `game.sqlite` becomes `game.creating.sqlite`.
 fn sibling(path: &Path, label: &str) -> PathBuf {
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("save");
     let extension = path
