@@ -38,7 +38,8 @@ just mobile-verify --fast
 
 ## Phases
 
-"Phase N" is product spec Milestone N, not a "Mobile Phase N" GitHub milestone.
+"Phase N" is product spec Milestone N. The spec's §17 table maps Milestones 4–7 to the
+named GitHub milestones (Stability, Existing features usable, Full village, Release).
 
 - `just mobile-verify --phase 1`, `--phase 2`, `--phase 3`, or `--phase 4` runs
   that implemented gate.
