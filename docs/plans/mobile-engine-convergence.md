@@ -102,7 +102,7 @@ walkthrough pass unchanged.
 
 ## Mobile Phase 1: portable turn API (L) (done)
 
-Moved out: #2023 (outside this plan) and #2025 (Mobile Phase 8). This document is #2036.
+Moved out: #2023 (outside this plan) and #2025 (now in Existing features usable). This document is #2036.
 Done: #2026, #2027, #2028, #2029, #2032, #2033, #2034 (PR #2067), #2035 (PR #2073).
 See [the design doc](../design/portable-turn-api.md) for the as-built API and §8
 for the full PR sequence.
