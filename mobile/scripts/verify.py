@@ -49,7 +49,7 @@ PHASE4_UI_CLASSES = (
 )
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
-LAST_PHASE = 6
+LAST_PHASE = 7
 
 
 def _pinned_rust_toolchain() -> str:
@@ -265,9 +265,9 @@ def _phase(value: str) -> int | None:
     try:
         result = int(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("phase must be 1-6 or all") from exc
+        raise argparse.ArgumentTypeError(f"phase must be 1-{LAST_PHASE} or all") from exc
     if result < 1 or result > LAST_PHASE:
-        raise argparse.ArgumentTypeError("phase must be 1-6 or all")
+        raise argparse.ArgumentTypeError(f"phase must be 1-{LAST_PHASE} or all")
     return result
 
 
@@ -2588,7 +2588,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--phase",
         type=_phase,
         default=None,
-        metavar="1-6|all",
+        metavar=f"1-{LAST_PHASE}|all",
         help="phase to run; default runs all currently implemented phases",
     )
     parser.add_argument(
