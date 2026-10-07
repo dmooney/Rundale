@@ -29,7 +29,7 @@ the issues record what depends on what. Refer to work by issue number.
 Mobile Phase 7 holds the player-facing features deferred by the feature freeze. Mobile
 Phase 5 lifted the freeze on 2026-10-04, so they can start.
 
-"Milestone N" in the [product specification](../product-specs/product-technical-spec.md)
+"Milestone N" in the [product specification](../product-specs/mobile-product-technical-spec.md)
 §17, and "Phase N" in the test plans, audits, and `just mobile-verify --phase N`, mean
 product spec Milestone N, not Mobile Phase N.
 

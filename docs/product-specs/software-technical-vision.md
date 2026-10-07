@@ -4,7 +4,7 @@ Architecture for the text-first reset and all six delivery phases
 
 > Status: Proposed technical direction, version 1.1. Scope: Native iPhone client, embedded Limerick Engine, Rundale content, and the integration contract with Limerick Endpoints. This is a companion to the current Product & Technical Specification, not a replacement for its requirements or a claim that any milestone is complete.
 
-Editorial import note: references to the native Product & Technical Specification, including [P1], resolve within this repository to the versioned [Product & Technical Specification](product-technical-spec.md). The native document remains source provenance; this note does not change the imported source text or its proposed status.
+Editorial import note: references to the native Product & Technical Specification, including [P1], resolve within this repository to the versioned [Product & Technical Specification](mobile-product-technical-spec.md). The native document remains source provenance; this note does not change the imported source text or its proposed status.
 
 Editorial note (2026-10-01, #2045): the repository-level verification entry point
 that §§ Phase 1 and Phase 2 call "preferably ./verify" is `just mobile-verify`, with

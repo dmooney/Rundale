@@ -2,7 +2,7 @@
 
 Added 2026-09-07 at the user's request: give the user a demo at the conclusion
 of every phase. This is part of delivery alongside the existing
-[product requirements](product-technical-spec.md), not a substitute for them.
+[product requirements](mobile-product-technical-spec.md), not a substitute for them.
 
 ## Format
 
@@ -57,9 +57,10 @@ Criteria and Definition of Done have been met.
 | 1 — Native interaction prototype | Fixture-only header/transcript/composer; multiline input; incremental output and Stop; editable history; @ and / completion; clarification and retry fixtures; reading history while output arrives; newest-content return; draft/session restoration; light/dark and large text. |
 | 2 — Embedded Rust slice          | Real local game on the canonical tiny world; offline /look; real incremental Limerick Endpoint response; Stop/retry; completed action and interrupted request recovery after relaunch.                                                                                            |
 | 3 — Tiny world navigation        | All three locations and NPCs against the canonical sheet; deterministic offline and natural-language travel; presence, a scheduled movement, clarification, and save/resume consistency.                                                                                          |
-| 4 — Mobile reliability           | The existing game through keyboard changes, app switching, connectivity loss/recovery, interrupted inference, long history, accessibility settings, and relaunch; include the required physical-device session evidence.                                                          |
-| 5 — Living-world proof           | Reproducible memory, gossip before/after propagation, task progression, weather behavior, and scheduled movement; inspect authoritative state and repeat after save/resume.                                                                                                       |
-| 6 — Controlled expansion         | For every accepted increment, demonstrate its specific player benefit and acceptance cases, then show that the canonical tiny-world and affected reliability interactions still work.                                                                                             |
+| 4 — Mobile reliability           | The existing game through keyboard changes, app switching, connectivity loss/recovery, interrupted inference, long history, accessibility settings, and relaunch; include the physical-device session evidence, or record the waiver (spec §16).                                  |
+| 5 — Existing features usable     | Each restored feature working on the phone, and reproducible memory, gossip before/after propagation, task progression, weather behavior, and scheduled movement; inspect authoritative state and repeat after save/resume.                                                       |
+| 6 — Full village                 | For every accepted increment, demonstrate its specific player benefit and acceptance cases, then show that the canonical tiny-world and affected reliability interactions still work.                                                                                             |
+| 7 — Release                      | Install the tagged TestFlight build and play the full village; show the matching GitHub Release, tag and tarball.                                                                                                                                                                 |
 
 Keep demonstrations within their phase scope. Record any observed defect and
 fix or clearly report it rather than presenting an edited success-only path as

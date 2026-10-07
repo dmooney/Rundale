@@ -24,9 +24,10 @@ local observation commands, live dialogue, streaming and save/resume are wired i
 That implementation status does not establish completion of every milestone or
 physical-iPhone acceptance gate.
 
-- [Product specifications](docs/product-specs/README.md): six product milestones,
+- [Product specifications](docs/product-specs/README.md): seven product milestones,
   from native interaction prototype through embedded gameplay, tiny-world navigation,
-  mobile reliability, living-world proof and controlled expansion.
+  mobile reliability, existing features and the living-world proof, a full village,
+  and a release.
 - [Mobile engine convergence plan](docs/plans/mobile-engine-convergence.md): the
   integration sequence and dependencies. Its dated status notes are historical;
   [GitHub milestones](https://github.com/dmooney/Rundale/milestones) and
@@ -46,7 +47,8 @@ four [GitHub milestones](https://github.com/dmooney/Rundale/milestones), in orde
    postponed rather than holding the milestone.
 3. **Full village**: grow the tiny world to a full village in small batches (product
    Milestone 6).
-4. **Release**: cut a release. Later work is kept as unmilestoned ideas.
+4. **Release**: cut a release (product Milestone 7). Later work is kept as unmilestoned
+   ideas.
 
 `mobile-verify --phase N` refers to product milestone N.
 
@@ -74,7 +76,7 @@ checked-in clients and current roadmap, not a fresh end-to-end certification.
 - **Planned**: required by the current product milestones or an active delivery issue.
 - **Not planned**: unavailable in that client and outside its current roadmap, or
   inapplicable to that interface. It can be reconsidered later; it is not a permanent
-  rejection. In particular, initial mobile [non-requirements](docs/product-specs/product-technical-spec.md#15-initial-non-requirements)
+  rejection. In particular, initial mobile [non-requirements](docs/product-specs/mobile-product-technical-spec.md#15-initial-non-requirements)
   do not become promises simply because Limerick supports them.
 
 Desktop and browser share the Svelte presentation. Terminal columns show text or
@@ -99,7 +101,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Streaming dialogue                                                               | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Stop, retry and durable request lifecycle                                        | Implemented | Implemented | Implemented | Planned      | Implemented |
 | Inline emote styling                                                             | Implemented | Implemented | Implemented | Not planned  | Not planned |
-| Emoji message reactions                                                          | Not planned | Implemented | Implemented | Not planned  | Not planned |
+| Emoji message reactions (#2205)                                                  | Planned     | Implemented | Implemented | Not planned  | Not planned |
 | Irish vocabulary / pronunciation panel (Focail)                                  | Not planned | Implemented | Implemented | Not planned  | Not planned |
 | Status: location, time and weather                                               | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Nearby people in a separate sidebar                                              | Not planned | Implemented | Implemented | Not planned  | Not planned |
@@ -115,7 +117,8 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Real, pinned and fictional geography / relative anchors                          | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Game clock and deterministic NPC schedules                                       | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Configurable clock speed (/speed)                                                | Not planned | Implemented | Implemented | Implemented  | Implemented |
-| Seasonal schedules and festival hooks                                            | Not planned | Implemented | Implemented | Implemented  | Implemented |
+| Seasonal schedules (#2207)                                                       | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Festival hooks                                                                   | Not planned | Implemented | Implemented | Implemented  | Implemented |
 | Weather changes and weather-aware route resolution                               | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Travel time, transport modes and encounters                                      | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Listen, omens and authored folklore commands                                     | Not planned | Implemented | Implemented | Implemented  | Implemented |
@@ -130,7 +133,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Anachronism filtering and historical prompt guidance                             | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Local authoritative SQLite saves and journal recovery                            | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Automatic persistence and resume                                                 | Implemented | Implemented | Implemented | Implemented  | Implemented |
-| Manual save / load and git-style branching commands                              | Not planned | Implemented | Implemented | Implemented  | Implemented |
+| Manual save / load and git-style branching commands (#2206)                      | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Graphical save picker and branch DAG                                             | Not planned | Implemented | Implemented | Not planned  | Not planned |
 | Interactive terminal save picker                                                 | Not planned | Not planned | Not planned | Implemented  | Not planned |
 | Cross-process save locking                                                       | Implemented | Implemented | Implemented | Implemented  | Implemented |
@@ -164,8 +167,9 @@ Mobile details:
   reactions requiring an unavailable Endpoint are not fulfilled, and background
   gossip and tier-4 progression are skipped until #2025. Full living-world proofs
   remain Planned even where some underlying state or logic already exists.
-- The phone resumes its local save and journals committed turns. It has no branch
-  picker, save DAG, provider configuration screen, graphical map or Focail panel.
+- The phone resumes its local save and journals committed turns. Saving, loading and
+  branching are planned in [#2206](https://github.com/dmooney/Rundale/issues/2206). It
+  has no provider configuration screen, graphical map or Focail panel.
 - In beta builds, `/bug` or a shake sends a one-tap bug report to a private inbox
   ([#2022](https://github.com/dmooney/Rundale/issues/2022)), although bug reporting
   was an initial non-requirement.
