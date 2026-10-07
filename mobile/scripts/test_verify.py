@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
 import json
 import os
 import plistlib
@@ -667,7 +669,7 @@ class VerificationRunnerTests(unittest.TestCase):
             report = VerificationRun(root, command_runner=FakeRunner()).run()
 
             future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
-            self.assertEqual([suite["phase"] for suite in future], [5, 6])
+            self.assertEqual([suite["phase"] for suite in future], [5, 6, 7])
             self.assertTrue(all(suite["status"] == "unavailable" for suite in future))
             self.assertTrue(all(not suite["blocking"] for suite in future))
             self.assertEqual(report["implemented_phases"], [1, 2, 3, 4])
@@ -707,6 +709,14 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["simulator-boot"]["status"], "failed")
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["status"], "skipped")
             self.assertTrue(by_id["phase2-ios-simulator-tests"]["blocking"])
+
+    def test_phase_numbers_follow_the_spec_milestones(self):
+        # Product spec §17 runs to Milestone 7 (Release).
+        parser = verify_module.build_parser()
+        self.assertEqual(parser.parse_args(["--phase", "7"]).phase, 7)
+        self.assertIsNone(parser.parse_args(["--phase", "all"]).phase)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parser.parse_args(["--phase", "8"])
 
     def test_explicit_unimplemented_phase_fails(self):
         with tempfile.TemporaryDirectory() as directory:

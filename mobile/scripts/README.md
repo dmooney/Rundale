@@ -44,8 +44,8 @@ named GitHub milestones (Stability, Existing features usable, Full village, Rele
 - `just mobile-verify --phase 1`, `--phase 2`, `--phase 3`, or `--phase 4` runs
   that implemented gate.
 - `just mobile-verify` and `just mobile-verify --phase all` run Phases 1–4 and
-  report Phases 5–6 as non-blocking future work.
-- `just mobile-verify --phase 5` and `--phase 6` report the selected phase as
+  report Phases 5–7 as non-blocking future work.
+- `just mobile-verify --phase 5`, `--phase 6`, and `--phase 7` report the selected phase as
   unavailable and exit nonzero until it is implemented.
 
 Phase 4 includes the earlier regression suites and native lifecycle/connectivity
@@ -73,7 +73,7 @@ sheet test (`limerick-engine --test world_sheet`) and the Phase 3 UI suite.
 The runner accepts these options:
 
 ```text
---phase 1-6|all
+--phase 1-7|all
 --fast
 --project-spec PATH
 --project PATH

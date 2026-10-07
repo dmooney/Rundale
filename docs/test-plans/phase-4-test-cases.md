@@ -11,7 +11,7 @@ three-place world.
 Run `just mobile-verify --phase 4 --simulator <UDID>`. This includes the Phase 1–3 regression
 suites, portable runtime and persistence tests, Endpoint and bridge contracts,
 device packaging, native controller tests, and the Phase 4 native recovery suite.
-`just mobile-verify --phase all` includes the same gates and lists Phases 5–6 as future work.
+`just mobile-verify --phase all` includes the same gates and lists Phases 5–7 as future work.
 Deterministic network cases inject faults only at the Endpoint transport boundary.
 They do not establish live Firebase, App Attest, or cellular network behavior.
 

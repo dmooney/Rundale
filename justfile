@@ -102,7 +102,7 @@ train-rundale-dialect:
 test:
     cd limerick && just test
 
-# Run the iPhone app's verification gates (macOS + Xcode): --phase 1-4|all (mobile/scripts/README.md)
+# Run the iPhone app's verification gates (macOS + Xcode): --phase 1-7|all; 1-4 are implemented (mobile/scripts/README.md)
 mobile-verify *ARGS:
     python3 mobile/scripts/verify.py {{ARGS}}
 
