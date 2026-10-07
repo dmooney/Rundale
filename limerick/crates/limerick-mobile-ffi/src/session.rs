@@ -262,13 +262,19 @@ impl Session {
         let lock = SaveFileLock::try_acquire(&options.save_path)
             .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
         // A save this build cannot read is kept, byte for byte, beside the
-        // new game that replaces it at the save path (ADR-025 §4).
+        // new game that replaces it at the save path (ADR-025 §4). So is one
+        // an earlier build stopped creating before its first snapshot: it
+        // holds no game, so the new one starts without a refusal (#2210).
         let mut refused = false;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
                 Err(error) if error.code == "save_incompatible" => {
-                    set_aside(&options.save_path)?;
+                    set_aside(&options.save_path, "refused")?;
                     refused = true;
+                    None
+                }
+                Err(error) if error.code == "save_unfinished" => {
+                    set_aside(&options.save_path, "unfinished")?;
                     None
                 }
                 other => Some(other?),
@@ -276,13 +282,16 @@ impl Session {
         } else {
             None
         };
-        let (world, npc_manager, db, branch_id, fresh) = match restored {
-            Some((world, npcs, db, branch)) => (world, npcs, db, branch, false),
-            None => {
-                let (world, npcs, db, branch) = create_save(&options.save_path, &game_mod)?;
-                (world, npcs, db, branch, true)
-            }
+        let (world, npc_manager, db, branch_id) = match restored {
+            Some(restored) => restored,
+            None => create_save(&options.save_path, &game_mod)?,
         };
+        // The opening scene is the first event of every game, so a save
+        // without events was interrupted before its opening was journaled.
+        let fresh = db
+            .transcript_events_page(branch_id, 0, 1)
+            .map_err(OpError::storage)?
+            .is_empty();
         let session_id = session_identity(&db, branch_id)?;
         let journal = Arc::new(SqliteTurnJournal::from_database(db, branch_id));
         let live = Live::new(game_mod, world, npc_manager);
@@ -1028,7 +1037,9 @@ impl Session {
 }
 
 /// A new save at `path`: the mod's opening world, persisted as the main
-/// branch's first snapshot.
+/// branch's first snapshot. It is built under another name and renamed
+/// into place once that snapshot is written, so a process killed while
+/// creating it never leaves a save without one at `path` (#2210).
 fn create_save(
     path: &Path,
     game_mod: &GameMod,
@@ -1036,13 +1047,35 @@ fn create_save(
     let (world, mut npcs) = load_fresh_world_and_npcs(Some(game_mod), &game_mod.mod_dir)
         .map_err(|error| OpError::new("content_unavailable", error))?;
     npcs.assign_tiers(&world, &[]);
+    if path.exists() {
+        return Err(OpError::new(
+            "save_exists",
+            "a new game cannot replace an existing save",
+        ));
+    }
+    let building = sibling(path, "creating");
+    // Left by an earlier interrupted creation: an unfinished build, and
+    // sidecars of a save that is not there, which SQLite would otherwise
+    // replay into the new one.
+    remove_with_sidecars(&building)?;
+    for suffix in ["-wal", "-shm"] {
+        remove_file(&sidecar(path, suffix))?;
+    }
+    {
+        let db = Database::open(&building).map_err(OpError::storage)?;
+        let branch = db
+            .find_branch("main")
+            .map_err(OpError::storage)?
+            .ok_or_else(|| OpError::storage("a new save has no main branch"))?;
+        db.save_snapshot(branch.id, &GameSnapshot::capture(&world, &npcs))
+            .map_err(OpError::storage)?;
+    }
+    move_with_sidecars(&building, path)?;
     let db = Database::open(path).map_err(OpError::storage)?;
     let branch = db
         .find_branch("main")
         .map_err(OpError::storage)?
         .ok_or_else(|| OpError::storage("a new save has no main branch"))?;
-    db.save_snapshot(branch.id, &GameSnapshot::capture(&world, &npcs))
-        .map_err(OpError::storage)?;
     Ok((world, npcs, db, branch.id))
 }
 
@@ -1073,7 +1106,7 @@ fn restore_save(
     let data = db
         .load_recovery_data(branch.id)
         .map_err(OpError::storage)?
-        .ok_or_else(|| OpError::storage("the save has no snapshot"))?;
+        .ok_or_else(|| OpError::new("save_unfinished", "the save has no snapshot"))?;
     let (mut world, mut npcs) = load_fresh_world_and_npcs(Some(game_mod), &game_mod.mod_dir)
         .map_err(|error| OpError::new("content_unavailable", error))?;
     RecoveryBundle {
@@ -1085,28 +1118,59 @@ fn restore_save(
     Ok((world, npcs, db, branch.id))
 }
 
-/// Moves a refused save (and its SQLite sidecars) aside unchanged:
-/// `game.sqlite` becomes `game.refused-<unix seconds>.sqlite`.
-fn set_aside(path: &Path) -> Result<PathBuf, OpError> {
+/// Moves a save this build will not open, and its SQLite sidecars, aside
+/// as they are: with the label `refused`, `game.sqlite` becomes
+/// `game.refused-<unix seconds>.sqlite`.
+fn set_aside(path: &Path, label: &str) -> Result<PathBuf, OpError> {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
         .unwrap_or_default();
+    let aside = sibling(path, &format!("{label}-{stamp}"));
+    move_with_sidecars(path, &aside)?;
+    Ok(aside)
+}
+
+/// `path` with `label` before its extension: with the label `creating`,
+/// `game.sqlite` becomes `game.creating.sqlite`.
+fn sibling(path: &Path, label: &str) -> PathBuf {
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("save");
     let extension = path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("sqlite");
-    let aside = path.with_file_name(format!("{stem}.refused-{stamp}.{extension}"));
+    path.with_file_name(format!("{stem}.{label}.{extension}"))
+}
+
+fn sidecar(path: &Path, suffix: &str) -> PathBuf {
+    PathBuf::from(format!("{}{suffix}", path.display()))
+}
+
+/// Renames a closed save and its sidecars, the save itself last, so the
+/// file at `to` never appears without its write-ahead log.
+fn move_with_sidecars(from: &Path, to: &Path) -> Result<(), OpError> {
     for suffix in ["-wal", "-shm"] {
-        let sidecar = PathBuf::from(format!("{}{suffix}", path.display()));
-        if sidecar.exists() {
-            let moved = PathBuf::from(format!("{}{suffix}", aside.display()));
-            std::fs::rename(&sidecar, moved).map_err(OpError::storage)?;
+        let moved = sidecar(from, suffix);
+        if moved.exists() {
+            std::fs::rename(&moved, sidecar(to, suffix)).map_err(OpError::storage)?;
         }
     }
-    std::fs::rename(path, &aside).map_err(OpError::storage)?;
-    Ok(aside)
+    std::fs::rename(from, to).map_err(OpError::storage)
+}
+
+fn remove_with_sidecars(path: &Path) -> Result<(), OpError> {
+    remove_file(path)?;
+    for suffix in ["-wal", "-shm"] {
+        remove_file(&sidecar(path, suffix))?;
+    }
+    Ok(())
+}
+
+fn remove_file(path: &Path) -> Result<(), OpError> {
+    match std::fs::remove_file(path) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(OpError::storage(error)),
+        _ => Ok(()),
+    }
 }
 
 /// A stable identity for the save's session: its branch and the time its

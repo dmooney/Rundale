@@ -3424,6 +3424,7 @@ dependencies = [
  "limerick-core",
  "limerick-diagnostics",
  "rand 0.10.3",
+ "rusqlite",
  "serde_json",
  "tempfile",
  "tokio",

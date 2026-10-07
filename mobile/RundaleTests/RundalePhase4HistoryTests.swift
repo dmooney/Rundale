@@ -1,3 +1,4 @@
+import SQLite3
 import XCTest
 import RundaleBridge
 import RundaleKit
@@ -39,6 +40,54 @@ final class RundalePhase4HistoryTests: XCTestCase {
         try await waitUntil { !controller.state.transcript.isEmpty || controller.persistenceError != nil }
         XCTAssertNil(controller.persistenceError, controller.persistenceDiagnostic ?? "")
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("phase2.sqlite").path))
+    }
+
+    /// A launch after a new game was killed while it was being created
+    /// opens a playable game on its opening scene (#2210).
+    private func assertOpensOnTheOpeningScene(_ directory: URL) async throws {
+        let controller = RundaleEngineController(configuration: LaunchConfiguration(
+            arguments: ["--ui-tests", "--phase3", "--phase3-mock",
+                        "--draft-file=\(directory.appendingPathComponent("projection.json").path)"],
+            environment: [:], bundle: [:]
+        ))
+        controller.start()
+        try await waitUntil { !controller.state.transcript.isEmpty || controller.persistenceError != nil }
+        XCTAssertNil(controller.persistenceError, controller.persistenceDiagnostic ?? "")
+        XCTAssertEqual(controller.state.transcript.map(\.content).filter {
+            $0.hasPrefix("A muddy road runs between low stone walls")
+        }.count, 1, "\(controller.state.transcript)")
+    }
+
+    private func temporarySaveDirectory(_ name: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(name)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// Killed after the save file was created but before anything was written
+    /// to it, which earlier builds left unopenable.
+    func testAnEmptySaveFileLeftByAnInterruptedNewGameOpensANewGame() async throws {
+        let directory = try temporarySaveDirectory("phase4-empty-save")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertTrue(FileManager.default.createFile(
+            atPath: directory.appendingPathComponent("phase2.sqlite").path, contents: Data()
+        ))
+        try await assertOpensOnTheOpeningScene(directory)
+    }
+
+    /// Killed after the first snapshot but before the opening scene was
+    /// journaled, which earlier builds resumed with an empty transcript.
+    func testASaveWithoutItsOpeningSceneResumesWithIt() async throws {
+        let directory = try temporarySaveDirectory("phase4-no-opening")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let seed = try LimerickRuntime.openResume(payload: payload(directory))
+        try await seed.close()
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(directory.appendingPathComponent("phase2.sqlite").path, &database), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(database, "DELETE FROM transcript_events", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_close(database), SQLITE_OK)
+        try await assertOpensOnTheOpeningScene(directory)
     }
 
     /// A question the engine asked survives relaunch (it is journaled with

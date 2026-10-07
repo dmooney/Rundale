@@ -43,6 +43,15 @@ open ends `Interrupted`, never re-run. A save the engine cannot read
 with its SQLite sidecars) and a new game starts at the save path; its
 transcript opens with the launch-refusal notice.
 
+Creating a new game survives the process being killed at any point (#2210).
+The save is built as `<name>.creating.<ext>` and renamed to the save path
+only once its first snapshot is written; an unfinished build is discarded at
+the next launch. A save whose transcript is empty was killed before its
+opening scene was journaled, so the next launch journals it. A save with no
+snapshot, which builds before this one could leave, holds no game: it is moved
+aside as `<name>.unfinished-<unix seconds>.<ext>` and a new game starts
+without the refusal notice.
+
 ## Operations
 
 | `op`                     | Fields                                                                               | Result                                             |
