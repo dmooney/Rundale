@@ -21,4 +21,6 @@ tokio = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]
+# Edits a closed save to reproduce an interrupted new game (#2210).
+rusqlite = { workspace = true }
 tempfile = { workspace = true }

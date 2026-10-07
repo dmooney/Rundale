@@ -1044,6 +1044,104 @@ fn an_unreadable_save_is_kept_aside_and_a_new_game_starts() {
     );
 }
 
+/// Opens the save in `dir` the way every launch of the app does.
+fn resume_in(dir: &tempfile::TempDir) -> (u64, Value) {
+    let (status, handle, envelope) = open_raw(
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+        &Game::request(dir),
+    );
+    assert_eq!(
+        status,
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK,
+        "{envelope}"
+    );
+    (handle, envelope["value"].clone())
+}
+
+fn close(handle: u64) {
+    assert_eq!(
+        limerick_mobile_close(handle),
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK
+    );
+}
+
+/// A playable game on its opening scene alone, which a second launch
+/// resumes without repeating it.
+fn assert_opens_on_the_opening_scene(dir: &tempfile::TempDir, opened: &Value) {
+    let events = opened["events"].as_array().unwrap();
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["kind"], "scene_changed");
+    assert!(
+        events[0]["content"]
+            .as_str()
+            .unwrap()
+            .starts_with("A muddy road"),
+        "{events:?}"
+    );
+    let (handle, resumed) = resume_in(dir);
+    assert_eq!(resumed["sessionID"], opened["sessionID"]);
+    assert_eq!(resumed["events"], opened["events"]);
+    close(handle);
+}
+
+fn files_in(dir: &tempfile::TempDir, containing: &str) -> Vec<PathBuf> {
+    std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.to_string_lossy().contains(containing))
+        .collect()
+}
+
+#[test]
+fn a_save_killed_before_its_first_snapshot_is_kept_aside_and_a_new_game_starts() {
+    // What an earlier build left when killed between creating the save's
+    // schema and writing its first snapshot (#2210).
+    let dir = tempfile::tempdir().unwrap();
+    let save = dir.path().join("game.sqlite");
+    drop(limerick_core::persistence::Database::open(&save).unwrap());
+
+    let (handle, opened) = resume_in(&dir);
+    close(handle);
+    assert_eq!(files_in(&dir, ".unfinished-").len(), 1);
+    assert!(files_in(&dir, ".refused-").is_empty());
+    assert_opens_on_the_opening_scene(&dir, &opened);
+}
+
+#[test]
+fn a_new_game_killed_while_it_is_built_never_appears_at_the_save_path() {
+    // Killed before the rename: the save path is empty, and the unfinished
+    // build and a stray log beside the save path are left behind.
+    let dir = tempfile::tempdir().unwrap();
+    let building = dir.path().join("game.creating.sqlite");
+    drop(limerick_core::persistence::Database::open(&building).unwrap());
+    std::fs::write(dir.path().join("game.sqlite-wal"), b"stale log").unwrap();
+
+    let (handle, opened) = resume_in(&dir);
+    close(handle);
+    assert!(!building.exists());
+    assert!(files_in(&dir, ".unfinished-").is_empty());
+    assert_opens_on_the_opening_scene(&dir, &opened);
+}
+
+#[test]
+fn a_new_game_killed_before_its_opening_scene_resumes_with_it() {
+    let (game, created) = Game::new();
+    let session = created["sessionID"].clone();
+    close(game.handle);
+    // What a kill between the first snapshot and the journaled opening
+    // scene left behind (#2210).
+    let save = game.dir.path().join("game.sqlite");
+    rusqlite::Connection::open(&save)
+        .unwrap()
+        .execute("DELETE FROM transcript_events", [])
+        .unwrap();
+
+    let (handle, opened) = resume_in(&game.dir);
+    close(handle);
+    assert_eq!(opened["sessionID"], session);
+    assert_opens_on_the_opening_scene(&game.dir, &opened);
+}
+
 #[test]
 fn open_rejects_malformed_payloads() {
     let cases = [
