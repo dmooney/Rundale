@@ -152,6 +152,39 @@ final class RundalePhase4UITests: RundalePhase4UITestCase {
         attach("Draft and location restored")
     }
 
+    /// The app supports portrait only (#2211): turning the phone with a draft
+    /// and the keyboard up leaves the layout, the draft and the controls alone.
+    func testTurningThePhoneKeepsThePortraitComposerAndDraft() {
+        launch(reset: true)
+        addTeardownBlock { @MainActor in XCUIDevice.shared.orientation = .portrait }
+        let draft = "go to the Letter"
+        input.tap()
+        input.typeText(draft)
+        let portraitTranscript = app.collectionViews["transcript"].frame
+        hold(3)
+
+        for orientation: UIDeviceOrientation in [.landscapeLeft, .landscapeRight] {
+            XCUIDevice.shared.orientation = orientation
+            hold(3)
+            XCTAssertGreaterThan(app.frame.height, app.frame.width,
+                                 "The interface must stay portrait when the phone turns")
+            XCTAssertEqual(app.collectionViews["transcript"].frame, portraitTranscript)
+            XCTAssertEqual(input.value as? String, draft)
+            for identifier in ["composer.send", "composer.people", "composer.commands"] {
+                XCTAssertTrue(app.buttons[identifier].isHittable, "\(identifier) after turning to \(orientation)")
+            }
+        }
+        attach("Portrait composer with the phone turned")
+
+        input.typeText(" Office")
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
+        hold(3)
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertEqual(input.value as? String ?? "", "")
+        assertSingleCommand("go to the Letter Office")
+    }
+
     func testCompletedActionStaysCompletedThroughRepeatedAppSwitching() {
         launch(reset: true)
         goToTheCottage()
