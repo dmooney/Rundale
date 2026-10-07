@@ -35,16 +35,20 @@ physical-iPhone acceptance gate.
   [test plans](docs/test-plans/README.md) and [phase demonstrations](docs/product-specs/phase-demo-plan.md).
 
 As of October 6, 2026, shared-engine integration, re-acceptance of the first three
-product milestones, and lifting the feature freeze have landed (Mobile Phases 1–5).
-Next are mobile reliability (Mobile Phase 6) and phone features such as compass
-travel and clearer conversation targeting (Mobile Phase 7). Background reactions and
-simulation need the host seam in [#2025](https://github.com/dmooney/Rundale/issues/2025);
-the living-world milestone must then demonstrate memory, gossip, a task, weather
-behavior and scheduled movement inside the tiny world before content grows.
+product milestones, and lifting the feature freeze have landed. Delivery now follows
+four [GitHub milestones](https://github.com/dmooney/Rundale/milestones), in order:
 
-Product **Milestone** numbers and convergence **Mobile Phase** numbers are different.
-Use the named GitHub milestones for current ordering; `mobile-verify --phase N`
-refers to the product milestones.
+1. **Stability**: make the existing tiny game dependable on iPhone, including the NPC
+   static and dynamic context contract (product Milestone 4).
+2. **Existing features usable**: bring existing engine features to the phone one at a
+   time, including the living-world proofs of memory, gossip, a task, weather behavior
+   and scheduled movement (product Milestone 5). A feature too rough to finish is
+   postponed rather than holding the milestone.
+3. **Full village**: grow the tiny world to a full village in small batches (product
+   Milestone 6).
+4. **Release**: cut a release. Later work is kept as unmilestoned ideas.
+
+`mobile-verify --phase N` refers to product milestone N.
 
 ## Ways to play
 
