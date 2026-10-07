@@ -34,15 +34,13 @@ physical-iPhone acceptance gate.
 - [Native app implementation and setup](mobile/README.md),
   [test plans](docs/test-plans/README.md) and [phase demonstrations](docs/product-specs/phase-demo-plan.md).
 
-As of October 3, 2026, shared-engine integration and its initial release gate
-([#2046](https://github.com/dmooney/Rundale/issues/2046)) have landed. Re-acceptance
-([#2047](https://github.com/dmooney/Rundale/issues/2047)) and lifting the feature freeze
-([#2048](https://github.com/dmooney/Rundale/issues/2048)) remain open. Upcoming phone
-work includes command argument completion, compass travel and clearer conversation
-targeting. Background reactions and simulation need the host seam in
-[#2025](https://github.com/dmooney/Rundale/issues/2025); the living-world milestone
-must then demonstrate memory, gossip, a task, weather behavior and scheduled movement
-inside the tiny world before content grows.
+As of October 6, 2026, shared-engine integration, re-acceptance of the first three
+product milestones, and lifting the feature freeze have landed (Mobile Phases 1–5).
+Next are mobile reliability (Mobile Phase 6) and phone features such as compass
+travel and clearer conversation targeting (Mobile Phase 7). Background reactions and
+simulation need the host seam in [#2025](https://github.com/dmooney/Rundale/issues/2025);
+the living-world milestone must then demonstrate memory, gossip, a task, weather
+behavior and scheduled movement inside the tiny world before content grows.
 
 Product **Milestone** numbers and convergence **Mobile Phase** numbers are different.
 Use the named GitHub milestones for current ordering; `mobile-verify --phase N`
@@ -93,7 +91,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Wait, pause and resume commands                                                  | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Full engine slash-command catalogue                                              | Not planned | Implemented | Implemented | Implemented  | Implemented |
 | Command-name completion                                                          | Implemented | Implemented | Implemented | Not planned  | Not planned |
-| Step-by-step argument completion on iPhone (#2146)                               | Planned     | Not planned | Not planned | Not planned  | Not planned |
+| Step-by-step argument completion on iPhone (#2146)                               | Implemented | Not planned | Not planned | Not planned  | Not planned |
 | Streaming dialogue                                                               | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Stop, retry and durable request lifecycle                                        | Implemented | Implemented | Implemented | Planned      | Implemented |
 | Inline emote styling                                                             | Implemented | Implemented | Implemented | Not planned  | Not planned |
@@ -118,11 +116,11 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Travel time, transport modes and encounters                                      | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Listen, omens and authored folklore commands                                     | Not planned | Implemented | Implemented | Implemented  | Implemented |
 | Interactive NPC dialogue and personality / intelligence profiles                 | Implemented | Implemented | Implemented | Implemented  | Implemented |
-| Persisted memory: deliberate living-world proof                                  | Planned     | Implemented | Implemented | Implemented  | Implemented |
-| Gossip propagation: deliberate living-world proof                                | Planned     | Implemented | Implemented | Implemented  | Implemented |
-| Durable assigned work and task progression proof                                 | Planned     | Implemented | Implemented | Implemented  | Implemented |
-| Weather-dependent NPC behavior proof                                             | Planned     | Implemented | Implemented | Implemented  | Implemented |
-| Scheduled NPC movement proof                                                     | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Persisted memory: deliberate living-world proof (#2196)                          | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Gossip propagation: deliberate living-world proof (#2197)                        | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Durable assigned work and task progression proof (#1891)                         | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Weather-dependent NPC behavior proof (#2198)                                     | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Scheduled NPC movement proof (#2201)                                             | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Tier 2 nearby, tier 3 distant and tier 4 far simulation (#2025)                  | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Autonomous exchanges, arrival reactions and off-screen social simulation (#2025) | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Anachronism filtering and historical prompt guidance                             | Implemented | Implemented | Implemented | Implemented  | Implemented |
@@ -136,11 +134,11 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Direct provider choice, BYOK and per-category routing                            | Not planned | Implemented | Implemented | Implemented  | Implemented |
 | Local models and offline inference simulator                                     | Not planned | Implemented | Implemented | Implemented  | Implemented |
 | Offline deterministic actions (live dialogue needs inference)                    | Implemented | Implemented | Implemented | Implemented  | Implemented |
-| Priority inference lanes and background scheduling                               | Planned     | Implemented | Implemented | Implemented  | Implemented |
+| Priority inference lanes and background scheduling (#2025)                       | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Structured model output and prompt-injection defenses                            | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Player-facing debug panels and inference-call records                            | Not planned | Implemented | Implemented | Not planned  | Not planned |
 | Text debug / feature-flag inspection                                             | Implemented | Implemented | Implemented | Implemented  | Implemented |
-| Mobile bug reporting (#2022)                                                     | Planned     | Not planned | Not planned | Not planned  | Not planned |
+| Mobile bug reporting (#2022)                                                     | Implemented | Not planned | Not planned | Not planned  | Not planned |
 | Existing graphical bug reporter                                                  | Not planned | Implemented | Implemented | Not planned  | Not planned |
 | Limerick Designer (mod, NPC, location, schedule and save editor)                 | Not planned | Implemented | Implemented | Not planned  | Not planned |
 | Data-driven world, NPCs, prompts, lore and Endpoint definitions                  | Implemented | Implemented | Implemented | Implemented  | Implemented |
@@ -150,23 +148,27 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | HTTP sessions, cookie persistence and isolated server saves                      | Not planned | Not planned | Implemented | Not planned  | Implemented |
 | WebSocket UI events                                                              | Not planned | Not planned | Implemented | Not planned  | Not planned |
 | Server authentication, metrics and container deployment                          | Not planned | Not planned | Implemented | Not planned  | Implemented |
-| Controlled content expansion beyond the tiny world                               | Planned     | Planned     | Planned     | Planned      | Planned     |
+| Controlled content expansion beyond the tiny world (#2200)                       | Planned     | Planned     | Planned     | Planned      | Planned     |
 
 Mobile details:
 
 - The Commands button advertises `/look`, `/people`, `/exits` and `/help`.
   `/wait`, `/pause`, `/resume`, `/debug` and `/flags` also work. The rest of the
   engine command catalogue is not exposed; [#2146](https://github.com/dmooney/Rundale/issues/2146)
-  extends completion for accepted commands.
+  added step-by-step argument completion for accepted commands.
 - Shared movement, weather and schedule code is present on the phone. Arrival
   reactions requiring an unavailable Endpoint are not fulfilled, and background
   gossip and tier-4 progression are skipped until #2025. Full living-world proofs
   remain Planned even where some underlying state or logic already exists.
 - The phone resumes its local save and journals committed turns. It has no branch
   picker, save DAG, provider configuration screen, graphical map or Focail panel.
-- Mobile bug reporting is explicitly tracked in
-  [#2022](https://github.com/dmooney/Rundale/issues/2022), although it was an initial
-  non-requirement. [#2147](https://github.com/dmooney/Rundale/issues/2147),
+- In beta builds, `/bug` or a shake sends a one-tap bug report to a private inbox
+  ([#2022](https://github.com/dmooney/Rundale/issues/2022)), although bug reporting
+  was an initial non-requirement.
+- Irish-language player features on the phone are planned in
+  [#2174](https://github.com/dmooney/Rundale/issues/2174); their scope is not yet
+  specified.
+- [#2147](https://github.com/dmooney/Rundale/issues/2147),
   [#2143](https://github.com/dmooney/Rundale/issues/2143) and
   [#2128](https://github.com/dmooney/Rundale/issues/2128) track travel and conversation improvements.
 
