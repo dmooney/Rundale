@@ -25,6 +25,9 @@ The app plays the canonical world on the shared engine:
   `/flags`, then each next word from the engine's registry: after `/debug`
   it offers the views, and after `/debug memory` everyone in the world. Names match
   without case or fadas, on the phone and in the engine.
+- The app runs in portrait only (`UISupportedInterfaceOrientations` in
+  `Rundale/Info.plist`), the one layout the spec describes. Supporting
+  landscape needs a designed layout and a small-screen UI test first.
 - `--fixture=<name>` (or `--ui-tests` without `--phase2`) selects the
   deterministic presentation fixtures in `RundaleKit`, which exercise the UI
   without the engine.
