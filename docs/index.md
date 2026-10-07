@@ -11,7 +11,7 @@ subcollections keep their own indexes so large evidence corpora stay navigable.
 
 The current product direction is the **native iPhone text-adventure reset**.
 Start with the [versioned product specifications](product-specs/README.md) for
-scope, the six milestones, acceptance criteria, and the Quality Gate. The
+scope, the seven milestones, acceptance criteria, and the Quality Gate. The
 [mobile architecture guide](agent/mobile-architecture.md) maps the proposed
 technical direction and decisions that still need evidence.
 

@@ -4,15 +4,17 @@ This directory contains the local, versioned working copies of the two product d
 
 Changes to these specs go through normal versioned repository review. The technical vision is subordinate to the Product & Technical Specification: its mechanisms and defaults are proposals to validate where the product spec leaves an implementation choice, and it cannot waive or replace a product requirement.
 
+Since import, the product specification has been amended in the repository by owner decision. The 2026-10-06 review renamed it to `mobile-product-technical-spec.md`, reorganized §17 into seven milestones (Existing features usable, Full village, Release), recorded the physical-iPhone waiver, and removed restored items from §15. The Google Docs are no longer current for those sections.
+
 These files record source text and proposed direction. They make no claim that a milestone, integration, deployment capability, or acceptance gate is complete.
 
 The source bundle also contained the global Rundale agent instructions, modified 2026-09-06 17:46:48.912 UTC ([Google Doc](https://docs.google.com/document/d/1Ixa4S1A9yfVhxpoE8AL-DFXt_ppLZG2QXOB_JOxkb4o/edit)). That document is global personal policy governed by the global AGENTS.md; it is intentionally not duplicated as a product spec here.
 
-Editorial import note: references in the imported technical vision to the native Product & Technical Specification resolve within this repository to the versioned [Product & Technical Specification](product-technical-spec.md). The original native documents remain source provenance.
+Editorial import note: references in the imported technical vision to the native Product & Technical Specification resolve within this repository to the versioned [Product & Technical Specification](mobile-product-technical-spec.md). The original native documents remain source provenance.
 
 ## Documents
 
-- [Product & Technical Specification](product-technical-spec.md) — governing player experience, reset scope, requirements, milestones, quality gate, and success definition.
+- [Product & Technical Specification](mobile-product-technical-spec.md) — governing player experience, reset scope, requirements, milestones, quality gate, and success definition.
 - [Software Technical Vision](software-technical-vision.md) — proposed architecture and delivery guidance subordinate to the product specification.
 - [Phase demo plan](phase-demo-plan.md) — user-requested demonstrations at the conclusion of every phase, added locally on 2026-09-07.
 

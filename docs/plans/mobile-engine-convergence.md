@@ -1,6 +1,6 @@
 # Plan: mobile engine convergence
 
-> Status: Accepted · Created: 2026-09-25 · Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md)
+> Status: Complete (Mobile Phases 1–5, 2026-10-04) · Created: 2026-09-25 · Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md)
 
 Put the iPhone app on the shared Limerick engine and remove the parallel mobile
 runtime that grew on `ios-port`. Fix before adding: mobile feature work stayed
@@ -11,8 +11,14 @@ Desktop tests and the harness walkthrough stay green at every step.
 ## Tracking
 
 Progress is tracked in GitHub, not in this document. Each Mobile Phase below
-is a GitHub milestone; each step is an issue in it, and "blocked by" links on
+was a GitHub milestone; each step is an issue in it, and "blocked by" links on
 the issues record what depends on what. Refer to work by issue number.
+
+This plan ended with Mobile Phase 5. On 2026-10-06 the owner reorganized the later
+work into four named GitHub milestones that follow product spec §17: **Stability**
+(spec Milestone 4), **Existing features usable** (5), **Full village** (6) and
+**Release** (7). The old Mobile Phase 6–9 milestones were renamed or closed into them,
+and their issues moved.
 
 | Mobile Phase | GitHub milestone                                                                                      | Depends on                      |
 | ------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
@@ -21,15 +27,10 @@ the issues record what depends on what. Refer to work by issue number.
 | 3            | [World and prompts as game data](https://github.com/dmooney/Rundale/milestone/3)                      | nothing; runs alongside Phase 2 |
 | 4            | [iPhone app on the shared engine](https://github.com/dmooney/Rundale/milestone/4)                     | Phases 1 and 2                  |
 | 5            | [Re-accept prototype, vertical slice, and tiny world](https://github.com/dmooney/Rundale/milestone/5) | Phases 3 and 4                  |
-| 6            | [Mobile reliability](https://github.com/dmooney/Rundale/milestone/6) (spec Milestone 4)               | Phase 5                         |
-| 7            | [New features](https://github.com/dmooney/Rundale/milestone/9)                                        | Phase 5                         |
-| 8            | [Living-world proof](https://github.com/dmooney/Rundale/milestone/7) (spec Milestone 5)               | Phase 6                         |
-| 9            | [Controlled expansion](https://github.com/dmooney/Rundale/milestone/8) (spec Milestone 6)             | Phase 8                         |
 
-Mobile Phase 7 holds the player-facing features deferred by the feature freeze. Mobile
-Phase 5 lifted the freeze on 2026-10-04, so they can start.
+Mobile Phase 5 lifted the feature freeze on 2026-10-04.
 
-"Milestone N" in the [product specification](../product-specs/product-technical-spec.md)
+"Milestone N" in the [product specification](../product-specs/mobile-product-technical-spec.md)
 §17, and "Phase N" in the test plans, audits, and `just mobile-verify --phase N`, mean
 product spec Milestone N, not Mobile Phase N.
 
@@ -45,7 +46,7 @@ product spec Milestone N, not Mobile Phase N.
   events in one transactional commit; saves carry a format version and open
   forward-compatibly; and `SaveFileLock` is a kernel lock (ADR-026). The
   headless REPL still runs its own pipeline (#2023, outside this plan), and the
-  background-inference host seam (#2025) is postponed to Mobile Phase 8. See
+  background-inference host seam (#2025) is in the Existing features usable milestone. See
   [the design doc](../design/portable-turn-api.md) for the as-built API.
 - `ios-port` is archived as the tag `archive/ios-port` (2026-10-04, #2048) and
   is no longer updated. Its app, FFI, Endpoints service, and tooling were
@@ -101,7 +102,7 @@ walkthrough pass unchanged.
 
 ## Mobile Phase 1: portable turn API (L) (done)
 
-Moved out: #2023 (outside this plan) and #2025 (Mobile Phase 8). This document is #2036.
+Moved out: #2023 (outside this plan) and #2025 (now in Existing features usable). This document is #2036.
 Done: #2026, #2027, #2028, #2029, #2032, #2033, #2034 (PR #2067), #2035 (PR #2073).
 See [the design doc](../design/portable-turn-api.md) for the as-built API and §8
 for the full PR sequence.
@@ -132,13 +133,13 @@ Exit:
 - Desktop tests and the harness walkthrough are unchanged.
 - `limerick-engine --script` output is unchanged for existing fixtures.
 
-## Background inference seam (M, postponed to Mobile Phase 8)
+## Background inference seam (M, moved to Existing features usable)
 
 The turn engine routes only in-turn inference through the host. Post-turn NPC
 reactions, idle banter, and tier-2/3/4 simulation still call inference
 in-process, so mobile runs without them until this lands (#2025). Background
-inference did not work on `ios-port` either, so this is postponed to Mobile Phase
-8 (living-world proof) and does not gate lifting the feature freeze.
+inference did not work on `ios-port` either, so this moved to the Existing features
+usable milestone (living-world proof) and did not gate lifting the feature freeze.
 
 - Add a background-inference host seam in shared core, reusing the turn engine's
   inference request and outcome types. Background work yields to player turns
@@ -245,7 +246,8 @@ freeze is lifted.
   apply.
 - Tag `ios-port` as an archive (for example `archive/ios-port`) and stop
   updating it.
-- Unfreeze feature work once #2047 is done; features go to Mobile Phase 7. The
+- Unfreeze feature work once #2047 is done; features go to the Existing features usable
+  milestone. The
   living world uses the engine's own systems, such as
   `limerick-npc` gossip, never mobile-only scripts.
 

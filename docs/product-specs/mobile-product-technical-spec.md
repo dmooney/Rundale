@@ -71,6 +71,8 @@ Each addition must have:
 - physical-device validation where appropriate;
 - evidence that existing behavior remains reliable.
 
+Restoring an existing engine feature to the phone follows the same rules: it returns because it meets a player need and passes its own acceptance criteria, not because desktop has it.
+
 ## 3. Scope of the Reset
 
 The reset covers both:
@@ -218,14 +220,22 @@ Temporary choice controls are appropriate for genuine ambiguity.
 
 Slash commands provide deterministic access to game information and advanced actions.
 
-**Initial set:**
+**Shipped on iPhone:**
 
 ```text
 /look
 /people
 /exits
 /help
+/wait
+/pause
+/resume
+/debug
+/flags
+/bug   (beta builds)
 ```
+
+**Planned:** `/save`, `/load`, `/fork`, `/branches`, `/log` and `/new-game`, and possibly `/undo` (§12.3).
 
 **Possible later additions:**
 
@@ -234,10 +244,9 @@ Slash commands provide deterministic access to game information and advanced act
 /inventory
 /status
 /history
-/undo
 ```
 
-Typing / opens completion immediately above the keyboard.
+Typing / opens completion immediately above the keyboard. Commands that take arguments complete them step by step.
 
 ### 5.5 NPC targeting
 
@@ -433,13 +442,13 @@ Conflict handling and multi-device branching are later design problems and shoul
 
 ### 12.3 Branching
 
-Limerick's existing branching capability may remain underneath the system, but the initial player UI should not expose a save DAG.
+Owner decision (2026-10-06): the phone exposes Limerick's existing save, load and branching capability, restored in the Existing features usable milestone. Autosave remains the default; players who never branch never need to think about it.
 
-A future /undo or alternate-timeline feature may use branching internally without requiring players to understand the implementation.
+The design (slash commands, a native browsing surface if the transcript proves inadequate, and whether `/undo` or "go back to …" builds on branching) is decided as part of that work, under the request-lifecycle, commit and save-lock rules in §6 and §12.1.
 
 ## 13. Minimal Rundale World
 
-The content reset begins with a world small enough for a developer or tester to understand completely.
+The content reset begins with a world small enough for a developer or tester to understand completely. This section describes that initial world. Growth beyond it is governed by Milestone 6 (Full village) in §17, and the tiny world remains as a regression fixture.
 
 Initial target:
 
@@ -492,7 +501,7 @@ The initial world does not require:
 - numerous concurrent quests;
 - generated background facts.
 
-Existing content can later be selectively reintroduced after the foundation is proven.
+Existing content can later be selectively reintroduced after the foundation is proven. Seasonal schedule variants return in Milestone 5. Festivals and mythology need further design before they are planned.
 
 ## 14. Canonical World Sheet
 
@@ -548,19 +557,17 @@ The following existing or proposed capabilities do not define the new UI and sho
 - graphical world/map view;
 - MapLibre player UI;
 - NPC sidebar;
-- emoji reactions;
-- save DAG UI;
 - Limerick Designer;
 - player-facing debug panels;
 - inference-provider configuration UI;
 - multiple custom visual themes;
 - demo/auto-player mode;
-- bug-report UI;
 - rich secondary dashboards;
-- broad command completion;
 - desktop feature parity.
 
 These systems may remain in the repository and may be reconsidered individually later.
+
+Items removed from this list by owner decision: bug reporting (shipped as `/bug` and shake-to-report in beta builds), command argument completion (shipped), emoji reactions (2026-10-06, planned for Milestone 5), and save/branch management (2026-10-06, planned for Milestone 5; see §12.3).
 
 ## 16. Definition of Done
 
@@ -574,7 +581,7 @@ A milestone is Done only when:
 
 • no known defect violates the Quality Gate;
 
-• changes affecting mobile interaction have been exercised on a physical iPhone;
+• changes affecting mobile interaction have been exercised on a physical iPhone (see the waiver below);
 
 • persistence and recovery behavior introduced or affected by the milestone has been verified; and
 
@@ -582,9 +589,22 @@ A milestone is Done only when:
 
 Passing tests alone does not establish Done. A milestone must produce the observable player experience described by its Exit Criteria.
 
+**Physical-iPhone waiver (owner, 2026-10-04).** Until the owner withdraws it, simulator validation satisfies the physical-iPhone requirements in this specification. Record simulator results as simulator results and the physical gate as waived; never describe them as device validation. Physical-device runs that do happen are recorded as such.
+
 ## 17. Incremental Delivery Plan
 
 Each milestone is intentionally narrow. The checklist describes required outcomes and observable behavior, not a prescribed internal implementation. A milestone is complete only when all applicable requirements are satisfied and the resulting build is stable enough to serve as the foundation for the next milestone.
+
+Milestones 1–3 are complete. The rest are tracked as named [GitHub milestones](https://github.com/dmooney/Rundale/milestones); `just mobile-verify --phase N` uses the numbers here.
+
+| Milestone | GitHub milestone         |
+| --------- | ------------------------ |
+| 4         | Stability                |
+| 5         | Existing features usable |
+| 6         | Full village             |
+| 7         | Release                  |
+
+Work beyond Milestone 7 is not planned. It stays as unmilestoned ideas until a post-release review. App Store distribution waits for a billing model and a future milestone.
 
 ### Phase-end demonstrations
 
@@ -735,11 +755,20 @@ Stop feature growth and harden the existing game as a native mobile application.
 
 The existing tiny game behaves like a dependable iPhone application under realistic lifecycle, connectivity, accessibility, keyboard, scrolling, and failure conditions. Known defects that can lose, duplicate, corrupt, or substantially confuse player actions block progression to the next milestone.
 
-Milestone 5 — Living-world proof
+Milestone 5 — Existing features usable (living-world proof)
 
-Add only enough simulation to demonstrate Rundale's central living-world premise inside the tiny canonical world.
+Bring existing Limerick features to the phone one at a time, each to a usable standard, and demonstrate Rundale's central living-world premise inside the tiny canonical world.
 
-**Requirements checklist**
+**Restoring existing features**
+
+- Each restored feature has its own issue with a player need, acceptance criteria and a test plan before implementation (§2.5).
+- A restored feature uses the shared engine path, not mobile-only logic, and preserves offline play, local authoritative saves, transcript stability, request atomicity and duplicate prevention.
+- A feature that cannot reach a usable standard without disproportionate work is postponed: removed from the milestone with a recorded reason, so it does not hold the milestone open.
+- Postponed and not-yet-designed features (for example festivals, omens and folklore) remain unplanned ideas.
+
+**Living-world requirements checklist**
+
+The living-world proofs below are this milestone's exit gate.
 
 - Exactly one initial authored fact is designated as the first gossip case.
 - The fact has a known starting source so testers can determine who should and should not know it initially.
@@ -765,11 +794,13 @@ Add only enough simulation to demonstrate Rundale's central living-world premise
 
 **Exit criteria**
 
-A tester can deliberately demonstrate all five living-world behaviors in the three-location/three-NPC world and explain why each observed outcome occurred. Save/resume and repeated tests produce coherent authoritative state, and generated dialogue does not obscure whether the underlying mechanisms worked.
+Every feature in the milestone is usable on the phone or recorded as postponed. A tester can deliberately demonstrate all five living-world behaviors in the three-location/three-NPC world and explain why each observed outcome occurred. Save/resume and repeated tests produce coherent authoritative state, and generated dialogue does not obscure whether the underlying mechanisms worked.
 
-Milestone 6 — Controlled expansion
+Milestone 6 — Full village
 
-Only after the previous milestones are stable may Rundale begin growing beyond the canonical tiny world. Expansion is incremental rather than a return to the previous content scale.
+Only after the previous milestones are stable may Rundale begin growing beyond the canonical tiny world. It grows to a full village, then stops for a release. Expansion is incremental rather than a return to the previous content scale.
+
+The target size and shape of the village and its population, and the order of the content batches, are set by an owner-approved proposal before the first batch (GitHub issue #2203).
 
 **Requirements checklist**
 
@@ -796,7 +827,23 @@ Only after the previous milestones are stable may Rundale begin growing beyond t
 
 **Definition of Done for each expansion increment**
 
-There is no single feature-count target for this milestone. Each expansion increment is Done only when its explicit acceptance criteria and planned tests pass, all applicable project-wide Definition of Done requirements are satisfied, and the increment leaves Rundale more useful or expressive without sacrificing the reliability, comprehensibility, mobile usability, and text-first identity established by the earlier milestones.
+The milestone is complete when the approved village target is reached. Each expansion increment is Done only when its explicit acceptance criteria and planned tests pass, all applicable project-wide Definition of Done requirements are satisfied, and the increment leaves Rundale more useful or expressive without sacrificing the reliability, comprehensibility, mobile usability, and text-first identity established by the earlier milestones.
+
+Milestone 7 — Release
+
+Cut Rundale's first release once the full village is stable. No new features are added in this milestone.
+
+**Requirements checklist**
+
+- One version number is shared by the git tag, the engine and the iPhone app.
+- An internal TestFlight build from the tagged commit is uploaded, passes export compliance, and is Testing in Internal Beta. Upload success alone is not delivery.
+- A `vMAJOR.MINOR.PATCH` tag is pushed and a GitHub Release is published with its tarball and checksum.
+- Release notes name the TestFlight build, what the release contains, and any gates that are waived or still open.
+- App Store distribution is out of scope.
+
+**Exit criteria**
+
+The tag, the GitHub Release and the matching TestFlight build exist and agree, and a tester can install the build and play the full village.
 
 ## 18. Quality Gate
 
@@ -817,7 +864,7 @@ Before adding a new player-facing capability, the current build must satisfy the
 - basic play remains usable with VoiceOver and large Dynamic Type;
 - a normal 20-minute play session does not require navigating secondary screens.
 
-Passing unit tests alone is insufficient for interaction changes. Mobile UX changes require validation on a physical iPhone before being considered complete.
+Passing unit tests alone is insufficient for interaction changes. Mobile UX changes require validation on a physical iPhone before being considered complete, subject to the waiver in §16.
 
 ## 19. Testing Strategy
 

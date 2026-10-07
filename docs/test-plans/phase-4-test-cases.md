@@ -1,6 +1,6 @@
 # Phase 4 — Mobile reliability
 
-This local plan implements the [Phase 4 requirements](../product-specs/product-technical-spec.md)
+This local plan implements the [Phase 4 requirements](../product-specs/mobile-product-technical-spec.md)
 and supplements the earlier phase gates. It is not an execution record. Record
 results separately, as the [test plans README](README.md) describes, including
 failures and unavailable devices. Gameplay breadth remains the canonical

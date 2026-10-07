@@ -32,15 +32,15 @@ Do not restore legacy surfaces or content merely because the engine supports the
 
 ## Sources of truth
 
-| Question                                                         | Read                                                                  |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Product scope, six milestones, acceptance and Definition of Done | [Product specs](docs/product-specs/README.md)                         |
-| Target mobile architecture and open integration decisions        | [Mobile architecture](docs/agent/mobile-architecture.md)              |
-| Existing engine layout and ownership                             | [Architecture](docs/agent/architecture.md)                            |
-| Build, tests, and available verification commands                | [Build/test](docs/agent/build-test.md)                                |
-| Detailed invariants, selected by affected subsystem              | [Engineering rules](docs/agent/engineering-rules.md)                  |
-| Debugging and known pitfalls                                     | [Gotchas](docs/agent/gotchas.md), [LEARNINGS.md](LEARNINGS.md)        |
-| Repository navigation                                            | [Codebase map](docs/agent/codebase-map.md), [docs hub](docs/index.md) |
+| Question                                                           | Read                                                                  |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Product scope, seven milestones, acceptance and Definition of Done | [Product specs](docs/product-specs/README.md)                         |
+| Target mobile architecture and open integration decisions          | [Mobile architecture](docs/agent/mobile-architecture.md)              |
+| Existing engine layout and ownership                               | [Architecture](docs/agent/architecture.md)                            |
+| Build, tests, and available verification commands                  | [Build/test](docs/agent/build-test.md)                                |
+| Detailed invariants, selected by affected subsystem                | [Engineering rules](docs/agent/engineering-rules.md)                  |
+| Debugging and known pitfalls                                       | [Gotchas](docs/agent/gotchas.md), [LEARNINGS.md](LEARNINGS.md)        |
+| Repository navigation                                              | [Codebase map](docs/agent/codebase-map.md), [docs hub](docs/index.md) |
 
 Versioned product specs govern the reset. Technical recommendations remain proposals
 until validated or recorded as decisions. Existing subsystem docs describe reusable
