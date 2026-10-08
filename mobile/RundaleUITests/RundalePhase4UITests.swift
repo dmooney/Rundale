@@ -20,18 +20,24 @@ class RundalePhase4UITestCase: XCTestCase {
 
     func assertNetworkRecovery(command: String, partialExpected: Bool) {
         launch(reset: true)
+        hold(3)
         goToTheCottage()
+        hold(3)
         submit(command)
         let retry = app.buttons["composer.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 12))
         XCTAssertEqual(completedDialogue.count, 0)
         if partialExpected {
             XCTAssertTrue(rows(containing: "The wet ground").firstMatch.exists)
+            XCTAssertTrue(rows(containing: "The wet ground").firstMatch.label.contains("not applied"))
+            attach("Partial reply marked not applied")
         }
         XCTAssertTrue(rows(containing: "The road out of the parish is washed away").firstMatch.exists)
         XCTAssertFalse(app.buttons["composer.stop"].exists)
+        hold(6)
         retry.tap()
         waitForCompletedDialogue()
+        hold(4)
         assertSingleCommand(command)
         XCTAssertEqual(completedDialogue.count, 1)
         XCTAssertFalse(retry.exists)
@@ -39,6 +45,7 @@ class RundalePhase4UITestCase: XCTestCase {
         XCTAssertEqual(completedDialogue.count, 1)
         assertSingleCommand(command)
         attach("Connection recovered without duplicate action")
+        hold(5)
     }
 
     func launch(reset: Bool, extra: [String] = []) {
