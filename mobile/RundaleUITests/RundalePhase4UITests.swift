@@ -285,6 +285,46 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         XCTAssertEqual(completedDialogue.count, 1)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
+
+    /// Killed the moment Send is tapped: the command is kept once and can be
+    /// retried, and no activity indicator or Stop survives the relaunch.
+    func testForceQuitAtSendKeepsOneCommandAndOffersRetry() {
+        launch(reset: true)
+        goToTheCottage()
+        let command = "ask Mícheál about the cattle slowly"
+        input.tap()
+        input.typeText(command)
+        app.buttons["composer.send"].tap()
+        app.terminate()
+        launch(reset: false)
+        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.descendants(matching: .any)["composer.waiting"].exists)
+        XCTAssertFalse(app.buttons["composer.stop"].exists)
+        assertSingleCommand(command)
+        XCTAssertEqual(completedDialogue.count, 0)
+        app.buttons["composer.retry"].tap()
+        waitForCompletedDialogue()
+        relaunch()
+        assertSingleCommand(command)
+        XCTAssertEqual(completedDialogue.count, 1)
+        XCTAssertFalse(app.buttons["composer.retry"].exists)
+    }
+
+    /// Killed just after the reply commits: it is kept and not offered again.
+    func testForceQuitAfterTheReplyCommitsKeepsItWithoutRetry() {
+        launch(reset: true)
+        goToTheCottage()
+        let command = "ask Mícheál about the cattle slowly"
+        submit(command)
+        XCTAssertTrue(app.waitForTranscriptRow(timeout: 15) {
+            $0.kind == "npc_dialogue" && $0.state == "committed"
+        })
+        app.terminate()
+        launch(reset: false)
+        assertSingleCommand(command)
+        XCTAssertEqual(app.committedDialogueRows().count, 1)
+        XCTAssertFalse(app.buttons["composer.retry"].exists)
+    }
 }
 
 /// Connection loss recovery.
