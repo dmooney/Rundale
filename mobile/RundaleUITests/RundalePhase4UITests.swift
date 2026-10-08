@@ -142,16 +142,21 @@ class RundalePhase4UITestCase: XCTestCase {
 final class RundalePhase4UITests: RundalePhase4UITestCase {
     func testDraftAndCommittedTravelSurviveBackgroundAndTermination() {
         launch(reset: true)
+        hold(3)
         submit("go to the Letter Office")
         XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
+        hold(3)
         let draft = "Ask about tomorrow's letters"
         input.tap()
         input.typeText(draft)
+        hold(2)
 
         backgroundAndReturn()
         XCTAssertEqual(input.value as? String, draft)
         XCTAssertTrue(header(containing: "Letter Office").exists)
+        hold(3)
         relaunch()
+        hold(4)
         XCTAssertEqual(input.value as? String, draft)
         XCTAssertTrue(header(containing: "Letter Office").exists)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
@@ -252,12 +257,14 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         backgroundAndReturn()
 
         XCTAssertTrue(rows(containing: "Interrupted; not applied").firstMatch.waitForExistence(timeout: 8))
+        hold(5)
         XCTAssertEqual(input.value as? String, "My next question")
         XCTAssertFalse(app.buttons["composer.stop"].exists)
         let retry = app.buttons["composer.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 5))
         retry.tap()
         waitForCompletedDialogue()
+        hold(5)
         XCTAssertEqual(input.value as? String, "My next question")
         assertSingleCommand("ask Mícheál about the cattle slowly")
         XCTAssertFalse(retry.exists)
@@ -298,13 +305,16 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         app.terminate()
         launch(reset: false)
         XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
+        hold(5)
         XCTAssertFalse(app.descendants(matching: .any)["composer.waiting"].exists)
         XCTAssertFalse(app.buttons["composer.stop"].exists)
         assertSingleCommand(command)
         XCTAssertEqual(completedDialogue.count, 0)
         app.buttons["composer.retry"].tap()
         waitForCompletedDialogue()
+        hold(4)
         relaunch()
+        hold(5)
         assertSingleCommand(command)
         XCTAssertEqual(completedDialogue.count, 1)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
@@ -377,6 +387,7 @@ final class RundalePhase4AccessibilityUITests: RundalePhase4UITestCase {
                 XCTAssertGreaterThanOrEqual(button.frame.height, minimumHitDimension)
             }
             attach("Native world at accessibility size \(size)")
+            hold(3)
         }
     }
 }

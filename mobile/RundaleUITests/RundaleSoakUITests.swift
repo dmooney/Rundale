@@ -67,11 +67,13 @@ final class RundaleSoakUITests: XCTestCase {
                 let historical = visibleRows(in: transcript)
                 XCTAssertFalse(historical.isEmpty)
                 XCTAssertNotEqual(before, historical, "Scrolling must expose different historical rows")
+                hold(3)
                 let jump = app.buttons["transcript.new-text"]
                 if jump.exists { jump.tap() } else { transcript.swipeUp() }
                 let newest = app.descendants(matching: .any).matching(identifier: newestIdentifier).firstMatch
                 XCTAssertTrue(newest.waitForExistence(timeout: 5))
                 XCTAssertTrue(newest.isHittable, "Returning to newest must reveal this cycle's reply")
+                hold(3)
                 XCUIDevice.shared.press(.home)
                 XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
                 app.activate()
