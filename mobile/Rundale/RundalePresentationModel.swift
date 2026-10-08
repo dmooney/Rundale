@@ -16,7 +16,7 @@ struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     }
 
     /// Shown under a reply the game did not apply (stopped, interrupted or
-    /// failed), so its words are not read as something the person said.
+    /// failed), so it is not mistaken for a reply the game applied.
     var unappliedReplyNote: String? {
         kind == .npcDialogue && isInterrupted ? "Not applied" : nil
     }
