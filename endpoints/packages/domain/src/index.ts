@@ -58,33 +58,42 @@ export interface InferenceConfig {
   decision?: DecisionSpec;
 }
 
+/** Instructions and criteria may be text or JSON structure (TypeSafe "advanced structure"). */
+export type DecisionText =
+  string | number | boolean | null | DecisionText[] | { [key: string]: DecisionText };
+
 /**
  * Options taken from an input array: each element's `idField` value is an
- * option id, described by `criterion` with `{id}` replaced by that id.
+ * option id. Its criterion is `criterion` with `{id}` replaced by that id,
+ * and, with `include`, the element's own fields named there, so the model
+ * reads what the option is rather than an id it must look up in state.
  */
 export interface DecisionOptionSource {
   field: string;
-  criterion: string;
+  criterion?: DecisionText;
+  include?: string[];
 }
 
 export interface DecisionChoiceQuestion {
   type: "choice";
-  instructions: string;
+  instructions: DecisionText;
   /** Options from the input, in source order, before the fixed options. */
   criteriaFrom?: DecisionOptionSource[];
   /** Fixed options, offered on every call. */
-  criteria?: Record<string, string>;
+  criteria?: Record<string, DecisionText>;
 }
 
 export interface DecisionNoulQuestion {
   type: "noul";
-  instructions: string;
-  criteria: { true: string; false: string };
+  instructions: DecisionText;
+  criteria: { true: DecisionText; false: DecisionText };
   /**
    * Asks the question once per element of this input array, with `{id}` in
-   * the instructions replaced by the element's id.
+   * the instructions replaced by the element's id and, with `include`, the
+   * element's named fields given as `about`.
    */
   forEach?: string;
+  include?: string[];
 }
 
 export type DecisionQuestion = DecisionChoiceQuestion | DecisionNoulQuestion;

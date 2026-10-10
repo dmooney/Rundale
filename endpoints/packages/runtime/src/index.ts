@@ -1,5 +1,6 @@
 import type {
   DecisionSpec,
+  DecisionText,
   EndpointVersionSnapshot,
   JsonSchema,
   ProviderId,
@@ -99,8 +100,8 @@ export type ProviderStreamEvent = ProviderStreamDelta | ProviderStreamCompleted;
 /** A question as a decision model receives it, after option expansion. */
 export interface DecisionQuestionPayload {
   type: "choice" | "noul";
-  instructions: string;
-  criteria: Record<string, string>;
+  instructions: DecisionText;
+  criteria: Record<string, DecisionText>;
 }
 
 export interface DecisionInvocation {
@@ -525,25 +526,59 @@ function decisionElements(
   values: Record<string, unknown>,
   field: string,
   idField: string,
-): string[] {
+): { id: string; element: Record<string, unknown> }[] {
   const elements = values[field];
   if (elements === undefined) return [];
   if (!Array.isArray(elements)) {
     throw new RuntimeError("INVALID_INPUT", `Decision input '${field}' must be an array.`);
   }
-  return elements.map((element) => {
-    const id =
-      element !== null && typeof element === "object" && !Array.isArray(element)
-        ? (element as Record<string, unknown>)[idField]
+  return elements.map((raw) => {
+    const element =
+      raw !== null && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
         : undefined;
-    if (typeof id !== "string" || !decisionIdPattern.test(id)) {
+    const id = element?.[idField];
+    if (element === undefined || typeof id !== "string" || !decisionIdPattern.test(id)) {
       throw new RuntimeError(
         "INVALID_INPUT",
         `Each element of '${field}' needs a '${idField}' of 1 to 64 letters, digits, '_' or '-'.`,
       );
     }
-    return id;
+    return { id, element };
   });
+}
+
+/** Replaces `{id}` in every string of a text or JSON instruction. */
+function withId(text: DecisionText, id: string): DecisionText {
+  if (typeof text === "string") return text.replaceAll("{id}", id);
+  if (Array.isArray(text)) return text.map((item) => withId(item, id));
+  if (text !== null && typeof text === "object") {
+    return Object.fromEntries(Object.entries(text).map(([key, value]) => [key, withId(value, id)]));
+  }
+  return text;
+}
+
+function picked(element: Record<string, unknown>, fields: readonly string[]): DecisionText {
+  return Object.fromEntries(
+    fields
+      .filter((field) => element[field] !== undefined)
+      .map((field) => [field, element[field] as DecisionText]),
+  );
+}
+
+/** An option's criterion: the template, merged with the element's own fields. */
+function optionCriterion(
+  criterion: DecisionText | undefined,
+  include: readonly string[] | undefined,
+  id: string,
+  element: Record<string, unknown>,
+): DecisionText {
+  const base = criterion === undefined ? undefined : withId(criterion, id);
+  if (include === undefined || include.length === 0) return base ?? null;
+  const own = picked(element, include) as Record<string, DecisionText>;
+  if (base === undefined) return own;
+  if (base !== null && typeof base === "object" && !Array.isArray(base)) return { ...base, ...own };
+  return { what: base, ...own };
 }
 
 /**
@@ -562,7 +597,16 @@ export function buildDecisionRequest(
   for (const field of spec.stateFields) {
     if (values[field] !== undefined) state[field] = values[field];
   }
-  const prefix = instructions.trim().length === 0 ? "" : `${instructions.trim()}\n\n`;
+  // Shared rules travel beside each question so the question stays short.
+  const background = instructions.trim();
+  const ask = (text: DecisionText, about?: DecisionText): DecisionText =>
+    background.length === 0 && about === undefined
+      ? text
+      : {
+          question: text,
+          ...(about === undefined ? {} : { about }),
+          ...(background.length === 0 ? {} : { background }),
+        };
   const questions: Record<string, DecisionQuestionPayload> = {};
   const routes: DecisionRequest["routes"] = {};
   const offered: DecisionRequest["offered"] = {};
@@ -574,16 +618,16 @@ export function buildDecisionRequest(
   };
   for (const [name, question] of Object.entries(spec.questions)) {
     if (question.type === "choice") {
-      const criteria: Record<string, string> = {};
-      const add = (id: string, criterion: string) => {
+      const criteria: Record<string, DecisionText> = {};
+      const add = (id: string, criterion: DecisionText) => {
         if (Object.hasOwn(criteria, id)) {
           throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
         }
         criteria[id] = criterion;
       };
       for (const source of question.criteriaFrom ?? []) {
-        for (const id of decisionElements(values, source.field, spec.idField)) {
-          add(id, source.criterion.replaceAll("{id}", id));
+        for (const { id, element } of decisionElements(values, source.field, spec.idField)) {
+          add(id, optionCriterion(source.criterion, source.include, id, element));
         }
       }
       for (const [id, criterion] of Object.entries(question.criteria ?? {})) add(id, criterion);
@@ -595,19 +639,19 @@ export function buildDecisionRequest(
         );
       }
       claim(name);
-      questions[name] = { type: "choice", instructions: prefix + question.instructions, criteria };
+      questions[name] = { type: "choice", instructions: ask(question.instructions), criteria };
       routes[name] = { question: name };
       offered[name] = new Set(Object.keys(criteria));
     } else if (question.forEach === undefined) {
       claim(name);
       questions[name] = {
         type: "noul",
-        instructions: prefix + question.instructions,
+        instructions: ask(question.instructions),
         criteria: { ...question.criteria },
       };
       routes[name] = { question: name };
     } else {
-      for (const id of decisionElements(values, question.forEach, spec.idField)) {
+      for (const { id, element } of decisionElements(values, question.forEach, spec.idField)) {
         const key = `${name}__${id}`;
         if (Object.hasOwn(questions, key)) {
           throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
@@ -615,7 +659,10 @@ export function buildDecisionRequest(
         claim(key);
         questions[key] = {
           type: "noul",
-          instructions: prefix + question.instructions.replaceAll("{id}", id),
+          instructions: ask(
+            withId(question.instructions, id),
+            question.include === undefined ? undefined : picked(element, question.include),
+          ),
           criteria: { ...question.criteria },
         };
         routes[key] = { question: name, id };

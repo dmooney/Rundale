@@ -139,8 +139,14 @@ describe("decision Endpoints", () => {
     const recipient = request.invocation.questions.recipient!;
     expect(Object.keys(recipient.criteria)).toEqual(["p1", "p2", "all", "no_one"]);
     expect(recipient.criteria.p2).toBe("The person whose optionId is p2.");
-    expect(recipient.instructions).toBe("Shared rules.\n\nWho is `line` spoken to?");
-    expect(request.invocation.questions.mentioned__p2!.instructions).toContain("optionId is p2");
+    expect(recipient.instructions).toEqual({
+      question: "Who is `line` spoken to?",
+      background: "Shared rules.",
+    });
+    expect(request.invocation.questions.mentioned__p2!.instructions).toEqual({
+      question: "Does `line` talk about the person whose optionId is p2?",
+      background: "Shared rules.",
+    });
   });
 
   it("sends only the state fields, so envelope identifiers stay behind", () => {
@@ -280,5 +286,38 @@ describe("decision Endpoints", () => {
       },
     } as DecisionSpec;
     expect(() => buildDecisionRequest(clash, "m", values)).toThrow(/asked twice/);
+  });
+
+  it("describes an option by its own fields, so the model needs no id lookup", () => {
+    const described: DecisionSpec = {
+      ...spec,
+      questions: {
+        recipient: {
+          type: "choice",
+          instructions: "Who is `line` spoken to?",
+          criteriaFrom: [
+            { field: "present", criterion: { what: "Spoken to this person." }, include: ["name"] },
+          ],
+          criteria: { no_one: { what: "No one in particular.", not_for: ["a name"] } },
+        },
+        mentioned: {
+          type: "noul",
+          instructions: "Does `line` talk about this person without speaking to them?",
+          criteria: { true: "Yes.", false: "No." },
+          forEach: "present",
+          include: ["name"],
+        },
+      },
+    };
+    const request = buildDecisionRequest(described, "m", values);
+    expect(request.invocation.questions.recipient!.criteria).toEqual({
+      p1: { what: "Spoken to this person.", name: "Mícheál Connolly" },
+      p2: { what: "Spoken to this person.", name: "Róisín Connolly" },
+      no_one: { what: "No one in particular.", not_for: ["a name"] },
+    });
+    expect(request.invocation.questions.mentioned__p2!.instructions).toEqual({
+      question: "Does `line` talk about this person without speaking to them?",
+      about: { name: "Róisín Connolly" },
+    });
   });
 });

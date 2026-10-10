@@ -117,4 +117,54 @@ describe("decision definitions", () => {
   ])("rejects a malformed decision spec (%#)", (spec, message) => {
     expect(() => validateDefinition(withDecision(spec), allowed)).toThrow(message);
   });
+
+  it("accepts structured instructions and criteria, and include lists", () => {
+    const structured = {
+      ...decision,
+      questions: {
+        recipient: {
+          type: "choice",
+          instructions: { question: "Who is `line` spoken to?", focus: "the addressee" },
+          criteriaFrom: [{ field: "present", include: ["name", "description"] }],
+          criteria: { no_one: { what: "No one.", not_for: ["a named person"] } },
+        },
+        mentioned: {
+          type: "noul",
+          instructions: "Is this person talked about?",
+          criteria: { true: { what: "Yes", examples: ["I hear X…"] }, false: "No." },
+          forEach: "present",
+          include: ["name"],
+        },
+      },
+    };
+    expect(() => validateDefinition(withDecision(structured), allowed)).not.toThrow();
+  });
+
+  it("rejects include without forEach and empty structure", () => {
+    expect(() =>
+      validateDefinition(
+        withDecision({
+          ...decision,
+          questions: {
+            q: {
+              type: "noul",
+              instructions: "x",
+              criteria: { true: "y", false: "n" },
+              include: ["a"],
+            },
+          },
+        }),
+        allowed,
+      ),
+    ).toThrow(/include needs forEach/);
+    expect(() =>
+      validateDefinition(
+        withDecision({
+          ...decision,
+          questions: { q: { type: "choice", instructions: {}, criteria: { a: "x", b: "y" } } },
+        }),
+        allowed,
+      ),
+    ).toThrow(/text or JSON/);
+  });
 });

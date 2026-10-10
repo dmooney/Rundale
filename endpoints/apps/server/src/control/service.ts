@@ -105,6 +105,27 @@ function boundedText(value: unknown, label: string, max = 4_000): string {
   return value;
 }
 
+/** Text or JSON structure (ADR 014), non-empty and at most `max` characters as JSON. */
+function boundedStructure(value: unknown, label: string, max = 4_000): void {
+  if (typeof value === "string") {
+    boundedText(value, label, max);
+    return;
+  }
+  const json = value === undefined ? undefined : JSON.stringify(value);
+  if (value === null || json === undefined || json.length > max || json === "{}" || json === "[]")
+    invalid(`${label} must be text or JSON of 1 to ${max} characters.`);
+}
+
+function fieldList(value: unknown, label: string): void {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > 16 ||
+    value.some((field) => typeof field !== "string" || field.length === 0)
+  )
+    invalid(`${label} must list 1 to 16 field names.`);
+}
+
 /**
  * A decision Endpoint (ADR 014) runs on a decision model, names input fields
  * its schema declares, and asks well-formed choice or noul questions.
@@ -158,7 +179,7 @@ function validateDecision(definition: EndpointDefinition): void {
     if (raw === null || typeof raw !== "object" || Array.isArray(raw))
       invalid(`${label} must be an object.`);
     const question = raw as Record<string, unknown>;
-    boundedText(question.instructions, `${label}.instructions`);
+    boundedStructure(question.instructions, `${label}.instructions`);
     if (question.type === "choice") {
       const keys = ["type", "instructions", "criteria", "criteriaFrom"];
       if (Object.keys(question).some((key) => !keys.includes(key)))
@@ -168,7 +189,7 @@ function validateDecision(definition: EndpointDefinition): void {
         invalid(`${label}.criteria must be an object.`);
       for (const [id, text] of Object.entries(criteria)) {
         if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) invalid(`${label}.criteria has an invalid id.`);
-        boundedText(text, `${label}.criteria.${id}`);
+        boundedStructure(text, `${label}.criteria.${id}`);
       }
       const sources = question.criteriaFrom ?? [];
       if (!Array.isArray(sources)) invalid(`${label}.criteriaFrom must be an array.`);
@@ -177,20 +198,28 @@ function validateDecision(definition: EndpointDefinition): void {
         if (entry === null || typeof entry !== "object")
           invalid(`${label}.criteriaFrom entries must be objects.`);
         field(entry.field, `${label}.criteriaFrom.field`, true);
-        boundedText(entry.criterion, `${label}.criteriaFrom.criterion`);
+        if (entry.criterion === undefined && entry.include === undefined)
+          invalid(`${label}.criteriaFrom entries need a criterion or include.`);
+        if (entry.criterion !== undefined)
+          boundedStructure(entry.criterion, `${label}.criteriaFrom.criterion`);
+        if (entry.include !== undefined) fieldList(entry.include, `${label}.criteriaFrom.include`);
       }
       if (Object.keys(criteria).length + (sources as unknown[]).length === 0)
         invalid(`${label} offers no options.`);
     } else if (question.type === "noul") {
-      const keys = ["type", "instructions", "criteria", "forEach"];
+      const keys = ["type", "instructions", "criteria", "forEach", "include"];
       if (Object.keys(question).some((key) => !keys.includes(key)))
         invalid(`${label} may contain only ${keys.join(", ")}.`);
       const criteria = question.criteria as Record<string, unknown> | null | undefined;
       if (criteria === null || typeof criteria !== "object" || Object.keys(criteria).length !== 2)
         invalid(`${label}.criteria must describe true and false.`);
-      boundedText(criteria.true, `${label}.criteria.true`);
-      boundedText(criteria.false, `${label}.criteria.false`);
+      boundedStructure(criteria.true, `${label}.criteria.true`);
+      boundedStructure(criteria.false, `${label}.criteria.false`);
       if (question.forEach !== undefined) field(question.forEach, `${label}.forEach`, true);
+      if (question.include !== undefined) {
+        if (question.forEach === undefined) invalid(`${label}.include needs forEach.`);
+        fieldList(question.include, `${label}.include`);
+      }
     } else {
       invalid(`${label}.type must be choice or noul.`);
     }

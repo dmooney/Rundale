@@ -61,12 +61,22 @@ accounting are unchanged, and no database migration is needed.
   `criteriaFrom` array, in input order, then its fixed `criteria`. A `forEach`
   noul is asked once per element. The element's `idField` value is the option
   id and is the only input substituted into creator text (`{id}`); ids must be
-  1 to 64 letters, digits, `_` or `-`, so untrusted input text never enters a
-  question. Duplicate ids in an array, choices outside 2 to 255 options, and
+  1 to 64 letters, digits, `_` or `-`. `{id}` substitution inserts only the
+  id; input fields reach a question only through `include`. Duplicate ids in an array, choices outside 2 to 255 options, and
   an input that expands to no questions or more than 64 are invalid
   input.
-- **Instructions.** The definition's `instructions` precede every question's
-  instructions; they hold rules shared by all questions.
+- **Instructions.** The definition's `instructions` travel as `background`
+  beside every question (`{ question, background }`), so each question stays
+  short. Question instructions and criteria may be text or JSON structure, as
+  TypeSafe's "advanced structure" allows: for example an option described by
+  `{ what, not_for, examples }`.
+- **Options describe themselves.** `include` on a `criteriaFrom` source copies
+  the named fields of the option's own element into its criterion, and on a
+  `forEach` noul gives them as `about`. The model then reads what each option
+  is, instead of an id it must look up in state, which TypeSafe documents as a
+  weakness (indirection). An included field may hold player text, such as a
+  span the engine cut from the line; the model only selects among options, and
+  the runtime still checks every answer against them.
 - **Output.** A choice gives `{ choice, confidence, probabilities }`, a noul
   gives its probability, and a `forEach` noul gives `{ <id>: p }`, each under
   its question name and validated by the output schema. An offered option
