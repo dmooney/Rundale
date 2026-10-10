@@ -236,6 +236,7 @@ describe("decision Endpoints", () => {
       .catch((error: unknown) => error);
     expect(failure).toMatchObject({
       code: "OUTPUT_VALIDATION_FAILED",
+      retryable: false,
       providerMetadata: { usage: { inputTokens: 400, outputTokens: 0 } },
     });
   });
@@ -268,5 +269,16 @@ describe("decision Endpoints", () => {
     expect(() => buildDecisionRequest(nouls, "m", { ...values, present: [] })).toThrow(
       /expands to 0/,
     );
+  });
+
+  it("refuses an expanded question that would replace another", () => {
+    const clash = {
+      ...spec,
+      questions: {
+        mentioned: spec.questions.mentioned!,
+        mentioned__p1: { type: "noul", instructions: "x", criteria: { true: "y", false: "n" } },
+      },
+    } as DecisionSpec;
+    expect(() => buildDecisionRequest(clash, "m", values)).toThrow(/asked twice/);
   });
 });

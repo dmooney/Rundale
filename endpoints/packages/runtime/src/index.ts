@@ -566,6 +566,12 @@ export function buildDecisionRequest(
   const questions: Record<string, DecisionQuestionPayload> = {};
   const routes: DecisionRequest["routes"] = {};
   const offered: DecisionRequest["offered"] = {};
+  // Expanded `forEach` keys (`name__id`) must never replace another question.
+  const claim = (key: string) => {
+    if (Object.hasOwn(questions, key)) {
+      throw new RuntimeError("INVALID_INPUT", `Decision question '${key}' is asked twice.`);
+    }
+  };
   for (const [name, question] of Object.entries(spec.questions)) {
     if (question.type === "choice") {
       const criteria: Record<string, string> = {};
@@ -588,10 +594,12 @@ export function buildDecisionRequest(
           `Decision question '${name}' needs 2 to ${maxDecisionOptions} options.`,
         );
       }
+      claim(name);
       questions[name] = { type: "choice", instructions: prefix + question.instructions, criteria };
       routes[name] = { question: name };
       offered[name] = new Set(Object.keys(criteria));
     } else if (question.forEach === undefined) {
+      claim(name);
       questions[name] = {
         type: "noul",
         instructions: prefix + question.instructions,
@@ -604,6 +612,7 @@ export function buildDecisionRequest(
         if (Object.hasOwn(questions, key)) {
           throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
         }
+        claim(key);
         questions[key] = {
           type: "noul",
           instructions: prefix + question.instructions.replaceAll("{id}", id),
@@ -642,7 +651,9 @@ export function decisionOutput(
     new RuntimeError(
       "OUTPUT_VALIDATION_FAILED",
       "The Endpoint could not produce output matching its contract.",
-      true,
+      // A decision model answers the same input the same way, so a retry
+      // would only bill again.
+      false,
       undefined,
       {
         usage: result.usage,
