@@ -102,23 +102,21 @@ export function parseDecisionsResponse(body: unknown): DecisionResult {
     const answer = record(value);
     if (answer?.type === "noul" && typeof answer.noul === "number") {
       parsed[key] = { type: "noul", noul: answer.noul };
-    } else if (
-      answer?.type === "choice" &&
-      typeof answer.choice === "string" &&
-      typeof answer.confidence === "number" &&
-      record(answer.probabilities) !== undefined
-    ) {
-      const probabilities: Record<string, number> = {};
-      for (const [option, p] of Object.entries(record(answer.probabilities)!)) {
-        if (typeof p !== "number") throw malformed();
-        probabilities[option] = p;
+    } else if (answer?.type === "choice" && typeof answer.choice === "string") {
+      // Only `type` and `choice` are required by OpenRouter's schema; the
+      // runtime fails the attempt with usage kept when the rest is missing.
+      const choice: DecisionAnswer = { type: "choice", choice: answer.choice };
+      if (typeof answer.confidence === "number") choice.confidence = answer.confidence;
+      const reported = record(answer.probabilities);
+      if (reported !== undefined) {
+        const probabilities: Record<string, number> = {};
+        for (const [option, p] of Object.entries(reported)) {
+          if (typeof p !== "number") throw malformed();
+          probabilities[option] = p;
+        }
+        choice.probabilities = probabilities;
       }
-      parsed[key] = {
-        type: "choice",
-        choice: answer.choice,
-        confidence: answer.confidence,
-        probabilities,
-      };
+      parsed[key] = choice;
     } else {
       throw malformed();
     }

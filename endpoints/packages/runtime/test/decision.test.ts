@@ -225,4 +225,48 @@ describe("decision Endpoints", () => {
       runtime(model).invoke(version, { values, attachments: [] }, context),
     ).rejects.toMatchObject({ code: "PROVIDER_UNAVAILABLE" });
   });
+
+  it("fails a choice without probabilities as a contract failure that keeps usage", async () => {
+    const { model } = provider(() => ({
+      ...goodAnswers(),
+      recipient: { type: "choice", choice: "p2" },
+    }));
+    const failure = await runtime(model)
+      .invoke(version, { values, attachments: [] }, context)
+      .catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      code: "OUTPUT_VALIDATION_FAILED",
+      providerMetadata: { usage: { inputTokens: 400, outputTokens: 0 } },
+    });
+  });
+
+  it("rejects duplicate ids in a forEach array", () => {
+    const nouls: DecisionSpec = {
+      ...spec,
+      questions: { mentioned: spec.questions.mentioned! },
+    };
+    expect(() =>
+      buildDecisionRequest(nouls, "m", {
+        ...values,
+        present: [
+          { optionId: "p1", name: "a" },
+          { optionId: "p1", name: "b" },
+        ],
+      }),
+    ).toThrow(/offered twice/);
+  });
+
+  it("bounds how many questions one call expands into", () => {
+    const many = Array.from({ length: 70 }, (_, index) => ({
+      optionId: `p${index}`,
+      name: "x",
+    }));
+    expect(() => buildDecisionRequest(spec, "m", { ...values, present: many })).toThrow(
+      /1 to 64 questions/,
+    );
+    const nouls: DecisionSpec = { ...spec, questions: { mentioned: spec.questions.mentioned! } };
+    expect(() => buildDecisionRequest(nouls, "m", { ...values, present: [] })).toThrow(
+      /expands to 0/,
+    );
+  });
 });

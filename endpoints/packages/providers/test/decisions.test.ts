@@ -97,6 +97,18 @@ describe("Decisions adapter", () => {
     });
   });
 
+  it("reads the minimal choice answer OpenRouter's schema allows", async () => {
+    const { fetchImpl } = respond(200, {
+      answers: { recipient: { type: "choice", choice: "p1" } },
+      usage: { input_tokens: 10, output_tokens: 0 },
+    });
+    const result = await new DecisionsProvider("openrouter", "k", fetchImpl).decide(
+      invocation,
+      context,
+    );
+    expect(result.answers.recipient).toEqual({ type: "choice", choice: "p1" });
+  });
+
   it("rejects malformed answers", async () => {
     const { fetchImpl } = respond(200, {
       answers: { recipient: { type: "choice", choice: 3 } },

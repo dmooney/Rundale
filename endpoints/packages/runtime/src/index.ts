@@ -109,8 +109,18 @@ export interface DecisionInvocation {
   questions: Record<string, DecisionQuestionPayload>;
 }
 
+/**
+ * OpenRouter's schema requires only `type` and `choice` on a choice answer, so
+ * `confidence` and `probabilities` may be missing; a decision Endpoint needs
+ * them and fails the attempt without them (`decisionOutput`).
+ */
 export type DecisionAnswer =
-  | { type: "choice"; choice: string; confidence: number; probabilities: Record<string, number> }
+  | {
+      type: "choice";
+      choice: string;
+      confidence?: number;
+      probabilities?: Record<string, number>;
+    }
   | { type: "noul"; noul: number };
 
 export interface DecisionResult {
@@ -496,6 +506,12 @@ export class DeterministicRuntime implements SemanticRuntime {
 
 /** The most options one choice question may offer. */
 export const maxDecisionOptions = 255;
+/**
+ * The most questions one call may expand into. Shared instructions repeat in
+ * every question, so input tokens grow with `forEach` arrays; input schemas
+ * should bound those arrays well below this.
+ */
+export const maxDecisionQuestions = 64;
 const decisionIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
 
 export interface DecisionRequest {
@@ -585,6 +601,9 @@ export function buildDecisionRequest(
     } else {
       for (const id of decisionElements(values, question.forEach, spec.idField)) {
         const key = `${name}__${id}`;
+        if (Object.hasOwn(questions, key)) {
+          throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
+        }
         questions[key] = {
           type: "noul",
           instructions: prefix + question.instructions.replaceAll("{id}", id),
@@ -593,6 +612,13 @@ export function buildDecisionRequest(
         routes[key] = { question: name, id };
       }
     }
+  }
+  const count = Object.keys(questions).length;
+  if (count === 0 || count > maxDecisionQuestions) {
+    throw new RuntimeError(
+      "INVALID_INPUT",
+      `A decision call asks 1 to ${maxDecisionQuestions} questions; this input expands to ${count}.`,
+    );
   }
   return { invocation: { model, state, questions }, routes, offered };
 }
@@ -637,9 +663,11 @@ export function decisionOutput(
       if (
         answer.type !== "choice" ||
         !offered.has(answer.choice) ||
-        !probability(answer.confidence)
+        !probability(answer.confidence) ||
+        answer.probabilities === undefined
       )
         throw invalid();
+      // Vendors may leave out options they give no probability; those are 0.
       const probabilities: Record<string, number> = {};
       for (const id of offered) {
         const value = answer.probabilities[id] ?? 0;

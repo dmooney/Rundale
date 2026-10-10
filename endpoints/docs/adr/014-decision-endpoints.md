@@ -16,8 +16,11 @@ accepts TypeSafe's System One request schema verbatim:
 - a `state` (string, object or array) and a map of `questions`;
 - `choice` questions with `criteria` per option (TypeSafe documents at most
   255 options), and `noul` yes/no questions with `true` and `false` criteria;
-- answers `{ choice, confidence, probabilities }` or `{ noul }`, with `usage`
-  in input and output tokens (OpenRouter also reports `usage.cost`).
+- answers `{ choice, confidence, probabilities }` or `{ noul }` in TypeSafe's
+  documentation. OpenRouter's schema requires only `type` and `choice` on a
+  choice answer and makes `confidence` and `probabilities` optional, although
+  all three candidates returned both in live calls on 2026-10-10;
+- `usage` in input and output tokens (OpenRouter also reports `usage.cost`).
 
 OpenRouter's decision catalogue (`/api/v1/models?output_modalities=decisions`,
 read 2026-10-10) prices these models per input token with free output, so the
@@ -59,16 +62,18 @@ accounting are unchanged, and no database migration is needed.
   noul is asked once per element. The element's `idField` value is the option
   id and is the only input substituted into creator text (`{id}`); ids must be
   1 to 64 letters, digits, `_` or `-`, so untrusted input text never enters a
-  question. Duplicate ids and choices outside 2 to 255 options are invalid
+  question. Duplicate ids in an array, choices outside 2 to 255 options, and
+  an input that expands to no questions or more than 64 are invalid
   input.
 - **Instructions.** The definition's `instructions` precede every question's
   instructions; they hold rules shared by all questions.
 - **Output.** A choice gives `{ choice, confidence, probabilities }`, a noul
   gives its probability, and a `forEach` noul gives `{ <id>: p }`, each under
-  its question name and validated by the output schema. An answer
-  that is missing, out of range, or not an offered option fails the attempt
-  with `OUTPUT_VALIDATION_FAILED`, so callers never see an option they did not
-  offer.
+  its question name and validated by the output schema. An offered option
+  the vendor leaves out of `probabilities` is 0. An answer that is missing,
+  out of range, not an offered option, or a choice without `confidence` and
+  `probabilities` fails the attempt with `OUTPUT_VALIDATION_FAILED`, keeping
+  its usage for cost, so callers never see an option they did not offer.
 - **Providers.** `openrouter` (OpenRouter's Decisions API) and `typesafe`
   (TypeSafe's own `POST /v1/systemone`, the direct route for Jev) share one
   adapter, `DecisionsProvider`. They serve decision Endpoints only, and text
