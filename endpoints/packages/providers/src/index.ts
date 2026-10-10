@@ -1,6 +1,8 @@
 import type { ProviderId } from "@limerick/domain";
 import {
   RuntimeError,
+  type DecisionInvocation,
+  type DecisionResult,
   type ModelProvider,
   type ProviderExecutionContext,
   type ProviderInvocation,
@@ -14,6 +16,8 @@ export interface FakeProviderBehavior {
   delayMs?: number;
   error?: RuntimeError;
   usage?: ProviderResult["usage"];
+  /** Answers for decision Endpoints; by default each choice takes its first option. */
+  decide?: (invocation: DecisionInvocation) => DecisionResult["answers"];
 }
 
 export class FakeProvider implements ModelProvider {
@@ -48,6 +52,37 @@ export class FakeProvider implements ModelProvider {
       usage: this.behavior.usage ?? { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       providerRequestId: `fake_${this.callCount}`,
       finishReason: "stop",
+    };
+  }
+
+  async decide(
+    invocation: DecisionInvocation,
+    context: ProviderExecutionContext,
+  ): Promise<DecisionResult> {
+    this.callCount += 1;
+    if (context.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    if (this.behavior.error !== undefined) throw this.behavior.error;
+    const answers =
+      this.behavior.decide?.(invocation) ??
+      Object.fromEntries(
+        Object.entries(invocation.questions).map(([key, question]) => {
+          if (question.type === "noul") return [key, { type: "noul" as const, noul: 0 }];
+          const options = Object.keys(question.criteria);
+          return [
+            key,
+            {
+              type: "choice" as const,
+              choice: options[0]!,
+              confidence: 1,
+              probabilities: Object.fromEntries(options.map((id, i) => [id, i === 0 ? 1 : 0])),
+            },
+          ];
+        }),
+      );
+    return {
+      answers,
+      usage: this.behavior.usage ?? { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+      providerRequestId: `fake_${this.callCount}`,
     };
   }
 
@@ -102,3 +137,11 @@ export class FixedPriceCostCalculator {
 
 export { GoogleProvider, normalizeGoogleError } from "./google/adapter.js";
 export { OpenAIProvider, normalizeOpenAIError } from "./openai/adapter.js";
+export {
+  DecisionsProvider,
+  decisionsEndpoints,
+  normalizeDecisionsError,
+  normalizeDecisionsStatus,
+  parseDecisionsResponse,
+  type DecisionsProviderId,
+} from "./decisions/adapter.js";

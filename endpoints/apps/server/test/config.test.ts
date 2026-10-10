@@ -73,6 +73,42 @@ describe("server configuration", () => {
     );
   });
 
+  it("enables decision providers only with their keys and prices", () => {
+    const environment = {
+      AUTH_MODE: "development",
+      PROVIDER_MODE: "live",
+      GOOGLE_PROVIDER_AUTH: "vertex-ai",
+      GOOGLE_CLOUD_PROJECT: "synthetic-project",
+      OPENROUTER_ALLOWED_MODELS: "typesafe/jev-1.13",
+      TYPESAFE_ALLOWED_MODELS: "jev-latest",
+      MODEL_PRICES_JSON: JSON.stringify({
+        "openrouter/typesafe/jev-1.13": { inputPerMillionUsd: 0.042, outputPerMillionUsd: 0 },
+        "typesafe/jev-latest": { inputPerMillionUsd: 0.042, outputPerMillionUsd: 0 },
+      }),
+    };
+    expect(() => readServerConfig(environment)).toThrow(/OPENROUTER_API_KEY/);
+    expect(() => readServerConfig({ ...environment, OPENROUTER_API_KEY: "synthetic-key" })).toThrow(
+      /TYPESAFE_API_KEY/,
+    );
+    const config = readServerConfig({
+      ...environment,
+      OPENROUTER_API_KEY: "synthetic-key",
+      TYPESAFE_API_KEY: "synthetic-key",
+    });
+    expect([...config.allowedModels].sort()).toEqual([
+      "openrouter/typesafe/jev-1.13",
+      "typesafe/jev-latest",
+    ]);
+    expect(() =>
+      readServerConfig({
+        ...environment,
+        OPENROUTER_API_KEY: "synthetic-key",
+        TYPESAFE_API_KEY: "synthetic-key",
+        MODEL_PRICES_JSON: "{}",
+      }),
+    ).toThrow(/MODEL_PRICES_JSON/);
+  });
+
   it("accepts non-negative versioned price configuration", () => {
     const config = readServerConfig({
       AUTH_MODE: "development",

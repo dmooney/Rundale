@@ -2,7 +2,19 @@ import { createHash } from "node:crypto";
 
 export type Id = string;
 export type JsonSchema = Record<string, unknown>;
-export type ProviderId = "fake" | "openai" | "google";
+export type ProviderId = "fake" | "openai" | "google" | "openrouter" | "typesafe";
+
+export const providerIds: readonly ProviderId[] = [
+  "fake",
+  "openai",
+  "google",
+  "openrouter",
+  "typesafe",
+];
+
+export function isProviderId(value: string): value is ProviderId {
+  return (providerIds as readonly string[]).includes(value);
+}
 export type OrganizationStatus = "active" | "suspended";
 export type EndpointStatus = "active" | "disabled";
 export type ApiKeyStatus = "active" | "revoked";
@@ -39,6 +51,51 @@ export interface InferenceConfig {
     version: 1;
     textField: string;
   };
+  /**
+   * Makes the Endpoint a decision Endpoint: the model answers these questions
+   * with probabilities instead of generating text (ADR 014).
+   */
+  decision?: DecisionSpec;
+}
+
+/**
+ * Options taken from an input array: each element's `idField` value is an
+ * option id, described by `criterion` with `{id}` replaced by that id.
+ */
+export interface DecisionOptionSource {
+  field: string;
+  criterion: string;
+}
+
+export interface DecisionChoiceQuestion {
+  type: "choice";
+  instructions: string;
+  /** Options from the input, in source order, before the fixed options. */
+  criteriaFrom?: DecisionOptionSource[];
+  /** Fixed options, offered on every call. */
+  criteria?: Record<string, string>;
+}
+
+export interface DecisionNoulQuestion {
+  type: "noul";
+  instructions: string;
+  criteria: { true: string; false: string };
+  /**
+   * Asks the question once per element of this input array, with `{id}` in
+   * the instructions replaced by the element's id.
+   */
+  forEach?: string;
+}
+
+export type DecisionQuestion = DecisionChoiceQuestion | DecisionNoulQuestion;
+
+export interface DecisionSpec {
+  version: 1;
+  /** The input fields sent to the model as state; envelope fields stay behind. */
+  stateFields: string[];
+  /** The element field that holds an option id in `criteriaFrom` and `forEach` arrays. */
+  idField: string;
+  questions: Record<string, DecisionQuestion>;
 }
 
 export interface EndpointDefinition {

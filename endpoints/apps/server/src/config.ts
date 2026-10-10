@@ -19,6 +19,8 @@ export interface ServerConfig {
   providerTimeoutMs: number;
   openaiApiKey?: string;
   googleApiKey?: string;
+  openrouterApiKey?: string;
+  typesafeApiKey?: string;
   googleProviderAuth: "api-key" | "vertex-ai";
   googleCloudProject?: string;
   googleCloudLocation?: string;
@@ -51,18 +53,26 @@ export function readAllowedModels(
   providerMode: ServerConfig["providerMode"],
 ): ReadonlySet<string> {
   if (providerMode === "fake") return new Set(["fake/fake-v1"]);
-  return new Set([
-    ...(environment.OPENAI_ALLOWED_MODELS ?? "")
-      .split(",")
-      .map((model) => model.trim())
-      .filter(Boolean)
-      .map((model) => `openai/${model}`),
-    ...(environment.GOOGLE_ALLOWED_MODELS ?? "")
-      .split(",")
-      .map((model) => model.trim())
-      .filter(Boolean)
-      .map((model) => `google/${model}`),
-  ]);
+  return new Set(
+    allowlistSettings.flatMap(([provider, setting]) =>
+      allowedModelsFor(environment, setting).map((model) => `${provider}/${model}`),
+    ),
+  );
+}
+
+/** Each live provider's allowlist setting and the key it requires. */
+const allowlistSettings = [
+  ["openai", "OPENAI_ALLOWED_MODELS", "OPENAI_API_KEY"],
+  ["google", "GOOGLE_ALLOWED_MODELS", undefined],
+  ["openrouter", "OPENROUTER_ALLOWED_MODELS", "OPENROUTER_API_KEY"],
+  ["typesafe", "TYPESAFE_ALLOWED_MODELS", "TYPESAFE_API_KEY"],
+] as const;
+
+function allowedModelsFor(environment: NodeJS.ProcessEnv, setting: string): string[] {
+  return (environment[setting] ?? "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
 }
 
 export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -74,12 +84,15 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
   if (googleProviderAuth !== "api-key" && googleProviderAuth !== "vertex-ai") {
     throw new Error("GOOGLE_PROVIDER_AUTH must be 'api-key' or 'vertex-ai'.");
   }
-  if (
-    providerMode === "live" &&
-    (environment.OPENAI_ALLOWED_MODELS ?? "").split(",").some((model) => model.trim()) &&
-    !environment.OPENAI_API_KEY
-  ) {
-    throw new Error("OPENAI_API_KEY is required when OpenAI models are enabled.");
+  for (const [, setting, key] of allowlistSettings) {
+    if (
+      providerMode === "live" &&
+      key !== undefined &&
+      allowedModelsFor(environment, setting).length > 0 &&
+      !environment[key]
+    ) {
+      throw new Error(`${key} is required when ${setting} is set.`);
+    }
   }
   if (providerMode === "live" && googleProviderAuth === "api-key" && !environment.GOOGLE_API_KEY) {
     throw new Error("GOOGLE_API_KEY is required when Google provider auth uses an API key.");
@@ -268,6 +281,12 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
     ...(environment.GOOGLE_API_KEY === undefined
       ? {}
       : { googleApiKey: environment.GOOGLE_API_KEY }),
+    ...(environment.OPENROUTER_API_KEY === undefined
+      ? {}
+      : { openrouterApiKey: environment.OPENROUTER_API_KEY }),
+    ...(environment.TYPESAFE_API_KEY === undefined
+      ? {}
+      : { typesafeApiKey: environment.TYPESAFE_API_KEY }),
     googleProviderAuth,
     ...(environment.GOOGLE_CLOUD_PROJECT === undefined
       ? {}

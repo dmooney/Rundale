@@ -41,8 +41,8 @@
 
 - Mobile-safe structured streaming is an approved extension for Rundale's
   dialogue Endpoint. Do not pull marketplace search, billing, payouts,
-  ratings, arbitrary user code, RAG, tool calling, multi-step agents, extra
-  model providers, or sophisticated evaluation infrastructure into this work.
+  ratings, arbitrary user code, RAG, tool calling, multi-step agents, model
+  providers beyond those in ADR 004 and ADR 014, or sophisticated evaluation infrastructure into this work.
 - Prefer the simplest implementation that proves a creator can define, test, publish, invoke, observe, promote, and roll back a generic Endpoint.
 - When a decision changes or refines the architecture, add a concise ADR under `docs/adr/` and update conflicting documentation in the same change.
 
@@ -61,4 +61,4 @@
 - Write public contracts and examples in provider-neutral terms unless documenting an adapter.
 - Update examples when routes, schemas, names, or lifecycle rules change so the two core documents do not drift.
 
-- **Live deployments may enable only Google Vertex AI.** Require an OpenAI key and instantiate its adapter only when configured; never add a synthetic credential to satisfy startup. Keep the Google-only configuration regression and live startup proof.
+- **Live deployments enable Google Vertex AI, plus a decision provider (OpenRouter or TypeSafe) for decision Endpoints (ADR 014).** Require each other provider's key and instantiate its adapter only when configured; never add a synthetic credential to satisfy startup. Keep the Google-only configuration regression and live startup proof.

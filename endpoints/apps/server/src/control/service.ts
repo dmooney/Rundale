@@ -2,6 +2,7 @@ import { issueApiKey } from "@limerick/auth";
 import {
   definitionContentHash,
   DomainError,
+  isProviderId,
   type EndpointDefinition,
   type EndpointDraft,
   type EndpointVersionSnapshot,
@@ -79,6 +80,7 @@ export function validateDefinition(
   ) {
     throw new ControlError("INVALID_DEFINITION", "temperature must be between 0 and 2.");
   }
+  validateDecision(definition);
   if (
     definition.providerConfig.provider === "google" &&
     definition.inferenceConfig.temperature !== undefined
@@ -87,6 +89,111 @@ export function validateDefinition(
       "INVALID_DEFINITION",
       "temperature is not supported by the Google Interactions adapter.",
     );
+  }
+}
+
+const decisionProviders = new Set(["fake", "openrouter", "typesafe"]);
+const decisionNamePattern = /^[a-z][a-z0-9_]{0,63}$/;
+
+function invalid(message: string): never {
+  throw new ControlError("INVALID_DEFINITION", message);
+}
+
+function boundedText(value: unknown, label: string, max = 4_000): string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > max)
+    invalid(`${label} must contain 1 to ${max} characters.`);
+  return value;
+}
+
+/**
+ * A decision Endpoint (ADR 014) runs on a decision model, names input fields
+ * its schema declares, and asks well-formed choice or noul questions.
+ */
+function validateDecision(definition: EndpointDefinition): void {
+  const spec: unknown = definition.inferenceConfig.decision;
+  const provider = definition.providerConfig.provider;
+  if (spec === undefined) {
+    if (provider === "openrouter" || provider === "typesafe")
+      invalid(`Provider '${provider}' serves decision Endpoints only.`);
+    return;
+  }
+  if (!decisionProviders.has(provider))
+    invalid(`Provider '${provider}' cannot serve a decision Endpoint.`);
+  if (definition.inferenceConfig.streaming !== undefined)
+    invalid("A decision Endpoint cannot stream.");
+  if (definition.inferenceConfig.temperature !== undefined)
+    invalid("A decision Endpoint has no temperature.");
+  if (spec === null || typeof spec !== "object" || Array.isArray(spec))
+    invalid("decision must be an object.");
+  const value = spec as Record<string, unknown>;
+  const allowedKeys = ["version", "stateFields", "idField", "questions"];
+  if (Object.keys(value).some((key) => !allowedKeys.includes(key)))
+    invalid(`decision may contain only ${allowedKeys.join(", ")}.`);
+  if (value.version !== 1) invalid("decision.version must be 1.");
+  const properties = (definition.inputSchema.properties ?? {}) as Record<string, unknown>;
+  const field = (name: unknown, label: string, array: boolean): void => {
+    if (typeof name !== "string" || !Object.hasOwn(properties, name))
+      invalid(`${label} must name an input field.`);
+    const schema = properties[name] as Record<string, unknown> | undefined;
+    if (array && schema?.type !== "array") invalid(`${label} must name an array input field.`);
+  };
+  if (
+    !Array.isArray(value.stateFields) ||
+    value.stateFields.length === 0 ||
+    value.stateFields.length > 32
+  )
+    invalid("decision.stateFields must list 1 to 32 input fields.");
+  for (const name of value.stateFields) field(name, "decision.stateFields", false);
+  boundedText(value.idField, "decision.idField", 64);
+  const questions = value.questions;
+  if (questions === null || typeof questions !== "object" || Array.isArray(questions))
+    invalid("decision.questions must be an object.");
+  const entries = Object.entries(questions as Record<string, unknown>);
+  if (entries.length === 0 || entries.length > 32)
+    invalid("decision.questions must hold 1 to 32 questions.");
+  for (const [name, raw] of entries) {
+    const label = `decision.questions.${name}`;
+    if (!decisionNamePattern.test(name) || name.includes("__"))
+      invalid(`${label}: question names are lowercase letters, digits and single '_'.`);
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+      invalid(`${label} must be an object.`);
+    const question = raw as Record<string, unknown>;
+    boundedText(question.instructions, `${label}.instructions`);
+    if (question.type === "choice") {
+      const keys = ["type", "instructions", "criteria", "criteriaFrom"];
+      if (Object.keys(question).some((key) => !keys.includes(key)))
+        invalid(`${label} may contain only ${keys.join(", ")}.`);
+      const criteria = question.criteria ?? {};
+      if (criteria === null || typeof criteria !== "object" || Array.isArray(criteria))
+        invalid(`${label}.criteria must be an object.`);
+      for (const [id, text] of Object.entries(criteria)) {
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) invalid(`${label}.criteria has an invalid id.`);
+        boundedText(text, `${label}.criteria.${id}`);
+      }
+      const sources = question.criteriaFrom ?? [];
+      if (!Array.isArray(sources)) invalid(`${label}.criteriaFrom must be an array.`);
+      for (const source of sources as unknown[]) {
+        const entry = source as Record<string, unknown> | null;
+        if (entry === null || typeof entry !== "object")
+          invalid(`${label}.criteriaFrom entries must be objects.`);
+        field(entry.field, `${label}.criteriaFrom.field`, true);
+        boundedText(entry.criterion, `${label}.criteriaFrom.criterion`);
+      }
+      if (Object.keys(criteria).length + (sources as unknown[]).length === 0)
+        invalid(`${label} offers no options.`);
+    } else if (question.type === "noul") {
+      const keys = ["type", "instructions", "criteria", "forEach"];
+      if (Object.keys(question).some((key) => !keys.includes(key)))
+        invalid(`${label} may contain only ${keys.join(", ")}.`);
+      const criteria = question.criteria as Record<string, unknown> | null | undefined;
+      if (criteria === null || typeof criteria !== "object" || Object.keys(criteria).length !== 2)
+        invalid(`${label}.criteria must describe true and false.`);
+      boundedText(criteria.true, `${label}.criteria.true`);
+      boundedText(criteria.false, `${label}.criteria.false`);
+      if (question.forEach !== undefined) field(question.forEach, `${label}.forEach`, true);
+    } else {
+      invalid(`${label}.type must be choice or noul.`);
+    }
   }
 }
 
@@ -106,7 +213,7 @@ export class ControlService {
         const separator = modelKey.indexOf("/");
         if (separator <= 0 || separator === modelKey.length - 1) return [];
         const provider = modelKey.slice(0, separator);
-        if (provider !== "fake" && provider !== "openai" && provider !== "google") return [];
+        if (!isProviderId(provider)) return [];
         return [{ provider, model: modelKey.slice(separator + 1) }];
       })
       .sort((left, right) =>
