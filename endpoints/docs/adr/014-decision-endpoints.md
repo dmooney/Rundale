@@ -63,8 +63,9 @@ accounting are unchanged, and no database migration is needed.
   input.
 - **Instructions.** The definition's `instructions` precede every question's
   instructions; they hold rules shared by all questions.
-- **Output.** `{ <choice>: { choice, confidence, probabilities }, <noul>: p,
-  <forEach noul>: { <id>: p } }`, validated by the output schema. An answer
+- **Output.** A choice gives `{ choice, confidence, probabilities }`, a noul
+  gives its probability, and a `forEach` noul gives `{ <id>: p }`, each under
+  its question name and validated by the output schema. An answer
   that is missing, out of range, or not an offered option fails the attempt
   with `OUTPUT_VALIDATION_FAILED`, so callers never see an option they did not
   offer.

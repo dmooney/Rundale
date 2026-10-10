@@ -54,6 +54,7 @@
 - Use provider fakes for deterministic tests. Live-provider tests must be opt-in, cost-bounded, and skipped when credentials are absent.
 - Never commit secrets, real API keys, private prompts, or customer invocation content. Keep environment examples synthetic.
 - Before handing off a change, run every relevant checked-in format, lint, typecheck, test, and build command. If the repository still has no executable tooling, verify document consistency and report that no automated checks are available.
+- Markdown under `endpoints/` is checked by two Prettier configs: this workspace's (`pnpm format:check`) and the repository's (`just docs-check`, CI's "Docs/data formatting" job). They wrap prose differently, and an inline code span broken across lines is reformatted differently by each, so keep code spans on one line and run both before pushing.
 
 ## Documentation Style
 
