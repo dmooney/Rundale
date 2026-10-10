@@ -1,6 +1,6 @@
 # Design: dynamic NPC context and recipient resolution
 
-> Status: Proposed · Issue: [#2143](https://github.com/dmooney/Rundale/issues/2143) ·
+> Status: Accepted · Issue: [#2143](https://github.com/dmooney/Rundale/issues/2143) ·
 > Milestone: Existing features usable (spec Milestone 5) · Pairs with:
 > [#2024](https://github.com/dmooney/Rundale/issues/2024) (static context)
 
@@ -8,8 +8,7 @@ This is the contract #2143 requires before implementation. It covers who a
 player's line is for, what an NPC is told about the present moment when it
 answers, and how both stay correct while the world changes. The owner's
 decisions from the reviews of 2026-10-09 and 2026-10-10 are recorded in §10.
-Proposals that still
-need approval are marked **Proposed** and listed in §11. Nothing here is
+The proposals in §11 were approved by the owner on 2026-10-10. Nothing here is
 implemented yet.
 
 The recipient rules govern the shared engine (`limerick-core`), so every client
@@ -23,15 +22,15 @@ Inventory on `main` at `44f7052`.
 
 ### 1.1 Recipient resolution
 
-| Step                | Where                                                                                                                      | What it does                                                                                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Explicit recipients | `handle_game_input_settled` (`limerick-core/src/game_loop/input.rs`)                                                       | Chip and @ selections arrive as `addressed_to` and win outright.                                                                                                                                   |
-| Recipient clause    | `explicit_talk_recipient_clause` (`input.rs`)                                                                              | "talk to X about Y" and "speak to X …" scope the line to the names in X, as an explicit recipient does.                                                                                            |
-| Intent              | `parse_intent_local` (`limerick-input/src/intent_local.rs`), then the `rundale-intent` Endpoint                            | Local rules classify most lines; greetings and first-person lines become `Talk` without a model call. The intent model's `target` is used only for `Talk`.                                         |
-| Address detection   | `leading_vocative`, `asked_addressee`, `extract_npc_mentions` (`input.rs`)                                                 | The words before the first comma, the name after "ask", and every name in the body become candidate recipients.                                                                                    |
-| Name matching       | `NpcManager::resolve_name_at`, `names_someone_elsewhere` (`limerick-npc/src/manager/lookup.rs`)                            | Case-folded but not accent-folded. A first name matches someone present only after an introduction, while `names_someone_elsewhere` matches first names without one.                               |
-| Default recipient   | `resolve_npc_targets` (`limerick-core/src/ipc/handlers.rs`)                                                                | With no candidate, the first NPC present in `BTreeMap` order: the lowest id.                                                                                                                       |
-| Clarification       | `handle_npc_conversation_settled`, `addressee_prompt` (`game_loop/npc_turn.rs`); `answer_clarification` (`turn/engine.rs`) | Asks only when a name matches several people present. The answer re-runs the same attempt with the settled intent and the chosen addressee. A request waiting on a clarification survives restart. |
+| Step                | Where                                                                                                                      | What it does                                                                                                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Explicit recipients | `handle_game_input_settled` (`limerick-core/src/game_loop/input.rs`)                                                       | Chip and @ selections arrive as `addressed_to` and win outright.                                                                                                                                                   |
+| Recipient clause    | `explicit_talk_recipient_clause` (`input.rs`)                                                                              | "talk to X about Y" and "speak to X …" scope the line to the names in X, as an explicit recipient does.                                                                                                            |
+| Intent              | `parse_intent_local` (`limerick-input/src/intent_local.rs`), then the `rundale-intent` Endpoint                            | Local rules classify most lines; greetings and first-person lines become `Talk` without a model call. For recipients, the intent model's `target` is used only for `Talk`; it also names move and examine targets. |
+| Address detection   | `leading_vocative`, `asked_addressee`, `extract_npc_mentions` (`input.rs`)                                                 | The words before the first comma, the name after "ask", and every name in the body become candidate recipients.                                                                                                    |
+| Name matching       | `NpcManager::resolve_name_at`, `names_someone_elsewhere` (`limerick-npc/src/manager/lookup.rs`)                            | Case-folded but not accent-folded. A first name matches someone present only after an introduction, while `names_someone_elsewhere` matches first names without one.                                               |
+| Default recipient   | `resolve_npc_targets` (`limerick-core/src/ipc/handlers.rs`)                                                                | With no candidate, the first NPC present in `BTreeMap` order: the lowest id.                                                                                                                                       |
+| Clarification       | `handle_npc_conversation_settled`, `addressee_prompt` (`game_loop/npc_turn.rs`); `answer_clarification` (`turn/engine.rs`) | Asks only when a name matches several people present. The answer re-runs the same attempt with the settled intent and the chosen addressee. A request waiting on a clarification survives restart.                 |
 
 ### 1.2 What a speaker is told
 
@@ -72,7 +71,7 @@ place, speaker and both lines, but not who else was present.
   person joining (§3.1, step 5) never make a partner.
 - **Mention:** a person present who is talked about in a line without being
   spoken to. A mention never makes someone a recipient on its own; the person
-  mentioned joins after the recipients (§3.1, step 5).
+  mentioned joins after the recipients in an unaddressed line (§3.1, step 5).
 - **Label:** how the player knows a person: their name once introduced,
   otherwise their description (spec §5.3). Short labels belong to #2128.
 - **Introduced:** `NpcManager::is_introduced`, set when an NPC names themselves
@@ -114,7 +113,7 @@ single right option in question 1 (§4.3). It should come out uncertain, so the
 game asks and the player can pick one person or All. Whether the model splits
 its answer that way is measured by the comparison (Appendix A, A35).
 
-**Nobody present** (**Proposed**). System 1 runs only if the player has been
+**Nobody present.** System 1 runs only if the player has been
 introduced to someone. "Mícheál, hello" then gets "Mícheál is not here." when
 the player has met Mícheál, and anything else gets the existing idle message.
 With nobody present and nobody met, no call is made and the idle message is
@@ -122,17 +121,17 @@ unchanged.
 
 ### 3.2 Partner
 
-The partner is current conversation state. **Proposed:** it is saved with the
+The partner is current conversation state. It is saved with the
 game and survives save/resume, like presence.
 
 ### 3.3 Asking
 
-**Proposed** question for unaddressed speech: "Who are you speaking to?" The
+The question for unaddressed speech is "Who are you speaking to?" The
 choices are each person present, by label, and then **All**. The All button's
 VoiceOver label is "Everyone here". A reference that fits several people
 present keeps its current prompt ("Which Connolly do you mean?"), listing only
 the people it fits; it reaches that prompt through the reference options in
-§4.3. **Proposed:** All is offered only for unaddressed speech.
+§4.3. All is offered only for unaddressed speech.
 
 Asking reuses the existing clarification flow (`ClarificationRequired`,
 `answer_clarification`). No dialogue call is made until the player answers, and
@@ -222,20 +221,19 @@ Questions:
 
 Option ids are assigned per call in roster order, so ordering is stable.
 
-**Proposed** thresholds, to be fixed by the comparison in §5: 0.80 for question
+Starting thresholds, to be fixed by the comparison in §5: 0.80 for question
 1 and 0.70 for question 2. Below the threshold, the answer is uncertain
 (§3.1, step 4).
 
 ### 4.4 Failure
 
 A failure caused by lost connectivity follows the request's existing recoverable
-failure path, the same as a failed dialogue call. Any other failure (an error,
-**Proposed** timeout of 2 s, or an answer that is not an offered option) is
-uncertain.
+failure path, the same as a failed dialogue call. Any other failure (an error, a
+timeout after 2 s, or an answer that is not an offered option) is uncertain.
 
 ### 4.5 Endpoint integration
 
-- A new Endpoint role (**Proposed** name `rundale-addressee`), defined as game
+- A new Endpoint role, `rundale-addressee`, defined as game
   data in `mods/rundale/endpoints/rundale-addressee.v1.json` and published to
   Limerick Endpoints in `limerick-prod` as v1, following the pre-release rule in
   Endpoints ADR 013.
@@ -255,20 +253,28 @@ uncertain.
     Responses API), because OpenAI's Decisions API reportedly uses the same
     client and API key (unverified, like the other vendor facts in §5). The
     installed `openai` SDK may need a version that has the Decisions API, or a
-    direct HTTP call. For Jev it is a new TypeSafe adapter.
+    direct HTTP call. For Jev it is a new TypeSafe adapter, and for
+    Microsoft-Decision-1 a new Microsoft Foundry adapter.
 - `limerick-prod` allows only Google models today. The allowlist is set on the
   `limerick-endpoints` Cloud Run service; `endpoints/deploy/limerick-prod.sh`
   reads `GOOGLE_ALLOWED_MODELS` from the service and forwards it to
-  `definitions`. Enabling the winning provider takes four steps
+  `definitions`. Enabling the winning provider takes five steps
   (`endpoints/docs/deployment.md`):
   - set its model allowlist on the Cloud Run service;
   - forward that allowlist in the script's `cmd_definitions`;
+  - price every allowed model in `MODEL_PRICES_JSON`, without which the server
+    refuses to start in live mode (`endpoints/apps/server/src/config.ts`);
   - put its API key in Secret Manager;
   - grant the service's runtime identity access to the key.
 
+  Cost is recorded per token (`FixedPriceCostCalculator` in
+  `endpoints/packages/providers/src/index.ts`). A decision call billed any
+  other way needs a matching price model before its cost is recorded
+  correctly.
+
   The key never goes in the app or in a file in this repository. The server
-  already reads `OPENAI_ALLOWED_MODELS`. OpenRouter, and TypeSafe if it is
-  needed, each need a provider prefix and a key check in `readAllowedModels`
+  already reads `OPENAI_ALLOWED_MODELS`. OpenRouter, and TypeSafe or Microsoft
+  Foundry if needed, each need a provider prefix and a key check in `readAllowedModels`
   and the server config (`endpoints/apps/server/src/config.ts`), which know
   only `openai/` and `google/`.
 
@@ -284,14 +290,16 @@ Decisions API with one integration and one key:
 - Microsoft-Decision-1 (`microsoft/microsoft-decision-1`).
 
 The owner first named the OpenAI Decisions API and Jev through TypeSafe, then
-on 2026-10-10 left the route to the author's judgment. OpenRouter carries both
-of those models and a third, for one adapter instead of two.
+on 2026-10-10 left the route to the author's judgment and confirmed the result,
+including the third candidate. OpenRouter carries all three models through one
+adapter.
 
 **Route in production.** The winner is served through OpenRouter if it meets
 the latency budget that way. If it misses the budget only because of
 OpenRouter's extra hop, it is measured again on its vendor's own API, and
-production uses that route: the OpenAI adapter for GPT-6 Luna Decisions, or a
-TypeSafe adapter for Jev (§4.5).
+production uses that route: the OpenAI adapter for GPT-6 Luna Decisions, a
+TypeSafe adapter for Jev, or a Microsoft Foundry adapter for
+Microsoft-Decision-1 (§4.5).
 
 **Baseline:** today's path in §1.1 (local rules, the `rundale-intent` Endpoint on
 Gemini Flash Lite, and the rule-based address detection). It is measured but
@@ -302,8 +310,9 @@ The vendor facts known so far, including OpenRouter's, come from secondary
 sources read on 2026-10-09 and 2026-10-10. The vendors' own documentation could
 not be reached from the review session. OpenRouter's Decisions API
 (`POST https://openrouter.ai/api/alpha/decisions`) is reported to be alpha.
-Check request shapes, limits, pricing and data retention against vendor
-documentation before building.
+Check request shapes, limits and pricing against vendor documentation before
+building. The owner accepted OpenRouter's alpha Decisions API, and its handling
+of player lines, without a separate data-retention review (2026-10-10).
 
 **Method:**
 
@@ -319,11 +328,10 @@ documentation before building.
   recorded as simulator results.
 
 **Win rule** (owner): beat the baseline on correct outcomes, with zero confident
-wrong routes, within the latency budget. **Proposed** latency budget: p95 no
-worse than the baseline's intent call and at most 800 ms. **Proposed**
-tie-break: fewer unnecessary questions, then latency, then cost.
+wrong routes, within the latency budget. The latency budget: p95 no
+worse than the baseline's intent call and at most 800 ms. The tie-break: fewer unnecessary questions, then latency, then cost.
 
-**Proposed:** if neither candidate wins, no vendor is added; the policy in §3
+If no candidate wins, no vendor is added; the policy in §3
 ships with the baseline answering the questions in §4.3, and #2143 stays open
 for System 1.
 
@@ -356,12 +364,12 @@ already committed.
 | `recentConversation` | The last 8 exchanges the speaker **witnessed**                                                                      | Filtered                                       |
 | `player`             | Whether the speaker knows the player's name, and the name if so                                                     | New                                            |
 | `addressing`         | How this speaker came to answer: spoken to, part of All, or joining because mentioned                               | New                                            |
-| `festival`           | **Proposed:** today's festival name, or null                                                                        | New                                            |
+| `festival`           | Today's festival name, or null                                                                                      | New                                            |
 
 Homes and routines are static facts and come from #2024, not from this
 snapshot.
 
-**Festival** (**Proposed**). The canonical mod declares four festivals in
+**Festival.** The canonical mod declares four festivals in
 `mods/rundale/festivals.json` (Imbolc, Bealtaine, Lughnasa and Samhain).
 `GameClock::check_festival` reports today's festival by date, and the desktop
 dialogue context already sends it as `current_festival`. A new game starts on
@@ -373,7 +381,7 @@ and meanings remain static facts under #2024.
 
 **Witnesses.** `ConversationExchange` gains the ids of the NPCs present when the
 exchange was committed. Exchanges in existing saves have none recorded.
-**Proposed:** they count as witnessed only by their speaker.
+They count as witnessed only by their speaker.
 
 **Mood.** The authored `mood` from `mods/rundale/npcs.json` is sent as is.
 Letting conversation change mood through a validated, committed and persisted
@@ -514,9 +522,9 @@ Implementation PRs that change shipped behaviour also run
   mentioned joins it.
 - With no partner, a line that mentions someone present still asks, and the
   person mentioned joins after the choice. On 2026-10-09 the owner chose to
-  send such a line to the person mentioned; on 2026-10-10 they left the case to
-  the author's judgment, and it now asks, because a mention usually means the
-  line is about that person, not to them (spec §5.3).
+  send such a line to the person mentioned. On 2026-10-10 they left the case to
+  the author's judgment and confirmed the result: it asks, because a mention
+  usually means the line is about that person, not to them (spec §5.3).
 - Presence is checked again when the player answers a question.
 - Speakers learn who is in the room, nothing about anyone's live whereabouts
   elsewhere, and only conversation they witnessed. Homes and routines come from
@@ -533,9 +541,16 @@ Implementation PRs that change shipped behaviour also run
   budget.
 - The comparison runs through OpenRouter and covers Jev, GPT-6 Luna Decisions
   and Microsoft-Decision-1. The owner first named OpenAI's API and TypeSafe,
-  then on 2026-10-10 left the route to the author's judgment (§5).
+  then on 2026-10-10 left the route to the author's judgment and confirmed the
+  result, including Microsoft-Decision-1 with Microsoft Foundry as its direct
+  route (§5).
+- OpenRouter's alpha Decisions API is accepted for production without a
+  separate data-retention review.
 
-## 11. Proposed, awaiting approval
+## 11. Approved proposals (2026-10-10)
+
+The owner approved all of these as written. The thresholds and the latency
+numbers stay subject to the comparison, as §4.3 and §5 say.
 
 - The question text "Who are you speaking to?" and All only for unaddressed
   speech (§3.3).
@@ -550,7 +565,7 @@ Implementation PRs that change shipped behaviour also run
 - A 2 s System 1 timeout (§4.4).
 - Latency budget: p95 no worse than the baseline and at most 800 ms; tie-break
   order (§5).
-- If neither vendor wins, ship the policy on the baseline (§5).
+- If no candidate wins, ship the policy on the baseline (§5).
 - The partner is saved with the game (§3.2).
 - Exchanges in existing saves count as witnessed only by their speaker (§6).
 - Whether System 1 later also takes over the move, look and talk classification
