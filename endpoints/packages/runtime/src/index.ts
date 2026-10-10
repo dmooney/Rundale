@@ -520,6 +520,8 @@ export interface DecisionRequest {
   /** Vendor question id to output location: a choice, or one noul of a forEach set. */
   routes: Record<string, { question: string; id?: string }>;
   offered: Record<string, ReadonlySet<string>>;
+  /** One-option choices, answered without the model. */
+  settled: Record<string, string>;
 }
 
 function decisionElements(
@@ -610,6 +612,7 @@ export function buildDecisionRequest(
   const questions: Record<string, DecisionQuestionPayload> = {};
   const routes: DecisionRequest["routes"] = {};
   const offered: DecisionRequest["offered"] = {};
+  const settled: Record<string, string> = {};
   // Expanded `forEach` keys (`name__id`) must never replace another question.
   const claim = (key: string) => {
     if (Object.hasOwn(questions, key)) {
@@ -632,13 +635,19 @@ export function buildDecisionRequest(
       }
       for (const [id, criterion] of Object.entries(question.criteria ?? {})) add(id, criterion);
       const count = Object.keys(criteria).length;
-      if (count < 2 || count > maxDecisionOptions) {
+      if (count === 0 || count > maxDecisionOptions) {
         throw new RuntimeError(
           "INVALID_INPUT",
-          `Decision question '${name}' needs 2 to ${maxDecisionOptions} options.`,
+          `Decision question '${name}' needs 1 to ${maxDecisionOptions} options.`,
         );
       }
       claim(name);
+      if (count === 1) {
+        // Code knows the answer to a one-option choice; the model is not asked.
+        settled[name] = Object.keys(criteria)[0]!;
+        offered[name] = new Set(Object.keys(criteria));
+        continue;
+      }
       questions[name] = { type: "choice", instructions: ask(question.instructions), criteria };
       routes[name] = { question: name };
       offered[name] = new Set(Object.keys(criteria));
@@ -670,13 +679,13 @@ export function buildDecisionRequest(
     }
   }
   const count = Object.keys(questions).length;
-  if (count === 0 || count > maxDecisionQuestions) {
+  if ((count === 0 && Object.keys(settled).length === 0) || count > maxDecisionQuestions) {
     throw new RuntimeError(
       "INVALID_INPUT",
       `A decision call asks 1 to ${maxDecisionQuestions} questions; this input expands to ${count}.`,
     );
   }
-  return { invocation: { model, state, questions }, routes, offered };
+  return { invocation: { model, state, questions }, routes, offered, settled };
 }
 
 function probability(value: unknown): value is number {
@@ -710,6 +719,9 @@ export function decisionOutput(
       },
     );
   const output: Record<string, unknown> = {};
+  for (const [name, choice] of Object.entries(request.settled)) {
+    output[name] = { choice, confidence: 1, probabilities: { [choice]: 1 } };
+  }
   for (const [name, question] of Object.entries(spec.questions)) {
     if (question.type === "noul" && question.forEach !== undefined) output[name] = {};
   }
@@ -751,7 +763,11 @@ async function executeDecision(
   if (provider.decide === undefined) {
     throw new RuntimeError("PROVIDER_UNAVAILABLE", "The configured provider cannot decide.");
   }
-  const result = await provider.decide(request.built.invocation, context);
+  // Nothing left for the model when code settled every question.
+  const result =
+    Object.keys(request.built.invocation.questions).length === 0
+      ? { answers: {}, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }
+      : await provider.decide(request.built.invocation, context);
   return {
     output: decisionOutput(request.built, request.spec, result),
     usage: result.usage,

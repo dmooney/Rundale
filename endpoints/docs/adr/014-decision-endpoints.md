@@ -62,9 +62,12 @@ accounting are unchanged, and no database migration is needed.
   noul is asked once per element. The element's `idField` value is the option
   id and is the only input substituted into creator text (`{id}`); ids must be
   1 to 64 letters, digits, `_` or `-`. `{id}` substitution inserts only the
-  id; input fields reach a question only through `include`. Duplicate ids in an array, choices outside 2 to 255 options, and
-  an input that expands to no questions or more than 64 are invalid
+  id; input fields reach a question only through `include`. Duplicate ids in an array, a choice with no options or more than
+  255, and an input that expands to more than 64 questions are invalid
   input.
+- **One option.** A choice left with a single option is answered in code with
+  probability 1 and is not sent; when every question is answered that way, no
+  request is made.
 - **Instructions.** The definition's `instructions` travel as `background`
   beside every question (`{ question, background }`), so each question stays
   short. Question instructions and criteria may be text or JSON structure, as

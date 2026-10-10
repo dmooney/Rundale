@@ -320,4 +320,37 @@ describe("decision Endpoints", () => {
       about: { name: "Róisín Connolly" },
     });
   });
+
+  it("answers a one-option choice in code without asking the model", async () => {
+    const single: DecisionSpec = {
+      ...spec,
+      questions: {
+        recipient: spec.questions.recipient!,
+        target: {
+          type: "choice",
+          instructions: "Which phrase?",
+          criteriaFrom: [{ field: "phrases", include: ["text"] }],
+          criteria: { none: "No phrase." },
+        },
+      },
+    };
+    const request = buildDecisionRequest(single, "m", values);
+    expect(Object.keys(request.invocation.questions)).toEqual(["recipient"]);
+    const { model, calls } = provider(() => ({ recipient: goodAnswers().recipient! }));
+    const result = await runtime(model).invoke(
+      {
+        ...version,
+        outputSchema: { type: "object" },
+        inferenceConfig: { ...version.inferenceConfig, decision: single },
+      },
+      { values, attachments: [] },
+      context,
+    );
+    expect(calls).toHaveLength(1);
+    expect((result.output as Record<string, unknown>).target).toEqual({
+      choice: "none",
+      confidence: 1,
+      probabilities: { none: 1 },
+    });
+  });
 });
