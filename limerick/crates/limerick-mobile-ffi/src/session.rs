@@ -1212,3 +1212,19 @@ fn failure_kind_key(kind: InferenceFailureKind) -> &'static str {
         InferenceFailureKind::Interrupted => "interrupted",
     }
 }
+
+#[cfg(test)]
+impl Session {
+    /// Test-only access to the live world and NPCs, for setting up fixtures
+    /// the canonical schedule does not produce.
+    pub(crate) fn with_engine<R>(
+        &self,
+        f: impl FnOnce(&mut WorldState, &mut NpcManager) -> R,
+    ) -> R {
+        self.runtime.block_on(async {
+            let mut world = self.live.world.lock().await;
+            let mut npcs = self.live.npc_manager.lock().await;
+            f(&mut world, &mut npcs)
+        })
+    }
+}

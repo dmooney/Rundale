@@ -1625,3 +1625,164 @@ fn a_bug_report_after_relaunch_keeps_the_transcript_but_no_calls() {
         "calls are kept in memory only: {text}"
     );
 }
+
+impl Game {
+    /// A game on a copy of the canonical world with a fourth person, Mary
+    /// Brennan, who keeps Peig's hours at the Letter Office.
+    fn with_mary_elsewhere() -> (Self, Value) {
+        let dir = tempfile::tempdir().unwrap();
+        let world = dir.path().join("mod");
+        copy_world(&repo_root().join("mods/rundale"), &world);
+        let path = world.join("npcs.json");
+        let mut npcs: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let list = npcs["npcs"].as_array_mut().unwrap();
+        let mut mary = list.iter().find(|npc| npc["id"] == 1).unwrap().clone();
+        mary["id"] = json!(4);
+        mary["name"] = json!("Mary Brennan");
+        mary["brief_description"] = json!("a stout woman with a basket of eggs");
+        mary["occupation"] = json!("Egg-seller");
+        list.push(mary);
+        std::fs::write(&path, serde_json::to_string_pretty(&npcs).unwrap()).unwrap();
+        Self::open_in(dir)
+    }
+
+    /// Places the player and every person directly, and records who the
+    /// player has been introduced to, for a fixture the schedule does not give.
+    /// Schedules are cleared so the per-turn pump does not move anyone back.
+    fn arrange(&self, place: u32, present: &[u32], introduced: &[u32]) {
+        let registry = sessions().lock().unwrap();
+        let session = registry.get(&self.handle).unwrap().clone();
+        drop(registry);
+        let session = session.lock().unwrap();
+        session.with_engine(|world, npcs| {
+            use limerick_core::npc::types::NpcState;
+            use limerick_core::world::LocationId;
+            world.player_location = LocationId(place);
+            use limerick_core::npc::NpcId;
+            let ids: Vec<NpcId> = npcs.npcs().keys().copied().collect();
+            for id in ids {
+                let location = if present.contains(&id.0) {
+                    LocationId(place)
+                } else {
+                    // Anywhere the player is not.
+                    LocationId(if place == 2 { 3 } else { 2 })
+                };
+                let npc = npcs.get_mut(id).unwrap();
+                npc.set_schedule(None);
+                npc.set_location_and_state(location, NpcState::Present);
+            }
+            for id in introduced {
+                npcs.mark_introduced(NpcId(*id));
+            }
+        });
+    }
+}
+
+/// The recipient baseline for the System 1 comparison (#2220): today's
+/// engine path on each labelled case of the dynamic NPC context design,
+/// Appendix A, with `rundale-intent` answered by recorded replies.
+///
+/// Opt-in: `ADDRESSEE_BASELINE_IN=<cases with recorded intents>
+/// ADDRESSEE_BASELINE_OUT=<observations> cargo test -p limerick-mobile-ffi
+/// addressee_baseline -- --ignored`. The comparison runner in
+/// `endpoints/examples/rundale-input-comparison` writes the input and
+/// scores the output.
+#[test]
+#[ignore = "opt-in comparison harness; needs ADDRESSEE_BASELINE_IN"]
+fn addressee_baseline() {
+    let input: Value = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("ADDRESSEE_BASELINE_IN").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let mut observations = Vec::new();
+    for case in input["cases"].as_array().unwrap() {
+        let ids = |field: &str| -> Vec<u32> {
+            case[field]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| id.as_u64().unwrap() as u32)
+                .collect()
+        };
+        let (present, introduced) = (ids("present"), ids("introduced"));
+        let place = case["place"].as_u64().unwrap() as u32;
+        let line = case["line"].as_str().unwrap();
+        for (run, intent) in case["intents"].as_array().unwrap().iter().enumerate() {
+            let (game, _) = match case["fixture"].as_str() {
+                Some("two_drovers") => Game::with_two_drovers(),
+                Some("mary_elsewhere") => Game::with_mary_elsewhere(),
+                _ => Game::new(),
+            };
+            game.arrange(place, &present, &introduced);
+            let mut result = game.submit(line);
+            let mut narration_lines: Vec<String> = Vec::new();
+            let mut events: Vec<Value> = Vec::new();
+            let mut recipients: Vec<String> = Vec::new();
+            let mut choices: Vec<String> = Vec::new();
+            let mut intent_calls = 0;
+            let mut unexpected = None;
+            for _ in 0..12 {
+                narration_lines.extend(narration(&result).iter().map(|line| line.to_string()));
+                events.extend(
+                    result["events"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|event| json!({"kind": event["kind"], "content": event["content"]})),
+                );
+                if result["status"] == "awaiting_clarification" {
+                    let question = events_of_kind(&result, "clarification_required");
+                    choices = question[0]["clarification"]["choices"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|choice| choice["entityID"].as_str().unwrap_or("").to_string())
+                        .collect();
+                    break;
+                }
+                let pending = game.pending();
+                if pending.is_null() {
+                    break;
+                }
+                result = match pending["endpoint"]["role"].as_str() {
+                    Some("intent") => {
+                        intent_calls += 1;
+                        game.resolve(&pending, intent.clone())
+                    }
+                    Some("dialogue") => {
+                        recipients.push(
+                            pending["input"]["speaker"]["displayName"]
+                                .as_str()
+                                .unwrap()
+                                .to_string(),
+                        );
+                        game.resolve(&pending, json!({"dialogue": "Aye."}))
+                    }
+                    other => {
+                        unexpected = Some(format!("{other:?}"));
+                        break;
+                    }
+                };
+            }
+            observations.push(json!({
+                "id": case["id"],
+                "run": run,
+                "recipients": recipients,
+                "asked": !choices.is_empty(),
+                "choices": choices,
+                "narration": narration_lines,
+                "intentCalls": intent_calls,
+                "presentAfter": people(&game.snapshot()),
+                "sceneAfter": game.snapshot()["readModel"]["scene"]["name"],
+                "events": events,
+                "unexpectedRole": unexpected,
+            }));
+        }
+    }
+    std::fs::write(
+        std::env::var("ADDRESSEE_BASELINE_OUT").unwrap(),
+        serde_json::to_string_pretty(&json!({"observations": observations})).unwrap(),
+    )
+    .unwrap();
+}

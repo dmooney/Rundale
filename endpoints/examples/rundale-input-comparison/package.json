@@ -1,0 +1,18 @@
+{
+  "name": "@limerick/rundale-input-comparison",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compare": "NODE_OPTIONS=--conditions=source tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@limerick/domain": "workspace:*",
+    "@limerick/providers": "workspace:*",
+    "@limerick/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "4.23.12"
+  }
+}
