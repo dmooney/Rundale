@@ -1,0 +1,17 @@
+# Keep Cargo build outputs inside this checkout (#1708).
+#
+# A shared `build.target-dir` in `~/.cargo/config.toml` makes every Git
+# worktree read and overwrite the same first-party binaries and test
+# executables, so one worktree can run another's build. This project config
+# takes precedence over the user-level file. Relative paths here resolve from
+# the repository root, so each worktree builds into its own `limerick/target/`
+# wherever Cargo is invoked inside it.
+#
+# Compiler caching stays shared: keep `build.rustc-wrapper = "sccache"` (or
+# `RUSTC_WRAPPER=sccache`) in your user config. sccache shares compiled
+# artifacts between worktrees without sharing their final outputs.
+#
+# An explicit `CARGO_TARGET_DIR` still wins; CI and the mobile build scripts
+# use it to pin their own per-run output directories.
+[build]
+target-dir = "limerick/target"
