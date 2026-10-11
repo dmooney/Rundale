@@ -14,17 +14,14 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-if ! command -v npm >/dev/null 2>&1; then
-    echo "pre-push: npm not found on PATH; skipping docs-format check." >&2
-    echo "pre-push: install Node 22+ (see 'just setup') to enable it." >&2
-    exit 0
-fi
-
-if [ ! -x node_modules/.bin/prettier ] || [ ! -x node_modules/.bin/markdownlint-cli2 ]; then
-    echo "pre-push: root dev tooling not installed; skipping docs-format check." >&2
-    echo "pre-push: run 'npm ci' at the repo root to enable it." >&2
-    exit 0
-fi
+# Install the root docs tooling when it is missing or its lockfile changed
+# (a no-op otherwise). A missing Node fails the push rather than skipping the
+# gate; a gate that cannot run has not passed.
+bash limerick/scripts/ensure-deps.sh js . || {
+    echo "pre-push: could not install the docs-format tooling (see above)." >&2
+    echo "pre-push: fix it, or bypass once with 'git push --no-verify'." >&2
+    exit 1
+}
 
 echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
 exec bash limerick/scripts/check-docs-format.sh

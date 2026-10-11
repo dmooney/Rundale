@@ -31,7 +31,13 @@ bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's e
 ### `check-docs-format.sh` — Docs/data formatting gate
 
 - Prettier and markdownlint over `git ls-files` only, so git-ignored copies (worktrees under `.claude/worktrees/`) never fail it; markdownlint runs with `--no-globs` so the config's `globs` cannot re-add every file on disk.
-- Fails, not skips, without root `node_modules` (`npm ci`). `just docs-check`, `just check`, `just verify`, and `.githooks/pre-push` run it; `tests/check-docs-format.test.sh` covers it (fully only with root `node_modules`, so CI runs it in the docs-format job).
+- Fails, not skips, without root `node_modules`; `just docs-check` and the pre-push hook install them first via `ensure-deps.sh`. `just docs-check`, `just check`, `just verify`, and `.githooks/pre-push` run it; `tests/check-docs-format.test.sh` covers it (fully only with root `node_modules`, so CI runs it in the docs-format job).
+
+### `ensure-deps.sh` — Install a gate's dependencies on demand
+
+- `js DIR` (frozen `npm ci`), `py` (`.venv-dev`), `playwright DIR` (Chromium), `tool NAME HINT` (fail naming the install command). Paths are relative to the repo root.
+- Freshness is a content-hash stamp inside the installed tree (`.rundale-deps.sha256`), not mtimes, which checkouts reset. The stamp is removed before and written only after a successful install.
+- `tests/ensure-deps.test.sh` covers it hermetically with stub `npm`/`node`/`npx`/`python3`.
 
 ### `publish-pr-page.sh` — Publish a PR's evidence page
 
