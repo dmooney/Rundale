@@ -10,9 +10,13 @@ default:
 
 # ─── Setup ───────────────────────────────────────────────────────────────────
 
-# One-time developer setup: install system deps, Rust, Node, and frontend packages
+# One-time developer setup: install system deps, Rust, Node, frontend and docs
+# packages, and the Python dev venv. Gates also install their own JS/Python
+# dependencies on demand, so this is only needed for the system-level pieces.
 setup:
     cd limerick && just setup
+    bash limerick/scripts/ensure-deps.sh js .
+    bash limerick/scripts/ensure-deps.sh py
     just install-hooks
 
 # Point git at the versioned hooks in .githooks/ (idempotent). The pre-push
@@ -179,72 +183,81 @@ screenshots:
 
 # ─── Repo-wide docs/data formatting (Prettier + markdownlint) ─────────────────
 
+# Install the root docs tooling (Prettier, markdownlint) when its lockfile
+# changed; a no-op when current. See limerick/scripts/ensure-deps.sh.
+_docs-deps:
+    @bash limerick/scripts/ensure-deps.sh js .
+
 # Auto-format docs/data (Markdown, JSON, YAML) repo-wide
-fmt-docs:
-    eval "$(fnm env)" && npm run format
+fmt-docs: _docs-deps
+    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run format
 
 # Check docs/data formatting without writing (CI gate)
-fmt-docs-check:
-    eval "$(fnm env)" && npm run format:check
+fmt-docs-check: _docs-deps
+    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run format:check
 
 # Lint Markdown (markdownlint-cli2)
-lint-docs:
-    eval "$(fnm env)" && npm run lint:md
+lint-docs: _docs-deps
+    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run lint:md
 
 # Prettier + markdownlint over tracked files only, as CI sees them (the gate
-# `check`, `verify`, and the pre-push hook run). Needs `npm ci` at the root.
-docs-check:
+# `check`, `verify`, and the pre-push hook run).
+docs-check: _docs-deps
     if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; bash limerick/scripts/check-docs-format.sh
 
 # ─── Python tooling (ruff + mypy + yamllint + pytest) ─────────────────────────
-# Recipes prefer the local .venv-dev (just setup-py) and fall back to PATH tools.
+# Recipes run the versions pinned in requirements-dev.txt from .venv-dev, which
+# they create or refresh first, never whatever is on PATH.
 
-# Create/refresh the Python dev virtualenv from requirements-dev.txt
+# Create/refresh the Python dev virtualenv when requirements-dev.txt changed
 setup-py:
-    python3 -m venv .venv-dev
-    .venv-dev/bin/pip install --quiet --upgrade pip
-    .venv-dev/bin/pip install --quiet -r requirements-dev.txt
-
-# Resolve a tool from .venv-dev if present, else PATH
-_py-bin TOOL:
-    @if [ -x ".venv-dev/bin/{{TOOL}}" ]; then echo ".venv-dev/bin/{{TOOL}}"; else echo "{{TOOL}}"; fi
+    @bash limerick/scripts/ensure-deps.sh py
 
 # Auto-format Python (ruff format)
-fmt-py:
-    "$(just _py-bin ruff)" format .
+fmt-py: setup-py
+    .venv-dev/bin/ruff format .
 
 # Lint + type-check + yaml-lint Python (CI gate)
-lint-py:
-    "$(just _py-bin ruff)" check .
-    "$(just _py-bin ruff)" format --check .
-    "$(just _py-bin mypy)" .
-    "$(just _py-bin yamllint)" .
+lint-py: setup-py
+    .venv-dev/bin/ruff check .
+    .venv-dev/bin/ruff format --check .
+    .venv-dev/bin/mypy .
+    .venv-dev/bin/yamllint .
 
 # Run the Python (bench) test suite
-test-py:
-    "$(just _py-bin pytest)"
+test-py: setup-py
+    .venv-dev/bin/pytest
 
 # ─── Shell tooling (shellcheck + shfmt) ───────────────────────────────────────
 # shfmt flags (-i 4 -ci -bn) mirror .editorconfig so editors agree.
 
+# Fail with the install command when shellcheck or shfmt is missing
+_shell-tools:
+    @bash limerick/scripts/ensure-deps.sh tool shellcheck "brew install shellcheck (or apt install shellcheck)"
+    @bash limerick/scripts/ensure-deps.sh tool shfmt "brew install shfmt (or go install mvdan.cc/sh/v3/cmd/shfmt@latest)"
+
 # Auto-format all shell scripts (shfmt, writes in place)
-fmt-shell:
+fmt-shell: _shell-tools
     shfmt -i 4 -ci -bn -w $(git ls-files '*.sh')
 
 # Lint + format-check all shell scripts (CI gate)
-lint-shell:
+lint-shell: _shell-tools
     shellcheck -S warning $(git ls-files '*.sh')
     shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
 
 # ─── TOML tooling (taplo) ─────────────────────────────────────────────────────
 # Config in taplo.toml (excludes intentionally-malformed test fixtures).
 
+# Fail with the install command when taplo is missing
+_taplo:
+    @bash limerick/scripts/ensure-deps.sh tool taplo "cargo install taplo-cli --locked (or brew install taplo)"
+
 # Auto-format all TOML (taplo, writes in place)
-fmt-toml:
+fmt-toml: _taplo
     taplo fmt
 
 # Lint + format-check all TOML (CI gate)
-lint-toml:
+lint-toml: _taplo
     taplo fmt --check
     taplo lint
 
