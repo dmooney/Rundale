@@ -28,7 +28,8 @@ if [ ! -d "$REPO/limerick/crates/limerick-mcp" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Resolve the real target directory, honouring ~/.cargo/config.toml.
+# Resolve the real target directory from Cargo config; the repo .cargo/config.toml
+# pins limerick/target per worktree, and CARGO_TARGET_DIR overrides it.
 # ---------------------------------------------------------------------------
 _resolve_mcp_bin() {
     # Probe 1: explicit env var.

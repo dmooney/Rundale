@@ -110,11 +110,13 @@ osascript -e 'tell application "System Events" to set frontmost of (first proces
 - The `limerick` MCP server is spawned by Claude Code at **session init only** (`.mcp.json` →
   `limerick-mcp-launch.sh`); **there is no in-session reload**. If the init spawn fails, the
   session is stuck without `mcp__limerick__*`.
-- **Teleporting into a fresh worktree breaks it** (#1352): the launch script resolves the binary
-  from `CARGO_TARGET_DIR` env (unset here — the shared target is set via `~/.cargo/config.toml`
-  `target-dir`), looks in the wrong `limerick/target`, finds nothing, cold-builds, loses the
-  handshake race. **Fix/workaround:** pre-build `limerick-mcp` and stage it where the script looks
-  (`limerick/target/debug/limerick-mcp`), then start a fresh session.
+- **Teleporting into a fresh worktree** (#1352) once broke it: the launch script looked in
+  `limerick/target` while a host-wide `~/.cargo/config.toml` `target-dir` put builds elsewhere.
+  The repository's `.cargo/config.toml` now pins every worktree to its own `limerick/target`
+  (#1708), and the script asks `cargo metadata` for the effective target. A fresh worktree
+  still has no binary until its first build, so pre-build `limerick-mcp` there
+  (`cd limerick && cargo build -p limerick-mcp`) before starting a session if the cold build
+  loses the handshake race.
 
 ## Known issues surfaced via MCP playtests
 
