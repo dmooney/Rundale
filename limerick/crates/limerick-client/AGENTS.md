@@ -21,6 +21,7 @@ Set `LIMERICK_SERVER=http://localhost:3030` to target a different backend (defau
 - **Synchronous per-call, not streaming.** `reqwest` JSON + cookies; no WebSocket. For real-time pushes use `limerick-server`'s WS endpoints or Tauri IPC.
 - **REPL history is in-memory only.** Not persisted between invocations — use `--script` for repeatable workflows.
 - **`LIMERICK_SERVER` env var is the only URL config** (default matches `limerick-server`'s default port); `--server` is the CLI override.
+- **New `limerick-client` crate builds the `limerick` binary** — thin HTTP client calling `POST /api/command` on a running server. Use `cargo run -p limerick-client` or `just run-client`.
 
 ## Module map
 

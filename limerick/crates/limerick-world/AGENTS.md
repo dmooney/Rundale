@@ -22,6 +22,8 @@ Integration tests reference `../../testing/fixtures/...` and `../../../mods/rund
 - **`description.rs` generates player-facing "look" output.** Composes static description, weather, time-of-day lighting, nearby NPCs (via `limerick-npc`), and available exits. Changes here affect every entry point's `look` command.
 - **Wayfarers are NPCs on roads, not at nodes.** `wayfarers.rs` manages transient encounters between settlements — they appear on edges during travel. Separate from the NPC tier system in `limerick-npc`.
 - **Encounters are random events during travel.** `encounter.rs` defines tables per-region and per-transport-type. Outcomes resolved by `limerick-npc` and `limerick-inference` — this crate only triggers and classifies them.
+- **`relative_to` in `world.json` is not resolved at runtime.** Travel time uses each location's `lat`/`lon`; a location with only `relative_to` sits at (0, 0) and every trip to it takes the capped 120 minutes. Resolve offsets with `realign_rundale_coords --world <mod>/world.json --no-geocode --in-place --set-coord "<anchor>=lat,lon"`.
+- **Weather's hourly deduplication key is not a debug-display value.** Pre-epoch Rundale dates make a Unix-hour bucket negative; retain the canonical game-time evaluation instant in `WeatherEngine`, derive the private key only for scheduling, and expose the formatted instant through diagnostics.
 
 ## Module map
 

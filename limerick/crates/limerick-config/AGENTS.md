@@ -19,6 +19,10 @@ cargo test -p limerick-config -- --nocapture        # with stdout (feature-flag 
 - **Provider registry is write-once after bootstrap.** Builtins (`simulator`, `ollama`, `vllm`, `vllmmlx`, `custom`) are compiled in via `include_str!` TOMLs in `builtin_providers/`. Cloud providers load from `mods/<id>/providers/<id>.toml` via `register_mod_providers` after `discover_mods`. Existing `Arc<ProviderMod>` handles retain their snapshot.
 - **`UserConfig` must never store an `api_key` field.** Secrets belong in the OS keychain (`limerick_core::secret_store`). `save_does_not_write_api_key_field` test guards this.
 - **Serial test attributes required.** Tests that mutate the global provider registry or env vars must carry `#[serial(provider_registry)]` or `#[serial(limerick_env)]` to prevent inter-test poisoning.
+- **Per-category inference env routing must be resolved in shared config.** `limerick-engine` once honored `LIMERICK_INTENT_*` while `limerick-server` silently inherited the dialogue slot; MLX-LM then crashed under concurrent category calls. Apply `resolve_category_env_configs` to every runtime before provider bootstrap.
+- **An authenticated compiled inference default blocks first-run onboarding.** Missing config and an empty keychain must resolve to the keyless simulator; setup may transactionally replace that epoch only after the user supplies a route and credential.
+- **Model-catalog evidence is valid only for one full route identity.** The same provider/endpoint/model key cannot denote multiple base paths or adapter versions in one snapshot; use distinct custom provider/endpoint IDs or eligibility becomes ambiguous.
+- **Live catalog probes need an explicit project loadout and provider-specific output minima.** Catalog commands do not consume route-selection environment overrides, and OpenAI Responses rejects `max_output_tokens` below 16; keep its outgoing probe body covered by a request-shape regression with `store: false`.
 
 ## Module map
 
