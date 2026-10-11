@@ -17,6 +17,7 @@ cargo test -p limerick-mod -- --nocapture     # with stdout for debugging
 - **Directory-traversal guard on all file loads.** `GameMod::load` canonicalises every path and checks it still starts with `mod_dir` before reading. Asset paths must also live under `assets/` (enforced in `assets.rs`). Malicious `mod.toml` entries are rejected with `LimerickError::Config` (#741).
 - **`register_provider_mods_once` is idempotent via `OnceLock`.** Safe to call from both the Tauri-sync path and a later server reload; second call returns `Ok(0)`. Provider TOML ids must be unique within a mod — duplicates are a fatal error at startup.
 - **Dependency declarations are parsed but not enforced.** `ModMeta.dependencies`, `optional_dependencies`, and `conflicts` are stored but the resolver is not yet implemented.
+- **`mod.toml` parsing must go through `ModManifest::from_toml_str` (#1366 §7)** — it validates `schema_version` (default 1, reject > `SUPPORTED_MOD_SCHEMA_VERSION`). A bare `toml::from_str::<ModManifest>` skips the check.
 
 ## Module map
 

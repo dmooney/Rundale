@@ -89,3 +89,5 @@ is set (recording only).
   and Endpoints identifiers use `Limerick*`, `limerick_mobile_*`, and
   `@limerick/*` (#2007). Leave Irish geography, ADR text, and historical
   revision URLs alone.
+- **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
+- **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's own Rust and Xcode builds go to `mobile/.verification/` without sccache, so its first run recompiles the engine from scratch.

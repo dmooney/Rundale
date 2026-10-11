@@ -31,10 +31,6 @@ just ios-sim-save-lock                                             # save-lock t
   `default-features = false, features = ["mobile"]`, which compiles out setup,
   the Ollama/vLLM client, the editor, chronicle, and diagnostics. Do not add a
   dependency that pulls desktop features back in.
-- **Iterate `HashMap`s in sorted order before they reach prompts, journals, or
-  expected strings.** `WorldGraph::location_ids()` and `NpcManager::npcs_at`
-  order changes per process; unsorted output made request-body differentials
-  and transcript tests flaky (#2041).
 - **Endpoint definitions are mod files.** `pending_endpoint` reports the slug,
   version, and `stream` flag from `mods/rundale/endpoints/`; see
   [mods/rundale/AGENTS.md](../../../mods/rundale/AGENTS.md) before changing one.
