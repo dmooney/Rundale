@@ -3,8 +3,8 @@
 
 Builds `limerick-server` and `limerick-engine` from the base revision (in a
 detached worktree) and from this working tree (including uncommitted
-changes), copies each side's binaries out of the shared cargo target, then
-runs on both sides:
+changes), copies each side's binaries out of its Cargo target, then runs on
+both sides:
 
   * each live scenario: `limerick-server` driven over HTTP against the
     scripted model server (responses, provider request bodies, engine state);
@@ -94,7 +94,11 @@ def default_out(repo: Path) -> Path:
 
 
 def touch_changed(trees: list[Path], changed: list[str]) -> None:
-    """Bumps mtimes so the shared target cannot reuse a fingerprint across trees."""
+    """Bumps mtimes so a shared target cannot reuse a fingerprint across trees.
+
+    Each worktree has its own target since #1708, but `CARGO_TARGET_DIR` or a
+    base tree older than that can still point both sides at one.
+    """
     for tree in trees:
         for rel in changed:
             path = tree / rel

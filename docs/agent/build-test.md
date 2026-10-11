@@ -44,6 +44,30 @@ Select checks for the changed surface; do not treat web viewport tests as native
 iPhone validation. For documentation changes, use the repository documentation
 path checker and the configured Prettier/Markdown lint tools on changed files.
 
+## Gate dependencies
+
+Gates install their own language-managed dependencies, so a fresh clone or
+worktree needs no manual install step. `limerick/scripts/ensure-deps.sh` runs
+before each gate that needs one:
+
+- Root docs tooling (`just docs-check`, `fmt-docs`, `fmt-docs-check`,
+  `lint-docs`, and the pre-push hook) and the UI's `node_modules` (`ui-*`,
+  `run`, `demo`) get a frozen `npm ci --prefer-offline`.
+- `just lint-py`, `test-py`, and `fmt-py` create or refresh `.venv-dev` from
+  `requirements-dev.txt` and always run its pinned tools, never PATH copies.
+- `just ui-e2e`, `ui-e2e-update`, and `screenshots` install Playwright's
+  Chromium when the installed Playwright version lacks it.
+
+Each install writes a stamp hashing its inputs (lockfile and manifest, or
+requirements file, plus the Node module ABI or Python version). A rerun with
+unchanged inputs does no install work; changing any input reinstalls on the next
+run. Timestamps are not used, because checkouts reset them.
+
+Tools that are not language-managed (shellcheck, shfmt, taplo, osv-scanner, and
+Node or Python themselves) are not installed by gates. A gate that needs one
+fails with the command that installs it; none passes or skips silently. `just
+setup` installs the system-level pieces once.
+
 ## Cargo
 
 Most engine commands should be run from the `limerick/` directory:
@@ -224,7 +248,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 
 ## Quality gates
 
-- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which needs `npm ci` at the repo root; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which installs the root tooling itself; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run

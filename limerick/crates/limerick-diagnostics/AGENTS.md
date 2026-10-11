@@ -21,6 +21,10 @@ cargo test -p limerick-diagnostics -- --nocapture    # with stdout for debugging
 - **Token precedence: `LIMERICK_BUG_REPORT_TOKEN` > `GITHUB_TOKEN` > `GH_TOKEN` > `gh auth token` (subprocess).** `from_env_async` runs the subprocess on the blocking pool; use it from async handlers.
 - **`reqwest` is a direct dependency.** Bug-report HTTP calls (release asset + Issues APIs) are made here, not in the entry-point crates, so the three runtimes cannot drift ([cross-runtime orchestration](../../../docs/agent/engineering-rules.md#cross-runtime-orchestration)).
 - **`wiremock` in dev-dependencies.** Integration tests spin up a mock server; they are async (`#[tokio::test]`) and require `tokio` on the test executor.
+- **Release assets still anchor a Git tag.** The stable `bug-evidence` Release
+  keeps its target commit reachable through `refs/tags/bug-evidence`; any later
+  history rewrite must retarget that tag during cutover or the old object graph
+  remains reachable even after ordinary branch refs are rewritten.
 
 ## Module map
 

@@ -52,6 +52,7 @@ jobs:
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -100,6 +101,13 @@ jobs:
               - '.github/workflows/ci.yml'
             bug_report:
               - 'bug-report/**'
+              - '.github/workflows/ci.yml'
+            # The workspace tests also read the Rundale definition files and
+            # the mobile invocation examples and fixtures.
+            endpoints:
+              - 'endpoints/**'
+              - 'mods/rundale/endpoints/**'
+              - 'mobile/endpoint/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
       # the Markdown sits inside a runtime directory (crates, mods, scripts).
@@ -338,6 +346,40 @@ jobs:
       - name: Check
         run: pnpm check
 
+  # Limerick Endpoints (endpoints/, a self-contained pnpm workspace): format,
+  # lint, typecheck, tests, and build. Postgres and live-provider suites stay
+  # opt-in and skip without their settings.
+  endpoints-quality:
+    name: Endpoints (format, lint, typecheck, tests, build)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.endpoints == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: endpoints
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: endpoints/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
+
   shell-quality:
     name: Shell quality (shellcheck + shfmt)
     runs-on: ubuntu-latest
@@ -554,6 +596,7 @@ jobs:
         bench-site-build,
         bug-report-quality,
         docs-consistency,
+        endpoints-quality,
         format-quality,
         python-quality,
         playwright-launcher-windows,

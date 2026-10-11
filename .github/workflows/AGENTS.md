@@ -39,6 +39,13 @@ just act-pr         # simulate the pull_request fast lane
 - **Secrets:** `GITHUB_TOKEN` (all), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). The disabled Gemini sources retain references to `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` for a future re-enable. Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
 - **`concurrency: pages`** in `publish-bench-site.yml` — do not rename without checking the `deploy-pages` action's concurrency expectations.
 - **`act` does not reproduce GitHub-side concerns** — concurrency groups, branch protections, required-check status, and `permissions:` are server-side only. See `docs/agent/act-local.md` for caveats.
+- **CI jobs default to `working-directory: limerick` (`.github/workflows/ci.yml` `defaults.run`).** Any `run:` step that invokes a repo script must use a path relative to `limerick/` (e.g. `bash scripts/foo.sh`), NOT `bash limerick/scripts/foo.sh` — the latter resolves to `limerick/limerick/scripts/...` and dies with `No such file or directory` (exit 127). `actions/*` step inputs like `upload-artifact` `path:` are the exception: they're relative to the repo root (`GITHUB_WORKSPACE`), so `limerick/target/...` is correct there. Mismatch between the two bit the `harness-shadow` job (#1159).
+- **Gemini review CI must set `GEMINI_CLI_TRUST_WORKSPACE=true`** before installing extensions. Gemini CLI 0.46.0 otherwise prompts to trust the workspace during `gemini extensions install`, ignores the action's piped `Y`, and the 7-minute review job times out as cancelled.
+- **`ci.yml` is sub-minute only for non-UI pull requests.** Shipped UI changes run the complete Playwright suite and feed its exact result into the required `CI gate`; `full-ci.yml` still owns Rust/coverage/harness and post-merge integration checks.
+- **Dependabot automation classifies but never lands PRs.** The coordinator owns every merge after applicable proof, risk, CI, and review gates; `.github/scripts/dependabot-merge-ownership.test.cjs` rejects workflow-level merge mechanisms.
+- **A conditional reusable workflow needs an explicit fail-closed result in the required gate.** Letting a generic aggregate accept `skipped` is not enough: the gate must separately require `success` when the path detector says the full runtime suite is required, and require `skipped` otherwise.
+- **GitHub Models is retired (2026-07-30).** `eval-inference` and `ai-issue-triage` are `.yml.disabled`; do not re-enable against `models.github.ai`. The 410 “retirement brownout” message is permanent, not transient.
+- **OSV-Scanner v2.6 dropped `--skip-git`.** Passing it fails the action with `flag provided but not defined`; use `scan-args: -r ./` only.
 
 ## Workflow index
 
