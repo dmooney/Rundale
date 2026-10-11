@@ -86,6 +86,33 @@ Most engine commands should be run from the `limerick/` directory:
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 
+### Build outputs per worktree
+
+Each checkout and Git worktree builds into its own `limerick/target/`. The
+repository's `.cargo/config.toml` sets `build.target-dir` relative to the
+repository root, and that project config overrides a `target-dir` in
+`~/.cargo/config.toml`, so a host-wide shared target no longer applies inside
+this repository (#1708). Do not point worktrees at one shared target: Cargo's
+lock serializes writes but gives no worktree ownership of first-party binaries
+and test executables, so one worktree can run another's build.
+
+Host setup: keep `build.rustc-wrapper = "sccache"` (or `RUSTC_WRAPPER=sccache`)
+in the user config. sccache is a compiler cache, not an output directory, so
+worktrees still reuse compiled dependencies while keeping separate outputs. A
+host-level `target-dir` may stay for other projects; to remove it everywhere,
+delete it from `~/.cargo/config.toml`. An explicit `CARGO_TARGET_DIR` still
+wins; CI and the mobile build scripts use it to pin per-run outputs.
+
+Scripts resolve built artifacts through
+`cargo metadata --format-version 1 --no-deps` (`target_directory`), never a
+fixed path from another checkout. `limerick-mcp-launch.sh`, `prove_diff.py`, and
+the Playwright worktree server already do.
+
+Storage and pruning: `git worktree remove` deletes that worktree's
+`limerick/target/` with it. To reclaim space in a worktree you keep, run
+`cargo clean` from its `limerick/` directory; it only touches that worktree.
+Do not delete another active worktree's target while it builds or runs.
+
 ## Game harness
 
 Scripted gameplay fixtures live in `limerick/testing/fixtures/`. Run one with:
@@ -151,8 +178,7 @@ must be referenced from tracked source or documentation.
 entry point through the current Node runtime without a shell. A deliberate
 direct `node scripts/playwright-worktree-server.js` launch must instead set
 `LIMERICK_PLAYWRIGHT_NPM_EXEC_PATH` to an absolute npm `.js`, `.cjs`, or `.mjs`
-entry point. The helper then uses the normal shared Cargo target for dependency
-reuse, snapshots the invoking worktree's fresh UI `dist`, embeds a
+entry point. The helper then builds in the worktree's own Cargo target, snapshots the invoking worktree's fresh UI `dist`, embeds a
 worktree/snapshot build identity, and publishes a content-addressed server copy
 only after validating that identity and its CSP hashes. The server then echoes
 the identity through a per-run readiness URL before Playwright proceeds.

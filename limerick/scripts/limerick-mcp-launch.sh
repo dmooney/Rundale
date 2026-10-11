@@ -31,7 +31,8 @@ REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 MANIFEST="$REPO/limerick/crates/limerick-mcp/manifest.json"
 
 # ---------------------------------------------------------------------------
-# Resolve the real target directory, honouring ~/.cargo/config.toml.
+# Resolve the real target directory from Cargo config; the repo .cargo/config.toml
+# pins limerick/target per worktree, and CARGO_TARGET_DIR overrides it.
 # cargo metadata is the only portable way to read the effective target-dir;
 # $CARGO_TARGET_DIR is only set when the caller explicitly exports it.
 # ---------------------------------------------------------------------------

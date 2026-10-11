@@ -15,10 +15,18 @@ use limerick_config::provider::ProviderMod;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Walk up from `CARGO_MANIFEST_DIR` until a directory containing `mods/` is
+/// This crate's directory in the checkout running the test. Cargo sets
+/// `CARGO_MANIFEST_DIR` at run time; the compile-time value can name another
+/// worktree when a build artifact is reused (#1708).
+fn crate_dir() -> PathBuf {
+    std::env::var_os("CARGO_MANIFEST_DIR")
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
+}
+
+/// Walk up from the crate directory until a directory containing `mods/` is
 /// found. Mirrors the logic in `ensure_mods_loaded()`.
 fn find_mods_dir() -> PathBuf {
-    let start = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let start = crate_dir();
     let mut dir = start.as_path();
     loop {
         let candidate = dir.join("mods");
@@ -31,10 +39,10 @@ fn find_mods_dir() -> PathBuf {
     }
 }
 
-/// Returns the repo root (two levels above `CARGO_MANIFEST_DIR` for
+/// Returns the repo root (three levels above the crate directory for
 /// `limerick/crates/limerick-config`).
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    crate_dir()
         .parent() // limerick/crates/
         .and_then(|p| p.parent()) // limerick/
         .and_then(|p| p.parent()) // repo root
