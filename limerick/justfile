@@ -111,7 +111,7 @@ clean:
 run: ui-install
     #!/usr/bin/env bash
     set -euo pipefail
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi
+    . scripts/use-node.sh
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -133,7 +133,7 @@ run: ui-install
 demo PAUSE="2" MAX_TURNS="": ui-install
     #!/usr/bin/env bash
     set -euo pipefail
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi
+    . scripts/use-node.sh
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -180,11 +180,11 @@ tauri-dev:
 
 # Build the Tauri desktop app for production
 tauri-build:
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cargo tauri build
+    . scripts/use-node.sh; cargo tauri build
 
 # Run the Svelte frontend dev server standalone (no Tauri backend)
 ui-dev: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npm run dev
+    . scripts/use-node.sh; cd apps/ui && npm run dev
 
 # Build the Svelte frontend for production
 #
@@ -192,33 +192,33 @@ ui-dev: ui-install
 # stale compiled output after git operations (rebase/checkout/merge) that
 # shuffle file mtimes in ways that confuse Vite's cache invalidation.
 ui-build: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && rm -rf .svelte-kit dist && npm run build
+    . scripts/use-node.sh; cd apps/ui && rm -rf .svelte-kit dist && npm run build
 
 # Run svelte-check (TypeScript + Svelte validation)
 ui-check: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npm run check
+    . scripts/use-node.sh; cd apps/ui && npm run check
 
 # Lint the frontend (ESLint: typescript-eslint + eslint-plugin-svelte)
 ui-lint: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npm run lint
+    . scripts/use-node.sh; cd apps/ui && npm run lint
 
 # Auto-format the frontend (Prettier, writes in place)
 ui-format: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npm run format
+    . scripts/use-node.sh; cd apps/ui && npm run format
 
 # Check frontend formatting without writing (CI gate)
 ui-format-check: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npm run format:check
+    . scripts/use-node.sh; cd apps/ui && npm run format:check
 
 # Run frontend component tests (vitest)
 ui-test: ui-install
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npx vitest run
+    . scripts/use-node.sh; cd apps/ui && npx vitest run
 
 # Run Playwright UI-contract tests plus the real browser/limerick-server lane.
 # Keep the early ui-build feedback; the config-managed launcher rebuilds again
 # immediately before capture so every Playwright entry point is safe (#1717).
 ui-e2e: _playwright-browsers ui-build
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; cd apps/ui && npx playwright test
+    . scripts/use-node.sh; cd apps/ui && npx playwright test
 
 # Update Playwright visual regression baselines
 ui-e2e-update: _playwright-browsers
