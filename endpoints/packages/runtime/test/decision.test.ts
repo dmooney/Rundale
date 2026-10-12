@@ -260,7 +260,7 @@ describe("decision Endpoints", () => {
           { optionId: "p1", name: "b" },
         ],
       }),
-    ).toThrow(/offered twice/);
+    ).toThrow(/asked twice/);
   });
 
   it("bounds how many questions one call expands into", () => {
@@ -352,5 +352,20 @@ describe("decision Endpoints", () => {
       confidence: 1,
       probabilities: { none: 1 },
     });
+  });
+
+  it("refuses an option whose element has none of the included fields", () => {
+    const described: DecisionSpec = {
+      ...spec,
+      questions: {
+        recipient: {
+          type: "choice",
+          instructions: "Who?",
+          criteriaFrom: [{ field: "present", include: ["missing"] }],
+          criteria: { no_one: "No one." },
+        },
+      },
+    };
+    expect(() => buildDecisionRequest(described, "m", values)).toThrow(/none of the included/);
   });
 });

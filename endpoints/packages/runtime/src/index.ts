@@ -578,6 +578,12 @@ function optionCriterion(
   const base = criterion === undefined ? undefined : withId(criterion, id);
   if (include === undefined || include.length === 0) return base ?? null;
   const own = picked(element, include) as Record<string, DecisionText>;
+  if (Object.keys(own).length === 0) {
+    throw new RuntimeError(
+      "INVALID_INPUT",
+      `Decision option '${id}' has none of the included fields ${include.join(", ")}.`,
+    );
+  }
   if (base === undefined) return own;
   if (base !== null && typeof base === "object" && !Array.isArray(base)) return { ...base, ...own };
   return { what: base, ...own };
@@ -662,9 +668,6 @@ export function buildDecisionRequest(
     } else {
       for (const { id, element } of decisionElements(values, question.forEach, spec.idField)) {
         const key = `${name}__${id}`;
-        if (Object.hasOwn(questions, key)) {
-          throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
-        }
         claim(key);
         questions[key] = {
           type: "noul",

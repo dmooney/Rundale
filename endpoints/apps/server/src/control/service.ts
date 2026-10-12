@@ -111,9 +111,10 @@ function boundedStructure(value: unknown, label: string, max = 4_000): void {
     boundedText(value, label, max);
     return;
   }
-  const json = value === undefined ? undefined : JSON.stringify(value);
-  if (value === null || json === undefined || json.length > max || json === "{}" || json === "[]")
-    invalid(`${label} must be text or JSON of 1 to ${max} characters.`);
+  // The Decisions schema takes text, an object or an array here.
+  const json = typeof value === "object" && value !== null ? JSON.stringify(value) : undefined;
+  if (json === undefined || json.length > max || json === "{}" || json === "[]")
+    invalid(`${label} must be text, or a JSON object or array of 1 to ${max} characters.`);
 }
 
 function fieldList(value: unknown, label: string): void {

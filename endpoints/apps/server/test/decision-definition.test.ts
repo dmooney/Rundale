@@ -165,6 +165,15 @@ describe("decision definitions", () => {
         }),
         allowed,
       ),
-    ).toThrow(/text or JSON/);
+    ).toThrow(/text, or a JSON object/);
+    expect(() =>
+      validateDefinition(
+        withDecision({
+          ...decision,
+          questions: { q: { type: "choice", instructions: 42, criteria: { a: "x", b: "y" } } },
+        }),
+        allowed,
+      ),
+    ).toThrow(/text, or a JSON object/);
   });
 });
