@@ -4,7 +4,7 @@
 //! validated apply boundary shared by desktop and embedded runtimes. It does not
 //! depend on the IPC layer, inference clients, or desktop orchestration.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use chrono::Datelike;
 
@@ -1207,7 +1207,11 @@ pub fn apply_npc_dialogue_turn_with_validation(
         ));
     }
 
-    // 3. Record the conversation exchange for scene awareness.
+    // 3. Record the conversation exchange for scene awareness, with the
+    //    NPCs present to hear it: later dialogue snapshots send each speaker
+    //    only the exchanges they witnessed.
+    let mut witnesses: BTreeSet<NpcId> = npc_manager.npcs_at_ids(location).into_iter().collect();
+    witnesses.insert(speaker_id);
     world
         .conversation_log
         .add(crate::npc::conversation::ConversationExchange {
@@ -1217,6 +1221,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
             player_input: player_input.to_string(),
             npc_dialogue: capped_dialogue.to_string(),
             location,
+            witnesses,
         });
 
     // 4. Record witness memories for co-located bystanders.
