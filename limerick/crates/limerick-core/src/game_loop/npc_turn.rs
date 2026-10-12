@@ -242,13 +242,15 @@ pub async fn run_npc_turn(
             &npc_cfg,
         );
         // Built from the same locked state as the prompt, so both describe
-        // one world snapshot.
+        // one world snapshot. Until recipient resolution records how each
+        // speaker came to answer (#2221), every speaker is spoken to.
         let endpoint = crate::endpoint_input::dialogue_endpoint(
             ctx.endpoints,
             &world,
             &npc_manager,
             speaker_id,
             prompt_input,
+            crate::endpoint_input::Addressing::SpokenTo,
         );
         (
             setup,

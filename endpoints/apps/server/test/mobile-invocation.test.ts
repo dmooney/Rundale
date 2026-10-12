@@ -391,7 +391,18 @@ describe("mobile invocation authentication", () => {
     ) as Record<string, unknown>;
     const validate = compileSchema(definition.inputSchema);
     expect(validate(input)).toBe(true);
-    input.knownPeople = Array.from({ length: 33 }, () => structuredClone(input.speaker));
+    const knownPeople = input.knownPeople as Record<string, unknown>[];
+    expect(
+      validate({
+        ...input,
+        knownPeople: [
+          { ...knownPeople[0], currentLocationId: 2, currentLocationName: "Letter Office" },
+        ],
+      }),
+    ).toBe(false);
+    expect(validate({ ...input, festival: "Bealtaine" })).toBe(true);
+    expect(validate({ ...input, addressing: "overheard" })).toBe(false);
+    input.knownPeople = Array.from({ length: 33 }, () => structuredClone(knownPeople[0]));
     expect(validate(input)).toBe(false);
   });
 
