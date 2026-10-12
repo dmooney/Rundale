@@ -6,7 +6,7 @@
 # and .yamllint.yml.
 ruff==0.16.10
 # OSV reported 2.9.0 in the dev environment; pin its fixed release explicitly.
-pygments==2.20.0
+pygments==2.21.0
 mypy==2.4.0
 pydantic>=2.13.5
 pytest==9.1.1
