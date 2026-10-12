@@ -165,13 +165,17 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
+        // Fail on any other place in the world, and require words that put
+        // him in the cottage: "here" alone would accept "here in the village".
         let lowered = reply.lowercased()
-        XCTAssertFalse(lowered.contains("letter office"),
-                       "Mícheál is in the cottage, not the Letter Office: \(reply)")
+        for elsewhere in ["letter office", "post office", "kilteevan village",
+                          "in the village", "at the village", "on the road", "in the lane"] {
+            XCTAssertFalse(lowered.contains(elsewhere),
+                           "Mícheál is in the cottage, not \(elsewhere): \(reply)")
+        }
         XCTAssertTrue(
-            ["cottage", "home", "house", "hearth", "fire", "here", "roof", "kitchen"]
-                .contains { lowered.contains($0) },
-            "The reply places Mícheál where he is: \(reply)"
+            ["cottage", "home", "house", "hearth", "kitchen"].contains { lowered.contains($0) },
+            "The reply places Mícheál in the cottage: \(reply)"
         )
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         hold(4)

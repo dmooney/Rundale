@@ -356,8 +356,10 @@ pub fn dialogue_input(
         .map(grounded_person)
         .collect();
 
+    // The room is the conversation's place, the same one `currentLocation`
+    // describes, so the two can never disagree.
     let mut present: Vec<&Npc> = npc_manager
-        .npcs_at(speaker.location())
+        .npcs_at(here)
         .into_iter()
         .filter(|npc| npc.id != speaker_id)
         .collect();
