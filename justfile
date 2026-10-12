@@ -190,20 +190,20 @@ _docs-deps:
 
 # Auto-format docs/data (Markdown, JSON, YAML) repo-wide
 fmt-docs: _docs-deps
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run format
+    . limerick/scripts/use-node.sh; npm run format
 
 # Check docs/data formatting without writing (CI gate)
 fmt-docs-check: _docs-deps
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run format:check
+    . limerick/scripts/use-node.sh; npm run format:check
 
 # Lint Markdown (markdownlint-cli2)
 lint-docs: _docs-deps
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; npm run lint:md
+    . limerick/scripts/use-node.sh; npm run lint:md
 
 # Prettier + markdownlint over tracked files only, as CI sees them (the gate
 # `check`, `verify`, and the pre-push hook run).
 docs-check: _docs-deps
-    if command -v fnm >/dev/null 2>&1; then eval "$(fnm env)"; fi; bash limerick/scripts/check-docs-format.sh
+    . limerick/scripts/use-node.sh; bash limerick/scripts/check-docs-format.sh
 
 # ─── Python tooling (ruff + mypy + yamllint + pytest) ─────────────────────────
 # Recipes run the versions pinned in requirements-dev.txt from .venv-dev, which

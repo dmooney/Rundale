@@ -20,6 +20,7 @@
 # up-to-date checks too.
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
@@ -44,14 +45,20 @@ hash_stdin() {
     fi
 }
 
-# Put fnm's Node on PATH when fnm manages it; a Node already on PATH is used
-# as is.
+# Put the .nvmrc Node on PATH when fnm manages it (use-node.sh); a Node
+# already on PATH is used as is. Either way the major version must match
+# .nvmrc, or npm ci fails later on package.json `engines`.
 use_node() {
-    if command -v fnm >/dev/null 2>&1; then
-        eval "$(fnm env)"
-    fi
+    # shellcheck source-path=SCRIPTDIR source=use-node.sh
+    . "$script_dir/use-node.sh"
+    local want
+    want="$(tr -d '[:space:]' <.nvmrc 2>/dev/null || echo 24)"
     command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 \
-        || die "node/npm not found on PATH; install Node $(cat .nvmrc 2>/dev/null || echo 24) (see 'just setup')"
+        || die "node/npm not found on PATH; install Node $want (see 'just setup')"
+    local have
+    have="$(node -p 'process.versions.node')"
+    [ -z "$want" ] || [ "${have%%.*}" = "${want%%.*}" ] \
+        || die "Node $want is required (.nvmrc) but node $have is on PATH; run 'fnm install $want' or put Node $want on PATH"
 }
 
 # True when STAMP_FILE holds exactly WANT.

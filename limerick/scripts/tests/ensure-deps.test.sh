@@ -24,7 +24,12 @@ EOF
 cat >"$stubs/node" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-    -p) echo "${FAKE_NODE_ABI:-127}" ;;
+    -p)
+        case "$2" in
+            *versions.node*) echo "${FAKE_NODE_VERSION:-24.1.0}" ;;
+            *) echo "${FAKE_NODE_ABI:-127}" ;;
+        esac
+        ;;
     -e) [ -f "$FAKE_BROWSER" ] ;;
     *) exit 2 ;;
 esac
@@ -61,6 +66,7 @@ git init -q
 echo '{"lockfileVersion": 3}' >ui/package-lock.json
 echo '{"name": "ui"}' >ui/package.json
 echo 'ruff==1.0' >requirements-dev.txt
+echo 24 >.nvmrc
 
 fail() {
     echo "ensure-deps test: $*" >&2
@@ -146,6 +152,26 @@ if bash "$script" tool no-such-tool-xyz "brew install xyz" 2>"$work/err"; then
     fail "missing tool passed"
 fi
 grep -q "brew install xyz" "$work/err" || fail "missing tool did not name its install command"
+
+# A Node whose major differs from .nvmrc fails before npm ci, naming both.
+: >"$log"
+echo '{"lockfileVersion": 3, "x": 3}' >ui/package-lock.json
+if FAKE_NODE_VERSION=22.22.3 bash "$script" js ui 2>"$work/err"; then
+    fail "Node 22 passed against .nvmrc 24"
+fi
+grep -q "Node 24 is required (.nvmrc) but node 22.22.3" "$work/err" || fail "wrong-major Node gave no message"
+[ "$(calls '^npm ci ')" = 0 ] || fail "wrong-major Node still ran npm ci"
+
+# When fnm manages Node, the .nvmrc version is selected, not fnm's default.
+cat >"$stubs/fnm" <<'STUB'
+#!/usr/bin/env bash
+echo "fnm $*" >>"$ENSURE_DEPS_LOG"
+STUB
+chmod +x "$stubs/fnm"
+: >"$log"
+bash "$script" js ui 2>/dev/null
+[ "$(calls '^fnm use --silent-if-unchanged 24$')" = 1 ] || fail "fnm did not select the .nvmrc Node"
+rm "$stubs/fnm"
 
 # No Node at all fails instead of skipping.
 rm "$stubs/node"
