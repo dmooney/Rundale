@@ -45,18 +45,22 @@ setup:
         echo "Rust already installed: $(rustc --version)"
     fi
 
-    # Install Node.js via fnm if missing
-    if ! command -v node &>/dev/null; then
+    # Install the Node version .nvmrc names, via fnm (installing fnm when
+    # there is no Node at all). Gates fail on any other major version.
+    want_node="$(tr -d '[:space:]' <../.nvmrc)"
+    if ! command -v fnm &>/dev/null && ! command -v node &>/dev/null; then
         echo "Installing fnm (Fast Node Manager)..."
         curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
         export PATH="$HOME/.local/share/fnm:$PATH"
+    fi
+    if command -v fnm &>/dev/null; then
         eval "$(fnm env)"
-        echo "Installing Node.js LTS..."
-        fnm install --lts
-        fnm use lts-latest
+        echo "Installing Node.js $want_node..."
+        fnm install "$want_node"
+        fnm use "$want_node"
         echo "Node $(node --version) installed."
     else
-        echo "Node.js already installed: $(node --version)"
+        echo "Node.js already installed: $(node --version) (gates need Node $want_node)"
     fi
 
     # Install Tauri CLI
