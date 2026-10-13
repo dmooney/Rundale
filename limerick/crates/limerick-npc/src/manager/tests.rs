@@ -908,6 +908,7 @@ fn conversation_repair_heals_only_explicit_grounded_identity_claims() {
         player_input: "Who are ye?".to_string(),
         npc_dialogue: "I'm Seamus, the blacksmith.".to_string(),
         location: limerick_types::LocationId(2),
+        witnesses: Default::default(),
     });
     log.add(ConversationExchange {
         timestamp,
@@ -916,6 +917,7 @@ fn conversation_repair_heals_only_explicit_grounded_identity_claims() {
         player_input: "Good morning.".to_string(),
         npc_dialogue: "Good morning. What brings ye here?".to_string(),
         location: limerick_types::LocationId(2),
+        witnesses: Default::default(),
     });
 
     assert_eq!(mgr.heal_introductions_from_conversation(&log), 1);

@@ -601,6 +601,7 @@ fn restore_heals_regression_era_empty_introduced_set_from_final_dialogue() {
         player_input: "Are ye Padraig?".to_string(),
         npc_dialogue: "I'm Seamus, the blacksmith.".to_string(),
         location: LocationId(1),
+        witnesses: Default::default(),
     });
 
     let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
@@ -632,6 +633,7 @@ fn restore_does_not_infer_identity_from_exchange_or_speaker_metadata() {
         player_input: "Good morning.".to_string(),
         npc_dialogue: "Good morning. What brings ye here?".to_string(),
         location: LocationId(1),
+        witnesses: Default::default(),
     });
 
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
@@ -640,6 +642,56 @@ fn restore_does_not_infer_identity_from_exchange_or_speaker_metadata() {
     snapshot.restore(&mut restored_world, &mut restored_npcs);
 
     assert!(!restored_npcs.is_introduced(NpcId(22)));
+}
+
+/// Saves written before exchanges recorded their witnesses still load, and
+/// each of their exchanges counts as witnessed only by its speaker (dynamic
+/// NPC context §6). Exchanges recorded since keep their witnesses.
+#[test]
+fn exchanges_from_saves_without_witnesses_count_only_their_speaker() {
+    use limerick_types::conversation::ConversationExchange;
+
+    let mut world = WorldState::new();
+    let npc_manager = NpcManager::new();
+    world.conversation_log.add(ConversationExchange {
+        timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+        speaker_id: NpcId(1),
+        speaker_name: "Peig Hannigan".to_string(),
+        player_input: "Good morning.".to_string(),
+        npc_dialogue: "And to you.".to_string(),
+        location: LocationId(1),
+        witnesses: [NpcId(1), NpcId(2)].into_iter().collect(),
+    });
+    let mut saved = serde_json::to_value(GameSnapshot::capture(&world, &npc_manager)).unwrap();
+    let current: GameSnapshot = serde_json::from_value(saved.clone()).unwrap();
+    let exchange = current.conversation_log.all().next().unwrap();
+    assert!(exchange.witnessed_by(NpcId(2)), "witnesses survive a save");
+
+    // The same save as written before witnesses were recorded.
+    let exchanges = saved["conversation_log"]["exchanges"]
+        .as_array_mut()
+        .unwrap();
+    exchanges[0]
+        .as_object_mut()
+        .unwrap()
+        .remove("witnesses")
+        .unwrap();
+    let legacy: GameSnapshot = serde_json::from_value(saved).unwrap();
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    legacy.restore(&mut restored_world, &mut restored_npcs);
+
+    let exchange = restored_world.conversation_log.all().next().unwrap();
+    assert!(exchange.witnesses.is_empty());
+    assert!(exchange.witnessed_by(NpcId(1)));
+    assert!(!exchange.witnessed_by(NpcId(2)));
+    assert_eq!(
+        restored_world
+            .conversation_log
+            .recent_witnessed_by(NpcId(2), 8)
+            .len(),
+        0
+    );
 }
 
 /// Regression for #286 — `current_location()` must not panic after

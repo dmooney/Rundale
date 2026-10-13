@@ -56,17 +56,35 @@ rejected.
 The intent input adds `role: "player_intent"` and the bounded `playerInput`
 the deterministic local parser did not recognise.
 
-The dialogue input adds `role: "npc_dialogue"`, `playerInput`, `speaker`,
-`currentLocation`, `knownPeople`, `knownPlaces`, `authoredFacts`,
-`recentConversation`, `maxOutputChars` (8,192), and `maxStreamBytes` (16,384).
-People are `npc-<id>` with their occupation as `role`; places are
-`place-<id>` with the description rendered for the current time and weather;
-authored facts are the speaker's `knowledge` from `npcs.json`. The engine caps
-people, places, and facts at 32 and sends the last 8 exchanges at the current
-location, oldest first. `recentConversation` contains
-`limerick_types::ConversationExchange` values, which keep that type's
-snake_case field names: `timestamp`, `speaker_id`, `speaker_name`,
-`player_input`, `npc_dialogue`, and `location`.
+The dialogue input adds `role: "npc_dialogue"`, `playerInput`, and one
+speaker's snapshot of the present moment, holding only what that speaker could
+know ([dynamic NPC context §6](../../docs/design/dynamic-npc-context.md#6-dialogue-snapshot)):
+
+- `speaker`: id, name, occupation as `role`, current location, and authored
+  `mood` from `npcs.json`.
+- `addressing`: `spoken_to`, `part_of_all`, or `joining_mentioned`. Until
+  recipient resolution records it (#2221), every speaker is `spoken_to`.
+- `currentLocation`: the place rendered for the current time and weather,
+  naming the people there.
+- `time` (`date`, `clockTime`, `partOfDay`), `weather`, and `festival`
+  (today's festival from `GameClock::check_festival`, or null).
+- `present`: the other people in the room with the speaker.
+- `knownPeople`: every NPC by id, name, and occupation, with no location.
+- `knownPlaces`: every place, rendered without naming anyone there.
+- `authoredFacts`: the speaker's `knowledge` from `npcs.json`.
+- `recentConversation`: the last 8 exchanges the speaker witnessed, oldest
+  first, with the snake_case fields `timestamp`, `speaker_id`,
+  `speaker_name`, `player_input`, `npc_dialogue`, and `location`. Each
+  committed exchange records the NPCs present; exchanges in saves written
+  before that count as witnessed only by their speaker.
+- `player`: `knowsName` and, when the speaker knows it, the player's `name`
+  (otherwise null).
+- `maxOutputChars` (8,192) and `maxStreamBytes` (16,384).
+
+People are `npc-<id>` and places `place-<id>`. The engine caps people, places,
+and facts at 32. Each speaker's snapshot is built when that speaker's call is
+built, so in a line with several speakers a later speaker's snapshot includes
+the replies already committed.
 
 [`example-engine-invocation.json`](example-engine-invocation.json) and
 [`example-intent-invocation.json`](example-intent-invocation.json) are secret-free
@@ -149,7 +167,8 @@ Attest remains unverified.
 Endpoints service: a dialogue turn (`rundale-intent` v1, then
 `rundale-dialogue` v1), Stop during a streamed reply, free-form movement
 classified by `rundale-intent` v1, and "ask Connolly about the household" at
-the cottage asking which Connolly before anyone answers. It is opt-in and needs a Firebase App Check
+the cottage asking which Connolly before anyone answers, and the #1901 probe
+that an accepted reply agrees with the speaker's current location. It is opt-in and needs a Firebase App Check
 debug token registered for the Rundale iOS app. Against `limerick-prod`:
 
 ```sh

@@ -8,8 +8,8 @@ This is the contract #2143 requires before implementation. It covers who a
 player's line is for, what an NPC is told about the present moment when it
 answers, and how both stay correct while the world changes. The owner's
 decisions from the reviews of 2026-10-09 and 2026-10-10 are recorded in §10.
-The proposals in §11 were approved by the owner on 2026-10-10. Nothing here is
-implemented yet.
+The proposals in §11 were approved by the owner on 2026-10-10. The dialogue
+snapshot (§6) is implemented by #2222; the rest is not implemented yet.
 
 The recipient rules govern the shared engine (`limerick-core`), so every client
 resolves recipients the same way. The dialogue snapshot (§6) governs the
