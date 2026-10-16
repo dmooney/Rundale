@@ -4,7 +4,7 @@
 // adapter, answering `rundale-input`, and today's engine path as the baseline
 // through the mobile FFI harness, with `rundale-intent` answered live by Gemini.
 //
-//   OPENROUTER_API_KEY=… GOOGLE_API_KEY=… pnpm --filter \
+//   TYPESAFE_API_KEY=… GOOGLE_API_KEY=… pnpm --filter \
 //     @limerick/rundale-input-comparison compare --out <dir> [--runs 5]
 //
 // Writes <dir>/requests.json, <dir>/raw.json (every call) and
@@ -64,11 +64,15 @@ export const cases = allCases.filter(
   (item) => appendix === undefined || item.id.startsWith(appendix),
 );
 
-/** Decision models to run: `--models a,b`; Jev alone by default (§4.6). */
+/**
+ * TypeSafe model ids to run: `--models a,b`. Jev 1.13 alone by default (§4.6),
+ * pinned to a versioned id because the thresholds were tuned against it and
+ * TypeSafe's `jev-latest` alias moves with each release.
+ */
 export const candidates = (
   process.argv.includes("--models")
     ? (process.argv[process.argv.indexOf("--models") + 1] ?? "")
-    : "typesafe/jev-1.13"
+    : "jev-1.13.0"
 )
   .split(",")
   .filter(Boolean);
@@ -93,7 +97,9 @@ function snapshot(path: string, model?: string): EndpointVersionSnapshot {
   return {
     ...definition,
     providerConfig:
-      model === undefined ? definition.providerConfig : { ...definition.providerConfig, model },
+      model === undefined
+        ? definition.providerConfig
+        : { ...definition.providerConfig, provider: "typesafe", model },
     id: path,
     endpointId: path,
     organizationId: "comparison",
@@ -166,22 +172,16 @@ function signal(ms: number) {
   };
 }
 
-/** OpenRouter's per-token prices for the decision models, as the catalogue lists them. */
-async function decisionPrices(): Promise<Record<string, ModelPrice>> {
-  const response = await fetch("https://openrouter.ai/api/v1/models?output_modalities=decisions");
-  const body = (await response.json()) as {
-    data: { id: string; pricing: { prompt: string; completion: string } }[];
-  };
+/**
+ * TypeSafe's published price for Jev 1.13 and 1.14: $0.042 per million input
+ * tokens, output free (https://docs.typesafe.ai/models, read 2026-10-16).
+ */
+function decisionPrices(): Record<string, ModelPrice> {
   return Object.fromEntries(
-    body.data
-      .filter((model) => candidates.includes(model.id))
-      .map((model) => [
-        `openrouter/${model.id}`,
-        {
-          inputPerMillionUsd: Number(model.pricing.prompt) * 1_000_000,
-          outputPerMillionUsd: Number(model.pricing.completion) * 1_000_000,
-        },
-      ]),
+    candidates.map((model) => [
+      `typesafe/${model}`,
+      { inputPerMillionUsd: 0.042, outputPerMillionUsd: 0 },
+    ]),
   );
 }
 
@@ -196,10 +196,10 @@ interface DecisionCall {
 }
 
 async function runCandidates(runs: number, prices: Record<string, ModelPrice>) {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY is required");
+  const key = process.env.TYPESAFE_API_KEY;
+  if (!key) throw new Error("TYPESAFE_API_KEY is required");
   const runtime = new DeterministicRuntime(
-    new StaticProviderRegistry([new DecisionsProvider("openrouter", key)]),
+    new StaticProviderRegistry([new DecisionsProvider("typesafe", key)]),
     new FixedPriceCostCalculator(prices),
   );
   const calls: DecisionCall[] = [];
@@ -438,6 +438,7 @@ async function main() {
   // pnpm runs the script in this package; resolve --out from where it was invoked.
   const out = resolve(process.env.INIT_CWD ?? process.cwd(), argument("out"));
   const runs = Number(argument("runs", "5"));
+  let scored = candidates;
   mkdirSync(out, { recursive: true });
   writeRequests(out, snapshot(definitionPath));
   if (process.argv.includes("--requests-only")) return;
@@ -450,8 +451,13 @@ async function main() {
   if (process.argv.includes("--rescore")) {
     // Re-scores a recorded run without calling any model.
     raw = JSON.parse(readFileSync(join(out, "raw.json"), "utf8")) as typeof raw;
+    // Archived runs name models as they were called (OpenRouter ids before
+    // 2026-10-16), so score what the run recorded unless --models says otherwise.
+    if (!process.argv.includes("--models")) {
+      scored = [...new Set(raw.decisions.map((call) => call.model))];
+    }
   } else {
-    const prices = await decisionPrices();
+    const prices = decisionPrices();
     const decisions = await runCandidates(runs, prices);
     const intents = await recordIntents(runs);
     const observations = runBaseline(out, intents);
@@ -504,7 +510,7 @@ async function main() {
         return output?.atmosphere ?? "none";
       }, runs),
     },
-    candidates: candidates.map((model) => {
+    candidates: scored.map((model) => {
       const own = decisions.filter((call) => call.model === model);
       // Lines the local parser settles never reach the model in the game, so
       // latency and cost count only the calls the game would make, as the

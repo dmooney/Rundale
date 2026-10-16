@@ -350,6 +350,12 @@ production uses that route: the OpenAI adapter for GPT-6 Luna Decisions, a
 TypeSafe adapter for Jev, or a Microsoft Foundry adapter for
 Microsoft-Decision-1 (§4.5).
 
+On 2026-10-16, after the comparison chose Jev, the owner settled the route:
+production calls TypeSafe's own API (`POST https://api.typesafe.ai/v1/systemone`)
+with the versioned model id `jev-1.13.0`, and OpenRouter is not used. The
+comparison's latency was measured through OpenRouter, so it is measured again
+on TypeSafe's API before #2221 ships.
+
 **Baseline:** today's path in §1.1 (local rules, the `rundale-intent` Endpoint on
 Gemini Flash Lite, and the rule-based address detection). It is measured but
 cannot win. Gemini with structured output and log probabilities was considered
@@ -601,7 +607,8 @@ Implementation PRs that change shipped behaviour also run
   result, including Microsoft-Decision-1 with Microsoft Foundry as its direct
   route (§5).
 - OpenRouter's alpha Decisions API is accepted for production without a
-  separate data-retention review.
+  separate data-retention review. Superseded on 2026-10-16: production uses
+  TypeSafe's own API, and OpenRouter is not used (§5).
 - System 1 replaces `rundale-intent` and settles the recipient in the same
   call (2026-10-10, after the recipient comparison chose Jev). The model only
   selects among options the engine supplies (§4.6).

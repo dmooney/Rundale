@@ -10,6 +10,11 @@
 > Jev; the owner then decided one Jev call replaces `rundale-intent` and
 > settles the recipient as well.
 
+**Route since this run.** Production calls Jev on TypeSafe's own API
+(`jev-1.13.0`), not through OpenRouter (owner, 2026-10-16). The latencies here
+include OpenRouter's hop and are measured again on TypeSafe's API before
+issue #2221 ships.
+
 **Result.** One Jev call (`typesafe/jev-1.13` through OpenRouter) for intent
 and recipient gets 248 of 275 lines right against today's 150, with no line
 sent to the wrong person against today's 75, at a p95 of 278 ms against the
@@ -136,8 +141,8 @@ flat from 0.60 to 0.80, so the threshold no longer sits on a narrow band:
 
 ## Not yet done
 
-- Latency through Limerick Endpoints from the engine and the iPhone simulator,
-  and publishing `rundale-input` v1 to `limerick-prod`: need PR #2224 merged
-  and deployed and the five OpenRouter enablement steps in
-  `endpoints/docs/deployment.md`.
+- Latency on TypeSafe's own API, then through Limerick Endpoints from the
+  engine and the iPhone simulator, and publishing `rundale-input` v1 to
+  `limerick-prod`: need a working TypeSafe API key and the five TypeSafe
+  enablement steps in `endpoints/docs/deployment.md`.
 - The engine calling `rundale-input` and retiring `rundale-intent` (#2221).
