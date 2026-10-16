@@ -1,0 +1,10 @@
+# Cloud Build source for endpoints/deploy/google/*.yaml: the endpoints
+# workspace only, without local credentials or build output.
+/*
+!/endpoints/
+endpoints/**/node_modules/
+endpoints/**/dist/
+endpoints/**/.next/
+endpoints/**/.env
+endpoints/**/.env.*
+!endpoints/.env.example

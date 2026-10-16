@@ -1,0 +1,85 @@
+name: Deploy limerick-prod
+
+# Deploys the Limerick Endpoints server and publishes Rundale's Endpoint
+# definitions to limerick-prod on every merge to main that changes them. The
+# game is unreleased with no users, so deploys run without approval.
+# One-time Google Cloud setup: endpoints/deploy/setup-github-deploy.sh.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "endpoints/**"
+      - "mods/rundale/endpoints/**"
+      - ".gcloudignore"
+      - ".github/workflows/deploy-limerick-prod.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-limerick-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy and publish
+    runs-on: ubuntu-latest
+    environment: limerick-prod
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            server:
+              - 'endpoints/apps/server/**'
+              - 'endpoints/packages/**'
+              - 'endpoints/Dockerfile.server'
+              - 'endpoints/package.json'
+              - 'endpoints/pnpm-lock.yaml'
+              - 'endpoints/deploy/**'
+              - '.gcloudignore'
+              - '.github/workflows/deploy-limerick-prod.yml'
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: endpoints/pnpm-lock.yaml
+
+      - name: Install the Endpoints workspace
+        working-directory: endpoints
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the Cloud SQL Auth Proxy
+        run: |
+          curl -fsSLo /usr/local/bin/cloud-sql-proxy \
+            https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.26.0/cloud-sql-proxy.linux.amd64
+          chmod +x /usr/local/bin/cloud-sql-proxy
+
+      - name: Build, migrate and deploy the server
+        if: steps.changes.outputs.server == 'true' || github.event_name == 'workflow_dispatch'
+        run: endpoints/deploy/limerick-prod.sh deploy "${GITHUB_SHA::12}"
+
+      # Runs after any deploy, so a definition can use a provider the same
+      # merge enabled. Before release each Endpoint is v1, replaced in place.
+      - name: Publish Endpoint definitions
+        run: |
+          endpoints/deploy/limerick-prod.sh definitions replace
+          endpoints/deploy/limerick-prod.sh definitions verify
