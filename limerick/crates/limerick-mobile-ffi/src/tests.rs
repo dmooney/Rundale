@@ -807,7 +807,25 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
 /// How the intent Endpoint answered "ask Connolly about the household".
 enum IntentAnswer {
     Target(&'static str),
+    /// Jev's decision choosing the "Connolly" reference with this
+    /// probability: confident, or just under the engine's threshold, as
+    /// the comparison saw it answer (0.69 to 0.73).
+    Reference(f64),
     Failed,
+}
+
+/// A `rundale-intent` decision: speech, spoken to `recipient` with
+/// probability `p`.
+fn talk_decision(recipient: &str, p: f64) -> Value {
+    let choice = |option: &str, p: f64| json!({"choice": option, "confidence": p, "probabilities": {option: p}});
+    json!({
+        "action": choice("talk", 0.99),
+        "destination": choice("none", 0.9),
+        "target": choice("none", 0.9),
+        "recipient": choice(recipient, p),
+        "mentioned": {},
+        "atmosphere": choice("none", 0.99),
+    })
 }
 
 /// Product spec §5.3: "ask Connolly" at the cottage names both Connollys,
@@ -821,6 +839,8 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
     for answer in [
         IntentAnswer::Target("Connolly"),
         IntentAnswer::Target("Connolly.mdl"),
+        IntentAnswer::Reference(0.9),
+        IntentAnswer::Reference(0.65),
         IntentAnswer::Failed,
     ] {
         let (game, _) = Game::new();
@@ -837,6 +857,13 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
                     &pending,
                     json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
                 ),
+                IntentAnswer::Reference(p) => {
+                    let references = pending["input"]["references"].as_array().unwrap();
+                    assert_eq!(references.len(), 1, "one reference, Connolly: {pending}");
+                    assert_eq!(references[0]["phrase"], "Connolly");
+                    let option = references[0]["optionId"].as_str().unwrap();
+                    game.resolve(&pending, talk_decision(option, p))
+                }
                 IntentAnswer::Failed => game.op(json!({
                     "op": "fail",
                     "call_id": pending["callID"],

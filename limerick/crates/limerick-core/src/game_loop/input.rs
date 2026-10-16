@@ -592,7 +592,18 @@ pub async fn handle_game_input_settled(
     // explicit recipient still routes to every naturally mentioned local NPC.
     let mut targets: Vec<String> =
         Vec::with_capacity(addressed_to.len() + mentions.names.len() + 1);
-    let decided = decided.filter(|_| is_talk && addressed_to.is_empty());
+    // A decision that names no one (unsure, or nobody in particular) leaves
+    // the line to the word matching below, which still asks "Which
+    // Connolly?" when the player's own words name several people. The
+    // unaddressed rules of design §3.1 replace that with #2221.
+    let decided = decided.filter(|decided| {
+        is_talk
+            && addressed_to.is_empty()
+            && !matches!(
+                decided,
+                DecidedRecipient::Undecided | DecidedRecipient::NoOne
+            )
+    });
     if let Some(decided) = decided {
         // The decision names the recipient; the word-matching heuristics
         // below are not consulted.
@@ -615,7 +626,9 @@ pub async fn handle_game_input_settled(
                 );
                 return GameInputOutcome::default();
             }
-            DecidedRecipient::NoOne | DecidedRecipient::Undecided => {}
+            DecidedRecipient::NoOne | DecidedRecipient::Undecided => {
+                unreachable!("filtered out above")
+            }
         }
     } else if !addressed_to.is_empty() {
         for name in addressed_to {
