@@ -20,13 +20,20 @@ gcloud iam workload-identity-pools describe "$pool" --project "$project" --locat
     >/dev/null 2>&1 \
     || gcloud iam workload-identity-pools create "$pool" --project "$project" --location global \
         --display-name "GitHub Actions"
+# Only the deploy workflow on main, in the limerick-prod environment, may sign
+# in: any other workflow job on main can also request a GitHub token.
+# Running the script again applies this to an existing provider.
+workflow="$repo/.github/workflows/deploy-limerick-prod.yml@refs/heads/main"
+action=create-oidc
 gcloud iam workload-identity-pools providers describe "$provider" --project "$project" \
-    --location global --workload-identity-pool "$pool" >/dev/null 2>&1 \
-    || gcloud iam workload-identity-pools providers create-oidc "$provider" \
-        --project "$project" --location global --workload-identity-pool "$pool" \
-        --issuer-uri https://token.actions.githubusercontent.com \
-        --attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref \
-        --attribute-condition "assertion.repository=='$repo' && assertion.ref=='refs/heads/main'"
+    --location global --workload-identity-pool "$pool" >/dev/null 2>&1 && action=update-oidc
+mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref"
+mapping+=",attribute.workflow_ref=assertion.job_workflow_ref,attribute.environment=assertion.environment"
+oidc_args=(--project "$project" --location global --workload-identity-pool "$pool"
+    --attribute-mapping "$mapping"
+    --attribute-condition "assertion.repository=='$repo' && assertion.ref=='refs/heads/main' && assertion.job_workflow_ref=='$workflow' && assertion.environment=='limerick-prod'")
+[[ $action == create-oidc ]] && oidc_args+=(--issuer-uri https://token.actions.githubusercontent.com)
+gcloud iam workload-identity-pools providers "$action" "$provider" "${oidc_args[@]}"
 
 gcloud iam service-accounts describe "$deployer_email" --project "$project" >/dev/null 2>&1 \
     || gcloud iam service-accounts create "$deployer" --project "$project" \

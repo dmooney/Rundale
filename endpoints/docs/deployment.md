@@ -69,13 +69,16 @@ runs `.github/workflows/deploy-limerick-prod.yml`; **Run workflow** starts it by
 hand. When server code changed, `limerick-prod.sh deploy <commit>` builds the
 image in Cloud Build as `limerick-build`, runs `limerick-endpoints-migrate` from
 it, deploys `limerick-endpoints` by digest with the provider settings in
-`endpoints/deploy/limerick-prod-providers.json`, and checks `/health/ready`. It
+`endpoints/deploy/limerick-prod-providers.json` without traffic, and moves
+traffic to the new revision once its own URL answers `/health/ready`. It
 then runs `definitions replace` and `definitions verify`. `.gcloudignore` limits
 the uploaded source to `endpoints/`, without local `.env` files.
 
 The workflow signs in through Workload Identity Federation as
-`limerick-deployer`, trusted only for pushes to `dmooney/Rundale`'s `main`, so no
-key is stored in GitHub. A project owner creates that once with
+`limerick-deployer`. Google Cloud accepts its token only from this workflow,
+run on `dmooney/Rundale`'s `main` (a merge or **Run workflow**) in the
+`limerick-prod` environment, so no key is stored in GitHub and no other workflow
+can deploy. A project owner creates that once with
 `endpoints/deploy/setup-github-deploy.sh`, which also sets the repository
 variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`.
 

@@ -119,11 +119,14 @@ c=json.load(open(sys.argv[1]))["env"]
 print("^@^"+"@".join(k+"="+(v if isinstance(v,str) else json.dumps(v,separators=(",",":"))) for k,v in c.items()))' "$providers")"
     secrets="$(python3 -c 'import json,sys
 print(",".join(k+"="+v for k,v in json.load(open(sys.argv[1]))["secrets"].items()))' "$providers")"
+    # The new revision takes traffic only after its own URL reports ready.
     gcloud run deploy "$service" --image "$ref" --project "$project" --region "$region" \
-        --update-env-vars "$env_vars" --update-secrets "$secrets"
+        --update-env-vars "$env_vars" --update-secrets "$secrets" --no-traffic --tag candidate
     url="$(gcloud run services describe "$service" --project "$project" --region "$region" \
-        --format='value(status.url)')"
-    curl -fsS "$url/health/ready" >/dev/null
+        --format=json | python3 -c 'import json,sys
+print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="candidate"))')"
+    curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$url/health/ready" >/dev/null
+    gcloud run services update-traffic "$service" --to-latest --project "$project" --region "$region"
     echo "Deployed $ref"
 }
 
