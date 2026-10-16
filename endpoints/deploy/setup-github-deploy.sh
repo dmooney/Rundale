@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One-time setup letting .github/workflows/deploy-limerick-prod.yml deploy to
 # limerick-prod without a stored key: a Workload Identity Federation provider
-# trusting only pushes to dmooney/Rundale's main branch, and a deploy service
-# account with the roles `limerick-prod.sh deploy` and `definitions` need.
+# trusting only that workflow on dmooney/Rundale's main branch in the
+# limerick-prod environment, and a deploy service account with the roles
+# `limerick-prod.sh deploy` and `definitions` need.
 # Run it as a limerick-prod owner; it is safe to run again.
 set -euo pipefail
 
