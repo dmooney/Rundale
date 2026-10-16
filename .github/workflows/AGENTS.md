@@ -109,6 +109,13 @@ just act-pr         # simulate the pull_request fast lane
 - The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Installs `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), runs `pnpm check` before `pnpm build`, then deploys `dist/` to GitHub Pages via `actions/deploy-pages@v5`. Uses `pnpm/action-setup@v6`. (Retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
+### `deploy-limerick-prod.yml` — Deploy Limerick Endpoints to limerick-prod
+
+- **Triggers:** `push` to `main` changing `endpoints/**`, `mods/rundale/endpoints/**`, `.gcloudignore` or the workflow; `workflow_dispatch` (on `main` only).
+- Runs `endpoints/deploy/limerick-prod.sh deploy <sha>` when server code changed, then `definitions replace` and `definitions verify`.
+- **Auth:** Workload Identity Federation as `limerick-deployer`; the provider accepts only this workflow's `job_workflow_ref` on `main` in the `limerick-prod` environment. Renaming the file or the environment needs `endpoints/deploy/setup-github-deploy.sh` re-run. Signs in after `pnpm install`.
+- **Concurrency:** `deploy-limerick-prod`, cancel-in-progress: **false**.
+
 ### `release.yml` — Tag-driven release pipeline
 
 - **Triggers:** `push` tags matching `v[0-9]+.[0-9]+.[0-9]+*`; `workflow_dispatch` with `dry_run: true` (default).

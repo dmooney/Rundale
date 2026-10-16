@@ -10,3 +10,7 @@ steps:
       - .
 images:
   - ${_IMAGE}
+# Builds run as limerick-build, a user-specified service account, which Cloud
+# Build accepts only with a logs bucket or Cloud Logging alone.
+options:
+  logging: CLOUD_LOGGING_ONLY

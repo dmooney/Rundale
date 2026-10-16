@@ -62,6 +62,26 @@ command above; `limerick-prod.sh sql < query.sql` runs an operator query; and
 `limerick-prod.sh appcheck-token <create|delete> <name>` manages the App Check
 debug token the live Endpoint suite needs.
 
+## Deploying limerick-prod from GitHub
+
+Every merge to `main` that changes `endpoints/` or `mods/rundale/endpoints/`
+runs `.github/workflows/deploy-limerick-prod.yml`; **Run workflow** starts it by
+hand. When server code changed, `limerick-prod.sh deploy <commit>` builds the
+image in Cloud Build as `limerick-build`, runs `limerick-endpoints-migrate` from
+it, deploys `limerick-endpoints` by digest with the provider settings in
+`endpoints/deploy/limerick-prod-providers.json` without traffic, and moves
+traffic to the new revision once its own URL answers `/health/ready`. It
+then runs `definitions replace` and `definitions verify`. `.gcloudignore` limits
+the uploaded source to `endpoints/`, without local `.env` files.
+
+The workflow signs in through Workload Identity Federation as
+`limerick-deployer`. Google Cloud accepts its token only from this workflow,
+run on `dmooney/Rundale`'s `main` (a merge or **Run workflow**) in the
+`limerick-prod` environment, so no key is stored in GitHub and no other workflow
+can deploy. A project owner creates that once with
+`endpoints/deploy/setup-github-deploy.sh`, which also sets the repository
+variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`.
+
 ## Enabling a decision provider
 
 A decision Endpoint ([ADR 014](adr/014-decision-endpoints.md)) runs on

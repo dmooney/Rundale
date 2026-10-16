@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Operator access to the limerick-prod Endpoints deployment.
 #
+#   limerick-prod.sh deploy <tag>             # build, migrate and deploy the server
 #   limerick-prod.sh definitions <verify|publish|export|replace>
 #   limerick-prod.sh sql < query.sql          # prints result rows as JSON
 #   limerick-prod.sh appcheck-token create <display-name>   # prints the token
 #   limerick-prod.sh appcheck-token delete <display-name>
 #
 # The database credential is read from Secret Manager and never printed.
+# `deploy` applies limerick-prod-providers.json, so allowlists, prices and
+# provider keys change through reviewed commits. GitHub Actions runs `deploy`
+# and `definitions` on merge to main (.github/workflows/deploy-limerick-prod.yml).
 # Deployment settings (owner UID, allowed models) are read from the live
 # Cloud Run service, so the script tracks the deployed configuration.
 set -euo pipefail
@@ -20,9 +24,13 @@ app_id=1:877612517009:ios:586f98a2cc3e7d0c676130
 proxy_port=55433
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 server_dir="$repo_root/endpoints/apps/server"
+registry="$region-docker.pkg.dev/$project/limerick"
+build_account="projects/$project/serviceAccounts/limerick-build@$project.iam.gserviceaccount.com"
+migrate_job=limerick-endpoints-migrate
+providers="$repo_root/endpoints/deploy/limerick-prod-providers.json"
 
 usage() {
-    sed -n '4,7p' "$0" | sed 's/^# //' >&2
+    sed -n '4,8p' "$0" | sed 's/^# //' >&2
     exit 2
 }
 
@@ -36,7 +44,7 @@ for c in d["spec"]["template"]["spec"]["containers"]:
 }
 
 start_proxy() {
-    proxy_log="$(mktemp -t limerick-prod-proxy)"
+    proxy_log="$(mktemp "${TMPDIR:-/tmp}/limerick-prod-proxy.XXXXXX")"
     cloud-sql-proxy "$instance" --port "$proxy_port" >"$proxy_log" 2>&1 &
     proxy_pid=$!
     trap 'kill "$proxy_pid" 2>/dev/null; rm -f "$proxy_log"' EXIT
@@ -91,6 +99,37 @@ const { Client } = require("pg");
 })().catch((error) => { console.error(error.message); process.exit(1); });'
 }
 
+cmd_deploy() {
+    local tag=${1:-}
+    [[ -n $tag ]] || usage
+    local image="$registry/$service:$tag"
+    gcloud builds submit "$repo_root" --project "$project" --region "$region" \
+        --config "$repo_root/endpoints/deploy/google/cloudbuild.server.yaml" \
+        --substitutions "_IMAGE=$image" --service-account "$build_account"
+    local digest ref
+    digest="$(gcloud artifacts docker images describe "$image" --project "$project" \
+        --format='value(image_summary.digest)')"
+    ref="$registry/$service@$digest"
+    # Migrations run from the same image before it serves traffic.
+    gcloud run jobs update "$migrate_job" --image "$ref" --project "$project" --region "$region"
+    gcloud run jobs execute "$migrate_job" --wait --project "$project" --region "$region"
+    local env_vars secrets url
+    env_vars="$(python3 -c 'import json,sys
+c=json.load(open(sys.argv[1]))["env"]
+print("^@^"+"@".join(k+"="+(v if isinstance(v,str) else json.dumps(v,separators=(",",":"))) for k,v in c.items()))' "$providers")"
+    secrets="$(python3 -c 'import json,sys
+print(",".join(k+"="+v for k,v in json.load(open(sys.argv[1]))["secrets"].items()))' "$providers")"
+    # The new revision takes traffic only after its own URL reports ready.
+    gcloud run deploy "$service" --image "$ref" --project "$project" --region "$region" \
+        --update-env-vars "$env_vars" --update-secrets "$secrets" --no-traffic --tag candidate
+    url="$(gcloud run services describe "$service" --project "$project" --region "$region" \
+        --format=json | python3 -c 'import json,sys
+print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="candidate"))')"
+    curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$url/health/ready" >/dev/null
+    gcloud run services update-traffic "$service" --to-latest --project "$project" --region "$region"
+    echo "Deployed $ref"
+}
+
 appcheck_api() {
     local method=$1 path=$2 body=${3:-}
     local args=(-sS --fail-with-body -X "$method"
@@ -127,6 +166,7 @@ for t in json.load(sys.stdin).get("debugTokens",[]):
 }
 
 case "${1:-}" in
+    deploy) shift && cmd_deploy "$@" ;;
     definitions) shift && cmd_definitions "$@" ;;
     sql) shift && cmd_sql ;;
     appcheck-token) shift && cmd_appcheck_token "$@" ;;
