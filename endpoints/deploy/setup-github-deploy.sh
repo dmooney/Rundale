@@ -56,8 +56,12 @@ for account in "$build_email" "$runtime_email"; do
     gcloud iam service-accounts add-iam-policy-binding "$account" --project "$project" \
         --member "serviceAccount:$deployer_email" --role roles/iam.serviceAccountUser >/dev/null
 done
-gcloud storage buckets add-iam-policy-binding "gs://${project}_cloudbuild" \
-    --member "serviceAccount:$deployer_email" --role roles/storage.objectAdmin >/dev/null
+# `gcloud builds submit` reads the source bucket itself (storage.buckets.get)
+# before uploading, which objectAdmin alone does not allow.
+for role in roles/storage.objectAdmin roles/storage.legacyBucketReader; do
+    gcloud storage buckets add-iam-policy-binding "gs://${project}_cloudbuild" \
+        --member "serviceAccount:$deployer_email" --role "$role" >/dev/null
+done
 gcloud secrets add-iam-policy-binding DATABASE_URL --project "$project" \
     --member "serviceAccount:$deployer_email" --role roles/secretmanager.secretAccessor >/dev/null
 # The server reads the TypeSafe key at runtime.
