@@ -28,7 +28,7 @@ interface ChoiceAnswer {
 export interface DecisionOutput {
   recipient: ChoiceAnswer;
   mentioned: Record<string, number>;
-  /** Present in `rundale-input` answers (§4.6). */
+  /** Present in `rundale-intent` answers (§4.6). */
   action?: ChoiceAnswer;
   destination?: ChoiceAnswer;
   target?: ChoiceAnswer;
@@ -59,7 +59,7 @@ const top = (answer: ChoiceAnswer | undefined) =>
     : { choice: answer.choice, p: answer.probabilities[answer.choice] ?? 0 };
 
 /**
- * One `rundale-input` answer (§4.6): the action, then the answer that action
+ * One `rundale-intent` answer (§4.6): the action, then the answer that action
  * uses. Look, examine and interact only narrate and change nothing, so the top
  * action is taken. Travel changes the world and "none" drops the line, so they
  * must clear the threshold; below it the line is treated as speech, the

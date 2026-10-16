@@ -22,6 +22,7 @@ use crate::input::{
     AtmosphericTopic, PlayerIntent, detect_atmospheric_topic, is_directed_instruction_dialogue,
     is_physical_action_shaped, is_player_dialogue_with_addressees, parse_intent_local,
 };
+use crate::intent_decision::{DecidedRecipient, intent_from_decision};
 use crate::ipc::commands::listen::{AtmospherePresentation, render_place_atmosphere};
 use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
@@ -313,6 +314,9 @@ pub async fn handle_game_input_settled(
                 .await
         }
     };
+    // Who a line is for, when the intent Endpoint's decision settled it
+    // (design §4.6). `None` when the intent came from anywhere else.
+    let mut decided: Option<DecidedRecipient> = None;
     let intent = if let Some(settled) = settled {
         // An earlier run of this request resolved the intent; reuse it.
         settled.intent.clone()
@@ -327,18 +331,40 @@ pub async fn handle_game_input_settled(
         let parsed = match parse_intent_local(&raw) {
             Some(local) => local,
             None => {
+                // An Endpoint host answers with the decision; an in-process
+                // host answers the rendered prompt with intent JSON.
+                let (endpoint, options) = {
+                    let world = ctx.world.lock().await;
+                    let npc_manager = ctx.npc_manager.lock().await;
+                    match crate::endpoint_input::intent_endpoint(
+                        ctx.endpoints,
+                        &world,
+                        &npc_manager,
+                        &raw,
+                    ) {
+                        Some((call, options)) => (Some(call), Some(options)),
+                        None => (None, None),
+                    }
+                };
                 let call = InferenceCall {
                     subrole: limerick_config::InferenceSubrole::Intent,
                     system: Some(crate::input::intent_system_prompt().to_string()),
                     prompt: raw.clone(),
                     response: ResponseShape::IntentJson,
                     correlation_id: None,
-                    endpoint: crate::endpoint_input::intent_endpoint(ctx.endpoints, &raw),
+                    endpoint,
                 };
                 match inference.complete(call).await {
-                    InferenceOutcome::Completed { text, .. } => {
-                        crate::input::intent_from_reply_text(&text, &raw)
-                    }
+                    InferenceOutcome::Completed { text, .. } => match options
+                        .as_ref()
+                        .and_then(|options| intent_from_decision(&text, options, &raw))
+                    {
+                        Some(decision) => {
+                            decided = Some(decision.recipient);
+                            decision.intent
+                        }
+                        None => crate::input::intent_from_reply_text(&text, &raw),
+                    },
                     InferenceOutcome::Failed { .. } => crate::input::unknown_intent(&raw),
                 }
             }
@@ -566,7 +592,32 @@ pub async fn handle_game_input_settled(
     // explicit recipient still routes to every naturally mentioned local NPC.
     let mut targets: Vec<String> =
         Vec::with_capacity(addressed_to.len() + mentions.names.len() + 1);
-    if !addressed_to.is_empty() {
+    let decided = decided.filter(|_| is_talk && addressed_to.is_empty());
+    if let Some(decided) = decided {
+        // The decision names the recipient; the word-matching heuristics
+        // below are not consulted.
+        match decided {
+            DecidedRecipient::Present(name)
+            | DecidedRecipient::Elsewhere(name)
+            | DecidedRecipient::Reference(name) => push_unique_target(&mut targets, name),
+            DecidedRecipient::All => {
+                let world = ctx.world.lock().await;
+                let npc_manager = ctx.npc_manager.lock().await;
+                for npc in npc_manager.npcs_at(world.player_location) {
+                    push_unique_target(&mut targets, npc.name.clone());
+                }
+            }
+            DecidedRecipient::NotListed => {
+                ctx.emitter.emit_event(
+                    "text-log",
+                    serde_json::to_value(text_log("system", NO_ONE_ANSWERS))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+                return GameInputOutcome::default();
+            }
+            DecidedRecipient::NoOne | DecidedRecipient::Undecided => {}
+        }
+    } else if !addressed_to.is_empty() {
         for name in addressed_to {
             push_unique_target(&mut targets, name);
         }
@@ -652,6 +703,10 @@ fn without_openers(text: &str) -> &str {
     }
     text
 }
+
+/// The reply to a name that fits no one the player can address (design §3.1):
+/// it reveals nothing about who exists.
+pub const NO_ONE_ANSWERS: &str = "No one here answers to that name just now.";
 
 fn push_unique_target(targets: &mut Vec<String>, target: String) {
     if !targets

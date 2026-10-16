@@ -178,9 +178,9 @@ The line itself is untrusted input.
 ### 4.2 When it runs
 
 On every line the local parser does not settle as a command, except explicit
-selections. Since the owner's decision of 2026-10-10 (§4.6) the same call also
-replaces the `rundale-intent` Endpoint: it decides between move, look, examine,
-interact and talk as well as whom a line is for. Each line gets one call. The answer is journaled with the request, as `SettledInput.intent` is
+selections. Since the owner's decision of 2026-10-10 (§4.6) this call is the
+`rundale-intent` Endpoint: Jev decides between move, look, examine, interact
+and talk as well as whom a line is for. Each line gets one call. The answer is journaled with the request, as `SettledInput.intent` is
 today, so a retry or a clarification answer reuses it.
 
 It replaces the rule-based address detection in §1.1 for recipients:
@@ -225,7 +225,7 @@ Thresholds, fixed by the comparison in §5 (2026-10-10,
 for question 1 and 0.70 for question 2, down from starting values of 0.80
 and 0.70. Below the threshold, the answer is uncertain (§3.1, step 4). The
 results propose a narrower uncertain rule that would widen the safe range;
-it awaits an owner decision. For the combined `rundale-input` call (§4.6) the
+it awaits an owner decision. For the `rundale-intent` call (§4.6) the
 thresholds are provisional: it meets the win rule only with that rule, under
 which its results are flat from 0.60 to 0.80
 ([input comparison](../test-plans/results/2026-10-10-input-comparison.md)).
@@ -238,11 +238,10 @@ timeout after 2 s, or an answer that is not an offered option) is uncertain.
 
 ### 4.5 Endpoint integration
 
-- A new Endpoint role, `rundale-input` (§4.6), defined as game data in
-  `mods/rundale/endpoints/rundale-input.v1.json` and published to Limerick
-  Endpoints in `limerick-prod` as v1, following the pre-release rule in
-  Endpoints ADR 013. It was first drafted as `rundale-addressee`, for the
-  recipient questions alone.
+- The intent role's Endpoint, `rundale-intent` (§4.6), defined as game data
+  in `mods/rundale/endpoints/rundale-intent.v1.json` and replaced in place in
+  `limerick-prod` as v1, following the pre-release rule in Endpoints ADR 013.
+  No other Endpoint is added.
 - It uses the same envelope as the other roles: session, logical request,
   attempt, base revision and idempotency key.
 - Limerick Endpoints is the `endpoints/` workspace in this repository. Today a
@@ -288,10 +287,13 @@ timeout after 2 s, or an answer that is not an offered option) is uncertain.
 
 ### 4.6 Intent in the same call
 
-The owner decided on 2026-10-10 that System 1 replaces `rundale-intent`, and
-that the same call settles the recipient. The Endpoint is `rundale-input` v1
-(`mods/rundale/endpoints/rundale-input.v1.json`); `rundale-intent` v1 stays
-published until the engine calls `rundale-input` (#2221), then is retired.
+The owner decided on 2026-10-10 that `rundale-intent` uses System 1 (Jev) to
+read everything about the player's line, including whom it is for. The
+Endpoint stays `rundale-intent` v1
+(`mods/rundale/endpoints/rundale-intent.v1.json`), now a decision Endpoint; the
+Gemini definition it replaced is kept with the
+[comparison's results](../test-plans/results/2026-10-10-input-comparison/rundale-intent-gemini.v1.json).
+The engine reads its answers in `limerick_core::intent_decision`.
 
 A decision model chooses among options; it does not write text. Every answer
 the engine needs is therefore a choice among options the engine supplies, or a
@@ -609,7 +611,7 @@ Implementation PRs that change shipped behaviour also run
 - OpenRouter's alpha Decisions API is accepted for production without a
   separate data-retention review. Superseded on 2026-10-16: production uses
   TypeSafe's own API, and OpenRouter is not used (§5).
-- System 1 replaces `rundale-intent` and settles the recipient in the same
+- `rundale-intent` uses System 1 and settles the recipient in the same
   call (2026-10-10, after the recipient comparison chose Jev). The model only
   selects among options the engine supplies (§4.6).
 

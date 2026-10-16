@@ -7,7 +7,7 @@
 > `summary.json`) is kept out of git, in the owner's iCloud Drive under
 > `Rundale/test-data/2026-10-10-input-comparison/`. This follows the
 > [recipient-only comparison](2026-10-10-addressee-comparison.md), which chose
-> Jev; the owner then decided one Jev call replaces `rundale-intent` and
+> Jev; the owner then decided `rundale-intent` becomes one Jev call that
 > settles the recipient as well.
 
 **Route since this run.** Production calls Jev on TypeSafe's own API
@@ -33,10 +33,10 @@ yet; it needs PR #2224 deployed to `limerick-prod`.
 | Item       | Value                                                                                                                                                                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Cases      | Appendix A (A1 to A35) and Appendix B (B1 to B20), five runs each: 275 lines                                                                                                                                                               |
-| Jev        | `mods/rundale/endpoints/rundale-input.v1.json` on `typesafe/jev-1.13` through OpenRouter, executed by the Endpoints decision runtime and `DecisionsProvider` (ADR 014), 2 s timeout                                                        |
+| Jev        | `mods/rundale/endpoints/rundale-intent.v1.json` (then named `rundale-input`) on `typesafe/jev-1.13` through OpenRouter, executed by the Endpoints decision runtime and `DecisionsProvider` (ADR 014), 2 s timeout                          |
 | Baseline   | Today's engine on the phone's path: the `limerick-mobile-ffi` harness `addressee_baseline`, with the local parser, `rundale-intent` v1 answered live by `gemini-3.5-flash-lite` (Gemini API, not Vertex AI), and the rule-based addressing |
 | Both paths | A line the local parser settles as a command (for example "go to the Letter Office", "look around") makes no model call and gets the same outcome in both. In this set that is 9 of 55 lines.                                              |
-| Runner     | `endpoints/examples/rundale-input-comparison` (`pnpm --filter @limerick/rundale-input-comparison compare --out <dir>`; `--rescore` re-scores a recorded run; `--models a,b` runs other decision models)                                    |
+| Runner     | `endpoints/examples/rundale-intent-comparison` (`pnpm --filter @limerick/rundale-intent-comparison compare --out <dir>`; `--rescore` re-scores a recorded run; `--models a,b` runs other decision models)                                  |
 | World      | Canonical `mods/rundale`, with the fixtures of the recipient comparison                                                                                                                                                                    |
 | Network    | A Mac on a home connection, calling OpenRouter and the Gemini API directly: no Limerick Endpoints hop                                                                                                                                      |
 
@@ -141,8 +141,9 @@ flat from 0.60 to 0.80, so the threshold no longer sits on a narrow band:
 
 ## Not yet done
 
-- Latency on TypeSafe's own API, then through Limerick Endpoints from the
-  engine and the iPhone simulator, and publishing `rundale-input` v1 to
-  `limerick-prod`: need a working TypeSafe API key and the five TypeSafe
+- Latency through Limerick Endpoints from the engine and the iPhone
+  simulator, and replacing `rundale-intent` v1 in `limerick-prod`: need the
+  `limerick-endpoints` image rebuilt from `main` and the five TypeSafe
   enablement steps in `endpoints/docs/deployment.md`.
-- The engine calling `rundale-input` and retiring `rundale-intent` (#2221).
+- The recipient policy around the engine's Jev call: partners, asking, and
+  revalidation (#2221).

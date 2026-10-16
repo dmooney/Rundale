@@ -103,7 +103,7 @@ jobs:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'
             # The workspace tests also read the Rundale definition files, the
-            # canonical NPCs and places (rundale-input-comparison), and the
+            # canonical NPCs and places (rundale-intent-comparison), and the
             # mobile invocation examples and fixtures.
             endpoints:
               - 'endpoints/**'

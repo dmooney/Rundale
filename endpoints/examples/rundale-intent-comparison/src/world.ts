@@ -158,7 +158,7 @@ export function candidatePhrases(line: string, limit = 24): string[] {
 }
 
 export interface AddresseeInput {
-  role: "player_input";
+  role: "player_intent";
   line: string;
   present: {
     optionId: string;
@@ -267,7 +267,7 @@ export function buildInput(
   });
   return {
     values: {
-      role: "player_input",
+      role: "player_intent",
       line: item.line,
       present: presentOptions,
       elsewhere: elsewhereOptions,

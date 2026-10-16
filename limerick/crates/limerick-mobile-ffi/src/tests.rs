@@ -1686,7 +1686,7 @@ impl Game {
 /// Opt-in: `ADDRESSEE_BASELINE_IN=<cases with recorded intents>
 /// ADDRESSEE_BASELINE_OUT=<observations> cargo test -p limerick-mobile-ffi
 /// addressee_baseline -- --ignored`. The comparison runner in
-/// `endpoints/examples/rundale-input-comparison` writes the input and
+/// `endpoints/examples/rundale-intent-comparison` writes the input and
 /// scores the output.
 #[test]
 #[ignore = "opt-in comparison harness; needs ADDRESSEE_BASELINE_IN"]

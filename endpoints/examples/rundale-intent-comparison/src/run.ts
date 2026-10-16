@@ -1,11 +1,11 @@
 // Runs the System 1 input comparison of Rundale issue #2220 (design
 // docs/design/dynamic-npc-context.md §4.6 and §5): each decision model on
 // every labelled case through the real decision runtime and Decisions
-// adapter, answering `rundale-input`, and today's engine path as the baseline
+// adapter, answering `rundale-intent`, and the engine path before Jev as the baseline
 // through the mobile FFI harness, with `rundale-intent` answered live by Gemini.
 //
 //   TYPESAFE_API_KEY=… GOOGLE_API_KEY=… pnpm --filter \
-//     @limerick/rundale-input-comparison compare --out <dir> [--runs 5]
+//     @limerick/rundale-intent-comparison compare --out <dir> [--runs 5]
 //
 // Writes <dir>/requests.json, <dir>/raw.json (every call) and
 // <dir>/summary.json. Keep <dir> outside the repository: run data is archived,
@@ -48,13 +48,13 @@ const repo = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const definitions = join(repo, "mods/rundale/endpoints");
 const npcsPath = join(repo, "mods/rundale/npcs.json");
 const places = loadPlaces(join(repo, "mods/rundale/world.json"));
-/** `--definition <file>`: the decision definition to run, `rundale-input` v1 by default. */
+/** `--definition <file>`: the decision definition to run, `rundale-intent` v1 by default. */
 const definitionPath = process.argv.includes("--definition")
   ? resolve(
       process.env.INIT_CWD ?? process.cwd(),
       process.argv[process.argv.indexOf("--definition") + 1] ?? "",
     )
-  : join(definitions, "rundale-input.v1.json");
+  : join(definitions, "rundale-intent.v1.json");
 
 /** `--appendix A` or `--appendix B` runs one appendix; both by default. */
 const appendix = process.argv.includes("--appendix")
@@ -259,7 +259,10 @@ async function recordIntents(runs: number): Promise<IntentCall[]> {
     new StaticProviderRegistry([GoogleProvider.fromApiKey(key)]),
     new FixedPriceCostCalculator({ [`google/${intentModel}`]: intentPrice }),
   );
-  const version = snapshot(join(definitions, "rundale-intent.v1.json"));
+  // The Gemini intent Endpoint Jev replaced, kept with the comparison's results.
+  const version = snapshot(
+    join(repo, "docs/test-plans/results/2026-10-10-input-comparison/rundale-intent-gemini.v1.json"),
+  );
   const calls: IntentCall[] = [];
   for (const item of cases) {
     for (let run = 0; run < runs; run += 1) {

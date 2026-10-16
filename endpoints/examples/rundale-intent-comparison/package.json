@@ -1,5 +1,5 @@
 {
-  "name": "@limerick/rundale-input-comparison",
+  "name": "@limerick/rundale-intent-comparison",
   "version": "0.0.0",
   "private": true,
   "type": "module",

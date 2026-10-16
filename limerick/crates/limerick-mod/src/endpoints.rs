@@ -56,6 +56,8 @@ pub enum EndpointProvider {
     Openai,
     /// Google.
     Google,
+    /// TypeSafe's System One API, which serves decision Endpoints.
+    Typesafe,
 }
 
 /// `providerConfig` of a definition.
@@ -92,6 +94,20 @@ pub struct EndpointInferenceConfig {
     /// Streaming projection, when the role streams.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub streaming: Option<EndpointStreaming>,
+    /// Decision spec of a decision Endpoint (Limerick Endpoints ADR 014): the
+    /// questions the model answers with a probability per option. The
+    /// Endpoints service validates and executes it; the engine only reads the
+    /// answers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision: Option<Value>,
+}
+
+impl EndpointDefinition {
+    /// Whether the definition is a decision Endpoint, answered with
+    /// probabilities rather than generated text.
+    pub fn is_decision(&self) -> bool {
+        self.inference_config.decision.is_some()
+    }
 }
 
 /// The body of an Endpoint definition file, as the Endpoints service
@@ -201,6 +217,22 @@ pub fn parse_definition(text: &str) -> Result<EndpointDefinition, String> {
     }
     if inference.max_output_tokens == 0 {
         return Err("inferenceConfig.maxOutputTokens must be positive".to_string());
+    }
+    match (&definition.provider_config.provider, &inference.decision) {
+        (EndpointProvider::Typesafe, None) => {
+            return Err("the typesafe provider serves decision Endpoints only".to_string());
+        }
+        (EndpointProvider::Typesafe | EndpointProvider::Fake, Some(decision)) => {
+            if !decision.is_object() || inference.streaming.is_some() {
+                return Err(
+                    "inferenceConfig.decision must be an object and cannot stream".to_string(),
+                );
+            }
+        }
+        (_, Some(_)) => {
+            return Err("a decision Endpoint needs a decision provider".to_string());
+        }
+        _ => {}
     }
     if let Some(streaming) = &inference.streaming {
         let field = streaming.text_field.trim();

@@ -131,7 +131,7 @@ importers:
         specifier: 4.23.12
         version: 4.23.12
 
-  examples/rundale-input-comparison:
+  examples/rundale-intent-comparison:
     dependencies:
       "@limerick/domain":
         specifier: workspace:*

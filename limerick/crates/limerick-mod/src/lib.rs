@@ -39,8 +39,8 @@ pub use world::world_state_from_mod;
 
 // Re-export Endpoint definition types
 pub use endpoints::{
-    EndpointCatalog, EndpointDefinition, EndpointFile, EndpointRef, EndpointRole, NO_ENDPOINTS,
-    endpoints_of,
+    EndpointCatalog, EndpointDefinition, EndpointFile, EndpointProvider, EndpointRef, EndpointRole,
+    NO_ENDPOINTS, endpoints_of,
 };
 
 // Re-export discovery items. `find_mods_root` is consumed by

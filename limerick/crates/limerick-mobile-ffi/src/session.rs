@@ -756,7 +756,7 @@ impl Session {
                 "{} at {}: {}",
                 input.speaker.display_name, input.current_location.display_name, input.player_input
             ),
-            EndpointInput::Intent(input) => input.player_input.clone(),
+            EndpointInput::Intent(input) => input.line.clone(),
         };
         let record = ExchangeRecord {
             endpoint: format!(
