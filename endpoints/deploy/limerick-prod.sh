@@ -103,8 +103,11 @@ cmd_deploy() {
     local tag=${1:-}
     [[ -n $tag ]] || usage
     local image="$registry/$service:$tag"
+    # An explicit staging folder skips gcloud's check that the default bucket
+    # belongs to the project, which lists every bucket in it.
     gcloud builds submit "$repo_root" --project "$project" --region "$region" \
         --config "$repo_root/endpoints/deploy/google/cloudbuild.server.yaml" \
+        --gcs-source-staging-dir "gs://${project}_cloudbuild/source" \
         --substitutions "_IMAGE=$image" --service-account "$build_account"
     local digest ref
     digest="$(gcloud artifacts docker images describe "$image" --project "$project" \
