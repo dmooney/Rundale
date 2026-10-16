@@ -58,14 +58,17 @@ print(u.urlunsplit((p.scheme,f"{p.username}:{p.password}@127.0.0.1:"+sys.argv[1]
 
 cmd_definitions() {
     case "${1:-}" in verify | publish | export | replace) ;; *) usage ;; esac
-    local owner models
+    local owner google openrouter typesafe
     owner="$(service_env LIMERICK_OWNER_FIREBASE_UID)"
     [[ -n $owner ]] || owner="$(service_env PARISH_OWNER_FIREBASE_UID)"
-    models="$(service_env GOOGLE_ALLOWED_MODELS)"
+    google="$(service_env GOOGLE_ALLOWED_MODELS)"
+    openrouter="$(service_env OPENROUTER_ALLOWED_MODELS)"
+    typesafe="$(service_env TYPESAFE_ALLOWED_MODELS)"
     start_proxy
     cd "$repo_root/endpoints"
     DATABASE_URL="$(database_url)" LIMERICK_OWNER_FIREBASE_UID="$owner" \
-    PROVIDER_MODE=live GOOGLE_ALLOWED_MODELS="$models" \
+    PROVIDER_MODE=live GOOGLE_ALLOWED_MODELS="$google" \
+    OPENROUTER_ALLOWED_MODELS="$openrouter" TYPESAFE_ALLOWED_MODELS="$typesafe" \
         pnpm -s definitions "$1" "$organization" ../mods/rundale/endpoints
 }
 

@@ -1,4 +1,9 @@
-import type { EndpointDefinition, JsonSchema } from "@limerick/domain";
+import {
+  isProviderId,
+  type DecisionSpec,
+  type EndpointDefinition,
+  type JsonSchema,
+} from "@limerick/domain";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { CreatorAuthenticator } from "../auth/creator-auth.js";
 import {
@@ -35,7 +40,7 @@ function definition(value: unknown): EndpointDefinition {
   const provider = record(body.providerConfig, "providerConfig");
   const inference = record(body.inferenceConfig, "inferenceConfig");
   const providerId = text(provider.provider, "provider");
-  if (providerId !== "fake" && providerId !== "openai" && providerId !== "google") {
+  if (!isProviderId(providerId)) {
     throw new ControlError("INVALID_DEFINITION", "provider is invalid.");
   }
   const retryCount = integer(inference.retryCount, "retryCount");
@@ -76,6 +81,8 @@ function definition(value: unknown): EndpointDefinition {
       retryCount,
       ...(temperature === undefined ? {} : { temperature }),
       ...(streamingConfig === undefined ? {} : { streaming: streamingConfig }),
+      // Shape-checked by validateDefinition before it is stored.
+      ...(inference.decision === undefined ? {} : { decision: inference.decision as DecisionSpec }),
     },
   };
 }
