@@ -9,8 +9,11 @@ import io
 import json
 import os
 import plistlib
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -1237,6 +1240,177 @@ def executed_suites(fake: FakeRunner) -> list[tuple[str, ...]]:
         or call["argv"][:2] == ("swift", "test")
         or (call["argv"][0] == "xcodebuild" and call["argv"][-1] in {"test", "build"})
     ]
+
+
+OLDER, NEWER = "20260101T000000000000Z", "20260102T000000000000Z"
+
+
+def stamped_products(report: Path, stamp: str) -> list[Path]:
+    paths = [
+        report / "DerivedData" / f"simulator-{stamp}" / "Build",
+        report / "xcresults" / f"simulator-{stamp}.xcresult",
+        report / "swift-scratch" / stamp,
+    ]
+    for path in paths:
+        path.mkdir(parents=True)
+    (report / "device").mkdir(exist_ok=True)
+    (report / "device" / f"devices-{stamp}.json").write_text("{}\n", encoding="utf-8")
+    return [*paths, report / "device" / f"devices-{stamp}.json"]
+
+
+def run_in_subprocess(command: str) -> tuple[subprocess.Popen, int]:
+    """Start a real runner on `command` and return it with its grandchild's pid."""
+
+    directory = tempfile.mkdtemp()
+    pidfile = Path(directory) / "grandchild.pid"
+    script = (
+        "import signal, sys\n"
+        f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
+        "import verify\n"
+        "signal.signal(signal.SIGTERM, verify._raise_interrupt)\n"
+        "verify.SubprocessCommandRunner().run(\n"
+        f"    ['bash', '-c', {command.replace('PIDFILE', str(pidfile))!r}], cwd='.')\n"
+    )
+    runner = subprocess.Popen([sys.executable, "-c", script])
+    deadline = time.monotonic() + 10
+    while not (pidfile.exists() and pidfile.read_text().strip()):
+        if time.monotonic() > deadline or runner.poll() is not None:
+            raise AssertionError("grandchild never started")
+        time.sleep(0.05)
+    return runner, int(pidfile.read_text())
+
+
+def process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+class PruneTests(unittest.TestCase):
+    def test_a_run_deletes_earlier_runs_products_but_keeps_the_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            earlier = stamped_products(report, OLDER) + stamped_products(report, NEWER)
+            kept = [report / "cache", report / "passes", report / "logs"]
+            for path in kept:
+                path.mkdir(parents=True)
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            for path in earlier:
+                self.assertFalse(path.exists(), path)
+            for path in kept:
+                self.assertTrue(path.is_dir(), path)
+
+    def test_a_killed_runs_live_build_survives_any_number_of_later_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            orphaned = stamped_products(report, OLDER)
+            finished = stamped_products(report, NEWER)
+            # A real runner starts a builder whose arguments carry its run's
+            # timestamp, as xcodebuild's -derivedDataPath does, then is killed
+            # outright, leaving the builder running.
+            pidfile = Path(directory) / "builder.pid"
+            builder = Path(directory) / "builder.py"
+            builder.write_text(
+                "import os, sys, time\n"
+                f"open({str(pidfile)!r}, 'w').write(str(os.getpid()))\n"
+                "time.sleep(60)\n",
+                encoding="utf-8",
+            )
+            script = (
+                "import sys\n"
+                f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
+                "import verify\n"
+                "verify.SubprocessCommandRunner().run(\n"
+                f"    [sys.executable, {str(builder)!r}, 'simulator-{OLDER}'], cwd='.')\n"
+            )
+            runner = subprocess.Popen([sys.executable, "-c", script])
+            deadline = time.monotonic() + 10
+            while not (pidfile.exists() and pidfile.read_text().strip()):
+                self.assertLess(time.monotonic(), deadline, "builder never started")
+                time.sleep(0.05)
+            runner.kill()
+            runner.wait()
+            builder_pid = int(pidfile.read_text())
+            self.assertTrue(process_alive(builder_pid), "the builder should outlive SIGKILL")
+            try:
+                for _ in range(3):  # B, C and D, each pruning
+                    VerificationRun(root, command_runner=FakeRunner()).run(1)
+                    self.assertTrue(all(path.exists() for path in orphaned))
+                self.assertFalse(any(path.exists() for path in finished))
+            finally:
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(builder_pid, signal.SIGKILL)
+                deadline = time.monotonic() + 5
+                while process_alive(builder_pid) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            self.assertFalse(any(path.exists() for path in orphaned))
+
+    def test_a_run_refuses_a_report_directory_another_run_holds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            older = stamped_products(report, OLDER)
+            stamped_products(report, NEWER)
+            with (report / ".run.lock").open("w") as held:
+                verify_module.fcntl.flock(held, verify_module.fcntl.LOCK_EX)
+                with self.assertRaises(verify_module.ReportDirectoryBusy):
+                    VerificationRun(root, command_runner=FakeRunner()).run(fast=True)
+                # The active run's build products survive the refused run.
+                self.assertTrue(all(path.exists() for path in older))
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            self.assertFalse(any(path.exists() for path in older))
+
+    def test_sigterm_stops_the_running_commands_whole_process_group(self):
+        runner, grandchild = run_in_subprocess("sleep 60 & echo $! > PIDFILE; wait")
+        runner.send_signal(signal.SIGTERM)
+        runner.wait(timeout=15)
+        self.assertFalse(process_alive(grandchild))
+
+    def test_a_member_that_ignores_sigterm_is_killed_before_the_runner_exits(self):
+        runner, grandchild = run_in_subprocess(
+            "trap '' TERM; sleep 60 >/dev/null 2>&1 & echo $! > PIDFILE; wait"
+        )
+        try:
+            runner.send_signal(signal.SIGTERM)
+            runner.wait(timeout=20)
+            self.assertFalse(process_alive(grandchild))
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(grandchild, signal.SIGKILL)
+
+
+class StopGroupTests(unittest.TestCase):
+    def test_a_timed_out_command_keeps_what_it_wrote_while_being_stopped(self):
+        # The trap writes on SIGTERM; the background sleep ignores SIGTERM and
+        # keeps the pipe open, so the first wait times out and the group is
+        # killed before its output is read.
+        started = time.monotonic()
+        result = verify_module.SubprocessCommandRunner().run(
+            ["bash", "-c", "trap 'echo stopping' TERM; (trap '' TERM; exec sleep 60) & wait; wait"],
+            cwd=Path("."),
+            timeout_seconds=0.5,
+        )
+        self.assertTrue(result.timed_out)
+        self.assertGreater(time.monotonic() - started, 5, "cleanup never escalated")
+        self.assertIn("stopping", result.stdout)
+
+    def test_a_timeout_stops_descendants_whose_parent_already_exited(self):
+        result = verify_module.SubprocessCommandRunner().run(
+            ["bash", "-c", "echo $$; sleep 60 & exit 0"],
+            cwd=Path("."),
+            timeout_seconds=0.5,
+        )
+        self.assertTrue(result.timed_out)
+        group = int(result.stdout.split()[0])
+        self.assertFalse(verify_module._group_alive(group))
 
 
 class XcresultTreeTests(unittest.TestCase):

@@ -126,7 +126,9 @@ CI does not run the simulator suites. For a PR that changes what the app ships
 `limerick/config`, `rust-toolchain.toml`, `.cargo/`, `bug-report/test/fixtures`), run
 `just mobile-verify --phase all` on a clean checkout of the commit, push, then
 `just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
-pass is recorded for the PR's input tree. Documentation-only commits keep it valid.
+pass is recorded for the PR's input tree. Run the gate once, after review rounds,
+not after each fix. A PR that changes no app input (the verification
+tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
 commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 

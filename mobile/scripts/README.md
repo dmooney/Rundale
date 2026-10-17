@@ -119,7 +119,10 @@ tested inputs, limited to what a full run builds or reads
 `limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
 `.cargo/` and `bug-report/test/fixtures`), with
 `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
-coverage baseline, which a recorded pass is never re-checked against. A merge
+coverage baseline, which a recorded pass is never re-checked against, plus the
+verification tools (`verify.py`, `verify_record.py`, `record-ui-test.py`), which
+their unit tests cover. `release.py` stays in, since it writes Info.plist
+settings into the app. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge
 onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a
@@ -127,7 +130,10 @@ onto a `main` that moved still matches the PR's recorded pass. After pushing,
 tree, for example when the run included uncommitted or untracked inputs. CI's
 "Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
 matching status on any commit of the PR, waiting up to five minutes, so the
-suites run once per change instead of again in CI. The status is the author's
+suites run once per change instead of again in CI. When the PR's input tree
+equals its base's, so the PR changes no app input (verification tools, CI, docs),
+`check` exits 3 and the job passes with no pass recorded; on a push to `main`
+the TestFlight workflow skips the upload the same way. The status is the author's
 attestation that the full gate passed on that tree; it is not an independent
 run.
 
@@ -140,7 +146,19 @@ simulators.
 The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
-directory is `mobile/.verification/`.
+directory is `mobile/.verification/`. Each run starts by deleting the Xcode
+DerivedData, result bundles, Swift scratch directories and device inventories
+earlier runs left there (each run writes its own under a timestamp, and nothing
+reads an earlier run's); the reuse cache, recorded passes and logs stay. An
+earlier run whose timestamp appears in a running process's command line is
+kept: a run killed outright (SIGKILL) can leave its `xcodebuild` or `swift`
+build running, and those commands name their run's output paths. A run holds
+`.run.lock` in the report directory until its report is written, so a second
+run sharing that directory exits with status 2 instead of deleting the first
+run's build; use `--report-dir` to run two at once. Ctrl+C, SIGTERM and command
+timeouts stop the command's whole process group, including descendants whose
+parent already exited, with SIGKILL for any member that ignores SIGTERM, before
+the lock is released.
 
 ## Reusing passes
 

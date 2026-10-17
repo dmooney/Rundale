@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -87,8 +89,15 @@ PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plis
 COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
 # A recorded full pass (verify_record.py) is never re-checked against the
 # coverage baseline the way a reused suite is, so the baseline stays in its key.
-ATTESTATION_IGNORED_PATHSPECS = tuple(
-    spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()
+ATTESTATION_IGNORED_PATHSPECS = (
+    *(spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()),
+    # The verification tools themselves, which their unit tests cover; they
+    # change nothing the app ships. release.py stays in: it writes Info.plist
+    # settings into the app.
+    "mobile/scripts/verify.py",
+    "mobile/scripts/verify_record.py",
+    "mobile/scripts/record-ui-test.py",
+    "mobile/scripts/__init__.py",
 )
 # Everything a full run builds or reads. A recorded pass covers only these, so
 # a merge that changes CI, Endpoints or desktop code leaves it valid. CI's
@@ -167,8 +176,52 @@ class CommandRunner(Protocol):
     ) -> CommandResult: ...
 
 
+def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
+    """Stop a command's whole process group and return its remaining output.
+
+    The group is gone when this returns: a member that ignores SIGTERM gets
+    SIGKILL. Ctrl+C and SIGTERM are held off meanwhile, so a second interrupt
+    cannot abandon the cleanup halfway.
+    """
+
+    blocked = {signal.SIGINT, signal.SIGTERM}
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked) if os.name == "posix" else None
+    try:
+        if os.name != "posix":
+            process.terminate()
+            out, err = process.communicate()
+            return _text(out), _text(err)
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+        drained = True
+        try:
+            out, err = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err, drained = "", "", False
+        # poll() reaps the direct child: a zombie still counts as a member.
+        deadline = time.monotonic() + 5
+        while process.poll() is None or _group_alive(process.pid):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        if process.poll() is None or _group_alive(process.pid):
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            while process.poll() is None or _group_alive(process.pid):
+                time.sleep(0.05)
+        if not drained:
+            # Every member has exited, so the pipes are closed: read what the
+            # command wrote while it was being stopped.
+            more_out, more_err = process.communicate()
+            out, err = _text(out) + _text(more_out), _text(err) + _text(more_err)
+        return _text(out), _text(err)
+    finally:
+        if previous is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
 class SubprocessCommandRunner:
-    """Run each command in a process group so a timeout cleans up children."""
+    """Run each command in a process group so a timeout or interrupt cleans up children."""
 
     def run(
         self,
@@ -201,23 +254,12 @@ class SubprocessCommandRunner:
             )
         except subprocess.TimeoutExpired as exc:
             stdout, stderr = _text(exc.stdout), _text(exc.stderr)
-            if process is not None and process.poll() is None:
-                if os.name == "posix":
-                    with suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGTERM)
-                else:
-                    process.terminate()
-                try:
-                    tail_out, tail_err = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    if os.name == "posix":
-                        with suppress(ProcessLookupError):
-                            os.killpg(process.pid, signal.SIGKILL)
-                    else:
-                        process.kill()
-                    tail_out, tail_err = process.communicate()
-                stdout += _text(tail_out)
-                stderr += _text(tail_err)
+            # The leader may have exited while a descendant keeps the pipes
+            # open; stop whatever is left of the group either way.
+            if process is not None:
+                tail_out, tail_err = _stop_group(process)
+                stdout += tail_out
+                stderr += tail_err
             return CommandResult(
                 process.returncode if process is not None else None,
                 stdout=stdout,
@@ -229,6 +271,12 @@ class SubprocessCommandRunner:
             return CommandResult(
                 None, stderr=str(exc), duration_seconds=time.monotonic() - started, unavailable=True
             )
+        except BaseException:
+            # Ctrl+C or SIGTERM (see main): stop the child's group before the
+            # run's report-directory lock is released, so no build outlives it.
+            if process is not None:
+                _stop_group(process)
+            raise
         return CommandResult(
             process.returncode if process is not None else None,
             stdout=_text(stdout),
@@ -451,6 +499,42 @@ def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, 
             f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
         )
     return PASSED, None
+
+
+def _running_command_lines() -> str | None:
+    """Every running process's full command line, or None if `ps` fails."""
+
+    try:
+        listed = subprocess.run(
+            ["ps", "-axww", "-o", "command="], capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return listed.stdout if listed.returncode == 0 else None
+
+
+def _raise_interrupt(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt
+
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class ReportDirectoryBusy(RuntimeError):
+    """Another run holds the report directory's lock."""
+
+    def __init__(self, report_dir: Path) -> None:
+        super().__init__(
+            f"another mobile-verify run is using {report_dir}; wait for it, or pass "
+            "--report-dir for a separate directory"
+        )
 
 
 class VerificationRun:
@@ -2698,6 +2782,18 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+        with (self.report_dir / ".run.lock").open("w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ReportDirectoryBusy(self.report_dir) from None
+            # Held until the report is written: pruning must never remove what
+            # another run sharing this directory still builds into.
+            return self._locked_run(phase, fast=fast)
+
+    def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
+        self._prune_previous_runs()
         if fast:
             self._fast()
         else:
@@ -2787,6 +2883,40 @@ class VerificationRun:
             + "\n",
             encoding="utf-8",
         )
+
+    def _prune_previous_runs(self) -> None:
+        """Delete earlier runs' build products and result bundles, unless in use.
+
+        Each run writes Xcode DerivedData, result bundles and Swift scratch
+        directories under its own timestamp, and nothing reads an earlier
+        run's: reused passes come from the cache. Kept, they filled the disk.
+        A run killed outright (SIGKILL) can leave its xcodebuild or swift build
+        running; every such command carries its run's timestamp in its
+        arguments, so a timestamp that appears in a running process's command
+        line is kept, however many runs later.
+        """
+
+        stamp = re.compile(r"(\d{8}T\d{12}Z)")
+        entries: dict[str, list[Path]] = {}
+        for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
+            folder = self.report_dir / name
+            for entry in folder.iterdir() if folder.is_dir() else ():
+                match = stamp.search(entry.name)
+                if match:
+                    entries.setdefault(match.group(1), []).append(entry)
+        if not entries:
+            return
+        in_use = _running_command_lines()
+        if in_use is None:
+            return  # without a process list, nothing is known to be free
+        for run, paths in entries.items():
+            if run in in_use:
+                continue
+            for entry in paths:
+                if entry.is_dir():
+                    shutil.rmtree(entry, ignore_errors=True)
+                else:
+                    entry.unlink(missing_ok=True)
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)
@@ -2953,7 +3083,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
     )
-    report = run.run(args.phase, fast=args.fast)
+    # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
+    # group before the report-directory lock is released.
+    signal.signal(signal.SIGTERM, _raise_interrupt)
+    try:
+        report = run.run(args.phase, fast=args.fast)
+    except ReportDirectoryBusy as exc:
+        print(f"mobile-verify: {exc}", file=sys.stderr)
+        return 2
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
     return int(report["exit_code"])
 

@@ -86,15 +86,26 @@ jobs:
         id: recorded
         env:
           GH_TOKEN: ${{ github.token }}
+        # Exit 3 on a push: the merge left every app input as it was, so the
+        # app would be identical and the upload is skipped.
         run: |
-          if python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA"; then
+          status=0
+          python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA" || status=$?
+          if [ "$status" -eq 0 ]; then
             echo "verify=none" >> "$GITHUB_OUTPUT"
+          elif [ "$status" -eq 3 ] && [ "$GITHUB_EVENT_NAME" = push ]; then
+            echo "verify=skip" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::no recorded mobile-verify pass for this commit; running the full gate here"
             echo "verify=all" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Skip the upload
+        if: steps.recorded.outputs.verify == 'skip'
+        run: echo "No app input changed in this merge; nothing new to upload."
+
       - name: Verify, sign and upload
+        if: steps.recorded.outputs.verify != 'skip'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
