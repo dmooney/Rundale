@@ -335,7 +335,85 @@ def _select_simulator(
     return matches[0], None
 
 
-DEFAULT_PARALLEL_WORKERS = 4
+# Measured on an 18-core M5 Pro: one combined run of every simulator suite took
+# 448 s with 4 workers and 353 s with 6.
+DEFAULT_PARALLEL_WORKERS = 6
+# Returned for a simulator suite queued for the combined run; never recorded.
+DEFERRED = "deferred"
+
+
+def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+
+    cases: list[tuple[str, str, str, str]] = []
+
+    def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
+        kind = str(node.get("nodeType", ""))
+        name = str(node.get("name", ""))
+        if kind.endswith("test bundle"):
+            bundle, suite = name, ""
+        elif kind == "Test Suite" and not suite:
+            suite = name
+        elif kind == "Test Case":
+            cases.append((bundle, suite, name, str(node.get("result", ""))))
+            return
+        for child in node.get("children") or ():
+            if isinstance(child, Mapping):
+                walk(child, bundle, suite)
+
+    for node in tree.get("testNodes") or ():
+        if isinstance(node, Mapping):
+            walk(node, "", "")
+    return cases
+
+
+def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
+    """Whether an `-only-testing` selector (bundle, bundle/class or bundle/class/test) names a case."""
+
+    path = (case[0], case[1], case[2].removesuffix("()"))
+    for selector in selectors:
+        parts = tuple(part.removesuffix("()") for part in selector.split("/"))
+        if path[: len(parts)] == parts:
+            return True
+    return False
+
+
+def _case_counts(results: Sequence[str]) -> dict[str, int]:
+    """Count xcresult case results into the summary's buckets; anything unknown fails."""
+
+    passed = sum(result == "Passed" for result in results)
+    skipped = sum(result == "Skipped" for result in results)
+    expected = sum(result == "Expected Failure" for result in results)
+    return {
+        "totalTestCount": len(results),
+        "passedTests": passed,
+        "failedTests": len(results) - passed - skipped - expected,
+        "skippedTests": skipped,
+        "expectedFailures": expected,
+    }
+
+
+def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, str | None]:
+    """Map reconciled xcresult counts to a suite status and reason."""
+
+    total, expected_failures = counts["totalTestCount"], counts["expectedFailures"]
+    if total == 0:
+        return UNAVAILABLE, "xcresult contains no executed tests"
+    if counts["failedTests"]:
+        return FAILED, f"xcresult reports {counts['failedTests']} failed test(s)"
+    if counts["skippedTests"]:
+        return SKIPPED, f"xcresult reports {counts['skippedTests']} skipped test(s)"
+    if counts["passedTests"] + expected_failures != total:
+        return FAILED, f"xcresult reports {counts['passedTests']} of {total} test(s) passed"
+    if result not in (None, "Passed"):
+        return FAILED, f"xcresult reports result {result!r}"
+    if expected_failures:
+        # Passing, but name the known defects so the report never hides them.
+        return (
+            PASSED,
+            f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
+        )
+    return PASSED, None
 
 
 class VerificationRun:
@@ -386,6 +464,8 @@ class VerificationRun:
         self.runner = command_runner or SubprocessCommandRunner()
         self.records: list[dict[str, Any]] = []
         self.results: dict[str, CommandResult] = {}
+        # Simulator suites a full run queues for one combined xcodebuild.
+        self._deferred: list[dict[str, Any]] | None = None
         self.simulator: dict[str, Any] | None = None
         self.physical_device: dict[str, str] | None = (
             {"identifier": device, "source": "override"} if device else None
@@ -1217,6 +1297,7 @@ class VerificationRun:
         name: str | None = None,
         only_testing: str | Sequence[str] | None = None,
         skip_testing: Sequence[str] = (),
+        summary_identifier: str | None = None,
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
         target_kind = (
@@ -1308,6 +1389,24 @@ class VerificationRun:
             )
             if reused is not None:
                 return reused
+        if self._deferred is not None and destination is not None and not is_physical:
+            self._deferred.append(
+                {
+                    "identifier": identifier,
+                    "name": name,
+                    "phase": phase,
+                    "selectors": [only_testing]
+                    if isinstance(only_testing, str)
+                    else list(only_testing or []),
+                    "skip_testing": list(skip_testing),
+                    "summary_identifier": summary_identifier or f"{identifier}-results",
+                    "command": command,
+                    "destination": destination,
+                    "derived": derived,
+                    "key": key,
+                }
+            )
+            return {"id": identifier, "status": DEFERRED}
         record = self._run(
             identifier=identifier,
             name=name,
@@ -1336,6 +1435,109 @@ class VerificationRun:
             if app_identity:
                 record.setdefault("details", {}).update(app_identity)
         return record
+
+    def _run_deferred_simulator_suites(self) -> None:
+        """Run the queued simulator suites as one xcodebuild and record each suite.
+
+        Separate runs each clone and boot their own simulators and wait on their
+        slowest test class; one run spreads every class across the workers.
+        Each suite still passes or fails on its own test cases.
+        """
+
+        pending, self._deferred = self._deferred or [], None
+        if not pending:
+            return
+        if any(spec["skip_testing"] for spec in pending):
+            raise ValueError("a combined simulator run cannot skip tests per suite")
+        selectors: list[str] = []
+        for spec in pending:
+            selectors += [s for s in spec["selectors"] if s not in selectors]
+        bundle = self._bundle("simulator-combined")
+        command: list[str] = []
+        parts = iter(pending[0]["command"])
+        for part in parts:
+            if part.startswith("-only-testing:"):
+                continue
+            command.append(part)
+            if part == "-resultBundlePath":
+                next(parts)
+                command.append(bundle)
+        at = command.index("-derivedDataPath")
+        command[at:at] = [f"-only-testing:{selector}" for selector in selectors]
+        run = self._run(
+            identifier="ios-simulator-combined-run",
+            name="Combined iOS simulator test run",
+            phase=pending[0]["phase"],
+            command=command,
+            required=False,
+            kind="infrastructure",
+            env=self._xcode_env(),
+            details={
+                "suites": [spec["identifier"] for spec in pending],
+                "destination": pending[0]["destination"],
+                "derived_data": pending[0]["derived"],
+                "result_bundle": bundle,
+            },
+        )
+        tree = self._execute(
+            ["xcrun", "xcresulttool", "get", "test-results", "tests", "--path", bundle, "--compact"]
+        )
+        cases: list[tuple[str, str, str, str]] | None = None
+        unreadable = _failure_reason(tree, "xcresulttool could not read the combined result bundle")
+        if tree.returncode == 0:
+            try:
+                parsed = json.loads(tree.stdout)
+            except json.JSONDecodeError as exc:
+                unreadable = f"xcresulttool returned invalid JSON: {exc}"
+            else:
+                if isinstance(parsed, Mapping):
+                    cases = _xcresult_cases(parsed)
+                else:
+                    unreadable = "xcresulttool returned a JSON value that is not an object"
+        app_identity = (
+            self._built_app_identity(self.root / pending[0]["derived"])
+            if run["status"] == PASSED
+            else {}
+        )
+        for spec in pending:
+            counts: dict[str, int] | None = None
+            reason: str | None
+            if cases is None:
+                status, reason = FAILED, unreadable
+            else:
+                counts = _case_counts([c[3] for c in cases if _selected(c, spec["selectors"])])
+                status, reason = _result_status(counts)
+                if status == PASSED and run["status"] != PASSED:
+                    status, reason = FAILED, f"the combined run failed: {run.get('reason')}"
+            details: dict[str, Any] = {
+                "scheme": self.scheme,
+                "destination": spec["destination"],
+                "target": "simulator",
+                "derived_data": spec["derived"],
+                "result_bundle": bundle,
+                "combined_run": "ios-simulator-combined-run",
+                **(counts or {}),
+                **({"cache_key": spec["key"]} if spec["key"] else {}),
+                **(app_identity if status == PASSED else {}),
+            }
+            self._record(
+                identifier=spec["identifier"],
+                name=spec["name"],
+                phase=spec["phase"],
+                status=status,
+                required=True,
+                reason=reason,
+                details=details,
+            )
+            self._record(
+                identifier=spec["summary_identifier"],
+                name="iOS simulator test-result validation",
+                phase=spec["phase"],
+                status=status,
+                required=True,
+                reason=reason,
+                details={"result_bundle": bundle, **(counts or {})},
+            )
 
     def _built_app_identity(self, derived_path: Path) -> dict[str, Any]:
         for plist_path in sorted(derived_path.glob("Build/Products/*/Rundale.app/Info.plist")):
@@ -1821,36 +2023,7 @@ class VerificationRun:
             self._change(test_record, FAILED, reason, counts)
             self._change(summary_record, FAILED, reason, counts)
             return
-        if total == 0:
-            result_status, result_reason = UNAVAILABLE, "xcresult contains no executed tests"
-        elif counts["failedTests"]:
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports {counts['failedTests']} failed test(s)",
-            )
-        elif counts["skippedTests"]:
-            result_status, result_reason = (
-                SKIPPED,
-                f"xcresult reports {counts['skippedTests']} skipped test(s)",
-            )
-        elif counts["passedTests"] + expected_failures != total:
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports {counts['passedTests']} of {total} test(s) passed",
-            )
-        elif summary.get("result") not in (None, "Passed"):
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports result {summary.get('result')!r}",
-            )
-        elif expected_failures:
-            # Passing, but name the known defects so the report never hides them.
-            result_status, result_reason = (
-                PASSED,
-                f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
-            )
-        else:
-            result_status, result_reason = PASSED, None
+        result_status, result_reason = _result_status(counts, summary.get("result"))
         self._change(test_record, result_status, result_reason, counts)
         self._change(summary_record, result_status, result_reason, counts)
 
@@ -1903,6 +2076,7 @@ class VerificationRun:
                 "RundaleTests/TranscriptScrollingTests",
                 "RundaleTests/HeaderWeatherTests",
             ],
+            summary_identifier="ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(record, phase=1)
@@ -1960,6 +2134,7 @@ class VerificationRun:
                 "RundaleTests/RundaleEngineLifecycleTests",
                 "RundaleTests/RundaleBugReportTests",
             ],
+            summary_identifier="phase2-ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(
@@ -2014,6 +2189,7 @@ class VerificationRun:
             identifier=identifier,
             name=name,
             only_testing=PHASE3_UI_CLASSES,
+            summary_identifier="phase3-ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(
@@ -2316,6 +2492,7 @@ class VerificationRun:
                 identifier=identifier,
                 name=name,
                 only_testing=target,
+                summary_identifier=f"{identifier}-results",
             )
             if record["status"] == PASSED:
                 self._validate_result(record, phase=4, summary_identifier=f"{identifier}-results")
@@ -2452,10 +2629,14 @@ class VerificationRun:
             # before Phase 1 generates/builds that project, then retain the
             # single packaging result when Phase 2 runs its remaining gates.
             self._mobile_rust_packaging()
+            # Every simulator suite runs in one xcodebuild after Phase 4 queues
+            # its own, instead of one xcodebuild per suite.
+            self._deferred = []
             self._phase1()
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            self._run_deferred_simulator_suites()
             self._optional_physical_suites()
             if phase is None:
                 self._future()
