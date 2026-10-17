@@ -20,6 +20,7 @@ on:
       - "limerick/Cargo.toml"
       - "limerick/Cargo.lock"
       - "rust-toolchain.toml"
+      - ".cargo/**"
       - ".github/workflows/testflight.yml"
   workflow_dispatch:
 

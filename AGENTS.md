@@ -122,7 +122,8 @@ path. Read [build/test](docs/agent/build-test.md) for mobile verification requir
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
 CI does not run the simulator suites. For a PR that changes what the app ships
-(`mobile/`, `mods/`, the engine crates, Cargo files, the Rust toolchain), run
+(`mobile/`, `mods/`, `limerick/crates`, `limerick/testing`, the Cargo files,
+`rust-toolchain.toml`, `.cargo/`), run
 `just mobile-verify --phase all` on a clean checkout of the commit, push, then
 `just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
 pass is recorded for the PR's input tree. Documentation-only commits keep it valid.

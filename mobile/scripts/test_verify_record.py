@@ -114,6 +114,24 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "gate")
         self.assertNotEqual(record_module.input_tree(), before)
 
+    def test_changes_outside_the_app_inputs_keep_the_input_tree(self):
+        before = record_module.input_tree()
+        for path in (".github/workflows/ci.yml", "endpoints/server.ts", "limerick/apps/ui/a.ts"):
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_text("changed\n", encoding="utf-8")
+        commit(self.root, "elsewhere")
+        self.assertEqual(record_module.input_tree(), before)
+        for path in (
+            "limerick/crates/core/lib.rs",
+            "mods/rundale/world.json",
+            ".cargo/config.toml",
+        ):
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_text("changed\n", encoding="utf-8")
+            commit(self.root, path)
+            self.assertNotEqual(record_module.input_tree(), before, path)
+            before = record_module.input_tree()
+
     def test_coverage_baseline_changes_the_input_tree(self):
         before = record_module.input_tree()
         baseline = self.root / "mobile" / "coverage-baseline.json"
