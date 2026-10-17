@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -169,8 +169,33 @@ class CommandRunner(Protocol):
     ) -> CommandResult: ...
 
 
+def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
+    """Stop a command's whole process group and return its remaining output."""
+
+    if process.poll() is None:
+        if os.name == "posix":
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    try:
+        out, err = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        if os.name == "posix":
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+        out, err = process.communicate()
+    return _text(out), _text(err)
+
+
 class SubprocessCommandRunner:
-    """Run each command in a process group so a timeout cleans up children."""
+    """Run each command in a process group so a timeout or interrupt cleans up children."""
+
+    def __init__(self) -> None:
+        # Called with each child's pid (its process group) when it starts.
+        self.on_start: Callable[[int], None] | None = None
 
     def run(
         self,
@@ -192,6 +217,8 @@ class SubprocessCommandRunner:
                 text=True,
                 start_new_session=(os.name == "posix"),
             )
+            if self.on_start is not None:
+                self.on_start(process.pid)
             stdout, stderr = process.communicate(timeout=timeout_seconds)
         except FileNotFoundError as exc:
             return CommandResult(
@@ -204,22 +231,9 @@ class SubprocessCommandRunner:
         except subprocess.TimeoutExpired as exc:
             stdout, stderr = _text(exc.stdout), _text(exc.stderr)
             if process is not None and process.poll() is None:
-                if os.name == "posix":
-                    with suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGTERM)
-                else:
-                    process.terminate()
-                try:
-                    tail_out, tail_err = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    if os.name == "posix":
-                        with suppress(ProcessLookupError):
-                            os.killpg(process.pid, signal.SIGKILL)
-                    else:
-                        process.kill()
-                    tail_out, tail_err = process.communicate()
-                stdout += _text(tail_out)
-                stderr += _text(tail_err)
+                tail_out, tail_err = _stop_group(process)
+                stdout += tail_out
+                stderr += tail_err
             return CommandResult(
                 process.returncode if process is not None else None,
                 stdout=stdout,
@@ -231,6 +245,12 @@ class SubprocessCommandRunner:
             return CommandResult(
                 None, stderr=str(exc), duration_seconds=time.monotonic() - started, unavailable=True
             )
+        except BaseException:
+            # Ctrl+C or SIGTERM (see main): stop the child's group before the
+            # run's report-directory lock is released, so no build outlives it.
+            if process is not None:
+                _stop_group(process)
+            raise
         return CommandResult(
             process.returncode if process is not None else None,
             stdout=_text(stdout),
@@ -455,14 +475,32 @@ def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, 
     return PASSED, None
 
 
-class ReportDirectoryBusy(RuntimeError):
-    """Another run holds the report directory's lock."""
+def _raise_interrupt(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt
 
-    def __init__(self, report_dir: Path) -> None:
-        super().__init__(
-            f"another mobile-verify run is using {report_dir}; wait for it, or pass "
-            "--report-dir for a separate directory"
-        )
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class ReportDirectoryBusy(RuntimeError):
+    """Another run, or a build an interrupted run left, is using the report directory."""
+
+    def __init__(self, report_dir: Path, *, child: int | None = None) -> None:
+        if child is None:
+            message = f"another mobile-verify run is using {report_dir}"
+        else:
+            message = (
+                f"process group {child}, started by an interrupted mobile-verify run, "
+                f"is still running in {report_dir}; stop it (kill -- -{child})"
+            )
+        super().__init__(f"{message}; wait for it, or pass --report-dir for a separate directory")
 
 
 class VerificationRun:
@@ -2711,14 +2749,38 @@ class VerificationRun:
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
         self.report_dir.mkdir(parents=True, exist_ok=True)
-        with (self.report_dir / ".run.lock").open("w") as lock:
+        with (self.report_dir / ".run.lock").open("a+") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ReportDirectoryBusy(self.report_dir) from None
             # Held until the report is written: pruning must never remove what
-            # another run sharing this directory still builds into.
-            return self._locked_run(phase, fast=fast)
+            # another run sharing this directory still builds into. The file
+            # names the last child process group; one still alive is a build
+            # an interrupted run left behind (`kill -9`), so refuse too.
+            lock.seek(0)
+            previous = lock.read().strip()
+            if previous.isdigit() and _group_alive(int(previous)):
+                raise ReportDirectoryBusy(self.report_dir, child=int(previous))
+            on_start = getattr(self.runner, "on_start", False)
+            if on_start is None:
+
+                def note(pid: int) -> None:
+                    lock.seek(0)
+                    lock.truncate()
+                    lock.write(f"{pid}\n")
+                    lock.flush()
+
+                self.runner.on_start = note  # type: ignore[attr-defined]
+            try:
+                return self._locked_run(phase, fast=fast)
+            finally:
+                if on_start is None:
+                    self.runner.on_start = None  # type: ignore[attr-defined]
+                # Every child has exited or been stopped; only a run killed
+                # outright (SIGKILL) leaves a group behind for the next run.
+                lock.seek(0)
+                lock.truncate()
 
     def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
         self._prune_previous_runs()
@@ -2989,6 +3051,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
     )
+    # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
+    # group before the report-directory lock is released.
+    signal.signal(signal.SIGTERM, _raise_interrupt)
     try:
         report = run.run(args.phase, fast=args.fast)
     except ReportDirectoryBusy as exc:

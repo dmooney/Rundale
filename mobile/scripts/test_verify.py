@@ -9,8 +9,11 @@ import io
 import json
 import os
 import plistlib
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -1276,6 +1279,53 @@ class PruneTests(unittest.TestCase):
                 # The active run's build products survive the refused run.
                 self.assertTrue(products.is_dir())
             # Once released, a later run proceeds and prunes them.
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            self.assertFalse(products.exists())
+
+    def test_sigterm_stops_the_running_commands_whole_process_group(self):
+        # A real runner process, interrupted the way `kill` interrupts verify.py.
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile = Path(directory) / "grandchild.pid"
+            script = (
+                "import signal, sys\n"
+                f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
+                "import verify\n"
+                "signal.signal(signal.SIGTERM, verify._raise_interrupt)\n"
+                "verify.SubprocessCommandRunner().run(\n"
+                f"    ['bash', '-c', 'sleep 60 & echo $! > {pidfile}; wait'], cwd='.')\n"
+            )
+            runner = subprocess.Popen([sys.executable, "-c", script])
+            deadline = time.monotonic() + 10
+            while not (pidfile.exists() and pidfile.read_text().strip()):
+                self.assertLess(time.monotonic(), deadline, "grandchild never started")
+                time.sleep(0.05)
+            grandchild = int(pidfile.read_text())
+            runner.send_signal(signal.SIGTERM)
+            runner.wait(timeout=15)
+            deadline = time.monotonic() + 5
+            while verify_module._group_alive(grandchild) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            with contextlib.suppress(ProcessLookupError):
+                alive = os.kill(grandchild, 0) is None
+                self.fail(f"grandchild {grandchild} outlived the runner (alive={alive})")
+
+    def test_a_build_left_by_a_killed_run_blocks_pruning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            products = report / "DerivedData" / "simulator-20260101T000000Z"
+            products.mkdir(parents=True)
+            survivor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+            try:
+                (report / ".run.lock").write_text(f"{survivor.pid}\n", encoding="utf-8")
+                with self.assertRaises(verify_module.ReportDirectoryBusy) as raised:
+                    VerificationRun(root, command_runner=FakeRunner()).run(fast=True)
+                self.assertIn(str(survivor.pid), str(raised.exception))
+                self.assertTrue(products.is_dir())
+            finally:
+                survivor.kill()
+                survivor.wait()
             VerificationRun(root, command_runner=FakeRunner()).run(1)
             self.assertFalse(products.exists())
 

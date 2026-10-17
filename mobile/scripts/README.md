@@ -146,7 +146,10 @@ earlier runs left there (each run writes its own, and nothing reads an earlier
 run's); the reuse cache, recorded passes and logs stay. A run holds
 `.run.lock` in the report directory until its report is written, so a second
 run sharing that directory exits with status 2 instead of deleting the first
-run's build; use `--report-dir` to run two at once.
+run's build; use `--report-dir` to run two at once. Ctrl+C or SIGTERM stops
+the running command's whole process group before the lock is released. A run
+killed outright (SIGKILL) can leave a build running; the lock file names its
+process group, and the next run refuses to prune while that group is alive.
 
 ## Reusing passes
 
