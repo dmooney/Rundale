@@ -1289,22 +1289,44 @@ def process_alive(pid: int) -> bool:
 
 
 class PruneTests(unittest.TestCase):
-    def test_a_run_keeps_only_the_last_runs_build_products_and_the_cache(self):
+    def test_a_run_deletes_earlier_runs_products_but_keeps_the_cache(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
             report = root / "mobile" / ".verification"
-            older = stamped_products(report, OLDER)
-            newer = stamped_products(report, NEWER)
+            earlier = stamped_products(report, OLDER) + stamped_products(report, NEWER)
             kept = [report / "cache", report / "passes", report / "logs"]
             for path in kept:
                 path.mkdir(parents=True)
             VerificationRun(root, command_runner=FakeRunner()).run(1)
-            for path in older:
+            for path in earlier:
                 self.assertFalse(path.exists(), path)
-            # The newest earlier run's build may still be running (SIGKILL).
-            for path in newer + kept:
-                self.assertTrue(path.exists(), path)
+            for path in kept:
+                self.assertTrue(path.is_dir(), path)
+
+    def test_a_killed_runs_live_build_survives_any_number_of_later_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            orphaned = stamped_products(report, OLDER)
+            finished = stamped_products(report, NEWER)
+            # A builder whose runner was SIGKILLed: its arguments carry its
+            # run's timestamp, as xcodebuild's -derivedDataPath does.
+            builder = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(60)", f"simulator-{OLDER}"],
+                start_new_session=True,
+            )
+            try:
+                for _ in range(3):  # B, C and D, each pruning
+                    VerificationRun(root, command_runner=FakeRunner()).run(1)
+                    self.assertTrue(all(path.exists() for path in orphaned))
+                self.assertFalse(any(path.exists() for path in finished))
+            finally:
+                builder.kill()
+                builder.wait()
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            self.assertFalse(any(path.exists() for path in orphaned))
 
     def test_a_run_refuses_a_report_directory_another_run_holds(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1355,6 +1377,16 @@ class StopGroupTests(unittest.TestCase):
         self.assertTrue(result.timed_out)
         self.assertGreater(time.monotonic() - started, 5, "cleanup never escalated")
         self.assertIn("stopping", result.stdout)
+
+    def test_a_timeout_stops_descendants_whose_parent_already_exited(self):
+        result = verify_module.SubprocessCommandRunner().run(
+            ["bash", "-c", "echo $$; sleep 60 & exit 0"],
+            cwd=Path("."),
+            timeout_seconds=0.5,
+        )
+        self.assertTrue(result.timed_out)
+        group = int(result.stdout.split()[0])
+        self.assertFalse(verify_module._group_alive(group))
 
 
 class XcresultTreeTests(unittest.TestCase):

@@ -141,16 +141,17 @@ The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`. Each run starts by deleting the Xcode
-DerivedData, result bundles, Swift scratch directories and device inventories of
-all but the newest earlier run (each run writes its own under a timestamp, and
-nothing reads an earlier run's); the reuse cache, recorded passes and logs stay.
-The newest earlier run's are kept because a run killed outright (SIGKILL) can
-leave its build still writing there; that protects one earlier run, so a build
-that outlives two later runs can lose its directory. A run holds `.run.lock` in the report
-directory until its report is written, so a second run sharing that directory
-exits with status 2 instead of deleting the first run's build; use
-`--report-dir` to run two at once. Ctrl+C or SIGTERM stops the running command's
-whole process group, with SIGKILL for any member that ignores SIGTERM, before
+DerivedData, result bundles, Swift scratch directories and device inventories
+earlier runs left there (each run writes its own under a timestamp, and nothing
+reads an earlier run's); the reuse cache, recorded passes and logs stay. An
+earlier run whose timestamp appears in a running process's command line is
+kept: a run killed outright (SIGKILL) can leave its `xcodebuild` or `swift`
+build running, and those commands name their run's output paths. A run holds
+`.run.lock` in the report directory until its report is written, so a second
+run sharing that directory exits with status 2 instead of deleting the first
+run's build; use `--report-dir` to run two at once. Ctrl+C, SIGTERM and command
+timeouts stop the command's whole process group, including descendants whose
+parent already exited, with SIGKILL for any member that ignores SIGTERM, before
 the lock is released.
 
 ## Reusing passes

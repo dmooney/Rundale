@@ -247,7 +247,9 @@ class SubprocessCommandRunner:
             )
         except subprocess.TimeoutExpired as exc:
             stdout, stderr = _text(exc.stdout), _text(exc.stderr)
-            if process is not None and process.poll() is None:
+            # The leader may have exited while a descendant keeps the pipes
+            # open; stop whatever is left of the group either way.
+            if process is not None:
                 tail_out, tail_err = _stop_group(process)
                 stdout += tail_out
                 stderr += tail_err
@@ -490,6 +492,18 @@ def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, 
             f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
         )
     return PASSED, None
+
+
+def _running_command_lines() -> str | None:
+    """Every running process's full command line, or None if `ps` fails."""
+
+    try:
+        listed = subprocess.run(
+            ["ps", "-axww", "-o", "command="], capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return listed.stdout if listed.returncode == 0 else None
 
 
 def _raise_interrupt(signum: int, frame: Any) -> None:
@@ -2864,13 +2878,15 @@ class VerificationRun:
         )
 
     def _prune_previous_runs(self) -> None:
-        """Delete the build products and result bundles of all but the last run.
+        """Delete earlier runs' build products and result bundles, unless in use.
 
         Each run writes Xcode DerivedData, result bundles and Swift scratch
         directories under its own timestamp, and nothing reads an earlier
         run's: reused passes come from the cache. Kept, they filled the disk.
-        The newest earlier run's are kept, because a run killed outright
-        (SIGKILL) can leave its build still writing there.
+        A run killed outright (SIGKILL) can leave its xcodebuild or swift build
+        running; every such command carries its run's timestamp in its
+        arguments, so a timestamp that appears in a running process's command
+        line is kept, however many runs later.
         """
 
         stamp = re.compile(r"(\d{8}T\d{12}Z)")
@@ -2881,8 +2897,15 @@ class VerificationRun:
                 match = stamp.search(entry.name)
                 if match:
                     entries.setdefault(match.group(1), []).append(entry)
-        for run in sorted(entries)[:-1]:
-            for entry in entries[run]:
+        if not entries:
+            return
+        in_use = _running_command_lines()
+        if in_use is None:
+            return  # without a process list, nothing is known to be free
+        for run, paths in entries.items():
+            if run in in_use:
+                continue
+            for entry in paths:
                 if entry.is_dir():
                     shutil.rmtree(entry, ignore_errors=True)
                 else:
