@@ -89,8 +89,11 @@ PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plis
 COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
 # A recorded full pass (verify_record.py) is never re-checked against the
 # coverage baseline the way a reused suite is, so the baseline stays in its key.
-ATTESTATION_IGNORED_PATHSPECS = tuple(
-    spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()
+ATTESTATION_IGNORED_PATHSPECS = (
+    *(spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()),
+    # The gate's own Python tooling, which its unit tests cover. Changing it
+    # leaves the app untested by nothing, so a recorded pass stays valid.
+    ":(glob)mobile/scripts/*.py",
 )
 # Everything a full run builds or reads. A recorded pass covers only these, so
 # a merge that changes CI, Endpoints or desktop code leaves it valid. CI's

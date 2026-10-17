@@ -43,8 +43,10 @@ def commit(root: Path, message: str) -> str:
 class FakeGitHub:
     """Answers the `gh api` calls verify_record makes, from in-memory statuses."""
 
-    def __init__(self, pulls: dict[int, list[str]], statuses: dict[str, list[dict]]):
-        self.pulls, self.statuses = pulls, statuses
+    def __init__(
+        self, pulls: dict[int, list[str]], statuses: dict[str, list[dict]], base: str = ""
+    ):
+        self.pulls, self.statuses, self.base = pulls, statuses, base
         self.posted: list[tuple[str, dict[str, str]]] = []
 
     def __call__(self, *args: str):
@@ -61,7 +63,7 @@ class FakeGitHub:
         path = args[-1]
         parts = path.split("/")
         if parts[3] == "pulls" and len(parts) == 5:
-            return {"head": {"sha": self.pulls[int(parts[4])][-1]}}
+            return {"head": {"sha": self.pulls[int(parts[4])][-1]}, "base": {"sha": self.base}}
         if parts[3] == "pulls":
             return [[{"sha": sha} for sha in self.pulls[int(parts[4])]]]
         if parts[-1] == "statuses":
@@ -76,9 +78,12 @@ class VerifyRecordTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
         test_verify_module.create_cached_repository(self.root)
-        self.head = subprocess.run(
+        # main before the PR, then the PR's commit changing an app input.
+        self.base = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=self.root, check=True, capture_output=True, text=True
         ).stdout.strip()
+        (self.root / "mobile" / "project.yml").write_text("name: Rundale 2\n", encoding="utf-8")
+        self.head = commit(self.root, "app change")
         self.patches = [
             patch.object(record_module, "ROOT", self.root),
             patch.object(
@@ -102,7 +107,7 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "app")
         self.assertNotEqual(record_module.input_tree(), before)
 
-    def test_gate_script_tests_do_not_change_the_input_tree(self):
+    def test_gate_tooling_does_not_change_the_input_tree_but_the_rust_build_does(self):
         before = record_module.input_tree()
         scripts = self.root / "mobile" / "scripts"
         (scripts / "fixtures").mkdir(parents=True)
@@ -111,7 +116,10 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "tests")
         self.assertEqual(record_module.input_tree(), before)
         (scripts / "verify.py").write_text("# gate\n", encoding="utf-8")
-        commit(self.root, "gate")
+        commit(self.root, "gate tooling")
+        self.assertEqual(record_module.input_tree(), before)
+        (scripts / "build-rust-mobile.sh").write_text("# build\n", encoding="utf-8")
+        commit(self.root, "rust build")
         self.assertNotEqual(record_module.input_tree(), before)
 
     def test_changes_outside_the_app_inputs_keep_the_input_tree(self):
@@ -175,7 +183,7 @@ class VerifyRecordTests(unittest.TestCase):
         passes = self.root / "mobile" / ".verification" / "passes"
         passes.mkdir(parents=True)
         (passes / f"{tree}.json").write_text(json.dumps({"input_tree": tree}))
-        fake = FakeGitHub({7: [self.head]}, {})
+        fake = FakeGitHub({7: [self.head]}, {}, base=self.base)
         with patch.object(record_module, "_gh", fake), redirect_stdout(io.StringIO()):
             self.assertEqual(record_module.record(), 0)
             self.assertEqual(fake.posted[0][0], self.head)
@@ -184,13 +192,31 @@ class VerifyRecordTests(unittest.TestCase):
             later = commit(self.root, "docs")
             fake.pulls[7].append(later)
             self.assertEqual(record_module.check(pr=7, commit=None, wait=0), 0)
-            # The squash commit on main has the same tree, and finds the PR's pass.
-            self.assertEqual(record_module.check(pr=None, commit=later, wait=0), 0)
+            # A merge commit whose parent lacks the change finds the PR's pass.
+            self.assertEqual(record_module.check(pr=None, commit=self.head, wait=0), 0)
+            # A later docs-only merge changes no app input: nothing to test.
+            self.assertEqual(
+                record_module.check(pr=None, commit=later, wait=0), record_module.UNCHANGED
+            )
+
+    def test_a_pr_that_changes_no_app_input_needs_no_pass(self):
+        tooling = self.root / "mobile" / "scripts" / "verify.py"
+        tooling.parent.mkdir(parents=True, exist_ok=True)
+        tooling.write_text("# gate tooling\n", encoding="utf-8")
+        (self.root / ".github").mkdir(exist_ok=True)
+        (self.root / ".github" / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        tooling_head = commit(self.root, "tooling")
+        fake = FakeGitHub({8: [tooling_head]}, {}, base=self.head)
+        with patch.object(record_module, "_gh", fake), redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                record_module.check(pr=8, commit=None, wait=0), record_module.UNCHANGED
+            )
 
     def test_check_fails_when_the_recorded_tree_is_stale(self):
         fake = FakeGitHub(
-            {7: [self.head]},
-            {
+            base=self.base,
+            pulls={7: [self.head]},
+            statuses={
                 self.head: [
                     {
                         "context": "mobile-verify",

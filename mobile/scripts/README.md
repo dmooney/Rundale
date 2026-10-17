@@ -119,7 +119,8 @@ tested inputs, limited to what a full run builds or reads
 `limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
 `.cargo/` and `bug-report/test/fixtures`), with
 `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
-coverage baseline, which a recorded pass is never re-checked against. A merge
+coverage baseline, which a recorded pass is never re-checked against, plus the
+gate's own Python tooling (`mobile/scripts/*.py`), which its unit tests cover. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge
 onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a
@@ -127,7 +128,10 @@ onto a `main` that moved still matches the PR's recorded pass. After pushing,
 tree, for example when the run included uncommitted or untracked inputs. CI's
 "Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
 matching status on any commit of the PR, waiting up to five minutes, so the
-suites run once per change instead of again in CI. The status is the author's
+suites run once per change instead of again in CI. When the PR's input tree
+equals its base's, so the PR changes no app input (gate tooling, CI, docs),
+`check` exits 3 and the job passes with no pass recorded; on a push to `main`
+the TestFlight workflow skips the upload the same way. The status is the author's
 attestation that the full gate passed on that tree; it is not an independent
 run.
 

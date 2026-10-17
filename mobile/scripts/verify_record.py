@@ -13,6 +13,9 @@ CI and the TestFlight workflow need neither Xcode nor a second run.
     verify_record.py check --pr N          # CI: a matching pass for PR N's head
     verify_record.py check --commit SHA    # TestFlight: for a merge commit
 
+`check` exits 0 for a matching pass, 3 when the change leaves every app input as
+its base had it (nothing to test), and 1 otherwise.
+
 The status is the author's attestation that `mobile-verify --phase all` passed
 on that tree with their toolchain; it is not an independent run.
 """
@@ -112,14 +115,24 @@ def record() -> int:
     return 0
 
 
+UNCHANGED = 3  # check's exit status when the app inputs did not change
+
+
 def check(*, pr: int | None, commit: str | None, wait: int) -> int:
     repo = _repo()
     if pr is not None:
-        head = _gh("api", f"repos/{repo}/pulls/{pr}")["head"]["sha"]
-        tree = input_tree(head)
+        pull = _gh("api", f"repos/{repo}/pulls/{pr}")
+        head = pull["head"]["sha"]
+        base = _git("merge-base", head, pull["base"]["sha"])
     else:
         assert commit is not None
-        tree = input_tree(commit)
+        head, base = commit, f"{commit}^"
+    tree = input_tree(head)
+    # A change that leaves every app input as it was (gate tooling, CI, docs,
+    # Endpoints) has nothing for the simulator suites to test.
+    if tree == input_tree(base):
+        print(f"No app input changed (input tree {tree}); no {CONTEXT} pass is needed.")
+        return UNCHANGED
     deadline = time.monotonic() + wait
     while True:
         if pr is not None:
