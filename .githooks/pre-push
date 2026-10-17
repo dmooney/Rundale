@@ -24,4 +24,19 @@ bash limerick/scripts/ensure-deps.sh js . || {
 }
 
 echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
-exec bash limerick/scripts/check-docs-format.sh
+bash limerick/scripts/check-docs-format.sh
+
+# Python changes also get CI's ruff and mypy checks ("Python quality"), which
+# `just check` does not run: a branch-local `mypy` on single files once missed
+# a type error `mypy .` caught in CI.
+base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+if [[ -n "$base" ]] && git diff --name-only "$base" HEAD -- '*.py' | grep -q .; then
+    bash limerick/scripts/ensure-deps.sh py || {
+        echo "pre-push: could not install the Python tooling (see above)." >&2
+        exit 1
+    }
+    echo "pre-push: checking Python (ruff + mypy)..."
+    .venv-dev/bin/ruff check .
+    .venv-dev/bin/ruff format --check .
+    .venv-dev/bin/mypy .
+fi
