@@ -150,14 +150,45 @@ where applicable. Run `just notices` when dependencies change.
 ### Gatekeeper review
 
 Every PR an agent opens is reviewed by a gatekeeper before it merges. Do not merge
-your own PR. Once its required checks pass, spawn a fresh-context subagent (never a
-fork of your session) and give it only the PR number and the instruction to run the
-[`gatekeeper`](.agents/skills/gatekeeper/SKILL.md) skill on that PR. The gatekeeper
-squash-merges it, sends it back with review comments, or hands it to the owner.
-Address its comments with new commits, wait for checks, and spawn a new gatekeeper
-for the next round. A hand-off waits for the owner: report it, and move on to work
-that does not depend on it. The one exception is the owner asking to land a PR
-directly, which the [`land`](.agents/skills/land/SKILL.md) skill does.
+your own PR. The gatekeeper runs the [`gatekeeper`](.agents/skills/gatekeeper/SKILL.md)
+skill in a fresh context (never a fork of your session), given only the checkout
+path or the PR number.
+
+- **Before the PR:** run it on your checkout while the work is uncommitted or
+  unpushed. It reviews locally and reports straight back, with nothing posted to
+  GitHub. Fix what it finds and run it again until its verdict is `approve` or
+  `handoff`, then push and open the PR.
+- **On the PR:** once the required checks pass, run it with the PR number. It
+  squash-merges the PR, sends it back with review comments, or hands it to the
+  owner. Address comments with new commits, wait for checks, and run a new
+  gatekeeper for the next round.
+
+A hand-off waits for the owner: report it, and move on to work that does not
+depend on it. The one exception is the owner asking to land a PR directly, which
+the [`land`](.agents/skills/land/SKILL.md) skill does.
+
+The gatekeeper is a different model from the author. A change whose commits carry
+a `Co-Authored-By: Claude …` trailer is reviewed by GPT through Codex, which reads
+the same skill (`.codex/skills` links to `.agents/skills`); read its report from
+the `-o` file:
+
+```sh
+codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
+  -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+```
+
+Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
+for input forever. Run a local review in its own worktree so branch switches in
+the main checkout cannot change what it reads, and check its output within a few
+minutes of starting it.
+
+Every other change is reviewed by Claude, run from the checkout:
+
+```sh
+claude -p --model claude-opus-5-5 "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+```
+
+Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
 ### Keep the iPhone beta current
 
