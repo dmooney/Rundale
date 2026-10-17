@@ -840,11 +840,8 @@ pub async fn handle_npc_conversation_settled(
         if absent.is_empty() {
             ctx.emitter.emit_event(
                 "text-log",
-                serde_json::to_value(text_log(
-                    "system",
-                    "No one here answers to that name just now.",
-                ))
-                .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(text_log("system", super::input::NO_ONE_ANSWERS))
+                    .unwrap_or(serde_json::Value::Null),
             );
         } else {
             // #1493: all named targets are absent. The player may have typed a

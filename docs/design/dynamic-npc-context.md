@@ -629,7 +629,7 @@ numbers stay subject to the comparison, as §4.3 and §5 say.
   (§3.1).
 - A `festival` field in the dialogue snapshot (§6).
 - One person present and an uncertain answer: that person answers (§3.1).
-- Thresholds of 0.80 and 0.70, fixed by the comparison (§4.3).
+- Thresholds of 0.70 and 0.70, fixed by the comparison (§4.3).
 - A 2 s System 1 timeout (§4.4).
 - Latency budget: p95 no worse than the baseline and at most 800 ms; tie-break
   order (§5).

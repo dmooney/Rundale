@@ -603,6 +603,9 @@ pub async fn handle_game_input_settled(
                 decided,
                 DecidedRecipient::Undecided | DecidedRecipient::NoOne
             )
+            // With clarification off, a word that fits several people is
+            // not asked about; the word matching picks as it always has.
+            && (clarify || !matches!(decided, DecidedRecipient::Reference(_)))
     });
     if let Some(decided) = decided {
         // The decision names the recipient; the word-matching heuristics
