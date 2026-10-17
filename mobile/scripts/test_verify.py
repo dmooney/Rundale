@@ -1239,6 +1239,44 @@ def executed_suites(fake: FakeRunner) -> list[tuple[str, ...]]:
     ]
 
 
+class XcresultTreeTests(unittest.TestCase):
+    def test_parses_a_tree_xcresulttool_wrote(self):
+        # Trimmed from `xcresulttool get test-results tests` on a real combined run.
+        fixture = Path(__file__).with_name("fixtures") / "xcresult-tests.json"
+        cases = verify_module._xcresult_cases(json.loads(fixture.read_text(encoding="utf-8")))
+        self.assertEqual(len(cases), 8)
+        self.assertIn(
+            (
+                "RundaleUITests",
+                "RundalePhase1AuditUITests",
+                "testAcceptedCommandRowIsExactAndImmediatelyVisible()",
+                "Passed",
+            ),
+            cases,
+        )
+        selected = [
+            case
+            for case in cases
+            if verify_module._selected(
+                case, ["RundaleUITests/RundaleUITests", "RundaleTests/Phase1AuditVolumeTests"]
+            )
+        ]
+        self.assertEqual(len(selected), 4)
+        self.assertEqual(
+            len([case for case in cases if verify_module._selected(case, ["RundaleTests"])]), 4
+        )
+        self.assertEqual(
+            verify_module._case_counts(["Passed", "Expected Failure", "Skipped", "Mixed"]),
+            {
+                "totalTestCount": 4,
+                "passedTests": 1,
+                "failedTests": 1,
+                "skippedTests": 1,
+                "expectedFailures": 1,
+            },
+        )
+
+
 class VerificationCacheTests(unittest.TestCase):
     def run_phase(self, root: Path, phase: int = 2, **options):
         fake = GitBackedRunner()
