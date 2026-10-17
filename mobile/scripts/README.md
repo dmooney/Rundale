@@ -154,7 +154,9 @@ each have a key built from:
 Documentation that no gate reads is left out of the tree hash: `docs/`,
 Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
 `LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
-it is compiled with `include_str!`. `mobile/coverage-baseline.json` is left out
+it is compiled with `include_str!`. So are this directory's own tests
+(`test_*.py`, `fixtures/`), which CI's pytest runs and no gate reads.
+`mobile/coverage-baseline.json` is left out
 too: the coverage gate rechecks a reused package pass against the current
 baseline.
 

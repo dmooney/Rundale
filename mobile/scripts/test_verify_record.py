@@ -102,6 +102,18 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "app")
         self.assertNotEqual(record_module.input_tree(), before)
 
+    def test_gate_script_tests_do_not_change_the_input_tree(self):
+        before = record_module.input_tree()
+        scripts = self.root / "mobile" / "scripts"
+        (scripts / "fixtures").mkdir(parents=True)
+        (scripts / "test_example.py").write_text("# test\n", encoding="utf-8")
+        (scripts / "fixtures" / "tree.json").write_text("{}\n", encoding="utf-8")
+        commit(self.root, "tests")
+        self.assertEqual(record_module.input_tree(), before)
+        (scripts / "verify.py").write_text("# gate\n", encoding="utf-8")
+        commit(self.root, "gate")
+        self.assertNotEqual(record_module.input_tree(), before)
+
     def test_coverage_baseline_changes_the_input_tree(self):
         before = record_module.input_tree()
         baseline = self.root / "mobile" / "coverage-baseline.json"

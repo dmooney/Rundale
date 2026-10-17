@@ -76,6 +76,9 @@ CACHE_IGNORED_PATHSPECS = (
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    # The gate scripts' own tests, which CI's pytest runs and no gate reads.
+    ":(glob)mobile/scripts/test_*.py",
+    "mobile/scripts/fixtures",
     # Read only by the coverage gate, which reapplies it to reused passes.
     "mobile/coverage-baseline.json",
 )
