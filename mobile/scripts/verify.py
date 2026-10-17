@@ -2698,6 +2698,7 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        self._prune_previous_runs()
         if fast:
             self._fast()
         else:
@@ -2787,6 +2788,18 @@ class VerificationRun:
             + "\n",
             encoding="utf-8",
         )
+
+    def _prune_previous_runs(self) -> None:
+        """Delete the build products and result bundles earlier runs left.
+
+        Each run writes Xcode DerivedData, result bundles, Swift scratch
+        directories and device inventories under its own timestamp, and nothing
+        reads an earlier run's: reused passes come from the cache, not from
+        these. Kept, they grew to tens of gigabytes and filled the disk.
+        """
+
+        for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
+            shutil.rmtree(self.report_dir / name, ignore_errors=True)
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)

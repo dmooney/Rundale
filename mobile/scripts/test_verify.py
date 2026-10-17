@@ -1239,6 +1239,30 @@ def executed_suites(fake: FakeRunner) -> list[tuple[str, ...]]:
     ]
 
 
+class PruneTests(unittest.TestCase):
+    def test_a_run_deletes_earlier_runs_build_products_but_keeps_the_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            stale = [
+                report / "DerivedData" / "simulator-20260101T000000Z" / "Build",
+                report / "xcresults" / "simulator-20260101T000000Z.xcresult",
+                report / "swift-scratch" / "20260101T000000Z",
+                report / "device",
+            ]
+            kept = [report / "cache", report / "passes", report / "logs"]
+            for path in stale + kept:
+                path.mkdir(parents=True)
+                (path / "marker").write_text("old\n", encoding="utf-8")
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            for path in stale:
+                self.assertFalse(path.exists(), path)
+            for path in kept:
+                self.assertTrue(path.is_dir(), path)
+            self.assertTrue((report / "cache" / "marker").exists())
+
+
 class XcresultTreeTests(unittest.TestCase):
     def test_parses_a_tree_xcresulttool_wrote(self):
         # Trimmed from `xcresulttool get test-results tests` on a real combined run.

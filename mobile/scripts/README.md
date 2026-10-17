@@ -140,7 +140,10 @@ simulators.
 The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
-directory is `mobile/.verification/`.
+directory is `mobile/.verification/`. Each run starts by deleting the Xcode
+DerivedData, result bundles, Swift scratch directories and device inventories
+earlier runs left there (each run writes its own, and nothing reads an earlier
+run's); the reuse cache, recorded passes and logs stay.
 
 ## Reusing passes
 
