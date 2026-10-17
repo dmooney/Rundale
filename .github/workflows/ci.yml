@@ -622,9 +622,13 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     steps:
+      # The PR head's own code computes its input tree, as the author's run
+      # did; the merge checkout's could list different paths after main
+      # changes ATTESTATION_PATHSPECS.
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Find a recorded pass for this input tree
         env:
