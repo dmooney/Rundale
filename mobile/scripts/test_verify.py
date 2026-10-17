@@ -1262,6 +1262,23 @@ class PruneTests(unittest.TestCase):
                 self.assertTrue(path.is_dir(), path)
             self.assertTrue((report / "cache" / "marker").exists())
 
+    def test_a_run_refuses_a_report_directory_another_run_holds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            products = report / "DerivedData" / "simulator-20260101T000000Z"
+            products.mkdir(parents=True)
+            with (report / ".run.lock").open("w") as held:
+                verify_module.fcntl.flock(held, verify_module.fcntl.LOCK_EX)
+                with self.assertRaises(verify_module.ReportDirectoryBusy):
+                    VerificationRun(root, command_runner=FakeRunner()).run(fast=True)
+                # The active run's build products survive the refused run.
+                self.assertTrue(products.is_dir())
+            # Once released, a later run proceeds and prunes them.
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            self.assertFalse(products.exists())
+
 
 class XcresultTreeTests(unittest.TestCase):
     def test_parses_a_tree_xcresulttool_wrote(self):

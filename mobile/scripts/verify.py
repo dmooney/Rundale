@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -451,6 +453,16 @@ def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, 
             f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
         )
     return PASSED, None
+
+
+class ReportDirectoryBusy(RuntimeError):
+    """Another run holds the report directory's lock."""
+
+    def __init__(self, report_dir: Path) -> None:
+        super().__init__(
+            f"another mobile-verify run is using {report_dir}; wait for it, or pass "
+            "--report-dir for a separate directory"
+        )
 
 
 class VerificationRun:
@@ -2698,6 +2710,17 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+        with (self.report_dir / ".run.lock").open("w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ReportDirectoryBusy(self.report_dir) from None
+            # Held until the report is written: pruning must never remove what
+            # another run sharing this directory still builds into.
+            return self._locked_run(phase, fast=fast)
+
+    def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
         self._prune_previous_runs()
         if fast:
             self._fast()
@@ -2966,7 +2989,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
     )
-    report = run.run(args.phase, fast=args.fast)
+    try:
+        report = run.run(args.phase, fast=args.fast)
+    except ReportDirectoryBusy as exc:
+        print(f"mobile-verify: {exc}", file=sys.stderr)
+        return 2
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
     return int(report["exit_code"])
 

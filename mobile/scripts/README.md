@@ -143,7 +143,10 @@ runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`. Each run starts by deleting the Xcode
 DerivedData, result bundles, Swift scratch directories and device inventories
 earlier runs left there (each run writes its own, and nothing reads an earlier
-run's); the reuse cache, recorded passes and logs stay.
+run's); the reuse cache, recorded passes and logs stay. A run holds
+`.run.lock` in the report directory until its report is written, so a second
+run sharing that directory exits with status 2 instead of deleting the first
+run's build; use `--report-dir` to run two at once.
 
 ## Reusing passes
 
