@@ -43,10 +43,13 @@ steps below and confirm **Testing** in **Internal Beta** before declaring delive
 
 `.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
 merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
-toolchain, and on **Run workflow**. It runs `release.py testflight --verify none`:
-the commit already passed its PR checks and the gatekeeper, so it skips the full
-`mobile-verify` gate (about an hour on a cold runner) and goes straight to the Rust
-build, archive, distribution export check and upload. The Rust target directory is
+toolchain, and on **Run workflow**. It first looks for a recorded `mobile-verify`
+pass for the commit's input tree (`verify_record.py check --commit`; see the
+[mobile scripts README](scripts/README.md#recorded-passes)). With one, it runs
+`release.py testflight --verify none` and goes straight to the Rust build,
+archive, distribution export check and upload, about 15 minutes. Without one,
+for example when `main` moved under the PR before the squash merge, it runs
+`--verify all` and the full gate first. The Rust target directory is
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account

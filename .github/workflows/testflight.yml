@@ -1,10 +1,11 @@
 name: TestFlight
 
 # Uploads an internal TestFlight build on every merge to main that changes what
-# the iPhone app ships, so the owner can try it without a Mac session. The
-# full `mobile-verify` gate takes about an hour here, so by the owner's decision
-# it is skipped (`--verify none`); the author runs it locally before pushing an
-# app change (AGENTS.md, "Keep the iPhone beta current"). `release.py` signs with an App Store Connect API key
+# the iPhone app ships, so the owner can try it without a Mac session. The full
+# `mobile-verify` gate runs once per change on the author's Mac, which records
+# the pass on GitHub (verify_record.py). When a pass is recorded for this
+# commit's input tree the upload skips the gate (`--verify none`); otherwise it
+# runs the gate here first. `release.py` signs with an App Store Connect API key
 # instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
 # **Testing** status still follow the upload (mobile/testflight.md).
 
@@ -30,12 +31,15 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  statuses: read
 
 jobs:
   upload:
     name: Build and upload
     runs-on: macos-26
-    timeout-minutes: 45
+    # About 15 minutes with a recorded pass; the fallback full gate takes longer.
+    timeout-minutes: 90
     environment: testflight
     steps:
       # The build number is HEAD's commit count, so the full history is needed.
@@ -74,11 +78,26 @@ jobs:
           chmod 600 "$key"
           echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
 
+      # A squash merge has the PR head's input tree, so the PR's recorded pass
+      # matches unless main moved under it.
+      - name: Find the recorded mobile-verify pass
+        id: recorded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA"; then
+            echo "verify=none" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no recorded mobile-verify pass for this commit; running the full gate here"
+            echo "verify=all" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Verify, sign and upload
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: python3 mobile/scripts/release.py testflight --verify none
+          VERIFY: ${{ steps.recorded.outputs.verify }}
+        run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
 
       - name: Upload the release report
         if: always()
