@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import plistlib
 import re
 import shlex
@@ -163,6 +164,37 @@ def command_text(argv: Sequence[str]) -> str:
 def endpoint_args() -> list[str]:
     settings = {**ENDPOINT_SETTINGS, **BETA_SETTINGS}
     return [f"{key}={value}" for key, value in settings.items()]
+
+
+# An App Store Connect API key lets xcodebuild sign and upload without an
+# Xcode account session, as the GitHub TestFlight workflow does
+# (.github/workflows/testflight.yml). Without it, the signed-in Xcode account
+# is used, as on the owner's Mac.
+ASC_KEY_ENV = ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID")
+
+
+def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
+    """`-allowProvisioningUpdates` plus API-key authentication when configured."""
+
+    env = dict(os.environ) if env is None else env
+    values = [env.get(name, "") for name in ASC_KEY_ENV]
+    if not any(values):
+        return ["-allowProvisioningUpdates"]
+    missing = [name for name, value in zip(ASC_KEY_ENV, values, strict=True) if not value]
+    if missing:
+        raise RuntimeError(f"App Store Connect API key is incomplete: set {', '.join(missing)}")
+    path, key_id, issuer = values
+    if not Path(path).is_file():
+        raise RuntimeError("ASC_KEY_PATH does not name a file")
+    return [
+        "-allowProvisioningUpdates",
+        "-authenticationKeyPath",
+        path,
+        "-authenticationKeyID",
+        key_id,
+        "-authenticationKeyIssuerID",
+        issuer,
+    ]
 
 
 def release_build_number(root: Path) -> int:
@@ -374,7 +406,7 @@ class Release:
                     str(self.paths.output / "DerivedData"),
                     "-archivePath",
                     str(self.paths.archive),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
@@ -424,7 +456,7 @@ class Release:
                     str(self.paths.output / "DerivedData"),
                     "-archivePath",
                     str(self.paths.archive),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
@@ -447,7 +479,7 @@ class Release:
                     str(self.write_export_options(upload=False)),
                     "-exportPath",
                     str(self.paths.distribution_export),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                 ],
                 cwd=self.paths.root,
             )
@@ -463,7 +495,7 @@ class Release:
                     str(options),
                     "-exportPath",
                     str(self.paths.export),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                 ],
                 cwd=self.paths.root,
             )

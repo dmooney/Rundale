@@ -251,6 +251,57 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(self.paths.output.exists())
         self.assertEqual(self.commands, [])
 
+    def test_signing_uses_the_xcode_account_without_an_api_key(self):
+        self.assertEqual(release.signing_auth_args({}), ["-allowProvisioningUpdates"])
+
+    def test_signing_uses_a_complete_api_key(self):
+        key = self.root / "AuthKey.p8"
+        key.write_text("synthetic", encoding="utf-8")
+        args = release.signing_auth_args(
+            {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "issuer"}
+        )
+        self.assertEqual(
+            args,
+            [
+                "-allowProvisioningUpdates",
+                "-authenticationKeyPath",
+                str(key),
+                "-authenticationKeyID",
+                "KEYID",
+                "-authenticationKeyIssuerID",
+                "issuer",
+            ],
+        )
+
+    def test_signing_rejects_a_partial_or_missing_api_key(self):
+        with self.assertRaisesRegex(RuntimeError, "ASC_ISSUER_ID"):
+            release.signing_auth_args({"ASC_KEY_PATH": "x", "ASC_KEY_ID": "KEYID"})
+        with self.assertRaisesRegex(RuntimeError, "does not name a file"):
+            release.signing_auth_args(
+                {
+                    "ASC_KEY_PATH": str(self.root / "missing.p8"),
+                    "ASC_KEY_ID": "K",
+                    "ASC_ISSUER_ID": "I",
+                }
+            )
+
+    def test_every_signing_xcodebuild_call_carries_the_api_key(self):
+        key = self.root / "AuthKey.p8"
+        key.write_text("synthetic", encoding="utf-8")
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "issuer"}
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.dict(release.os.environ, env),
+            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        signing = [c for c in self.commands if "-allowProvisioningUpdates" in c]
+        self.assertEqual(len(signing), 3)
+        for command in signing:
+            self.assertEqual(command[command.index("-authenticationKeyID") + 1], "KEYID")
+
     def test_testflight_orders_checks_archive_validation_then_upload(self):
         runner = release.Release(self.paths, runner=self.runner)
         with (
