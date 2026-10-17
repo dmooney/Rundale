@@ -76,12 +76,20 @@ CACHE_IGNORED_PATHSPECS = (
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    # The gate scripts' own tests, which CI's pytest runs and no gate reads.
+    ":(glob)mobile/scripts/test_*.py",
+    "mobile/scripts/fixtures",
     # Read only by the coverage gate, which reapplies it to reused passes.
     "mobile/coverage-baseline.json",
 )
 PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plist")
 # Measured Swift package line coverage and the allowed drop (#2103).
 COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
+# A recorded full pass (verify_record.py) is never re-checked against the
+# coverage baseline the way a reused suite is, so the baseline stays in its key.
+ATTESTATION_IGNORED_PATHSPECS = tuple(
+    spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()
+)
 SWIFT_TOOLS_BIN = Path("mobile/.build/swift-tools/bin")
 FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-engine",
@@ -2698,7 +2706,59 @@ class VerificationRun:
         }
         self._write_reports(report)
         self._store_cached_passes(self.report_dir / "verify.json")
+        if phase is None and not fast and report["status"] == PASSED:
+            self._store_full_pass(report)
         return report
+
+    def _attestation_tree(self) -> str | None:
+        """Return the tested working tree minus ATTESTATION_IGNORED_PATHSPECS."""
+
+        index_path = self._execute(["git", "rev-parse", "--git-path", "index"])
+        if index_path.returncode != 0 or not index_path.stdout.strip():
+            return None
+        source_index = self.root / index_path.stdout.strip()
+        with tempfile.TemporaryDirectory(prefix="rundale-verify-attest-") as scratch:
+            temporary_index = Path(scratch) / "index"
+            if source_index.is_file():
+                shutil.copyfile(source_index, temporary_index)
+            env = {**os.environ, "GIT_INDEX_FILE": str(temporary_index)}
+            for step in (
+                ["git", "add", "-A", "--", "."],
+                ["git", "rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--"]
+                + list(ATTESTATION_IGNORED_PATHSPECS),
+            ):
+                if self._execute(step, env=env).returncode != 0:
+                    return None
+            tree = self._execute(["git", "write-tree"], env=env)
+        tree_id = tree.stdout.strip()
+        if tree.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree_id):
+            return None
+        return tree_id
+
+    def _store_full_pass(self, report: Mapping[str, Any]) -> None:
+        """Note a full pass by input tree, for `verify_record.py record` to post."""
+
+        tree = self._attestation_tree()
+        if tree is None:
+            return
+        passes = self.root / "mobile" / ".verification" / "passes"
+        passes.mkdir(parents=True, exist_ok=True)
+        (passes / f"{tree}.json").write_text(
+            json.dumps(
+                {
+                    "input_tree": tree,
+                    "content_key": self._content_key_value,
+                    "started_at": report["started_at"],
+                    "finished_at": report["finished_at"],
+                    "summary": report["summary"],
+                    "report": report["reports"]["json"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)

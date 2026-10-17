@@ -53,6 +53,8 @@ jobs:
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      # Only pull requests are checked; other events report 'false'.
+      mobile_app: ${{ github.event_name == 'pull_request' && steps.filter.outputs.mobile_app == 'true' && steps.nondoc.outputs.nondoc == 'true' && 'true' || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -99,6 +101,14 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
+            # What the iPhone app ships, as the TestFlight workflow triggers.
+            mobile_app:
+              - 'mobile/**'
+              - 'mods/**'
+              - 'limerick/crates/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'rust-toolchain.toml'
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'
@@ -590,6 +600,35 @@ jobs:
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
   # the conditional complete correctness suite for runtime changes.
+  # The full simulator gate runs once on the author's Mac
+  # (`just mobile-verify --phase all`, then `just mobile-verify-record`); this
+  # job checks that a pass is recorded for the PR's input tree.
+  mobile-verify-recorded:
+    name: Recorded mobile-verify pass
+    needs: changes
+    if: needs.changes.outputs.mobile_app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: read
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Find a recorded pass for this input tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        # The record is usually posted right after the push, so keep looking
+        # for a few minutes before failing.
+        run: python3 mobile/scripts/verify_record.py check --pr "$PR_NUMBER" --wait 300
+
   ci-gate:
     name: CI gate
     needs:
@@ -609,6 +648,7 @@ jobs:
         toml-quality,
         runtime-suite,
         differential-proof,
+        mobile-verify-recorded,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -628,4 +668,6 @@ jobs:
           RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
           DIFFERENTIAL_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true' }}
           DIFFERENTIAL_RESULT: ${{ needs.differential-proof.result }}
+          MOBILE_VERIFY_REQUIRED: ${{ needs.changes.outputs.mobile_app }}
+          MOBILE_VERIFY_RESULT: ${{ needs.mobile-verify-recorded.result }}
         run: bash .github/scripts/ci-gate.sh

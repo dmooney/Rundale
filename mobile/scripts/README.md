@@ -110,6 +110,22 @@ exits nonzero fails every suite whose cases passed. Measured cold on an M5 Pro:
 the five suites took 13.8 minutes run separately with 4 workers and 8 minutes
 combined with 6, and the full gate 15.7 and 10.1 minutes.
 
+### Recorded passes
+
+A full run (`--phase all`) that passes saves
+`mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
+tested inputs with `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's
+exclusions except the coverage baseline, which a recorded pass is never
+re-checked against. After pushing,
+`just mobile-verify-record` (`verify_record.py record`) posts that tree as a
+`mobile-verify` commit status on HEAD, and refuses if no pass matches HEAD's
+tree, for example when the run included uncommitted or untracked inputs. CI's
+"Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
+matching status on any commit of the PR, waiting up to five minutes, so the
+suites run once per change instead of again in CI. The status is the author's
+attestation that the full gate passed on that tree; it is not an independent
+run.
+
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
 an explicit `--simulator` takes precedence. `--live-endpoint`, `--soak`, and
 `--performance` are opt-in physical-iPhone suites and need `--device` (or
@@ -138,7 +154,9 @@ each have a key built from:
 Documentation that no gate reads is left out of the tree hash: `docs/`,
 Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
 `LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
-it is compiled with `include_str!`. `mobile/coverage-baseline.json` is left out
+it is compiled with `include_str!`. So are this directory's own tests
+(`test_*.py`, `fixtures/`), which CI's pytest runs and no gate reads.
+`mobile/coverage-baseline.json` is left out
 too: the coverage gate rechecks a reused package pass against the current
 baseline.
 
