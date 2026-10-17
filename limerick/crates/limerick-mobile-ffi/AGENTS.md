@@ -39,3 +39,8 @@ just ios-sim-save-lock                                             # save-lock t
   call, attempt, or revision): the engine still waits on the same call.
   Clearing it made `pending_endpoint` answer `null` while the engine waited,
   and dropped the real answer from the bug report's exchange log (#2022).
+- **A new `#[ignore]` test blocks TestFlight.** `mobile/scripts/verify.py`
+  counts an ignored test in this crate as a skipped gate unless the
+  `limerick-mobile-ffi-tests` gate lists it in `expected_ignored`, and
+  `just testflight-update` uploads only when every gate passes. List an
+  opt-in harness there, as `tests::addressee_baseline` is.

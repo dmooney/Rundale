@@ -2132,6 +2132,8 @@ class VerificationRun:
             identifier="limerick-mobile-ffi-tests",
             name="Limerick mobile FFI tests",
             package="limerick-mobile-ffi",
+            # The System 1 comparison's opt-in baseline harness (#2220).
+            expected_ignored=("tests::addressee_baseline",),
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:
