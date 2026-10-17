@@ -100,8 +100,12 @@ ATTESTATION_PATHSPECS = (
     "limerick/testing",
     "limerick/Cargo.toml",
     "limerick/Cargo.lock",
+    # include_str! in limerick-inference, which the mobile build compiles.
+    "limerick/config",
     "rust-toolchain.toml",
     ".cargo",
+    # RundaleBugReportTests reads the shared phone report fixture.
+    "bug-report/test/fixtures",
 )
 
 

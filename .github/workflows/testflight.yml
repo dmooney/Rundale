@@ -19,6 +19,7 @@ on:
       - "limerick/crates/**"
       - "limerick/Cargo.toml"
       - "limerick/Cargo.lock"
+      - "limerick/config/**"
       - "rust-toolchain.toml"
       - ".cargo/**"
       - ".github/workflows/testflight.yml"

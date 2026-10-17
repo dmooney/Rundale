@@ -125,6 +125,8 @@ class VerifyRecordTests(unittest.TestCase):
             "limerick/crates/core/lib.rs",
             "mods/rundale/world.json",
             ".cargo/config.toml",
+            "limerick/config/gemini-3.7-flash-capabilities.json",
+            "bug-report/test/fixtures/phone-report.json",
         ):
             (self.root / path).parent.mkdir(parents=True, exist_ok=True)
             (self.root / path).write_text("changed\n", encoding="utf-8")

@@ -116,7 +116,8 @@ A full run (`--phase all`) that passes saves
 `mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
 tested inputs, limited to what a full run builds or reads
 (`ATTESTATION_PATHSPECS`: `mobile/`, `mods/`, `limerick/crates`,
-`limerick/testing`, the Cargo files, `rust-toolchain.toml` and `.cargo/`), with
+`limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
+`.cargo/` and `bug-report/test/fixtures`), with
 `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
 coverage baseline, which a recorded pass is never re-checked against. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge

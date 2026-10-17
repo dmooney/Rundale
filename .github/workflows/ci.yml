@@ -110,8 +110,10 @@ jobs:
               - 'limerick/testing/**'
               - 'limerick/Cargo.toml'
               - 'limerick/Cargo.lock'
+              - 'limerick/config/**'
               - 'rust-toolchain.toml'
               - '.cargo/**'
+              - 'bug-report/test/fixtures/**'
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'
