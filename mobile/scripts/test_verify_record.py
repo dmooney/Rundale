@@ -44,7 +44,8 @@ class FakeGitHub:
     """Answers the `gh api` calls verify_record makes, from in-memory statuses."""
 
     def __init__(self, pulls: dict[int, list[str]], statuses: dict[str, list[dict]]):
-        self.pulls, self.statuses, self.posted = pulls, statuses, []
+        self.pulls, self.statuses = pulls, statuses
+        self.posted: list[tuple[str, dict[str, str]]] = []
 
     def __call__(self, *args: str):
         if args[:1] == ("repo",):
