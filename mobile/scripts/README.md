@@ -131,7 +131,7 @@ tree, for example when the run included uncommitted or untracked inputs. CI's
 "Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
 matching status on any commit of the PR, waiting up to five minutes, so the
 suites run once per change instead of again in CI. When the PR's input tree
-equals its base's, so the PR changes no app input (gate tooling, CI, docs),
+equals its base's, so the PR changes no app input (verification tools, CI, docs),
 `check` exits 3 and the job passes with no pass recorded; on a push to `main`
 the TestFlight workflow skips the upload the same way. The status is the author's
 attestation that the full gate passed on that tree; it is not an independent
