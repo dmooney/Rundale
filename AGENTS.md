@@ -122,7 +122,8 @@ path. Read [build/test](docs/agent/build-test.md) for mobile verification requir
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
 CI does not run the simulator suites. For a PR that changes what the app ships
-(`mobile/`, `mods/`, the engine crates, Cargo files, the Rust toolchain), run
+(`mobile/`, `mods/`, `limerick/crates`, `limerick/testing`, the Cargo files,
+`limerick/config`, `rust-toolchain.toml`, `.cargo/`, `bug-report/test/fixtures`), run
 `just mobile-verify --phase all` on a clean checkout of the commit, push, then
 `just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
 pass is recorded for the PR's input tree. Documentation-only commits keep it valid.
@@ -204,8 +205,12 @@ to build, sign, upload, and distribute to the existing Internal Beta group; do
 not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
-Use `just testflight-update` and its [runbook](mobile/testflight.md); it runs
-`just mobile-verify --phase all` before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
+The TestFlight workflow (`.github/workflows/testflight.yml`) uploads a build on
+every merge to `main` that changes the app. It skips `mobile-verify` when the
+merge commit's input tree has a recorded pass (see the commands section above)
+and runs the full gate itself otherwise. For a build outside that workflow, use
+`just testflight-update` and its [runbook](mobile/testflight.md); it runs the
+full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
 received, what to try, checks run, and any remaining device gates. If signing,
 Apple processing, or another blocker prevents delivery, report it explicitly.

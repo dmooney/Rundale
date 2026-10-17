@@ -39,6 +39,36 @@ export compliance prompts may require completion in App Store Connect. The
 command reports that distinction; the releasing agent must finish the portal
 steps below and confirm **Testing** in **Internal Beta** before declaring delivery.
 
+## Uploading from GitHub
+
+`.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
+merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
+toolchain, and on **Run workflow**. It first looks for a recorded `mobile-verify`
+pass for the commit's input tree (`verify_record.py check --commit`; see the
+[mobile scripts README](scripts/README.md#recorded-passes)). With one, it runs
+`release.py testflight --verify none` and goes straight to the Rust build,
+archive, distribution export check and upload, about 15 minutes. Without one,
+for example when `main` moved under the PR before the squash merge, it runs
+`--verify all` and the full gate first. The Rust target directory is
+cached between runs. `just testflight-update` keeps the full gate by default.
+`release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
+`ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
+otherwise.
+
+The workflow reads these secrets from its `testflight` environment:
+
+| Secret                                   | Value                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| `ASC_API_KEY_P8`                         | The contents of the App Store Connect API key's `.p8` file               |
+| `ASC_KEY_ID`                             | That key's ID                                                            |
+| `ASC_ISSUER_ID`                          | The team's issuer ID (App Store Connect, Users and Access, Integrations) |
+| `FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64` | `base64 -i mobile/Rundale/Resources/GoogleService-Info.plist`            |
+
+Create the key with the **Admin** role: automatic signing on a fresh runner
+creates and fetches the distribution certificate itself. As with a local upload,
+the run ends at "upload requested"; Apple's processing and the Internal Beta
+**Testing** status are confirmed in App Store Connect.
+
 ## Reporting bugs from a beta build
 
 Beta builds (`RUNDALE_BETA_FEEDBACK=YES`, which `testflight-update` sets and

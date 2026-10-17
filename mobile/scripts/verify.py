@@ -90,6 +90,35 @@ COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
 ATTESTATION_IGNORED_PATHSPECS = tuple(
     spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()
 )
+# Everything a full run builds or reads. A recorded pass covers only these, so
+# a merge that changes CI, Endpoints or desktop code leaves it valid. CI's
+# `mobile_app` path filter and the TestFlight triggers list the same paths.
+ATTESTATION_PATHSPECS = (
+    "mobile",
+    "mods",
+    "limerick/crates",
+    "limerick/testing",
+    "limerick/Cargo.toml",
+    "limerick/Cargo.lock",
+    # include_str! in limerick-inference, which the mobile build compiles.
+    "limerick/config",
+    "rust-toolchain.toml",
+    ".cargo",
+    # RundaleBugReportTests reads the shared phone report fixture.
+    "bug-report/test/fixtures",
+)
+
+
+def attestation_removals() -> list[list[str]]:
+    """`git rm --cached` arguments that leave only a recorded pass's inputs."""
+
+    base = ["rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--"]
+    return [
+        [*base, ".", *(f":(exclude){spec}" for spec in ATTESTATION_PATHSPECS)],
+        [*base, *ATTESTATION_IGNORED_PATHSPECS],
+    ]
+
+
 SWIFT_TOOLS_BIN = Path("mobile/.build/swift-tools/bin")
 FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-engine",
@@ -2711,7 +2740,7 @@ class VerificationRun:
         return report
 
     def _attestation_tree(self) -> str | None:
-        """Return the tested working tree minus ATTESTATION_IGNORED_PATHSPECS."""
+        """Return the tested working tree's ATTESTATION_PATHSPECS, less the ignored paths."""
 
         index_path = self._execute(["git", "rev-parse", "--git-path", "index"])
         if index_path.returncode != 0 or not index_path.stdout.strip():
@@ -2724,8 +2753,7 @@ class VerificationRun:
             env = {**os.environ, "GIT_INDEX_FILE": str(temporary_index)}
             for step in (
                 ["git", "add", "-A", "--", "."],
-                ["git", "rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--"]
-                + list(ATTESTATION_IGNORED_PATHSPECS),
+                *(["git", *removal] for removal in attestation_removals()),
             ):
                 if self._execute(step, env=env).returncode != 0:
                     return None

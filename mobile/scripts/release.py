@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import plistlib
 import re
 import shlex
@@ -165,6 +166,37 @@ def endpoint_args() -> list[str]:
     return [f"{key}={value}" for key, value in settings.items()]
 
 
+# An App Store Connect API key lets xcodebuild sign and upload without an
+# Xcode account session, as the GitHub TestFlight workflow does
+# (.github/workflows/testflight.yml). Without it, the signed-in Xcode account
+# is used, as on the owner's Mac.
+ASC_KEY_ENV = ("ASC_KEY_PATH", "ASC_KEY_ID", "ASC_ISSUER_ID")
+
+
+def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
+    """`-allowProvisioningUpdates` plus API-key authentication when configured."""
+
+    env = dict(os.environ) if env is None else env
+    values = [env.get(name, "") for name in ASC_KEY_ENV]
+    if not any(values):
+        return ["-allowProvisioningUpdates"]
+    missing = [name for name, value in zip(ASC_KEY_ENV, values, strict=True) if not value]
+    if missing:
+        raise RuntimeError(f"App Store Connect API key is incomplete: set {', '.join(missing)}")
+    path, key_id, issuer = values
+    if not Path(path).is_file():
+        raise RuntimeError("ASC_KEY_PATH does not name a file")
+    return [
+        "-allowProvisioningUpdates",
+        "-authenticationKeyPath",
+        path,
+        "-authenticationKeyID",
+        key_id,
+        "-authenticationKeyIssuerID",
+        issuer,
+    ]
+
+
 def release_build_number(root: Path) -> int:
     """Return HEAD's commit count, the build number an upload requests.
 
@@ -206,11 +238,17 @@ def project_value(project_spec: Path, key: str) -> str:
 
 class Release:
     def __init__(
-        self, paths: Paths, *, dry_run: bool = False, runner: Callable[..., None] | None = None
+        self,
+        paths: Paths,
+        *,
+        dry_run: bool = False,
+        runner: Callable[..., None] | None = None,
+        verify: bool = True,
     ) -> None:
         self.paths = paths
         self.dry_run = dry_run
         self._runner = runner
+        self.verify = verify
 
     def note(self, message: str) -> None:
         """Print a line and keep it in the release log beside command output."""
@@ -374,7 +412,7 @@ class Release:
                     str(self.paths.output / "DerivedData"),
                     "-archivePath",
                     str(self.paths.archive),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
@@ -396,19 +434,24 @@ class Release:
         with self.locked():
             self.firebase_preflight()
             self.clear_output()
-            self.run_command(
-                [
-                    sys.executable,
-                    str(self.paths.mobile / "scripts" / "verify.py"),
-                    "--phase",
-                    "all",
-                ],
-                cwd=self.paths.root,
-            )
+            if self.verify:
+                self.run_command(
+                    [
+                        sys.executable,
+                        str(self.paths.mobile / "scripts" / "verify.py"),
+                        "--phase",
+                        "all",
+                    ],
+                    cwd=self.paths.root,
+                )
+            else:
+                print(
+                    "Skipping mobile-verify (--verify none): the caller found a recorded pass for this tree."
+                )
             build = release_build_number(self.paths.root)
             print(f"Requested build number: {build} (commit count of HEAD)")
-            # The verifier already built the Rust framework for all implemented phases.
-            self.common_prepare(build_rust=False)
+            # The verifier builds the Rust framework; without it, build it here.
+            self.common_prepare(build_rust=not self.verify)
             self.run_command(
                 [
                     "xcodebuild",
@@ -424,7 +467,7 @@ class Release:
                     str(self.paths.output / "DerivedData"),
                     "-archivePath",
                     str(self.paths.archive),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
@@ -447,7 +490,7 @@ class Release:
                     str(self.write_export_options(upload=False)),
                     "-exportPath",
                     str(self.paths.distribution_export),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                 ],
                 cwd=self.paths.root,
             )
@@ -463,7 +506,7 @@ class Release:
                     str(options),
                     "-exportPath",
                     str(self.paths.export),
-                    "-allowProvisioningUpdates",
+                    *signing_auth_args(),
                 ],
                 cwd=self.paths.root,
             )
@@ -598,6 +641,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "archive", "testflight"))
     parser.add_argument(
+        "--verify",
+        choices=("all", "none"),
+        default="all",
+        help="testflight: run `mobile-verify --phase all` first (default), or skip it "
+        "for a commit already verified, as the GitHub workflow does on main",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print commands without prerequisites or side effects",
@@ -607,7 +657,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    release = Release(Paths(Path(__file__).resolve().parents[2]), dry_run=args.dry_run)
+    release = Release(
+        Paths(Path(__file__).resolve().parents[2]),
+        dry_run=args.dry_run,
+        verify=args.verify == "all",
+    )
     try:
         getattr(release, args.command)()
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:

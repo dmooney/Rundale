@@ -114,9 +114,14 @@ combined with 6, and the full gate 15.7 and 10.1 minutes.
 
 A full run (`--phase all`) that passes saves
 `mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
-tested inputs with `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's
-exclusions except the coverage baseline, which a recorded pass is never
-re-checked against. After pushing,
+tested inputs, limited to what a full run builds or reads
+(`ATTESTATION_PATHSPECS`: `mobile/`, `mods/`, `limerick/crates`,
+`limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
+`.cargo/` and `bug-report/test/fixtures`), with
+`ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
+coverage baseline, which a recorded pass is never re-checked against. A merge
+elsewhere in the repository therefore keeps a pass valid, and a squash merge
+onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a
 `mobile-verify` commit status on HEAD, and refuses if no pass matches HEAD's
 tree, for example when the run included uncommitted or untracked inputs. CI's

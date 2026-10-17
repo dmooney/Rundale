@@ -101,14 +101,19 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
-            # What the iPhone app ships, as the TestFlight workflow triggers.
+            # A recorded mobile-verify pass's inputs
+            # (mobile/scripts/verify.py ATTESTATION_PATHSPECS).
             mobile_app:
               - 'mobile/**'
               - 'mods/**'
               - 'limerick/crates/**'
+              - 'limerick/testing/**'
               - 'limerick/Cargo.toml'
               - 'limerick/Cargo.lock'
+              - 'limerick/config/**'
               - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - 'bug-report/test/fixtures/**'
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'

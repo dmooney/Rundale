@@ -1,0 +1,119 @@
+name: TestFlight
+
+# Uploads an internal TestFlight build on every merge to main that changes what
+# the iPhone app ships, so the owner can try it without a Mac session. The full
+# `mobile-verify` gate runs once per change on the author's Mac, which records
+# the pass on GitHub (verify_record.py). When a pass is recorded for this
+# commit's input tree the upload skips the gate (`--verify none`); otherwise it
+# runs the gate here first. `release.py` signs with an App Store Connect API key
+# instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
+# **Testing** status still follow the upload (mobile/testflight.md).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - "mods/**"
+      - "limerick/crates/**"
+      - "limerick/Cargo.toml"
+      - "limerick/Cargo.lock"
+      - "limerick/config/**"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - ".github/workflows/testflight.yml"
+  workflow_dispatch:
+
+# One upload at a time, in merge order; a cancelled upload could leave App
+# Store Connect holding a half-processed build.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: read
+
+jobs:
+  upload:
+    name: Build and upload
+    runs-on: macos-26
+    # About 15 minutes with a recorded pass; the fallback full gate takes longer.
+    timeout-minutes: 90
+    environment: testflight
+    steps:
+      # The build number is HEAD's commit count, so the full history is needed.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+
+      - name: Install the Rust toolchain and iOS targets
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The mobile Rust build's target directory; only changed crates rebuild.
+      - uses: actions/cache@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
+            rust-mobile-
+
+      - name: Write the private Firebase file and API key
+        env:
+          FIREBASE_PLIST_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64 }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          echo "$FIREBASE_PLIST_B64" | base64 --decode > mobile/Rundale/Resources/GoogleService-Info.plist
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$ASC_API_KEY_P8" > "$key"
+          chmod 600 "$key"
+          echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
+
+      # A squash merge has the PR head's input tree, so the PR's recorded pass
+      # matches unless main moved under it.
+      - name: Find the recorded mobile-verify pass
+        id: recorded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA"; then
+            echo "verify=none" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no recorded mobile-verify pass for this commit; running the full gate here"
+            echo "verify=all" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify, sign and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          VERIFY: ${{ steps.recorded.outputs.verify }}
+        run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
+
+      - name: Upload the release report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: testflight-report
+          path: |
+            mobile/.build/release/receipt.json
+            mobile/.build/release/release.log
+            mobile/.verification/verify.json
+            mobile/.verification/summary.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove the API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
