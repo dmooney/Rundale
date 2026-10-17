@@ -102,11 +102,14 @@ jobs:
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'
-            # The workspace tests also read the Rundale definition files and
-            # the mobile invocation examples and fixtures.
+            # The workspace tests also read the Rundale definition files, the
+            # canonical NPCs and places (rundale-intent-comparison), and the
+            # mobile invocation examples and fixtures.
             endpoints:
               - 'endpoints/**'
               - 'mods/rundale/endpoints/**'
+              - 'mods/rundale/npcs.json'
+              - 'mods/rundale/world.json'
               - 'mobile/endpoint/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when

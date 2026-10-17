@@ -17,10 +17,10 @@ Endpoints: `inputSchema`, `outputSchema`, `instructions`, `providerConfig`, and
 and attaches each role's reference and structured input to the calls it makes
 (`limerick_core::endpoint_input`).
 
-| Role     | File                                                                                | Output                                             |
-| -------- | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Dialogue | [`rundale-dialogue.v1.json`](../../mods/rundale/endpoints/rundale-dialogue.v1.json) | `{ "dialogue": "..." }`, streamed as text          |
-| Intent   | [`rundale-intent.v1.json`](../../mods/rundale/endpoints/rundale-intent.v1.json)     | `{ "intent", "target", "dialogue", "atmosphere" }` |
+| Role     | File                                                                                | Output                                     |
+| -------- | ----------------------------------------------------------------------------------- | ------------------------------------------ |
+| Dialogue | [`rundale-dialogue.v1.json`](../../mods/rundale/endpoints/rundale-dialogue.v1.json) | `{ "dialogue": "..." }`, streamed as text  |
+| Intent   | [`rundale-intent.v1.json`](../../mods/rundale/endpoints/rundale-intent.v1.json)     | A probability per option for each question |
 
 Until the game is released, each definition stays at version 1: a change edits
 the `.v1.json` file and replaces the published copy in place (`pnpm definitions
@@ -31,13 +31,16 @@ ships as a new `<slug>.v<version>.json`. The engine builds each input with
 Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
 contract (acquired knowledge, player memory, task offers) was published to
 `limerick-prod` as v2 and has been removed; when the engine builds those fields,
-they land by replacing v1. Both files target `google/gemini-3.5-flash-lite` with no retry. Dialogue
-allows 1,024 output tokens and streams the `dialogue` field; intent allows 256,
-as the desktop Intent profile does.
+they land by replacing v1. Dialogue targets `google/gemini-3.5-flash-lite`
+with no retry, allows 1,024 output tokens and streams the `dialogue` field.
 
-The intent definition's `instructions` are the engine's intent prompt
-(`limerick_input::intent_system_prompt()`) verbatim. A test fails if they drift;
-regenerate the file after changing the prompt.
+Intent is a decision Endpoint (Limerick Endpoints ADR 014) answered by Jev
+(`jev-1.13.0`) on TypeSafe's own API. It does not stream. One call settles the
+action (move, talk, look, examine, interact or none), the destination, the
+phrase acted on, who a line is spoken to, who it mentions, and its atmospheric
+subject ([dynamic NPC context §4.6](../../docs/design/dynamic-npc-context.md)).
+The model only selects among options the engine offers, and the engine checks
+every answer against them (`limerick_core::intent_decision`).
 
 ## Engine wire agreement
 
@@ -53,8 +56,12 @@ minor: 0}`), `sessionID`, `logicalRequestID`, `attemptID`, `baseRevision`
 IDs serialize as strings. All fields are required and unknown fields are
 rejected.
 
-The intent input adds `role: "player_intent"` and the bounded `playerInput`
-the deterministic local parser did not recognise.
+The intent input adds `role: "player_intent"`, the bounded `line` the
+deterministic local parser did not recognise, and the options the decision
+chooses among: `present` (people in the room), `elsewhere` (introduced people
+elsewhere), `references` (words that fit several people present), `places`, and
+`phrases` cut from the line. Each option carries an `optionId` assigned per
+call.
 
 The dialogue input adds `role: "npc_dialogue"`, `playerInput`, and one
 speaker's snapshot of the present moment, holding only what that speaker could

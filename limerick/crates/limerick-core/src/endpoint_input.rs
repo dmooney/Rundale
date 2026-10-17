@@ -39,8 +39,7 @@ pub const DIALOGUE_MAX_OUTPUT_CHARS: usize = 8192;
 pub const DIALOGUE_MAX_STREAM_BYTES: usize = 16 * 1024;
 /// The dialogue input's fixed `role` value.
 pub const DIALOGUE_ROLE: &str = "npc_dialogue";
-/// The intent input's fixed `role` value.
-pub const INTENT_ROLE: &str = "player_intent";
+pub use crate::intent_decision::{INTENT_ROLE, IntentEndpointInput, IntentOptions};
 /// Invocation contract version the v1 definitions accept.
 pub const INVOCATION_CONTRACT_VERSION: (u32, u32) = (1, 0);
 
@@ -100,17 +99,7 @@ pub enum EndpointInput {
     /// Input for the dialogue role (boxed: it carries the grounding lists).
     Dialogue(Box<DialogueEndpointInput>),
     /// Input for the intent role.
-    Intent(IntentEndpointInput),
-}
-
-/// Input for the intent role.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IntentEndpointInput {
-    /// Always [`INTENT_ROLE`].
-    pub role: String,
-    /// The player input the local parser did not recognise.
-    pub player_input: String,
+    Intent(Box<IntentEndpointInput>),
 }
 
 /// A person the dialogue Endpoint may refer to. Carries no location: a
@@ -325,14 +314,6 @@ fn grounded_place(world: &WorldState, id: LocationId, people: &[&str]) -> Option
     })
 }
 
-/// Builds the intent role's input for `raw_input`.
-pub fn intent_input(raw_input: &str) -> IntentEndpointInput {
-    IntentEndpointInput {
-        role: INTENT_ROLE.to_string(),
-        player_input: bounded_input(raw_input),
-    }
-}
-
 /// Builds the dialogue role's input for `speaker_id` answering `player_input`
 /// at the player's location, from the state the attempt reads. Each speaker
 /// of a line gets their own snapshot when their call is built, so a later
@@ -464,12 +445,23 @@ pub fn dialogue_input(
     })
 }
 
-/// The intent call's Endpoint, when the catalog declares the intent role.
-pub fn intent_endpoint(catalog: &EndpointCatalog, raw_input: &str) -> Option<EndpointCall> {
-    Some(EndpointCall {
-        reference: catalog.reference(EndpointRole::Intent)?.clone(),
-        input: EndpointInput::Intent(intent_input(raw_input)),
-    })
+/// The intent call's Endpoint, when the catalog declares the intent role,
+/// and what each option it offers means.
+pub fn intent_endpoint(
+    catalog: &EndpointCatalog,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    raw_input: &str,
+) -> Option<(EndpointCall, IntentOptions)> {
+    let reference = catalog.reference(EndpointRole::Intent)?.clone();
+    let (input, options) = crate::intent_decision::intent_input(world, npc_manager, raw_input);
+    Some((
+        EndpointCall {
+            reference,
+            input: EndpointInput::Intent(Box::new(input)),
+        },
+        options,
+    ))
 }
 
 /// The dialogue call's Endpoint, when the catalog declares the dialogue role

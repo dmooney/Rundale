@@ -173,16 +173,18 @@ fn envelope() -> InvocationEnvelope {
     }
 }
 
+/// `rundale-intent` is a decision Endpoint answered by Jev on TypeSafe's own
+/// API (design §4.6 and §5).
 #[test]
-fn the_intent_endpoint_instructions_are_the_engine_intent_prompt() {
+fn the_intent_endpoint_is_a_jev_decision() {
     let game_mod = canonical_mod();
     let intent = game_mod.endpoints.intent.as_ref().expect("intent declared");
+    assert!(intent.definition.is_decision());
     assert_eq!(
-        intent.definition.instructions,
-        limerick_core::input::intent_system_prompt(),
-        "the intent Endpoint must publish the engine's intent prompt verbatim; \
-         regenerate mods/rundale/endpoints/rundale-intent.v1.json after changing it"
+        intent.definition.provider_config.provider,
+        limerick_mod::EndpointProvider::Typesafe
     );
+    assert_eq!(intent.definition.provider_config.model, "jev-1.13.0");
 }
 
 /// The canonical turn through the portable engine: the intent and dialogue
@@ -210,12 +212,30 @@ async fn turn_engine_calls_carry_the_mod_endpoint_references_and_inputs() {
         Some(&call.reference),
         endpoints.reference(EndpointRole::Intent)
     );
-    assert_eq!(
-        serde_json::to_value(&call.input).unwrap(),
-        json!({"role": INTENT_ROLE, "playerInput": PLAYER_LINE})
-    );
+    let input = serde_json::to_value(&call.input).unwrap();
+    assert_eq!(input["role"], INTENT_ROLE);
+    assert_eq!(input["line"], PLAYER_LINE);
+    let option = input["present"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|person| person["name"] == npc.as_str())
+        .expect("the person here is offered")["optionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
-    let reply = json!({"intent": "talk", "target": null, "dialogue": PLAYER_LINE}).to_string();
+    // Jev's decision: speech, spoken to the person here.
+    let choice = |choice: &str| json!({"choice": choice, "confidence": 0.95, "probabilities": {choice: 0.95}});
+    let reply = json!({
+        "action": choice("talk"),
+        "destination": choice("none"),
+        "target": choice("none"),
+        "recipient": choice(&option),
+        "mentioned": {},
+        "atmosphere": choice("none"),
+    })
+    .to_string();
     let step = engine
         .resume(
             &live.ctx(&endpoints),
@@ -503,9 +523,9 @@ async fn example_invocations_are_the_engine_output_on_the_canonical_world() {
     assert_matches_input_schema(&dialogue, catalog, EndpointRole::Dialogue);
     assert_fixture("example-engine-invocation.json", &dialogue);
 
-    let intent = intent_endpoint(catalog, "Let's make for the Letter Office")
-        .expect("intent Endpoint")
-        .invocation(&envelope());
+    let (intent, _) = intent_endpoint(catalog, &world, &npcs, "Let's make for the Letter Office")
+        .expect("intent Endpoint");
+    let intent = intent.invocation(&envelope());
     assert_matches_input_schema(&intent, catalog, EndpointRole::Intent);
     assert_fixture("example-intent-invocation.json", &intent);
 }
