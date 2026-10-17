@@ -445,7 +445,9 @@ class Release:
                     cwd=self.paths.root,
                 )
             else:
-                print("Skipping mobile-verify: this commit passed its PR checks (--verify none).")
+                print(
+                    "Skipping mobile-verify (--verify none): the caller found a recorded pass for this tree."
+                )
             build = release_build_number(self.paths.root)
             print(f"Requested build number: {build} (commit count of HEAD)")
             # The verifier builds the Rust framework; without it, build it here.
