@@ -76,6 +76,10 @@ class FakeRunner:
         self.cargo_tree_output = "limerick-mobile-ffi v0.1.0\n"
         self.simctl_output = SIMCTL_JSON
         self.xcresult_output = XCRESULT_JSON
+        # Per `-only-testing:` selector case results in a combined run's tree.
+        self.case_results: dict[str, str] = {}
+        # Called with each command first; a CommandResult it returns wins.
+        self.intercept = None
         self.device_output = json.dumps(
             {
                 "devices": [
@@ -102,6 +106,10 @@ class FakeRunner:
     def run(self, argv, *, cwd, env=None, timeout_seconds=None):
         command = tuple(str(part) for part in argv)
         self.calls.append({"argv": command, "cwd": Path(cwd), "env": dict(env or {})})
+        if self.intercept is not None:
+            intercepted = self.intercept(command)
+            if intercepted is not None:
+                return intercepted
         result = self.results.get(command)
         if callable(result):
             return result(command)
@@ -111,6 +119,8 @@ class FakeRunner:
             return CommandResult(0, stdout=self.simctl_output)
         if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "summary"):
             return CommandResult(0, stdout=self.xcresult_output)
+        if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+            return CommandResult(0, stdout=json.dumps(self.xcresult_tree()))
         if command[:5] == ("xcrun", "devicectl", "list", "devices", "--json-output"):
             return CommandResult(0, stdout=self.device_output)
         if command[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test"):
@@ -124,6 +134,49 @@ class FakeRunner:
                 write_codecov(Path(cwd), command, self.coverage_percent)
             return CommandResult(0, stdout=self.swift_output)
         return CommandResult(0, stdout="ok\n")
+
+    def xcresult_tree(self):
+        """One case per `-only-testing` selector of the last xcodebuild test run."""
+
+        test_run = next(
+            call["argv"]
+            for call in reversed(self.calls)
+            if call["argv"][:1] == ("xcodebuild",) and call["argv"][-1] == "test"
+        )
+        bundles: dict[str, dict[str, list[dict]]] = {}
+        for arg in test_run:
+            if not arg.startswith("-only-testing:"):
+                continue
+            bundle, _, rest = arg.removeprefix("-only-testing:").partition("/")
+            suite, _, test = rest.partition("/")
+            bundles.setdefault(bundle, {}).setdefault(suite or "FixtureTests", []).append(
+                {
+                    "nodeType": "Test Case",
+                    "name": test or "testFixture()",
+                    "result": self.case_results.get(arg, "Passed"),
+                }
+            )
+        return {
+            "testNodes": [
+                {
+                    "nodeType": "Test Plan",
+                    "name": "Rundale",
+                    "children": [
+                        {
+                            "nodeType": "UI test bundle"
+                            if bundle.endswith("UITests")
+                            else "Unit test bundle",
+                            "name": bundle,
+                            "children": [
+                                {"nodeType": "Test Suite", "name": suite, "children": cases}
+                                for suite, cases in suites.items()
+                            ],
+                        }
+                        for bundle, suites in bundles.items()
+                    ],
+                }
+            ]
+        }
 
 
 def write_codecov(root: Path, command: tuple[str, ...], percent: float) -> None:
@@ -367,7 +420,7 @@ class VerificationRunnerTests(unittest.TestCase):
 
         argv = simulator_argv()
         self.assertEqual(argv[argv.index("-parallel-testing-enabled") + 1], "YES")
-        self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "4")
+        self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "6")
         argv = simulator_argv(parallel_workers=2)
         self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "2")
         argv = simulator_argv(parallel_workers=1)
@@ -378,7 +431,7 @@ class VerificationRunnerTests(unittest.TestCase):
 
     def test_parallel_workers_option_reads_environment(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 4)
+            self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 6)
             args = verify_module.build_parser().parse_args(["--parallel-workers", "1"])
             self.assertEqual(args.parallel_workers, 1)
         with patch.dict(os.environ, {"RUNDALE_PARALLEL_WORKERS": "3"}, clear=True):
@@ -753,10 +806,73 @@ class VerificationRunnerTests(unittest.TestCase):
                 for call in fake.calls
                 if call["argv"][0] == "xcodebuild" and "test" in call["argv"]
             ]
-            # All simulator phases share products within a run, not separate
-            # dependency recompilations for every test class.
-            self.assertEqual(len({b[b.index("-derivedDataPath") + 1] for b in builds}), 1)
-            self.assertEqual(len(builds), 5)
+            # Every simulator suite runs in one xcodebuild, so the classes of all
+            # five share one set of simulator clones and one build.
+            self.assertEqual(len(builds), 1)
+            selectors = {arg for arg in builds[0] if arg.startswith("-only-testing:")}
+            for selector in (
+                "RundaleUITests/RundaleUITests",
+                "RundaleUITests/RundalePhase2UITests",
+                "RundaleUITests/RundalePhase3UITests",
+                "RundaleUITests/RundalePhase4UITests",
+                "RundaleTests",
+            ):
+                self.assertIn(f"-only-testing:{selector}", selectors)
+            self.assertEqual(by_id["ios-simulator-combined-run"]["status"], "passed")
+            self.assertEqual(by_id["phase4-ios-simulator-tests-results"]["status"], "passed")
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 3)
+
+    def test_combined_run_fails_only_the_suite_whose_case_failed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.case_results["-only-testing:RundaleUITests/RundalePhase3UITests"] = "Failed"
+            report = VerificationRun(root, command_runner=fake).run(4)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["status"], "failed")
+            self.assertIn("1 failed test", by_id["phase3-ios-simulator-tests"]["reason"])
+            self.assertEqual(by_id["phase3-ios-simulator-test-results"]["status"], "failed")
+            for identifier in ("ios-simulator-tests", "phase2-ios-simulator-tests"):
+                self.assertEqual(by_id[identifier]["status"], "passed", identifier)
+
+    def test_combined_run_that_exits_nonzero_fails_passing_suites(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+
+            def crashed(command):
+                if command[0] == "xcodebuild" and command[-1] == "test":
+                    return CommandResult(65, stderr="Test runner crashed")
+                return None
+
+            fake = FakeRunner()
+            fake.intercept = crashed
+            report = VerificationRun(root, command_runner=fake).run(4)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            suite = by_id["phase2-ios-simulator-tests"]
+            self.assertEqual(suite["status"], "failed")
+            self.assertIn("combined run failed", suite["reason"])
+
+    def test_combined_run_with_unreadable_results_fails_every_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+
+            def unreadable(command):
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+                    return CommandResult(1, stderr="no result bundle")
+                return None
+
+            fake = FakeRunner()
+            fake.intercept = unreadable
+            report = VerificationRun(root, command_runner=fake).run(4)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            for identifier in ("ios-simulator-tests", "phase4-ios-controller-tests"):
+                self.assertEqual(by_id[identifier]["status"], "failed", identifier)
+                self.assertIn("no result bundle", by_id[identifier]["reason"])
 
     def test_phase4_missing_suite_is_blocking(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1150,6 +1266,33 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
             self.assertIn("9 passed suite(s) reused", summary)
+
+    def test_full_run_reuses_combined_simulator_passes_per_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            first, first_report = self.run_phase(root, 4)
+            self.assertEqual(first_report["exit_code"], 0)
+            tests = [
+                c
+                for c in first.calls
+                if c["argv"][:1] == ("xcodebuild",) and c["argv"][-1] == "test"
+            ]
+            self.assertEqual(len(tests), 1)
+
+            second, report = self.run_phase(root, 4)
+            self.assertEqual(report["exit_code"], 0)
+            self.assertFalse(
+                [
+                    c
+                    for c in second.calls
+                    if c["argv"][:1] == ("xcodebuild",) and c["argv"][-1] == "test"
+                ]
+            )
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            for identifier in ("ios-simulator-tests", "phase4-ios-controller-tests"):
+                self.assertTrue(by_id[identifier]["details"]["cache"]["reused"], identifier)
+            self.assertNotIn("ios-simulator-combined-run", by_id)
 
     def test_reused_package_pass_still_checks_coverage_against_the_baseline(self):
         with tempfile.TemporaryDirectory() as directory:

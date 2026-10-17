@@ -93,13 +93,22 @@ The runner accepts these options:
 ```
 
 Simulator suites run with Xcode parallel testing: `xcodebuild` clones the
-selected simulator into `N` workers (default 4, `RUNDALE_PARALLEL_WORKERS` or
+selected simulator into `N` workers (default 6, `RUNDALE_PARALLEL_WORKERS` or
 `--parallel-workers N`). `--parallel-workers 1` restores the serial run. The UI
 tests share no state: each launches the app with its own launch arguments and a
-fresh app container. Xcode distributes whole test classes across workers, so a
-suite that is a single class (Phases 2, 3, and 4 each run one UI class) runs on
-one worker and gains nothing; split a slow class to speed it up. Physical-device
-runs are never parallel.
+fresh app container. Xcode distributes whole test classes across workers, so one
+slow class sets a floor; split it to speed the run up. Physical-device runs are
+never parallel.
+
+A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
+simulator suite separately. It queues every suite without a cached pass and runs
+them in one `xcodebuild` (`ios-simulator-combined-run`), so their classes share
+one set of simulator clones and keep every worker busy. Each suite and its
+`*-results` gate still pass or fail on their own test cases, read from the
+combined result bundle, and each suite caches its own pass. A combined run that
+exits nonzero fails every suite whose cases passed. Measured cold on an M5 Pro:
+the five suites took 13.8 minutes run separately with 4 workers and 8 minutes
+combined with 6, and the full gate 15.7 and 10.1 minutes.
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
 an explicit `--simulator` takes precedence. `--live-endpoint`, `--soak`, and
