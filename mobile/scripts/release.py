@@ -238,11 +238,17 @@ def project_value(project_spec: Path, key: str) -> str:
 
 class Release:
     def __init__(
-        self, paths: Paths, *, dry_run: bool = False, runner: Callable[..., None] | None = None
+        self,
+        paths: Paths,
+        *,
+        dry_run: bool = False,
+        runner: Callable[..., None] | None = None,
+        verify: bool = True,
     ) -> None:
         self.paths = paths
         self.dry_run = dry_run
         self._runner = runner
+        self.verify = verify
 
     def note(self, message: str) -> None:
         """Print a line and keep it in the release log beside command output."""
@@ -428,19 +434,22 @@ class Release:
         with self.locked():
             self.firebase_preflight()
             self.clear_output()
-            self.run_command(
-                [
-                    sys.executable,
-                    str(self.paths.mobile / "scripts" / "verify.py"),
-                    "--phase",
-                    "all",
-                ],
-                cwd=self.paths.root,
-            )
+            if self.verify:
+                self.run_command(
+                    [
+                        sys.executable,
+                        str(self.paths.mobile / "scripts" / "verify.py"),
+                        "--phase",
+                        "all",
+                    ],
+                    cwd=self.paths.root,
+                )
+            else:
+                print("Skipping mobile-verify: this commit passed its PR checks (--verify none).")
             build = release_build_number(self.paths.root)
             print(f"Requested build number: {build} (commit count of HEAD)")
-            # The verifier already built the Rust framework for all implemented phases.
-            self.common_prepare(build_rust=False)
+            # The verifier builds the Rust framework; without it, build it here.
+            self.common_prepare(build_rust=not self.verify)
             self.run_command(
                 [
                     "xcodebuild",
@@ -630,6 +639,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "archive", "testflight"))
     parser.add_argument(
+        "--verify",
+        choices=("all", "none"),
+        default="all",
+        help="testflight: run `mobile-verify --phase all` first (default), or skip it "
+        "for a commit already verified, as the GitHub workflow does on main",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print commands without prerequisites or side effects",
@@ -639,7 +655,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    release = Release(Paths(Path(__file__).resolve().parents[2]), dry_run=args.dry_run)
+    release = Release(
+        Paths(Path(__file__).resolve().parents[2]),
+        dry_run=args.dry_run,
+        verify=args.verify == "all",
+    )
     try:
         getattr(release, args.command)()
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:

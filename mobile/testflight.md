@@ -41,13 +41,16 @@ steps below and confirm **Testing** in **Internal Beta** before declaring delive
 
 ## Uploading from GitHub
 
-`.github/workflows/testflight.yml` runs `release.py testflight` on a hosted
-`macos-26` runner on every merge to `main` that changes `mobile/`, `mods/`, the
-engine crates or the Rust toolchain, and on **Run workflow**. It runs the same
-`mobile-verify --phase all` gate, then signs and uploads with an App Store Connect
-API key, so no Xcode account session or owner's Mac is involved. `release.py`
-uses the key when `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set,
-and the signed-in Xcode account otherwise.
+`.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
+merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
+toolchain, and on **Run workflow**. It runs `release.py testflight --verify none`:
+the commit already passed its PR checks and the gatekeeper, so it skips the full
+`mobile-verify` gate (about an hour on a cold runner) and goes straight to the Rust
+build, archive, distribution export check and upload. The Rust target directory is
+cached between runs. `just testflight-update` keeps the full gate by default.
+`release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
+`ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
+otherwise.
 
 The workflow reads these secrets from its `testflight` environment:
 

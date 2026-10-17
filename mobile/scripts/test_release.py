@@ -251,6 +251,21 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(self.paths.output.exists())
         self.assertEqual(self.commands, [])
 
+    def test_testflight_without_verify_builds_rust_itself(self):
+        runner = release.Release(self.paths, runner=self.runner, verify=False)
+        with (
+            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        self.assertFalse(any("verify.py" in " ".join(c) for c in self.commands))
+        self.assertTrue(self.commands[0][-1].endswith("build-rust-mobile.sh"))
+        self.assertEqual(self.commands[1][0], "xcodegen")
+        self.assertIn("archive", self.commands[2])
+        self.assertEqual(release.parse_args(["testflight"]).verify, "all")
+        self.assertEqual(release.parse_args(["testflight", "--verify", "none"]).verify, "none")
+
     def test_signing_uses_the_xcode_account_without_an_api_key(self):
         self.assertEqual(release.signing_auth_args({}), ["-allowProvisioningUpdates"])
 

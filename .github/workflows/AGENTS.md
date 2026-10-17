@@ -119,7 +119,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `testflight.yml` — Internal TestFlight upload
 
 - **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.lock`, `rust-toolchain.toml` or the workflow; `workflow_dispatch`.
-- Runs `python3 mobile/scripts/release.py testflight` on `macos-26` with Xcode 26.6: the full `mobile-verify --phase all` gate, then archive, distribution export check and upload. Full history is checked out, since the build number is HEAD's commit count.
+- Runs `python3 mobile/scripts/release.py testflight --verify none` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. The full `mobile-verify` gate is skipped; the commit passed its PR checks. Full history is checked out, since the build number is HEAD's commit count.
 - **Auth:** an App Store Connect API key (`ASC_API_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`) and the private Firebase plist (`FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64`), secrets of the `testflight` environment ([runbook](../../mobile/testflight.md#uploading-from-github)).
 - **Concurrency:** `testflight`, cancel-in-progress: **false**.
 

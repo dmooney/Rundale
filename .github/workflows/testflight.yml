@@ -1,10 +1,11 @@
 name: TestFlight
 
-# Uploads an internal TestFlight build (`just testflight-update`) on every merge
-# to main that changes what the iPhone app ships, so the owner can try it
-# without a Mac session. `release.py` runs the full `mobile-verify --phase all`
-# gate first and signs with an App Store Connect API key instead of an Xcode
-# account. Apple's processing, export compliance and the Internal Beta
+# Uploads an internal TestFlight build on every merge to main that changes what
+# the iPhone app ships, so the owner can try it without a Mac session. The
+# commit already passed its PR checks and the gatekeeper, so the full
+# `mobile-verify` gate is skipped (`--verify none`); `just testflight-update`
+# still runs it locally. `release.py` signs with an App Store Connect API key
+# instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
 # **Testing** status still follow the upload (mobile/testflight.md).
 
 on:
@@ -33,7 +34,7 @@ jobs:
   upload:
     name: Verify and upload
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 45
     environment: testflight
     steps:
       # The build number is HEAD's commit count, so the full history is needed.
@@ -52,6 +53,15 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # The mobile Rust build's target directory; only changed crates rebuild.
+      - uses: actions/cache@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
+            rust-mobile-
+
       - name: Write the private Firebase file and API key
         env:
           FIREBASE_PLIST_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64 }}
@@ -67,7 +77,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: python3 mobile/scripts/release.py testflight
+        run: python3 mobile/scripts/release.py testflight --verify none
 
       - name: Upload the release report
         if: always()
