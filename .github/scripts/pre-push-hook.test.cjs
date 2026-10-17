@@ -34,7 +34,7 @@ function repository({ changed, fail = [] }) {
 		`echo "${name} $*" >> "${log}"${fail.includes(name) ? '\nexit 1' : ''}`;
 	stub(
 		path.join(root, 'limerick/scripts/ensure-deps.sh'),
-		`if [ "$1" = py ]; then ${record('ensure-py').replace('\n', '; ')}; fi`,
+		`if [ "$1" = py ]; then ${record('ensure-py').replaceAll('\n', '; ')}; fi`,
 	);
 	stub(
 		path.join(root, 'limerick/scripts/check-docs-format.sh'),
