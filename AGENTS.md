@@ -121,6 +121,11 @@ For gameplay changes, use `/limerick-engine prove <feature>` on the affected pro
 path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements.
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
+CI does not run the simulator suites. For a PR that changes what the app ships
+(`mobile/`, `mods/`, the engine crates, Cargo files, the Rust toolchain), run
+`just mobile-verify --phase all` on a clean checkout of the commit, push, then
+`just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
+pass is recorded for the PR's input tree. Documentation-only commits keep it valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
 commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 

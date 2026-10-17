@@ -14,6 +14,8 @@ function runGate({
 	runtimeResult,
 	differentialRequired = 'false',
 	differentialResult = 'skipped',
+	mobileVerifyRequired = 'false',
+	mobileVerifyResult = 'skipped',
 }) {
 	return spawnSync('bash', [gate], {
 		encoding: 'utf8',
@@ -25,6 +27,8 @@ function runGate({
 			RUNTIME_SUITE_RESULT: runtimeResult,
 			DIFFERENTIAL_REQUIRED: differentialRequired,
 			DIFFERENTIAL_RESULT: differentialResult,
+			MOBILE_VERIFY_REQUIRED: mobileVerifyRequired,
+			MOBILE_VERIFY_RESULT: mobileVerifyResult,
 		},
 	});
 }
@@ -162,6 +166,30 @@ test('the differential proof must succeed when selected and be skipped otherwise
 			if (expectedStatus === 1) {
 				assert.match(result.stdout, /differential proof/);
 			}
+		});
+	}
+});
+
+test('an app change passes only with a recorded mobile-verify pass', async (t) => {
+	for (const [required, mobileVerifyResult, expectedStatus] of [
+		['true', 'success', 0],
+		['true', 'failure', 1],
+		['true', 'skipped', 1],
+		['false', 'skipped', 0],
+		['false', 'success', 1],
+	]) {
+		await t.test(`${required} ${mobileVerifyResult}`, () => {
+			const result = runGate({
+				runtimeRequired: 'false',
+				runtimeResult: 'skipped',
+				mobileVerifyRequired: required,
+				mobileVerifyResult,
+			});
+			assert.equal(
+				result.status,
+				expectedStatus,
+				result.stdout + result.stderr,
+			);
 		});
 	}
 });

@@ -478,6 +478,8 @@ class VerificationRun:
         # reuses and contributes passes.
         self.cache_dir = self.root / "mobile" / ".verification" / "cache"
         self._content_key_value: str | None = None
+        # The tested working tree minus CACHE_IGNORED_PATHSPECS (verify_record.py).
+        self._input_tree: str | None = None
         self._content_key_reason: str | None = None
         self._content_key_computed = False
 
@@ -754,6 +756,7 @@ class VerificationRun:
         if tree.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree_id):
             self._content_key_reason = "git write-tree did not return a tree id"
             return None
+        self._input_tree = tree_id
         toolchain = {}
         for label, command in (
             ("xcode", ["xcodebuild", "-version"]),
@@ -2698,7 +2701,33 @@ class VerificationRun:
         }
         self._write_reports(report)
         self._store_cached_passes(self.report_dir / "verify.json")
+        if phase is None and not fast and report["status"] == PASSED:
+            self._store_full_pass(report)
         return report
+
+    def _store_full_pass(self, report: Mapping[str, Any]) -> None:
+        """Note a full pass by input tree, for `verify_record.py record` to post."""
+
+        if self._input_tree is None:
+            return
+        passes = self.root / "mobile" / ".verification" / "passes"
+        passes.mkdir(parents=True, exist_ok=True)
+        (passes / f"{self._input_tree}.json").write_text(
+            json.dumps(
+                {
+                    "input_tree": self._input_tree,
+                    "content_key": self._content_key_value,
+                    "started_at": report["started_at"],
+                    "finished_at": report["finished_at"],
+                    "summary": report["summary"],
+                    "report": report["reports"]["json"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)
