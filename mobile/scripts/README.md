@@ -114,7 +114,9 @@ combined with 6, and the full gate 15.7 and 10.1 minutes.
 
 A full run (`--phase all`) that passes saves
 `mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
-tested inputs with `CACHE_IGNORED_PATHSPECS` removed. After pushing,
+tested inputs with `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's
+exclusions except the coverage baseline, which a recorded pass is never
+re-checked against. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a
 `mobile-verify` commit status on HEAD, and refuses if no pass matches HEAD's
 tree, for example when the run included uncommitted or untracked inputs. CI's

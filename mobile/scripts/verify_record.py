@@ -3,8 +3,8 @@
 
 The full simulator gate runs once, on the author's Mac. A pass is identified by
 its input tree: the git tree of the commit with the paths no gate reads
-removed (`verify.CACHE_IGNORED_PATHSPECS`), so later documentation-only commits
-keep it valid. `record` posts that tree as a `mobile-verify` commit status on
+removed (`verify.ATTESTATION_IGNORED_PATHSPECS`), so later documentation-only
+commits keep it valid. `record` posts that tree as a `mobile-verify` commit status on
 HEAD; `check` finds a status whose tree matches a pull request or a commit, so
 CI and the TestFlight workflow need neither Xcode nor a second run.
 
@@ -55,9 +55,11 @@ def input_tree(rev: str = "HEAD") -> str:
     with tempfile.TemporaryDirectory(prefix="rundale-input-tree-") as scratch:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
         _git("read-tree", f"{rev}^{{tree}}", env=env)
+        # -f: in CI's merge checkout an excluded file can match neither the
+        # checkout's HEAD nor its work tree, which plain `rm --cached` refuses.
         _git(
-            "rm", "-r", "-q", "--cached", "--ignore-unmatch", "--",
-            *verify.CACHE_IGNORED_PATHSPECS,
+            "rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--",
+            *verify.ATTESTATION_IGNORED_PATHSPECS,
             env=env,
         )  # fmt: skip
         return _git("write-tree", env=env)

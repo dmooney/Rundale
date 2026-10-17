@@ -101,6 +101,25 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "app")
         self.assertNotEqual(record_module.input_tree(), before)
 
+    def test_coverage_baseline_changes_the_input_tree(self):
+        before = record_module.input_tree()
+        baseline = self.root / "mobile" / "coverage-baseline.json"
+        payload = json.loads(baseline.read_text())
+        payload["tolerance_percentage_points"] = 0.5
+        baseline.write_text(json.dumps(payload))
+        commit(self.root, "baseline")
+        self.assertNotEqual(record_module.input_tree(), before)
+
+    def test_input_tree_of_a_commit_whose_docs_differ_from_the_checkout(self):
+        # CI checks out a merge commit; the PR head's excluded docs can match
+        # neither that checkout's HEAD nor its work tree.
+        pr_head = self.head
+        expected = record_module.input_tree(pr_head)
+        (self.root / "docs" / "notes.md").write_text("main moved\n", encoding="utf-8")
+        commit(self.root, "docs on main")
+        (self.root / "docs" / "notes.md").write_text("uncommitted\n", encoding="utf-8")
+        self.assertEqual(record_module.input_tree(pr_head), expected)
+
     def test_a_full_pass_is_stored_under_the_tree_record_reads(self):
         report = test_verify_module.VerificationRun(
             self.root, command_runner=test_verify_module.GitBackedRunner()
