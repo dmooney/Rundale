@@ -145,7 +145,8 @@ DerivedData, result bundles, Swift scratch directories and device inventories of
 all but the newest earlier run (each run writes its own under a timestamp, and
 nothing reads an earlier run's); the reuse cache, recorded passes and logs stay.
 The newest earlier run's are kept because a run killed outright (SIGKILL) can
-leave its build still writing there. A run holds `.run.lock` in the report
+leave its build still writing there; that protects one earlier run, so a build
+that outlives two later runs can lose its directory. A run holds `.run.lock` in the report
 directory until its report is written, so a second run sharing that directory
 exits with status 2 instead of deleting the first run's build; use
 `--report-dir` to run two at once. Ctrl+C or SIGTERM stops the running command's

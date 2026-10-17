@@ -1341,6 +1341,22 @@ class PruneTests(unittest.TestCase):
                 os.kill(grandchild, signal.SIGKILL)
 
 
+class StopGroupTests(unittest.TestCase):
+    def test_a_timed_out_command_keeps_what_it_wrote_while_being_stopped(self):
+        # The trap writes on SIGTERM; the background sleep ignores SIGTERM and
+        # keeps the pipe open, so the first wait times out and the group is
+        # killed before its output is read.
+        started = time.monotonic()
+        result = verify_module.SubprocessCommandRunner().run(
+            ["bash", "-c", "trap 'echo stopping' TERM; (trap '' TERM; exec sleep 60) & wait; wait"],
+            cwd=Path("."),
+            timeout_seconds=0.5,
+        )
+        self.assertTrue(result.timed_out)
+        self.assertGreater(time.monotonic() - started, 5, "cleanup never escalated")
+        self.assertIn("stopping", result.stdout)
+
+
 class XcresultTreeTests(unittest.TestCase):
     def test_parses_a_tree_xcresulttool_wrote(self):
         # Trimmed from `xcresulttool get test-results tests` on a real combined run.

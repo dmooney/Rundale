@@ -186,10 +186,11 @@ def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
             return _text(out), _text(err)
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGTERM)
+        drained = True
         try:
             out, err = process.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            out, err = "", ""
+            out, err, drained = "", "", False
         # poll() reaps the direct child: a zombie still counts as a member.
         deadline = time.monotonic() + 5
         while process.poll() is None or _group_alive(process.pid):
@@ -201,7 +202,9 @@ def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
                 os.killpg(process.pid, signal.SIGKILL)
             while process.poll() is None or _group_alive(process.pid):
                 time.sleep(0.05)
-        if process.returncode is None:
+        if not drained:
+            # Every member has exited, so the pipes are closed: read what the
+            # command wrote while it was being stopped.
             more_out, more_err = process.communicate()
             out, err = _text(out) + _text(more_out), _text(err) + _text(more_err)
         return _text(out), _text(err)
