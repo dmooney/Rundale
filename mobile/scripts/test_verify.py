@@ -1242,92 +1242,103 @@ def executed_suites(fake: FakeRunner) -> list[tuple[str, ...]]:
     ]
 
 
+OLDER, NEWER = "20260101T000000000000Z", "20260102T000000000000Z"
+
+
+def stamped_products(report: Path, stamp: str) -> list[Path]:
+    paths = [
+        report / "DerivedData" / f"simulator-{stamp}" / "Build",
+        report / "xcresults" / f"simulator-{stamp}.xcresult",
+        report / "swift-scratch" / stamp,
+    ]
+    for path in paths:
+        path.mkdir(parents=True)
+    (report / "device").mkdir(exist_ok=True)
+    (report / "device" / f"devices-{stamp}.json").write_text("{}\n", encoding="utf-8")
+    return [*paths, report / "device" / f"devices-{stamp}.json"]
+
+
+def run_in_subprocess(command: str) -> tuple[subprocess.Popen, int]:
+    """Start a real runner on `command` and return it with its grandchild's pid."""
+
+    directory = tempfile.mkdtemp()
+    pidfile = Path(directory) / "grandchild.pid"
+    script = (
+        "import signal, sys\n"
+        f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
+        "import verify\n"
+        "signal.signal(signal.SIGTERM, verify._raise_interrupt)\n"
+        "verify.SubprocessCommandRunner().run(\n"
+        f"    ['bash', '-c', {command.replace('PIDFILE', str(pidfile))!r}], cwd='.')\n"
+    )
+    runner = subprocess.Popen([sys.executable, "-c", script])
+    deadline = time.monotonic() + 10
+    while not (pidfile.exists() and pidfile.read_text().strip()):
+        if time.monotonic() > deadline or runner.poll() is not None:
+            raise AssertionError("grandchild never started")
+        time.sleep(0.05)
+    return runner, int(pidfile.read_text())
+
+
+def process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
 class PruneTests(unittest.TestCase):
-    def test_a_run_deletes_earlier_runs_build_products_but_keeps_the_cache(self):
+    def test_a_run_keeps_only_the_last_runs_build_products_and_the_cache(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
             report = root / "mobile" / ".verification"
-            stale = [
-                report / "DerivedData" / "simulator-20260101T000000Z" / "Build",
-                report / "xcresults" / "simulator-20260101T000000Z.xcresult",
-                report / "swift-scratch" / "20260101T000000Z",
-                report / "device",
-            ]
+            older = stamped_products(report, OLDER)
+            newer = stamped_products(report, NEWER)
             kept = [report / "cache", report / "passes", report / "logs"]
-            for path in stale + kept:
-                path.mkdir(parents=True)
-                (path / "marker").write_text("old\n", encoding="utf-8")
-            VerificationRun(root, command_runner=FakeRunner()).run(1)
-            for path in stale:
-                self.assertFalse(path.exists(), path)
             for path in kept:
-                self.assertTrue(path.is_dir(), path)
-            self.assertTrue((report / "cache" / "marker").exists())
+                path.mkdir(parents=True)
+            VerificationRun(root, command_runner=FakeRunner()).run(1)
+            for path in older:
+                self.assertFalse(path.exists(), path)
+            # The newest earlier run's build may still be running (SIGKILL).
+            for path in newer + kept:
+                self.assertTrue(path.exists(), path)
 
     def test_a_run_refuses_a_report_directory_another_run_holds(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
             report = root / "mobile" / ".verification"
-            products = report / "DerivedData" / "simulator-20260101T000000Z"
-            products.mkdir(parents=True)
+            older = stamped_products(report, OLDER)
+            stamped_products(report, NEWER)
             with (report / ".run.lock").open("w") as held:
                 verify_module.fcntl.flock(held, verify_module.fcntl.LOCK_EX)
                 with self.assertRaises(verify_module.ReportDirectoryBusy):
                     VerificationRun(root, command_runner=FakeRunner()).run(fast=True)
                 # The active run's build products survive the refused run.
-                self.assertTrue(products.is_dir())
-            # Once released, a later run proceeds and prunes them.
+                self.assertTrue(all(path.exists() for path in older))
             VerificationRun(root, command_runner=FakeRunner()).run(1)
-            self.assertFalse(products.exists())
+            self.assertFalse(any(path.exists() for path in older))
 
     def test_sigterm_stops_the_running_commands_whole_process_group(self):
-        # A real runner process, interrupted the way `kill` interrupts verify.py.
-        with tempfile.TemporaryDirectory() as directory:
-            pidfile = Path(directory) / "grandchild.pid"
-            script = (
-                "import signal, sys\n"
-                f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
-                "import verify\n"
-                "signal.signal(signal.SIGTERM, verify._raise_interrupt)\n"
-                "verify.SubprocessCommandRunner().run(\n"
-                f"    ['bash', '-c', 'sleep 60 & echo $! > {pidfile}; wait'], cwd='.')\n"
-            )
-            runner = subprocess.Popen([sys.executable, "-c", script])
-            deadline = time.monotonic() + 10
-            while not (pidfile.exists() and pidfile.read_text().strip()):
-                self.assertLess(time.monotonic(), deadline, "grandchild never started")
-                time.sleep(0.05)
-            grandchild = int(pidfile.read_text())
-            runner.send_signal(signal.SIGTERM)
-            runner.wait(timeout=15)
-            deadline = time.monotonic() + 5
-            while verify_module._group_alive(grandchild) and time.monotonic() < deadline:
-                time.sleep(0.05)
-            with contextlib.suppress(ProcessLookupError):
-                alive = os.kill(grandchild, 0) is None
-                self.fail(f"grandchild {grandchild} outlived the runner (alive={alive})")
+        runner, grandchild = run_in_subprocess("sleep 60 & echo $! > PIDFILE; wait")
+        runner.send_signal(signal.SIGTERM)
+        runner.wait(timeout=15)
+        self.assertFalse(process_alive(grandchild))
 
-    def test_a_build_left_by_a_killed_run_blocks_pruning(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            create_phase2_fixture(root)
-            report = root / "mobile" / ".verification"
-            products = report / "DerivedData" / "simulator-20260101T000000Z"
-            products.mkdir(parents=True)
-            survivor = subprocess.Popen(["sleep", "60"], start_new_session=True)
-            try:
-                (report / ".run.lock").write_text(f"{survivor.pid}\n", encoding="utf-8")
-                with self.assertRaises(verify_module.ReportDirectoryBusy) as raised:
-                    VerificationRun(root, command_runner=FakeRunner()).run(fast=True)
-                self.assertIn(str(survivor.pid), str(raised.exception))
-                self.assertTrue(products.is_dir())
-            finally:
-                survivor.kill()
-                survivor.wait()
-            VerificationRun(root, command_runner=FakeRunner()).run(1)
-            self.assertFalse(products.exists())
+    def test_a_member_that_ignores_sigterm_is_killed_before_the_runner_exits(self):
+        runner, grandchild = run_in_subprocess(
+            "trap '' TERM; sleep 60 >/dev/null 2>&1 & echo $! > PIDFILE; wait"
+        )
+        try:
+            runner.send_signal(signal.SIGTERM)
+            runner.wait(timeout=20)
+            self.assertFalse(process_alive(grandchild))
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(grandchild, signal.SIGKILL)
 
 
 class XcresultTreeTests(unittest.TestCase):

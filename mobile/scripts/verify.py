@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -170,32 +170,48 @@ class CommandRunner(Protocol):
 
 
 def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
-    """Stop a command's whole process group and return its remaining output."""
+    """Stop a command's whole process group and return its remaining output.
 
-    if process.poll() is None:
-        if os.name == "posix":
-            with suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGTERM)
-        else:
-            process.terminate()
+    The group is gone when this returns: a member that ignores SIGTERM gets
+    SIGKILL. Ctrl+C and SIGTERM are held off meanwhile, so a second interrupt
+    cannot abandon the cleanup halfway.
+    """
+
+    blocked = {signal.SIGINT, signal.SIGTERM}
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked) if os.name == "posix" else None
     try:
-        out, err = process.communicate(timeout=5)
-    except subprocess.TimeoutExpired:
-        if os.name == "posix":
+        if os.name != "posix":
+            process.terminate()
+            out, err = process.communicate()
+            return _text(out), _text(err)
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+        try:
+            out, err = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
+        # poll() reaps the direct child: a zombie still counts as a member.
+        deadline = time.monotonic() + 5
+        while process.poll() is None or _group_alive(process.pid):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        if process.poll() is None or _group_alive(process.pid):
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-        else:
-            process.kill()
-        out, err = process.communicate()
-    return _text(out), _text(err)
+            while process.poll() is None or _group_alive(process.pid):
+                time.sleep(0.05)
+        if process.returncode is None:
+            more_out, more_err = process.communicate()
+            out, err = _text(out) + _text(more_out), _text(err) + _text(more_err)
+        return _text(out), _text(err)
+    finally:
+        if previous is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
 
 
 class SubprocessCommandRunner:
     """Run each command in a process group so a timeout or interrupt cleans up children."""
-
-    def __init__(self) -> None:
-        # Called with each child's pid (its process group) when it starts.
-        self.on_start: Callable[[int], None] | None = None
 
     def run(
         self,
@@ -217,8 +233,6 @@ class SubprocessCommandRunner:
                 text=True,
                 start_new_session=(os.name == "posix"),
             )
-            if self.on_start is not None:
-                self.on_start(process.pid)
             stdout, stderr = process.communicate(timeout=timeout_seconds)
         except FileNotFoundError as exc:
             return CommandResult(
@@ -490,17 +504,13 @@ def _group_alive(pgid: int) -> bool:
 
 
 class ReportDirectoryBusy(RuntimeError):
-    """Another run, or a build an interrupted run left, is using the report directory."""
+    """Another run holds the report directory's lock."""
 
-    def __init__(self, report_dir: Path, *, child: int | None = None) -> None:
-        if child is None:
-            message = f"another mobile-verify run is using {report_dir}"
-        else:
-            message = (
-                f"process group {child}, started by an interrupted mobile-verify run, "
-                f"is still running in {report_dir}; stop it (kill -- -{child})"
-            )
-        super().__init__(f"{message}; wait for it, or pass --report-dir for a separate directory")
+    def __init__(self, report_dir: Path) -> None:
+        super().__init__(
+            f"another mobile-verify run is using {report_dir}; wait for it, or pass "
+            "--report-dir for a separate directory"
+        )
 
 
 class VerificationRun:
@@ -2749,38 +2759,14 @@ class VerificationRun:
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
         self.report_dir.mkdir(parents=True, exist_ok=True)
-        with (self.report_dir / ".run.lock").open("a+") as lock:
+        with (self.report_dir / ".run.lock").open("w") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ReportDirectoryBusy(self.report_dir) from None
             # Held until the report is written: pruning must never remove what
-            # another run sharing this directory still builds into. The file
-            # names the last child process group; one still alive is a build
-            # an interrupted run left behind (`kill -9`), so refuse too.
-            lock.seek(0)
-            previous = lock.read().strip()
-            if previous.isdigit() and _group_alive(int(previous)):
-                raise ReportDirectoryBusy(self.report_dir, child=int(previous))
-            on_start = getattr(self.runner, "on_start", False)
-            if on_start is None:
-
-                def note(pid: int) -> None:
-                    lock.seek(0)
-                    lock.truncate()
-                    lock.write(f"{pid}\n")
-                    lock.flush()
-
-                self.runner.on_start = note  # type: ignore[attr-defined]
-            try:
-                return self._locked_run(phase, fast=fast)
-            finally:
-                if on_start is None:
-                    self.runner.on_start = None  # type: ignore[attr-defined]
-                # Every child has exited or been stopped; only a run killed
-                # outright (SIGKILL) leaves a group behind for the next run.
-                lock.seek(0)
-                lock.truncate()
+            # another run sharing this directory still builds into.
+            return self._locked_run(phase, fast=fast)
 
     def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
         self._prune_previous_runs()
@@ -2875,16 +2861,29 @@ class VerificationRun:
         )
 
     def _prune_previous_runs(self) -> None:
-        """Delete the build products and result bundles earlier runs left.
+        """Delete the build products and result bundles of all but the last run.
 
-        Each run writes Xcode DerivedData, result bundles, Swift scratch
-        directories and device inventories under its own timestamp, and nothing
-        reads an earlier run's: reused passes come from the cache, not from
-        these. Kept, they grew to tens of gigabytes and filled the disk.
+        Each run writes Xcode DerivedData, result bundles and Swift scratch
+        directories under its own timestamp, and nothing reads an earlier
+        run's: reused passes come from the cache. Kept, they filled the disk.
+        The newest earlier run's are kept, because a run killed outright
+        (SIGKILL) can leave its build still writing there.
         """
 
+        stamp = re.compile(r"(\d{8}T\d{12}Z)")
+        entries: dict[str, list[Path]] = {}
         for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
-            shutil.rmtree(self.report_dir / name, ignore_errors=True)
+            folder = self.report_dir / name
+            for entry in folder.iterdir() if folder.is_dir() else ():
+                match = stamp.search(entry.name)
+                if match:
+                    entries.setdefault(match.group(1), []).append(entry)
+        for run in sorted(entries)[:-1]:
+            for entry in entries[run]:
+                if entry.is_dir():
+                    shutil.rmtree(entry, ignore_errors=True)
+                else:
+                    entry.unlink(missing_ok=True)
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)
