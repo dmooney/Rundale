@@ -118,6 +118,11 @@ class VerifyRecordTests(unittest.TestCase):
         (scripts / "verify.py").write_text("# gate\n", encoding="utf-8")
         commit(self.root, "gate tooling")
         self.assertEqual(record_module.input_tree(), before)
+        (scripts / "release.py").write_text("FEEDBACK = 'beta'\n", encoding="utf-8")
+        commit(self.root, "release settings")
+        # release.py writes Info.plist settings into the app.
+        self.assertNotEqual(record_module.input_tree(), before)
+        before = record_module.input_tree()
         (scripts / "build-rust-mobile.sh").write_text("# build\n", encoding="utf-8")
         commit(self.root, "rust build")
         self.assertNotEqual(record_module.input_tree(), before)

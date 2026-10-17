@@ -120,7 +120,9 @@ tested inputs, limited to what a full run builds or reads
 `.cargo/` and `bug-report/test/fixtures`), with
 `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
 coverage baseline, which a recorded pass is never re-checked against, plus the
-gate's own Python tooling (`mobile/scripts/*.py`), which its unit tests cover. A merge
+verification tools (`verify.py`, `verify_record.py`, `record-ui-test.py`), which
+their unit tests cover. `release.py` stays in, since it writes Info.plist
+settings into the app. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge
 onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a

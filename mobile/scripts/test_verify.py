@@ -1311,20 +1311,44 @@ class PruneTests(unittest.TestCase):
             report = root / "mobile" / ".verification"
             orphaned = stamped_products(report, OLDER)
             finished = stamped_products(report, NEWER)
-            # A builder whose runner was SIGKILLed: its arguments carry its
-            # run's timestamp, as xcodebuild's -derivedDataPath does.
-            builder = subprocess.Popen(
-                [sys.executable, "-c", "import time; time.sleep(60)", f"simulator-{OLDER}"],
-                start_new_session=True,
+            # A real runner starts a builder whose arguments carry its run's
+            # timestamp, as xcodebuild's -derivedDataPath does, then is killed
+            # outright, leaving the builder running.
+            pidfile = Path(directory) / "builder.pid"
+            builder = Path(directory) / "builder.py"
+            builder.write_text(
+                "import os, sys, time\n"
+                f"open({str(pidfile)!r}, 'w').write(str(os.getpid()))\n"
+                "time.sleep(60)\n",
+                encoding="utf-8",
             )
+            script = (
+                "import sys\n"
+                f"sys.path.insert(0, {str(Path(verify_module.__file__).parent)!r})\n"
+                "import verify\n"
+                "verify.SubprocessCommandRunner().run(\n"
+                f"    [sys.executable, {str(builder)!r}, 'simulator-{OLDER}'], cwd='.')\n"
+            )
+            runner = subprocess.Popen([sys.executable, "-c", script])
+            deadline = time.monotonic() + 10
+            while not (pidfile.exists() and pidfile.read_text().strip()):
+                self.assertLess(time.monotonic(), deadline, "builder never started")
+                time.sleep(0.05)
+            runner.kill()
+            runner.wait()
+            builder_pid = int(pidfile.read_text())
+            self.assertTrue(process_alive(builder_pid), "the builder should outlive SIGKILL")
             try:
                 for _ in range(3):  # B, C and D, each pruning
                     VerificationRun(root, command_runner=FakeRunner()).run(1)
                     self.assertTrue(all(path.exists() for path in orphaned))
                 self.assertFalse(any(path.exists() for path in finished))
             finally:
-                builder.kill()
-                builder.wait()
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(builder_pid, signal.SIGKILL)
+                deadline = time.monotonic() + 5
+                while process_alive(builder_pid) and time.monotonic() < deadline:
+                    time.sleep(0.05)
             VerificationRun(root, command_runner=FakeRunner()).run(1)
             self.assertFalse(any(path.exists() for path in orphaned))
 
