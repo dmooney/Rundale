@@ -204,8 +204,14 @@ to build, sign, upload, and distribute to the existing Internal Beta group; do
 not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
-Use `just testflight-update` and its [runbook](mobile/testflight.md); it runs
-`just mobile-verify --phase all` before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
+The TestFlight workflow (`.github/workflows/testflight.yml`) uploads a build on
+every merge to `main` that changes the app. By the owner's decision it skips
+`just mobile-verify --phase all`, which takes about an hour on a hosted runner,
+and CI does not run the simulator suites. So the author runs
+`just mobile-verify --phase all` locally before pushing any change that affects
+the app, and reports the result in the PR. For a build outside that workflow, use
+`just testflight-update` and its [runbook](mobile/testflight.md); it runs the
+full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
 received, what to try, checks run, and any remaining device gates. If signing,
 Apple processing, or another blocker prevents delivery, report it explicitly.

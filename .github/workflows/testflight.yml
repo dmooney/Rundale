@@ -2,9 +2,9 @@ name: TestFlight
 
 # Uploads an internal TestFlight build on every merge to main that changes what
 # the iPhone app ships, so the owner can try it without a Mac session. The
-# commit already passed its PR checks and the gatekeeper, so the full
-# `mobile-verify` gate is skipped (`--verify none`); `just testflight-update`
-# still runs it locally. `release.py` signs with an App Store Connect API key
+# full `mobile-verify` gate takes about an hour here, so by the owner's decision
+# it is skipped (`--verify none`); the author runs it locally before pushing an
+# app change (AGENTS.md, "Keep the iPhone beta current"). `release.py` signs with an App Store Connect API key
 # instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
 # **Testing** status still follow the upload (mobile/testflight.md).
 
@@ -16,6 +16,7 @@ on:
       - "mobile/**"
       - "mods/**"
       - "limerick/crates/**"
+      - "limerick/Cargo.toml"
       - "limerick/Cargo.lock"
       - "rust-toolchain.toml"
       - ".github/workflows/testflight.yml"
@@ -32,7 +33,7 @@ permissions:
 
 jobs:
   upload:
-    name: Verify and upload
+    name: Build and upload
     runs-on: macos-26
     timeout-minutes: 45
     environment: testflight
