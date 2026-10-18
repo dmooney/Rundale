@@ -19,8 +19,8 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Mapping, Sequence
-from contextlib import suppress
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -527,6 +527,30 @@ def _group_alive(pgid: int) -> bool:
     return True
 
 
+def default_host_lock() -> Path:
+    """The lock every non-fast run on this machine shares (`RUNDALE_MOBILE_VERIFY_LOCK`)."""
+
+    override = os.environ.get("RUNDALE_MOBILE_VERIFY_LOCK")
+    if override:
+        return Path(override)
+    caches = Path.home() / ("Library/Caches" if sys.platform == "darwin" else ".cache")
+    return caches / "rundale" / "mobile-verify.lock"
+
+
+# How long a run waits for another worktree's run to release the host lock.
+HOST_LOCK_WAIT_SECONDS = 6 * 3600
+
+
+class HostVerificationBusy(RuntimeError):
+    """Another mobile-verify run on this machine kept the host lock past the wait."""
+
+    def __init__(self, lock: Path, waited: float) -> None:
+        super().__init__(
+            f"another mobile-verify run on this machine held {lock} for {waited:.0f}s; "
+            "only one simulator gate runs at a time"
+        )
+
+
 class ReportDirectoryBusy(RuntimeError):
     """Another run holds the report directory's lock."""
 
@@ -559,8 +583,14 @@ class VerificationRun:
         command_timeout_seconds: float = 30 * 60,
         use_cache: bool = True,
         parallel_workers: int | None = None,
+        host_lock: Path | None = None,
+        host_lock_wait_seconds: float = HOST_LOCK_WAIT_SECONDS,
     ) -> None:
         self.root = repo_root.resolve()
+        # Every worktree's non-fast run (just mobile-verify, release.py, the
+        # Dependabot upkeep routine) shares the simulator and the Cargo target.
+        self.host_lock = host_lock if host_lock is not None else default_host_lock()
+        self.host_lock_wait_seconds = host_lock_wait_seconds
         mobile = self.root / "mobile"
         self.report_dir = _under_root(report_dir, mobile / ".verification", self.root).resolve()
         self.project_spec = _under_root(project_spec, mobile / "project.yml", self.root).resolve()
@@ -2783,7 +2813,10 @@ class VerificationRun:
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
         self.report_dir.mkdir(parents=True, exist_ok=True)
-        with (self.report_dir / ".run.lock").open("w") as lock:
+        with ExitStack() as held:
+            if not fast:  # --fast runs no simulator suite and builds no Rust
+                held.enter_context(self._host_lock())
+            lock = held.enter_context((self.report_dir / ".run.lock").open("w"))
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -2791,6 +2824,32 @@ class VerificationRun:
             # Held until the report is written: pruning must never remove what
             # another run sharing this directory still builds into.
             return self._locked_run(phase, fast=fast)
+
+    @contextmanager
+    def _host_lock(self) -> Iterator[None]:
+        """Wait, up to the bound, until no other run on this machine holds the host lock."""
+
+        self.host_lock.parent.mkdir(parents=True, exist_ok=True)
+        started = time.monotonic()
+        with self.host_lock.open("w") as lock:
+            announced = False
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    waited = time.monotonic() - started
+                    if waited >= self.host_lock_wait_seconds:
+                        raise HostVerificationBusy(self.host_lock, waited) from None
+                    if not announced:
+                        print(
+                            f"mobile-verify: waiting for another run on this machine ({self.host_lock})",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        announced = True
+                    time.sleep(min(5.0, max(0.05, self.host_lock_wait_seconds - waited)))
+            yield
 
     def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
         self._prune_previous_runs()
@@ -3088,7 +3147,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _raise_interrupt)
     try:
         report = run.run(args.phase, fast=args.fast)
-    except ReportDirectoryBusy as exc:
+    except (ReportDirectoryBusy, HostVerificationBusy) as exc:
         print(f"mobile-verify: {exc}", file=sys.stderr)
         return 2
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
