@@ -456,18 +456,20 @@ fn add_npc_mention_candidate(candidates: &mut Vec<(String, String)>, text: &str,
 fn unambiguous_npc_mention_candidates(
     candidates: Vec<(String, String)>,
 ) -> Vec<NpcMentionCandidate> {
+    // Folded as the tag matcher folds (design §3.5), so "Micheal" and
+    // "Mícheál" count as the same text and are ambiguous between two people.
     let mut targets_by_text: HashMap<String, HashSet<String>> = HashMap::new();
     for (text, target) in &candidates {
         targets_by_text
-            .entry(text.to_lowercase())
+            .entry(crate::npc::fold_name(text))
             .or_default()
-            .insert(target.to_lowercase());
+            .insert(crate::npc::fold_name(target));
     }
 
     let mut seen = HashSet::new();
     let mut filtered = Vec::new();
     for (text, target) in candidates {
-        let key = text.to_lowercase();
+        let key = crate::npc::fold_name(&text);
         if targets_by_text
             .get(&key)
             .is_some_and(|targets| targets.len() == 1)
@@ -1853,6 +1855,28 @@ mod tests {
 
         assert!(extracted.names.is_empty());
         assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn a_tag_that_folds_to_two_first_names_tags_no_one() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        for (id, name) in [(1, "Mícheál Connolly"), (2, "Micheal Brennan")] {
+            let mut npc = Npc::new_test_npc();
+            npc.id = NpcId(id);
+            npc.name = name.to_string();
+            npc.set_location(world.player_location);
+            npc_mgr.add_npc(npc);
+            npc_mgr.mark_introduced(NpcId(id));
+        }
+
+        for raw in [
+            "@Micheal could I ask ye something?",
+            "@Mícheál could I ask ye something?",
+        ] {
+            let extracted = extract_npc_tags(raw, &world, &npc_mgr);
+            assert!(extracted.names.is_empty(), "{raw:?}: {:?}", extracted.names);
+        }
     }
 
     #[test]

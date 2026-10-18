@@ -179,6 +179,12 @@ pub fn resolve_recipients(
         return Resolution::Gone(label(npc.id));
     }
 
+    // **All** was the player's answer: everyone still present answers as
+    // part of all, even if only one remains, and no partnership forms.
+    if answers.everyone {
+        return everyone();
+    }
+
     // 2. One person present answers whatever the line says.
     if present.len() == 1 {
         return one(present[0]);
@@ -242,9 +248,6 @@ pub fn resolve_recipients(
         );
         Resolution::Speak { speakers, partner }
     };
-    if answers.everyone {
-        return everyone();
-    }
     if let Some((_, id)) = answers.chosen.first() {
         return if present.contains(id) {
             with_joins(*id, PartnerChange::Set(*id))
@@ -358,6 +361,29 @@ mod tests {
             }
             other => panic!("expected speakers, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn all_still_means_everyone_when_one_of_two_has_left() {
+        let (world, mut npcs) = room(HERE);
+        // Róisín leaves while "Who are you speaking to?" waits.
+        npcs.get_mut(NpcId(3))
+            .unwrap()
+            .set_location_and_state(crate::world::LocationId(2), NpcState::Present);
+        let answers = Answers {
+            chosen: &[],
+            everyone: true,
+        };
+        let request = decided(DecidedRecipient::NoOne, &[]);
+        let resolution = resolve_recipients(&world, &npcs, &request, answers, true);
+        assert_eq!(speakers(&resolution), [(2, Addressing::PartOfAll)]);
+        assert!(matches!(
+            resolution,
+            Resolution::Speak {
+                partner: PartnerChange::End,
+                ..
+            }
+        ));
     }
 
     #[test]
