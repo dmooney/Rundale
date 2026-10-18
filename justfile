@@ -63,9 +63,9 @@ web PORT="3001":
 
 # Pre-commit gate: docs/data formatting and Markdown lint (CI's
 # "Docs/data formatting" job), known vulnerabilities in changed lockfiles
-# (CI's OSV-Scanner scan-pr), then the engine's format, lint, tests,
-# placeholder scan, and doc-paths
-check: docs-check osv-changed
+# (CI's OSV-Scanner scan-pr), full Python quality job, then the engine's
+# format, lint, tests, placeholder scan, and doc-paths
+check: docs-check osv-changed python-quality
     cd limerick && just check
 
 # Fail on known vulnerabilities that lockfiles changed against origin/main add,
@@ -95,7 +95,7 @@ repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
 
 # Pre-push gate: check + game harness walkthrough
-verify: docs-check osv-changed
+verify: docs-check osv-changed python-quality
     cd limerick && just verify
 
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
@@ -235,6 +235,9 @@ lint-py: setup-py
 # Run the Python (bench) test suite
 test-py: setup-py
     .venv-dev/bin/pytest
+
+# Run the complete Python quality job using the pinned local dev environment.
+python-quality: lint-py test-py
 
 # ─── Shell tooling (shellcheck + shfmt) ───────────────────────────────────────
 # shfmt flags (-i 4 -ci -bn) mirror .editorconfig so editors agree.
