@@ -42,7 +42,8 @@ just act-pr         # simulate the pull_request fast lane
 - **CI jobs default to `working-directory: limerick` (`.github/workflows/ci.yml` `defaults.run`).** Any `run:` step that invokes a repo script must use a path relative to `limerick/` (e.g. `bash scripts/foo.sh`), NOT `bash limerick/scripts/foo.sh` — the latter resolves to `limerick/limerick/scripts/...` and dies with `No such file or directory` (exit 127). `actions/*` step inputs like `upload-artifact` `path:` are the exception: they're relative to the repo root (`GITHUB_WORKSPACE`), so `limerick/target/...` is correct there. Mismatch between the two bit the `harness-shadow` job (#1159).
 - **Gemini review CI must set `GEMINI_CLI_TRUST_WORKSPACE=true`** before installing extensions. Gemini CLI 0.46.0 otherwise prompts to trust the workspace during `gemini extensions install`, ignores the action's piped `Y`, and the 7-minute review job times out as cancelled.
 - **`ci.yml` is sub-minute only for non-UI pull requests.** Shipped UI changes run the complete Playwright suite and feed its exact result into the required `CI gate`; `full-ci.yml` still owns Rust/coverage/harness and post-merge integration checks.
-- **Dependabot automation classifies but never lands PRs.** The coordinator owns every merge after applicable proof, risk, CI, and review gates; `.github/scripts/dependabot-merge-ownership.test.cjs` rejects workflow-level merge mechanisms.
+- **Dependabot automation classifies but never lands PRs.** A fresh gatekeeper owns every merge. The weekly upkeep routine on the owner's Mac ([`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py), [dependency updates](../../docs/agent/git-workflow.md#dependency-updates)) keeps each PR current, records mobile-verify passes for app-input bumps, waits for the required checks, and runs the gatekeeper; it never merges itself. `.github/scripts/dependabot-merge-ownership.test.cjs` rejects workflow-level merge mechanisms, and `scripts/test_dependabot_upkeep.py` rejects merge calls in the routine.
+- **Actions bumps to workflows that never run on pull requests** (`release.yml`, `testflight.yml`, deploys, schedules, `pull_request_target` workflows, which run the base copy) are checked statically by `workflow-quality`: actionlint, then [`scripts/check_action_refs.py`](../../scripts/check_action_refs.py), which reads each remote action's `action.yml` at its pinned ref and fails on a missing ref, an undeclared or missing required input, or an unsupported runtime. The upkeep routine also dry-runs a changed `release.yml` on the PR branch.
 - **A conditional reusable workflow needs an explicit fail-closed result in the required gate.** Letting a generic aggregate accept `skipped` is not enough: the gate must separately require `success` when the path detector says the full runtime suite is required, and require `skipped` otherwise.
 - **GitHub Models is retired (2026-07-30).** `eval-inference` and `ai-issue-triage` are `.yml.disabled`; do not re-enable against `models.github.ai`. The 410 “retirement brownout” message is permanent, not transient.
 - **OSV-Scanner v2.6 dropped `--skip-git`.** Passing it fails the action with `flag provided but not defined`; use `scan-args: -r ./` only.
@@ -52,7 +53,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, workflow-quality (actionlint + remote action inputs), Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Swift contract:** `swift-quality` runs `python3 mobile/scripts/verify.py --fast` (pinned SwiftLint/SwiftFormat, the three Swift packages, coverage floors) on hosted `macos-26` with Xcode 26.6 when `changes.swift` is true (`mobile/**`). It is skipped otherwise, which `ci-gate.sh` accepts. The Xcode app and simulator suites are local-only ([Swift quality gates](../../docs/agent/swift-quality-gates.md)).
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`, which requires the evidence-page link in the PR body for runtime-shipping diffs. Skipped for dependabot.
@@ -129,6 +130,12 @@ just act-pr         # simulate the pull_request fast lane
 - Validates tag matches `limerick-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
 - **Permissions:** `contents: write`.
 - **Concurrency:** `release-${{ github.ref }}`, cancel-in-progress: **false**.
+
+### `dependabot-review.yml` — Dependabot classification
+
+- **Trigger:** `pull_request_target` (opened, reopened, synchronize), Dependabot-authored PRs only.
+- Reads `dependabot/fetch-metadata` and comments on major bumps so the gatekeeper reads the release notes. It never enables or performs a merge; the weekly upkeep routine hands each green PR to a gatekeeper ([dependency updates](../../docs/agent/git-workflow.md#dependency-updates)).
+- **Permissions:** `contents: read`, `pull-requests: write`.
 
 ### `stale.yml` — Stale issue/PR management
 

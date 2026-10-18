@@ -76,6 +76,11 @@ is set (recording only).
 - **XCUITest cannot see rows scrolled out of the lazy transcript.** Assert on
   what a command produced, not on a command row a long narration pushed
   off-screen.
+- **One non-fast mobile-verify runs per machine.** `verify.py` holds a host-wide
+  lock (`~/Library/Caches/rundale/mobile-verify.lock`, or
+  `RUNDALE_MOBILE_VERIFY_LOCK`) across worktrees and entry points, since runs
+  share the simulator and the Cargo target; a second run waits up to six hours,
+  then exits 2. `--fast` does not take it. Tests point the variable at a temp file.
 - **Stop stalled mobile verification at the parent process.** Killing only its
   `xcodebuild` child can leave `verify.py` running and starting later suites on
   the same simulator.

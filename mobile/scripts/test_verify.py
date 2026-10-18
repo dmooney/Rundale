@@ -33,6 +33,11 @@ CommandResult = verify_module.CommandResult
 VerificationRun = verify_module.VerificationRun
 
 
+# Runs in these tests must never wait on, or block, a real run's host lock.
+os.environ["RUNDALE_MOBILE_VERIFY_LOCK"] = str(
+    Path(tempfile.mkdtemp(prefix="rundale-verify-test-")) / "mobile-verify.lock"
+)
+
 SIMCTL_JSON = json.dumps(
     {
         "devices": {
@@ -1367,6 +1372,57 @@ class PruneTests(unittest.TestCase):
                 self.assertTrue(all(path.exists() for path in older))
             VerificationRun(root, command_runner=FakeRunner()).run(1)
             self.assertFalse(any(path.exists() for path in older))
+
+    def test_full_runs_in_different_worktrees_take_turns_on_the_host_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first, second = Path(directory) / "first", Path(directory) / "second"
+            for root in (first, second):
+                root.mkdir()
+                create_phase2_fixture(root)
+            host_lock = Path(directory) / "host" / "mobile-verify.lock"
+            host_lock.parent.mkdir()
+            # A run in another worktree (here, its own process) is already going.
+            holder = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import fcntl, sys, time\n"
+                    f"lock = open({str(host_lock)!r}, 'w')\n"
+                    "fcntl.flock(lock, fcntl.LOCK_EX)\n"
+                    "print('locked', flush=True)\n"
+                    "time.sleep(1.5)\n",
+                ],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "locked")
+
+                def run(root: Path, wait: float, **kwargs: object) -> dict:
+                    return VerificationRun(
+                        root,
+                        command_runner=FakeRunner(),
+                        host_lock=host_lock,
+                        host_lock_wait_seconds=wait,
+                    ).run(**kwargs)  # type: ignore[arg-type]
+
+                with self.assertRaises(verify_module.HostVerificationBusy):
+                    run(second, 0.2, phase=1)
+                # The Swift-only lane uses no simulator and does not wait.
+                run(second, 0.2, fast=True)
+                started = time.monotonic()
+                report = run(first, 30, phase=1)  # waits for the other run, then runs
+                self.assertGreater(time.monotonic() - started, 0.5)
+                self.assertIn(report["status"], (verify_module.PASSED, verify_module.FAILED))
+            finally:
+                holder.kill()
+                holder.wait()
+
+    def test_runs_use_the_host_lock_named_by_the_environment(self):
+        with patch.dict(os.environ, {"RUNDALE_MOBILE_VERIFY_LOCK": "/tmp/x/lock"}):
+            self.assertEqual(verify_module.default_host_lock(), Path("/tmp/x/lock"))
+        with patch.dict(os.environ, {"RUNDALE_MOBILE_VERIFY_LOCK": ""}):
+            self.assertEqual(verify_module.default_host_lock().name, "mobile-verify.lock")
 
     def test_sigterm_stops_the_running_commands_whole_process_group(self):
         runner, grandchild = run_in_subprocess("sleep 60 & echo $! > PIDFILE; wait")
