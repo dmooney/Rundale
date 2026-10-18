@@ -44,7 +44,8 @@ jobs:
     timeout-minutes: 90
     environment: testflight
     steps:
-      # The build number is HEAD's commit count, so the full history is needed.
+      # Full history: without App Store Connect builds to count from, the
+      # build number falls back to HEAD's commit count.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0

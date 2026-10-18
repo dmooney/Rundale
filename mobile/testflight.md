@@ -11,12 +11,18 @@ just testflight-update
 and builds an unsigned Release iPhone app. `testflight-update` first runs
 `just mobile-verify --phase all`, which reuses suites already passed with identical
 inputs, then builds, signs, inspects, and uploads an internal-only archive. The
-archive requests HEAD's commit count (`git rev-list --count HEAD`) as its build
-number, passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so an upload edits no
-file and leaves nothing to commit; the value in `mobile/project.yml` is only for
-local builds. Xcode still manages the uploaded build number and may renumber it
-to follow App Store Connect's existing builds. Check the actual uploaded number
-before reporting it to the user. Applicable feature-specific
+archive's build number is passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so
+an upload edits no file and leaves nothing to commit; the value in
+`mobile/project.yml` is only for local builds. With an App Store Connect API key
+(`ASC_KEY_PATH`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, as the GitHub workflow has), the
+number is one above the highest build App Store Connect already holds, so the
+logged number is the one TestFlight shows, whichever branch or machine uploads.
+Xcode is told not to renumber it, so if another upload takes that number first the
+upload fails rather than landing under a different one. `--dry-run` skips the
+lookup.
+Without a key it falls back to HEAD's commit count (`git rev-list --count HEAD`),
+and Xcode may renumber the upload to follow App Store Connect's existing builds;
+check the actual uploaded number before reporting it to the user. Applicable feature-specific
 checks and save compatibility checks still apply.
 
 Before the upload, `testflight-update` also exports the archive locally as a
@@ -96,8 +102,8 @@ identifier is `com.rundale.mobile`, and the App Store Connect app is `6811694290
 Reuse that record and its **Internal Beta** group with automatic distribution.
 
 Pass a build number higher than App Store Connect's highest upload as
-`CURRENT_PROJECT_VERSION=<n>` on the archive command (the commit count, as
-`testflight-update` does, qualifies); do not edit `mobile/project.yml` for it.
+`CURRENT_PROJECT_VERSION=<n>` on the archive command (`testflight-update` takes
+App Store Connect's highest plus one when it has an API key); do not edit `mobile/project.yml` for it.
 Run the applicable checks and verify save compatibility for persistence changes.
 Rebuild the Rust framework when Rust or its build inputs have changed; reuse a
 verified current framework otherwise. Archive with the recorded deployment identity:
