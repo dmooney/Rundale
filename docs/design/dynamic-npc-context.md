@@ -529,9 +529,13 @@ candidate from anyone who is not. This section changes with it.
 - While a question waits for an answer, the world advances: the phone pumps it
   when the player answers, and desktop ticks run between commands. §3.4 applies.
 - A retry can also run after the world has advanced: the phone pumps it on
-  retry, and desktop ticks run between commands. The retry reuses the settled
-  System 1 answer and the chosen recipients, and checks again that each one is
-  present. A recipient who has left gets "{label} is no longer here.", as in
+  retry, and desktop ticks run between commands. The System 1 reply is
+  journaled with the request when it arrives (`settled_intent_reply`), and a
+  retry, or a run after a restart, whose intent call is unchanged (same line,
+  same people present) reuses it without a second call. If the room changed,
+  the call is made again against the current room, because the reply's
+  options name the people of the earlier one. Chosen recipients are reused and
+  checked again: one who has left gets "{label} is no longer here.", as in
   §3.4.
 - Stop, supersession and late results follow the existing request and attempt
   contract in `turn/engine.rs`: a System 1 answer or dialogue candidate for a

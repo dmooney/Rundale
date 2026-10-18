@@ -204,6 +204,23 @@ pub struct RequestRecord {
     /// intent before the first clarification and reused like it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_recipient: Option<RecipientDecision>,
+    /// The System 1 intent reply this request already received, with the
+    /// call it answered. A later attempt whose intent call is the same (same
+    /// line, same room) reuses the reply instead of calling System 1 again,
+    /// so a retry, or a run after a restart, cannot change the action or the
+    /// recipients. A call against a changed room is made afresh.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settled_intent_reply: Option<SettledIntentReply>,
+}
+
+/// A journaled System 1 intent reply (see
+/// [`RequestRecord::settled_intent_reply`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettledIntentReply {
+    /// Fingerprint of the call the reply answered.
+    pub call: String,
+    /// The reply text.
+    pub text: String,
 }
 
 /// A transition that the current state does not allow.
@@ -266,6 +283,7 @@ impl RequestRecord {
             selected_addressees: Vec::new(),
             resolved_intent: None,
             resolved_recipient: None,
+            settled_intent_reply: None,
         }
     }
 

@@ -43,7 +43,7 @@ use super::ids::{
 use super::journal::{JournalError, TurnCommit, TurnJournal};
 use super::lifecycle::{
     ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
-    TerminalOutcome,
+    SettledIntentReply, TerminalOutcome,
 };
 use super::projection::{project_emissions, scene_event};
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
@@ -380,7 +380,16 @@ type AttemptFuture = Pin<Box<dyn Future<Output = GameInputOutcome> + Send>>;
 struct AwaitedCall {
     id: InferenceCallId,
     subrole: InferenceSubrole,
+    /// For an intent call, its fingerprint, so the reply can be journaled.
+    intent_call: Option<String>,
     reply: oneshot::Sender<InferenceOutcome>,
+}
+
+/// What identifies an intent call: its instructions, prompt and Endpoint
+/// input. Two calls with the same fingerprint ask System 1 the same question.
+fn intent_fingerprint(call: &InferenceCall) -> String {
+    serde_json::to_string(&(call.system.as_deref(), &call.prompt, call.endpoint.as_ref()))
+        .unwrap_or_default()
 }
 
 /// The attempt currently executing.
@@ -828,9 +837,24 @@ impl TurnEngine {
                 InferenceOutcome::Failed { report, .. } => report.reason,
             };
         }
+        let settled = match (&awaited.intent_call, &resolution.outcome) {
+            (Some(call), InferenceOutcome::Completed { text, .. }) => Some(SettledIntentReply {
+                call: call.clone(),
+                text: text.clone(),
+            }),
+            _ => None,
+        };
         // The attempt is suspended on exactly this call, so the receiver is
         // alive; a send failure would mean the attempt already ended.
         let _ = awaited.reply.send(resolution.outcome);
+        // Journal the intent reply before the attempt reads it, so a retry or
+        // a restart reuses it (see `RequestRecord::settled_intent_reply`).
+        if let Some(settled) = settled {
+            let mut record = self.records[&request_id].clone();
+            record.settled_intent_reply = Some(settled);
+            self.journal.update(record.clone(), Vec::new()).await?;
+            self.records.insert(request_id, record);
+        }
         self.advance(live).await
     }
 
@@ -1133,53 +1157,71 @@ impl TurnEngine {
 
     /// Polls the running attempt until it asks for inference or finishes.
     async fn advance(&mut self, live: &GameLoopContext<'_>) -> Result<TurnStep, TurnError> {
-        let running = self
-            .running
-            .as_mut()
-            .expect("advance is only called with a running attempt");
-        let next = tokio::select! {
-            biased;
-            outcome = running.future.as_mut() => Next::Finished(outcome),
-            Some(call) = running.calls.recv() => Next::Call(call),
-        };
-        match next {
-            Next::Call(YieldedCall {
-                call,
-                streaming,
-                reply,
-            }) => {
-                let record = self
-                    .records
-                    .get_mut(&running.request_id)
-                    .expect("a running attempt has a record");
-                let id = record.next_call()?;
-                let base_revision = record
-                    .current_attempt()
-                    .expect("a running request has an attempt")
-                    .base_revision;
-                running.awaiting = Some(AwaitedCall {
-                    id: id.clone(),
-                    subrole: call.subrole,
+        loop {
+            let running = self
+                .running
+                .as_mut()
+                .expect("advance is only called with a running attempt");
+            let next = tokio::select! {
+                biased;
+                outcome = running.future.as_mut() => Next::Finished(outcome),
+                Some(call) = running.calls.recv() => Next::Call(call),
+            };
+            match next {
+                Next::Call(YieldedCall {
+                    call,
+                    streaming,
                     reply,
-                });
-                Ok(TurnStep {
-                    request_id: Some(running.request_id.clone()),
-                    attempt_id: Some(running.attempt_id.clone()),
-                    events: Vec::new(),
-                    emissions: Vec::new(),
-                    status: TurnStatus::AwaitingInference(PendingInference {
-                        id,
-                        request_id: running.request_id.clone(),
-                        attempt_id: running.attempt_id.clone(),
-                        base_revision,
-                        call,
-                        streaming,
-                    }),
-                })
-            }
-            Next::Finished(outcome) => {
-                let running = self.running.take().expect("checked above");
-                self.finish(live, running, outcome).await
+                }) => {
+                    let record = self
+                        .records
+                        .get_mut(&running.request_id)
+                        .expect("a running attempt has a record");
+                    let intent_call = (call.subrole == InferenceSubrole::Intent)
+                        .then(|| intent_fingerprint(&call));
+                    // An intent call this request already had answered is
+                    // answered again from the journal, not by System 1.
+                    if let Some(settled) = record
+                        .settled_intent_reply
+                        .as_ref()
+                        .filter(|settled| intent_call.as_ref() == Some(&settled.call))
+                    {
+                        let _ = reply.send(InferenceOutcome::Completed {
+                            text: settled.text.clone(),
+                            report: CallReport::default(),
+                        });
+                        continue;
+                    }
+                    let id = record.next_call()?;
+                    let base_revision = record
+                        .current_attempt()
+                        .expect("a running request has an attempt")
+                        .base_revision;
+                    running.awaiting = Some(AwaitedCall {
+                        id: id.clone(),
+                        subrole: call.subrole,
+                        intent_call,
+                        reply,
+                    });
+                    return Ok(TurnStep {
+                        request_id: Some(running.request_id.clone()),
+                        attempt_id: Some(running.attempt_id.clone()),
+                        events: Vec::new(),
+                        emissions: Vec::new(),
+                        status: TurnStatus::AwaitingInference(PendingInference {
+                            id,
+                            request_id: running.request_id.clone(),
+                            attempt_id: running.attempt_id.clone(),
+                            base_revision,
+                            call,
+                            streaming,
+                        }),
+                    });
+                }
+                Next::Finished(outcome) => {
+                    let running = self.running.take().expect("checked above");
+                    return self.finish(live, running, outcome).await;
+                }
             }
         }
     }

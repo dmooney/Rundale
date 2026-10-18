@@ -651,6 +651,83 @@ async fn a_failed_dialogue_commits_nothing_and_retries_as_a_new_attempt() {
     assert_reducer_contract(&journal.events(), &first.request_id);
 }
 
+/// Answers the step's intent call as speech and returns the step suspended
+/// on the dialogue call.
+async fn past_intent(engine: &mut TurnEngine, live: &Live, step: TurnStep) -> TurnStep {
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    let next = engine
+        .resume(&live.ctx(), resolution(&intent, scripted(&intent, "")))
+        .await
+        .expect("resume the intent call");
+    assert_eq!(awaiting(&next).call.subrole, InferenceSubrole::Dialogue);
+    next
+}
+
+// Gatekeeper finding on #2221: a retry must not ask System 1 again, or it
+// could change the action or the recipients the first attempt settled.
+#[tokio::test]
+async fn a_retry_reuses_the_settled_intent_reply_after_a_failure_and_after_a_restart() {
+    let live = Live::rundale();
+    let journal = Arc::new(MemoryTurnJournal::new());
+    // One person present: the intent call still decides the action.
+    only_present(&live, &["Peig Hannigan"]).await;
+
+    // A dialogue failure, then a retry: the retry goes straight to dialogue.
+    let mut engine = TurnEngine::new(journal.clone(), live.rules());
+    let step = engine
+        .submit(&live.ctx(), said("Is there work going here?"))
+        .await
+        .unwrap();
+    let dialogue = awaiting(&past_intent(&mut engine, &live, step).await).clone();
+    engine
+        .resume(
+            &live.ctx(),
+            resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+        )
+        .await
+        .unwrap();
+    assert!(
+        journal
+            .request(&dialogue.request_id)
+            .unwrap()
+            .settled_intent_reply
+            .is_some(),
+        "the intent reply is journaled"
+    );
+    let retry = engine
+        .retry(&live.ctx(), &dialogue.request_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting(&retry).call.subrole,
+        InferenceSubrole::Dialogue,
+        "the retry reuses the intent reply"
+    );
+
+    // The process stops while the retry's dialogue call is in flight.
+    drop(engine);
+    let mut restarted = TurnEngine::new(journal.clone(), live.rules());
+    restarted.recover().await.unwrap();
+    let retry = restarted
+        .retry(&live.ctx(), &dialogue.request_id)
+        .await
+        .unwrap();
+    let (done, _, calls) = run_scripted(&mut restarted, &live, retry, "").await;
+    assert!(
+        !calls.contains(&InferenceSubrole::Intent),
+        "the journaled reply survives the restart: {calls:?}"
+    );
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_reducer_contract(&journal.events(), &dialogue.request_id);
+}
+
 // Oracle: `correlated_endpoint_failure_is_terminal_and_retryable` (worker
 // interruption) and `authored_phase3_fact_is_grounded_but_invented_place_is_rejected`
 // (a reply the canonical apply rejects fails the attempt).
