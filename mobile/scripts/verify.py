@@ -91,6 +91,9 @@ COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
 # coverage baseline the way a reused suite is, so the baseline stays in its key.
 ATTESTATION_IGNORED_PATHSPECS = (
     *(spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()),
+    # Nested agent instructions explain how to work in a directory; they are
+    # not inputs read by the mobile build or verification gates.
+    ":(glob)**/AGENTS.md",
     # The verification tools themselves, which their unit tests cover; they
     # change nothing the app ships. release.py stays in: it writes Info.plist
     # settings into the app.
