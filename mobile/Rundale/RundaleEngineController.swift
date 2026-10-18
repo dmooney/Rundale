@@ -1017,12 +1017,11 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
                     let input = identities.input.lowercased()
                     if identities.role == "player_intent" {
                         // The intent Endpoint is a decision and does not stream:
-                        // its JSON route returns the output object. Free-form
-                        // input the local parser did not recognise is speech
-                        // to no one in particular, so the engine's own
-                        // addressing rules pick who answers.
+                        // its JSON route returns the output object, chosen from
+                        // the options the engine offered, as Jev would answer.
                         continuation.yield(.response(statusCode: 200, headers: ["content-type": "application/json"]))
-                        continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: Self.talkDecision())))
+                        let decision = Self.talkDecision(for: identities.intentInput)
+                        continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: decision)))
                         continuation.finish()
                         return
                     }
@@ -1093,6 +1092,8 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
         let input: String
         let speakerName: String
         let endpointVersion: Int
+        /// The whole intent input, for choosing among its options.
+        let intentInput: [String: Any]
     }
 
     private static func identities(from body: Data?, url: URL) throws -> Identities {
@@ -1118,20 +1119,56 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
             role: role,
             input: playerInput,
             speakerName: speakerName ?? "",
-            endpointVersion: Self.endpointVersion(from: url)
+            endpointVersion: Self.endpointVersion(from: url),
+            intentInput: role == "player_intent" ? input : [:]
         )
     }
 
-    /// A `rundale-intent` decision: speech, spoken to no one in particular.
-    static func talkDecision() -> [String: Any] {
+    /// A `rundale-intent` decision: speech, with the recipient chosen from the
+    /// options the call offered the way Jev answers the canonical cases
+    /// (design `docs/design/dynamic-npc-context.md` Appendix A). A word that
+    /// fits several people present is that reference; a present person's
+    /// first name opening the line, or after "ask", is that person; a line
+    /// opening with another name is spoken to someone not present; "all",
+    /// "everyone" or "both of you" is everyone; anything else is no one in
+    /// particular. With one person present the only option is that person.
+    static func talkDecision(for input: [String: Any]) -> [String: Any] {
         func choice(_ option: String) -> [String: Any] {
             ["choice": option, "confidence": 0.99, "probabilities": [option: 0.99]]
+        }
+        func fold(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        }
+        let line = fold(input["line"] as? String ?? "")
+        let words = line.split { !$0.isLetter }.map(String.init)
+        let present = input["present"] as? [[String: Any]] ?? []
+        let offered = { (field: String) in !((input[field] as? [Any]) ?? []).isEmpty }
+        func optionID(_ option: [String: Any]) -> String { option["optionId"] as? String ?? "" }
+        var recipient = offered("noOne") ? "no_one" : present.first.map(optionID) ?? "no_one"
+        let references = input["references"] as? [[String: Any]] ?? []
+        let opening = words.first == "ask" ? words.dropFirst().first : words.first
+        let notNames: Set = ["hello", "hi", "well", "now", "so", "sure", "good", "aye", "ah", "oh", "grand"]
+        let opensWithName = (input["line"] as? String ?? "")
+            .range(of: #"^\p{Lu}\p{L}+,"#, options: .regularExpression) != nil
+            && !notNames.contains(words.first ?? "")
+        if present.count >= 2 {
+            if let reference = references.first(where: { words.contains(fold($0["phrase"] as? String ?? "")) }) {
+                recipient = optionID(reference)
+            } else if let person = present.first(where: {
+                fold(($0["name"] as? String ?? "").split(separator: " ").first.map(String.init) ?? "") == opening
+            }) {
+                recipient = optionID(person)
+            } else if words.contains("all") || words.contains("everyone") || line.contains("both of you") {
+                recipient = "all"
+            } else if opensWithName || words.first == "ask" && opening != "around" {
+                recipient = "someone_else"
+            }
         }
         return [
             "action": choice("talk"),
             "destination": choice("none"),
             "target": choice("none"),
-            "recipient": choice("no_one"),
+            "recipient": choice(recipient),
             "mentioned": [String: Any](),
             "atmosphere": choice("none"),
         ]

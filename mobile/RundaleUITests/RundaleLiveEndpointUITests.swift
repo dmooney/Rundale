@@ -181,6 +181,63 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(4)
     }
 
+    /// Dynamic NPC context §8 row 2, live: "Hello" with both Connollys at
+    /// home asks who it is for (each person, then All); choosing Róisín sends
+    /// the line to her without retyping, through rundale-intent v1's decision
+    /// and rundale-dialogue v1.
+    func test06LiveUnaddressedHelloAsksWhoAndTheChoiceAnswers() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+        _ = submit("Hello")
+
+        let clarification = app.otherElements["clarification"]
+        XCTAssertTrue(clarification.waitForExistence(timeout: 45),
+                      "Expected the game to ask who the line is for")
+        XCTAssertTrue(waitForTranscriptText("Who are you speaking to?", timeout: 3))
+        XCTAssertTrue(app.buttons["clarification.option.choose-all"].exists, "All is offered")
+        XCTAssertFalse(dialogueRow(inProgress: false).exists, "No one answers before the choice")
+        hold(4)
+
+        app.buttons["clarification.option.choose-npc-3"].tap()
+        XCTAssertTrue(clarification.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 45) { $0.kind == "npc_dialogue" && $0.state == "committed" },
+            "Róisín answers the original line"
+        )
+        assertLastReplyIsRoisins()
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        hold(5)
+    }
+
+    /// Dynamic NPC context §8 row 7, live: before any introduction, a line
+    /// that names Róisín reaches her, not whoever is listed first.
+    func test07LiveANameReachesItsPersonBeforeAnIntroduction() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+        _ = submit("Róisín, what news is there from the village?")
+
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 45) { $0.kind == "npc_dialogue" && $0.state == "committed" },
+            "Expected an accepted live reply"
+        )
+        XCTAssertFalse(app.otherElements["clarification"].exists, "A named line is not asked about")
+        assertLastReplyIsRoisins()
+        hold(5)
+    }
+
+    /// The last committed reply is Róisín's: her row is labelled with her
+    /// description (or her name, once she has given it), never Mícheál's.
+    private func assertLastReplyIsRoisins() {
+        let replies = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue' AND NOT label CONTAINS 'In progress'"
+        ))
+        let label = replies.element(boundBy: replies.count - 1).label
+        XCTAssertTrue(label.contains("yarn") || label.contains("Róisín"), "Róisín answers: \(label)")
+        XCTAssertFalse(label.contains("frieze coat"), label)
+    }
+
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
