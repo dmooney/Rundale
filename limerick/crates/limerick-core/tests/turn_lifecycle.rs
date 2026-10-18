@@ -1973,6 +1973,49 @@ async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
     assert_reducer_contract(&journal.events(), &request);
 }
 
+// Gatekeeper finding on #2221: a journal write that fails while the intent
+// reply is saved ends the attempt `Failed` (retryable) instead of stranding
+// the request on a call that was already answered.
+#[tokio::test]
+async fn a_failed_intent_reply_write_fails_the_attempt_and_the_retry_succeeds() {
+    let live = Live::rundale();
+    let (mut engine, journal) = engine(&live);
+    only_present(&live, &["Peig Hannigan"]).await;
+    let step = engine
+        .submit(&live.ctx(), said("Is there work going here?"))
+        .await
+        .unwrap();
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    journal.fail_next_writes(1);
+    let failed = engine
+        .resume(&live.ctx(), resolution(&intent, scripted(&intent, "")))
+        .await
+        .unwrap();
+    assert!(matches!(
+        failed.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Failed,
+            revision: None
+        }
+    ));
+    let record = engine.request(&intent.request_id).unwrap();
+    assert_eq!(record.phase, RequestPhase::Failed);
+    assert!(record.settled_intent_reply.is_none());
+
+    let retry = engine.retry(&live.ctx(), &intent.request_id).await.unwrap();
+    let (done, _, calls) = run_scripted(&mut engine, &live, retry, "").await;
+    assert_eq!(calls.first(), Some(&InferenceSubrole::Intent), "{calls:?}");
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_reducer_contract(&journal.events(), &intent.request_id);
+}
+
 // Gatekeeper finding on #2221: a retry that reuses a chosen recipient checks
 // presence again, as an answer does (design §3.4, §7). Someone who has left,
 // or an emptied room, sends nothing and hands the line back to the composer.

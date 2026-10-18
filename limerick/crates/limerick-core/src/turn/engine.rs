@@ -808,17 +808,49 @@ impl TurnEngine {
             }),
             _ => None,
         };
-        // The attempt is suspended on exactly this call, so the receiver is
-        // alive; a send failure would mean the attempt already ended.
-        let _ = awaited.reply.send(resolution.outcome);
         // Journal the intent reply before the attempt reads it, so a retry or
         // a restart reuses it (see `RequestRecord::settled_intent_reply`).
         if let Some(settled) = settled {
             let mut record = self.records[&request_id].clone();
             record.settled_intent_reply = Some(settled);
-            self.journal.update(record.clone(), Vec::new()).await?;
+            if let Err(error) = self.journal.update(record.clone(), Vec::new()).await {
+                // The attempt cannot go on without its reply journaled; it
+                // ends `Failed` (retryable) instead of waiting on a call that
+                // was already answered.
+                let running = self.running.take().expect("checked above");
+                let attempt_id = running.attempt_id.clone();
+                let mut builder = EventBuilder::new(
+                    request_id.clone(),
+                    Some(attempt_id.clone()),
+                    running.next_ordinal,
+                );
+                drop(awaited);
+                drop(running);
+                let events = self
+                    .end_uncommitted(
+                        &request_id,
+                        &mut builder,
+                        TerminalOutcome::Failed,
+                        "journal",
+                        &error.to_string(),
+                    )
+                    .await?;
+                return Ok(TurnStep {
+                    request_id: Some(request_id),
+                    attempt_id: Some(attempt_id),
+                    events,
+                    emissions: Vec::new(),
+                    status: TurnStatus::Completed {
+                        outcome: TerminalOutcome::Failed,
+                        revision: None,
+                    },
+                });
+            }
             self.records.insert(request_id, record);
         }
+        // The attempt is suspended on exactly this call, so the receiver is
+        // alive; a send failure would mean the attempt already ended.
+        let _ = awaited.reply.send(resolution.outcome);
         self.advance(live).await
     }
 
