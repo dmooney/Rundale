@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::debug_view::fold;
@@ -21,12 +21,19 @@ use limerick_types::LocationId;
 pub const INTENT_ROLE: &str = "player_intent";
 /// Longest line the definition accepts, in characters.
 pub const MAX_LINE_CHARS: usize = 1024;
-/// Minimum probability for an answer to be acted on (design §4.3,
-/// provisional until the latency check on TypeSafe's API).
+/// Minimum probability for an answer to be acted on (design §4.3).
 pub const ANSWER_THRESHOLD: f64 = 0.70;
+/// Minimum probability that a line talks about a person present (design
+/// §4.3, question 2).
+pub const MENTION_THRESHOLD: f64 = 0.70;
+/// The recipient option for everyone present.
+pub const ALL_OPTION: &str = "all";
+/// The recipient option for someone not present.
+pub const SOMEONE_ELSE_OPTION: &str = "someone_else";
+/// The recipient option for no one in particular.
+pub const NO_ONE_OPTION: &str = "no_one";
 
 const MAX_PRESENT: usize = 32;
-const MAX_ELSEWHERE: usize = 64;
 const MAX_REFERENCES: usize = 16;
 const MAX_PLACES: usize = 32;
 const MAX_PHRASES: usize = 24;
@@ -46,10 +53,19 @@ pub struct IntentEndpointInput {
     pub line: String,
     /// Each person in the room, in id order.
     pub present: Vec<PresentOption>,
-    /// Each person elsewhere whom the player has been introduced to.
-    pub elsewhere: Vec<ElsewhereOption>,
     /// Each word of the line that fits several people present.
     pub references: Vec<ReferenceOption>,
+    /// [`ALL_OPTION`], offered only when two or more people are present.
+    pub everyone: Vec<GroupOption>,
+    /// [`SOMEONE_ELSE_OPTION`], offered only when two or more are present.
+    pub someone_else: Vec<GroupOption>,
+    /// [`NO_ONE_OPTION`], offered unless exactly one person is present, so
+    /// the recipient question has a single option (answered in code) when
+    /// one person or nobody is present (design §4.3).
+    pub no_one: Vec<GroupOption>,
+    /// The people present again, when two or more are: the subjects of the
+    /// mention question.
+    pub mentionable: Vec<MentionOption>,
     /// Each place, in id order.
     pub places: Vec<PlaceOption>,
     /// Candidate phrases cut from the line.
@@ -72,14 +88,25 @@ pub struct PresentOption {
     pub introduced: bool,
 }
 
-/// An introduced person elsewhere.
+/// One of the recipient question's group options (everyone present,
+/// someone not present, no one in particular).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ElsewhereOption {
-    /// `e<n>`.
+pub struct GroupOption {
+    /// The option's fixed id.
+    pub option_id: String,
+}
+
+/// A person present, as the subject of the mention question.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MentionOption {
+    /// The person's `p<n>` id.
     pub option_id: String,
     /// Full name.
     pub name: String,
+    /// How the person looks to someone who has not met them.
+    pub description: String,
 }
 
 /// A word of the line that fits several people present.
@@ -124,29 +151,43 @@ pub struct PhraseOption {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IntentOptions {
     present: HashMap<String, (NpcId, String)>,
-    elsewhere: HashMap<String, (NpcId, String)>,
     references: HashMap<String, String>,
     places: HashMap<String, String>,
     phrases: HashMap<String, String>,
+    groups: Vec<&'static str>,
 }
 
-/// Who a line is spoken to, as the decision settled it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Who a line is spoken to, as the decision settled it (design §3.1,
+/// step 4). Journaled with the request, so a clarification answer or a
+/// retry reuses it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "name")]
 pub enum DecidedRecipient {
-    /// Unsure, or not speech: the engine's unaddressed rules apply.
+    /// Below the threshold, or the call failed: the game asks.
+    #[default]
     Undecided,
     /// A person present, by full name.
     Present(String),
-    /// An introduced person elsewhere, by full name.
-    Elsewhere(String),
     /// A word that fits several people present ("Which Connolly?").
     Reference(String),
     /// Everyone present.
     All,
-    /// A name that fits no one the player can address.
-    NotListed,
-    /// Nobody in particular.
+    /// Someone not present, or a name that fits no one present: everyone
+    /// present hears it.
+    SomeoneElse,
+    /// Nobody in particular: the unaddressed rules apply.
     NoOne,
+}
+
+/// The System 1 answer about who a line is for and whom it talks about.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecipientDecision {
+    /// Who the line is spoken to.
+    pub recipient: DecidedRecipient,
+    /// Full names of people present the line talks about without speaking
+    /// to them, in roster order.
+    #[serde(default)]
+    pub mentioned: Vec<String>,
 }
 
 /// One answered intent call.
@@ -154,8 +195,8 @@ pub enum DecidedRecipient {
 pub struct IntentDecision {
     /// The intent, in the engine's usual form.
     pub intent: PlayerIntent,
-    /// Who a `Talk` intent is for.
-    pub recipient: DecidedRecipient,
+    /// Who a `Talk` intent is for, and whom it mentions.
+    pub recipient: RecipientDecision,
 }
 
 fn bounded(text: &str, max: usize) -> String {
@@ -229,14 +270,16 @@ pub fn intent_input(
     let mut options = IntentOptions::default();
     let mut people: Vec<&crate::npc::Npc> = npc_manager.all_npcs().collect();
     people.sort_by_key(|npc| npc.id.0);
+    // The same people the recipient rules count as present.
+    let here_ids = npc_manager.npcs_at_ids(here);
     let present_people: Vec<&crate::npc::Npc> = people
         .iter()
         .copied()
-        .filter(|npc| npc.location() == here)
+        .filter(|npc| here_ids.contains(&npc.id))
         .take(MAX_PRESENT)
         .collect();
 
-    let present = present_people
+    let present: Vec<PresentOption> = present_people
         .iter()
         .enumerate()
         .map(|(index, npc)| {
@@ -254,22 +297,53 @@ pub fn intent_input(
         })
         .collect();
 
-    let elsewhere = people
-        .iter()
-        .filter(|npc| npc.location() != here && npc_manager.is_introduced(npc.id))
-        .take(MAX_ELSEWHERE)
-        .enumerate()
-        .map(|(index, npc)| {
-            let option_id = format!("e{}", index + 1);
-            options
-                .elsewhere
-                .insert(option_id.clone(), (npc.id, npc.name.clone()));
-            ElsewhereOption {
-                option_id,
-                name: bounded(&npc.name, MAX_NAME_CHARS),
-            }
-        })
-        .collect();
+    // With one person present the line goes to them, so the recipient
+    // question keeps that single option and is answered in code; with
+    // nobody present it keeps "no one" alone. Group options and mentions
+    // only mean something with two or more present (design §3.1, §4.3).
+    let group = |id: &str| {
+        vec![GroupOption {
+            option_id: id.to_string(),
+        }]
+    };
+    let several = present.len() >= 2;
+
+    let everyone = if several {
+        group(ALL_OPTION)
+    } else {
+        Vec::new()
+    };
+    let someone_else = if several {
+        group(SOMEONE_ELSE_OPTION)
+    } else {
+        Vec::new()
+    };
+    let no_one = if present.len() == 1 {
+        Vec::new()
+    } else {
+        group(NO_ONE_OPTION)
+    };
+    for (offered, id) in [
+        (&everyone, ALL_OPTION),
+        (&someone_else, SOMEONE_ELSE_OPTION),
+        (&no_one, NO_ONE_OPTION),
+    ] {
+        if !offered.is_empty() {
+            options.groups.push(id);
+        }
+    }
+    let mentionable = if several {
+        present
+            .iter()
+            .map(|person| MentionOption {
+                option_id: person.option_id.clone(),
+                name: person.name.clone(),
+                description: person.description.clone(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     // One reference per word of the line that is a first name, family name
     // or occupation word of several people present (design §4.3).
@@ -368,8 +442,11 @@ pub fn intent_input(
             role: INTENT_ROLE.to_string(),
             line: bounded(line, MAX_LINE_CHARS),
             present,
-            elsewhere,
             references,
+            everyone,
+            someone_else,
+            no_one,
+            mentionable,
             places,
             phrases,
         },
@@ -440,7 +517,7 @@ pub fn intent_from_decision(
                 };
                 return Some(IntentDecision {
                     intent,
-                    recipient: DecidedRecipient::Undecided,
+                    recipient: RecipientDecision::default(),
                 });
             }
             "look" | "examine" | "interact" => {
@@ -453,7 +530,7 @@ pub fn intent_from_decision(
                 intent.target = phrase();
                 return Some(IntentDecision {
                     intent,
-                    recipient: DecidedRecipient::Undecided,
+                    recipient: RecipientDecision::default(),
                 });
             }
             "none" => {
@@ -461,7 +538,7 @@ pub fn intent_from_decision(
                 intent.dialogue = None;
                 return Some(IntentDecision {
                     intent,
-                    recipient: DecidedRecipient::Undecided,
+                    recipient: RecipientDecision::default(),
                 });
             }
             "talk" => {}
@@ -477,25 +554,47 @@ pub fn intent_from_decision(
         },
         _ => None,
     };
-    let recipient = match top(&output, "recipient") {
-        Some((choice, p)) if p >= ANSWER_THRESHOLD => match choice.as_str() {
-            "all" => DecidedRecipient::All,
-            "not_listed" => DecidedRecipient::NotListed,
-            "no_one" => DecidedRecipient::NoOne,
-            id => {
-                if let Some((_, name)) = options.present.get(id) {
-                    DecidedRecipient::Present(name.clone())
-                } else if let Some((_, name)) = options.elsewhere.get(id) {
-                    DecidedRecipient::Elsewhere(name.clone())
-                } else {
-                    DecidedRecipient::Reference(options.references.get(id)?.clone())
-                }
-            }
+    let (choice, p) = top(&output, "recipient")?;
+    // Every answer must be an option this call offered, confident or not.
+    let recipient = match choice.as_str() {
+        id if options.groups.contains(&id) => match id {
+            ALL_OPTION => DecidedRecipient::All,
+            SOMEONE_ELSE_OPTION => DecidedRecipient::SomeoneElse,
+            _ => DecidedRecipient::NoOne,
         },
-        Some(_) => DecidedRecipient::Undecided,
-        None => return None,
+        id => {
+            if let Some((_, name)) = options.present.get(id) {
+                DecidedRecipient::Present(name.clone())
+            } else {
+                DecidedRecipient::Reference(options.references.get(id)?.clone())
+            }
+        }
     };
-    Some(IntentDecision { intent, recipient })
+    let recipient = if p >= ANSWER_THRESHOLD {
+        recipient
+    } else {
+        DecidedRecipient::Undecided
+    };
+    // Mentions of people present, keyed by their `p<n>` id; a mention of
+    // anyone not offered is not an answer.
+    let mut mentioned: Vec<(String, String)> = Vec::new();
+    if let Some(answers) = output.get("mentioned").and_then(Value::as_object) {
+        for (id, p) in answers {
+            let (_, name) = options.present.get(id)?;
+            if p.as_f64()? >= MENTION_THRESHOLD {
+                mentioned.push((id.clone(), name.clone()));
+            }
+        }
+    }
+    // Roster order: option ids are assigned in it (`p1`, `p2`, ...).
+    mentioned.sort_by_key(|(id, _)| id[1..].parse::<u32>().unwrap_or(u32::MAX));
+    Some(IntentDecision {
+        intent,
+        recipient: RecipientDecision {
+            recipient,
+            mentioned: mentioned.into_iter().map(|(_, name)| name).collect(),
+        },
+    })
 }
 
 #[cfg(test)]
@@ -509,10 +608,10 @@ mod tests {
                 ("p1".into(), (NpcId(1), "Mícheál Connolly".into())),
                 ("p2".into(), (NpcId(2), "Róisín Connolly".into())),
             ]),
-            elsewhere: HashMap::from([("e1".into(), (NpcId(3), "Peig Brennan".into()))]),
             references: HashMap::from([("r1".into(), "Connolly".into())]),
             places: HashMap::from([("l2".into(), "the Letter Office".into())]),
             phrases: HashMap::from([("s1".into(), "the old well".into())]),
+            groups: vec![ALL_OPTION, SOMEONE_ELSE_OPTION, NO_ONE_OPTION],
         }
     }
 
@@ -549,7 +648,7 @@ mod tests {
         let decision = decide(answer(("move", 0.5), ("p2", 0.9))).unwrap();
         assert_eq!(decision.intent.intent, IntentKind::Talk);
         assert_eq!(
-            decision.recipient,
+            decision.recipient.recipient,
             DecidedRecipient::Present("Róisín Connolly".into())
         );
     }
@@ -566,23 +665,45 @@ mod tests {
     #[test]
     fn recipients_map_to_people_references_and_replies() {
         let cases = [
-            ("e1", DecidedRecipient::Elsewhere("Peig Brennan".into())),
             ("r1", DecidedRecipient::Reference("Connolly".into())),
             ("all", DecidedRecipient::All),
-            ("not_listed", DecidedRecipient::NotListed),
+            ("someone_else", DecidedRecipient::SomeoneElse),
             ("no_one", DecidedRecipient::NoOne),
         ];
         for (id, expected) in cases {
             let decision = decide(answer(("talk", 0.9), (id, 0.9))).unwrap();
-            assert_eq!(decision.recipient, expected, "{id}");
+            assert_eq!(decision.recipient.recipient, expected, "{id}");
         }
         let unsure = decide(answer(("talk", 0.9), ("p1", 0.6))).unwrap();
-        assert_eq!(unsure.recipient, DecidedRecipient::Undecided);
+        assert_eq!(unsure.recipient.recipient, DecidedRecipient::Undecided);
+    }
+
+    #[test]
+    fn confident_mentions_name_people_present_in_roster_order() {
+        let mut output = answer(("talk", 0.9), ("no_one", 0.9));
+        output["mentioned"] = json!({"p2": 0.91, "p1": 0.4});
+        let decision = decide(output.clone()).unwrap();
+        assert_eq!(decision.recipient.mentioned, ["Róisín Connolly"]);
+        output["mentioned"] = json!({"p2": 0.8, "p1": 0.75});
+        let decision = decide(output.clone()).unwrap();
+        assert_eq!(
+            decision.recipient.mentioned,
+            ["Mícheál Connolly", "Róisín Connolly"]
+        );
+        output["mentioned"] = json!({"p7": 0.9});
+        assert!(decide(output).is_none(), "a mention of no one offered");
     }
 
     #[test]
     fn an_option_that_was_not_offered_is_not_a_decision() {
         assert!(decide(answer(("talk", 0.9), ("p9", 0.9))).is_none());
+        // With one person present no group option is offered.
+        let one = IntentOptions {
+            groups: Vec::new(),
+            ..options()
+        };
+        let output = answer(("talk", 0.9), ("all", 0.9));
+        assert!(intent_from_decision(&output.to_string(), &one, "x").is_none());
         let mut output = answer(("move", 0.9), ("no_one", 0.9));
         output["destination"] = choice("l9", 0.9);
         assert!(decide(output).is_none());

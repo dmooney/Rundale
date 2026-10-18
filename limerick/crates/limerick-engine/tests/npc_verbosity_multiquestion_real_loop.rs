@@ -79,7 +79,7 @@ fn verbosity_guard_strips_tell_me_repeat_through_real_loop() {
     h.mock().push_for("Nora", injected);
 
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Nora about the journey");
+    let _ = h.execute_via_real_loop("@Nora Duffy how was the journey?");
 
     let events = drain_events(&mut rx);
     let dialogue_events: Vec<Option<String>> = events
@@ -137,7 +137,7 @@ fn verbosity_guard_passes_clean_reply_through_real_loop() {
     h.mock().push_for("Nora", clean_reply);
 
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Nora about the journey");
+    let _ = h.execute_via_real_loop("@Nora Duffy how was the journey?");
 
     let events = drain_events(&mut rx);
     let dialogue_texts: Vec<Option<String>> = events
@@ -243,7 +243,7 @@ fn cross_npc_opener_dedup_fires_across_separate_turns() {
     // Turn 1: Nora speaks first.
     h.mock().push_for("Nora", stock_opener_nora);
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Nora");
+    let _ = h.execute_via_real_loop("@Nora Duffy good day");
 
     let events_1 = drain_events(&mut rx);
     let nora_said: Vec<Option<String>> = events_1
@@ -276,7 +276,7 @@ fn cross_npc_opener_dedup_fires_across_separate_turns() {
     // Turn 2: Brendan speaks with the near-identical opener.
     h.mock().push_for("Brendan", stock_opener_brendan);
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Brendan");
+    let _ = h.execute_via_real_loop("@Brendan Duffy good day");
 
     let events_2 = drain_events(&mut rx);
     let brendan_said: Vec<Option<String>> = events_2

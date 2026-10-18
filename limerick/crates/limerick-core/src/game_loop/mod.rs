@@ -76,26 +76,35 @@ impl GameInputOutcome {
     }
 }
 
-/// An explicit addressee matched several people present, so the turn asks
-/// the player which one they meant instead of guessing.
+/// The turn asks the player who a line is for before anyone answers: "Who
+/// are you speaking to?" for unaddressed speech, or "Which Connolly do you
+/// mean?" for a reference that fits several people present.
 #[derive(Debug, Clone)]
 pub struct AddresseeClarification {
-    /// The question and its choices (one per matching NPC).
+    /// The question and its choices.
     pub prompt: crate::turn::ClarificationPrompt,
     /// The intent the turn resolved before asking, so the answer's run needs
     /// no second intent call.
     pub intent: Option<crate::input::PlayerIntent>,
+    /// The System 1 answer about who the line is for, settled with the
+    /// intent (design §3.3), so the answer's run reuses its mentions.
+    pub decision: Option<crate::intent_decision::RecipientDecision>,
 }
 
-/// What an earlier run of the same request already settled: its intent and
-/// the player's answers to clarifications. A run given this does not call
-/// the intent model and resolves each answered reference to its choice.
+/// What an earlier run of the same request already settled: its intent, the
+/// System 1 recipient answer, and the player's answers to clarifications. A
+/// run given this does not call the intent model and resolves each answered
+/// reference to its choice.
 #[derive(Debug, Clone, Default)]
 pub struct SettledInput {
     /// The intent to use in place of parsing.
     pub intent: Option<crate::input::PlayerIntent>,
+    /// The recipient answer settled with the intent.
+    pub decision: Option<crate::intent_decision::RecipientDecision>,
     /// Answered references and the NPC each one means.
     pub addressees: Vec<(String, crate::npc::NpcId)>,
+    /// The player answered "Who are you speaking to?" with **All**.
+    pub everyone: bool,
 }
 
 pub mod context;
@@ -104,6 +113,7 @@ pub mod input;
 pub mod movement;
 pub mod npc_turn;
 pub mod reactions;
+pub mod recipients;
 pub mod save;
 pub mod staged_turn;
 pub mod system_command;

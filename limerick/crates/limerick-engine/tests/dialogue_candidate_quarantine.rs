@@ -68,7 +68,7 @@ fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
     harness.mock().push_json_for(&speaker, &raw_json);
     let mut game_events = harness.app.world.event_bus.subscribe();
 
-    let ui_events = harness.execute_via_real_loop(&format!("talk to {speaker}"));
+    let ui_events = harness.execute_via_real_loop(&format!("@{speaker} Good day to you."));
 
     assert_failed_without_candidate_effects(&ui_events);
     let serialized_ui = serde_json::to_string(&ui_events).unwrap();
@@ -116,7 +116,7 @@ fn malformed_and_raw_provider_modes_have_identical_canonical_output() {
     ] {
         let (mut harness, _peig_id, speaker) = harness_with_peig();
         harness.mock().push_json_for(&speaker, candidate);
-        let events = harness.execute_via_real_loop(&format!("talk to {speaker}"));
+        let events = harness.execute_via_real_loop(&format!("@{speaker} Good day to you."));
 
         assert_failed_without_candidate_effects(&events);
         assert!(!serde_json::to_string(&events).unwrap().contains(candidate));

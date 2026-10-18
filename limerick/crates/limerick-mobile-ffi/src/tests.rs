@@ -206,10 +206,12 @@ impl Game {
                         pending["stream"], false,
                         "the intent definition does not stream"
                     );
-                    last = self.resolve(
-                        &pending,
-                        json!({"intent": "talk", "target": null, "dialogue": null, "atmosphere": null}),
-                    );
+                    // Speech, spoken to the first person present.
+                    let first = pending["input"]["present"][0]["optionId"]
+                        .as_str()
+                        .expect("someone is present")
+                        .to_string();
+                    last = self.resolve(&pending, talk_decision(&first, 0.95));
                 }
                 other => panic!("unexpected Endpoint role {other:?}"),
             }
@@ -748,10 +750,12 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
         }
         let pending = game.pending();
         assert_eq!(pending["endpoint"]["role"], "intent", "{pending}");
-        result = game.resolve(
-            &pending,
-            json!({"intent": "talk", "target": "Drover", "dialogue": "is it a good day for the fair?", "atmosphere": null}),
-        );
+        // Jev's decision: spoken to whoever "Drover" means.
+        let reference = pending["input"]["references"][0]["optionId"]
+            .as_str()
+            .expect("Drover fits both people present")
+            .to_string();
+        result = game.resolve(&pending, talk_decision(&reference, 0.95));
     }
     assert_eq!(result["status"], "awaiting_clarification", "{result}");
     let question = events_of_kind(&result, "clarification_required");
@@ -804,16 +808,6 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
     assert_eq!(committed["terminalOutcome"], "succeeded");
 }
 
-/// How the intent Endpoint answered "ask Connolly about the household".
-enum IntentAnswer {
-    Target(&'static str),
-    /// Jev's decision choosing the "Connolly" reference with this
-    /// probability: confident, or just under the engine's threshold, as
-    /// the comparison saw it answer (0.69 to 0.73).
-    Reference(f64),
-    Failed,
-}
-
 /// A `rundale-intent` decision: speech, spoken to `recipient` with
 /// probability `p`.
 fn talk_decision(recipient: &str, p: f64) -> Value {
@@ -828,67 +822,92 @@ fn talk_decision(recipient: &str, p: f64) -> Value {
     })
 }
 
-/// Product spec §5.3: "ask Connolly" at the cottage names both Connollys,
-/// so the turn asks which one rather than speaking to whoever is listed
-/// first, on the canonical world through the phone's intent Endpoint. The
-/// player's own words name who is asked, so the question does not depend on
-/// the model: it returns "Connolly", a garbled target (seen live:
-/// "Connolly.mdl"), or fails (seen live: 502 MODEL_ERROR).
+/// The entity ids of a question's choices; `None` for **All**.
+fn choice_entities(prompt: &Value) -> Vec<Option<String>> {
+    prompt["choices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|choice| choice["entityID"].as_str().map(str::to_string))
+        .collect()
+}
+
+/// The question a result asks.
+fn question(result: &Value) -> Value {
+    assert_eq!(result["status"], "awaiting_clarification", "{result}");
+    events_of_kind(result, "clarification_required")[0]["clarification"].clone()
+}
+
+/// Design §8 row 27 (product spec §5.3): "ask Connolly" at the cottage names
+/// both Connollys, so Jev's decision chooses the "Connolly" reference and
+/// the turn asks which one, listing only them, on the canonical world
+/// through the phone's intent Endpoint.
 #[test]
 fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
-    for answer in [
-        IntentAnswer::Target("Connolly"),
-        IntentAnswer::Target("Connolly.mdl"),
-        IntentAnswer::Reference(0.9),
-        IntentAnswer::Reference(0.65),
-        IntentAnswer::Failed,
-    ] {
+    let (game, _) = Game::new();
+    game.go_to_the_cottage();
+    game.submit("ask Connolly about the household");
+    let pending = game.pending();
+    assert_eq!(pending["endpoint"]["role"], "intent", "{pending}");
+    let references = pending["input"]["references"].as_array().unwrap();
+    assert_eq!(references.len(), 1, "one reference, Connolly: {pending}");
+    assert_eq!(references[0]["phrase"], "Connolly");
+    let option = references[0]["optionId"].as_str().unwrap();
+    let result = game.resolve(&pending, talk_decision(option, 0.9));
+    assert!(
+        events_of_kind(&result, "npc_dialogue").is_empty(),
+        "no one answers before the player chooses: {result}"
+    );
+    let prompt = question(&result);
+    assert_eq!(prompt["question"], "Which Connolly do you mean?");
+    let mut entities = choice_entities(&prompt);
+    entities.sort();
+    assert_eq!(
+        entities,
+        [Some("2".to_string()), Some("3".to_string())],
+        "Mícheál and Róisín: {prompt}"
+    );
+}
+
+/// Design §8 row 21: an unsure answer, or a failed call, with both
+/// Connollys present asks who the line is for (each person, then All);
+/// never a silent default to whoever is listed first.
+#[test]
+fn an_unsure_or_failed_decision_asks_who_the_line_is_for() {
+    for failed in [false, true] {
         let (game, _) = Game::new();
         game.go_to_the_cottage();
-        let mut result = game.submit("ask Connolly about the household");
-        for _ in 0..3 {
-            if result["status"] != "awaiting_inference" {
-                break;
-            }
-            let pending = game.pending();
-            assert_eq!(pending["endpoint"]["role"], "intent", "{pending}");
-            result = match answer {
-                IntentAnswer::Target(target) => game.resolve(
-                    &pending,
-                    json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
-                ),
-                IntentAnswer::Reference(p) => {
-                    let references = pending["input"]["references"].as_array().unwrap();
-                    assert_eq!(references.len(), 1, "one reference, Connolly: {pending}");
-                    assert_eq!(references[0]["phrase"], "Connolly");
-                    let option = references[0]["optionId"].as_str().unwrap();
-                    game.resolve(&pending, talk_decision(option, p))
-                }
-                IntentAnswer::Failed => game.op(json!({
-                    "op": "fail",
-                    "call_id": pending["callID"],
-                    "attempt_id": pending["attemptID"],
-                    "base_revision": pending["baseRevision"],
-                    "error_kind": "protocol",
-                    "message": "MODEL_ERROR",
-                })),
-            };
-        }
-        assert_eq!(result["status"], "awaiting_clarification", "{result}");
+        game.submit("ask Connolly about the household");
+        let pending = game.pending();
+        let result = if failed {
+            game.op(json!({
+                "op": "fail",
+                "call_id": pending["callID"],
+                "attempt_id": pending["attemptID"],
+                "base_revision": pending["baseRevision"],
+                "error_kind": "protocol",
+                "message": "MODEL_ERROR",
+            }))
+        } else {
+            let option = pending["input"]["references"][0]["optionId"]
+                .as_str()
+                .unwrap()
+                .to_string();
+            game.resolve(&pending, talk_decision(&option, 0.65))
+        };
         assert!(
             events_of_kind(&result, "npc_dialogue").is_empty(),
-            "no one answers before the player chooses: {result}"
+            "{result}"
         );
-        let question = events_of_kind(&result, "clarification_required");
-        let prompt = &question[0]["clarification"];
-        let mut entities: Vec<&str> = prompt["choices"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|choice| choice["entityID"].as_str().unwrap())
-            .collect();
-        entities.sort();
-        assert_eq!(entities, ["2", "3"], "Mícheál and Róisín: {prompt}");
+        let prompt = question(&result);
+        assert_eq!(prompt["question"], "Who are you speaking to?");
+        assert_eq!(
+            choice_entities(&prompt),
+            [Some("2".to_string()), Some("3".to_string()), None]
+        );
+        let all = &prompt["choices"][2];
+        assert_eq!(all["label"], "All");
+        assert_eq!(all["accessibilityLabel"], "Everyone here");
     }
 }
 
@@ -924,6 +943,26 @@ fn option_named(input: &Value, list: &str, name: &str) -> String {
         .to_string()
 }
 
+/// The speakers of the dialogue calls a turn makes, answering each.
+fn speakers_of(game: &Game) -> Vec<String> {
+    let mut speakers = Vec::new();
+    for _ in 0..4 {
+        let dialogue = game.pending();
+        if dialogue.is_null() {
+            break;
+        }
+        assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
+        speakers.push(
+            dialogue["input"]["speaker"]["displayName"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+        game.resolve(&dialogue, json!({"dialogue": "It is, thank God."}));
+    }
+    speakers
+}
+
 /// A confident decision for someone present routes the line to them, even
 /// when the words name no one: "Good morning to you" reaches Róisín, the
 /// second Connolly listed.
@@ -938,26 +977,30 @@ fn a_confident_decision_routes_to_the_person_present_it_names() {
         dialogue["input"]["speaker"]["displayName"],
         "Róisín Connolly"
     );
+    assert_eq!(dialogue["input"]["addressing"], "spoken_to");
 }
 
-/// A confident decision for an introduced person elsewhere says they are
-/// not here and makes no dialogue call.
+/// Design §8 rows 10 and 12: a line spoken to someone not present, or to a
+/// name that fits no one, with both Connollys present reaches them both,
+/// and no system line answers the name.
 #[test]
-fn a_confident_decision_for_someone_elsewhere_says_they_are_not_here() {
-    let (game, result) = decide_at_the_cottage("any letters for me today?", &[1], |input| {
-        option_named(input, "elsewhere", "Peig Hannigan")
-    });
-    assert!(game.pending().is_null(), "{}", game.pending());
-    assert!(
-        events_of_kind(&result, "npc_dialogue").is_empty(),
-        "{result}"
-    );
-    assert!(
-        narration(&result)
-            .iter()
-            .any(|line| line.contains("Peig") && line.ends_with("is not here.")),
-        "{result}"
-    );
+fn a_decision_for_someone_not_present_reaches_everyone_present() {
+    for text in ["Peig, are you there?", "ask Seán about the road"] {
+        let (game, result) = decide_at_the_cottage(text, &[1], |input| {
+            assert_eq!(input["someoneElse"][0]["optionId"], "someone_else");
+            assert!(
+                input.get("elsewhere").is_none(),
+                "no one elsewhere is offered"
+            );
+            "someone_else".to_string()
+        });
+        assert!(narration(&result).is_empty(), "{text}: {result}");
+        let dialogue = game.pending();
+        assert_eq!(dialogue["input"]["addressing"], "part_of_all", "{dialogue}");
+        let mut speakers = speakers_of(&game);
+        speakers.sort();
+        assert_eq!(speakers, ["Mícheál Connolly", "Róisín Connolly"], "{text}");
+    }
 }
 
 /// A confident "all" sends the line to everyone present, one dialogue call
@@ -965,59 +1008,143 @@ fn a_confident_decision_for_someone_elsewhere_says_they_are_not_here() {
 #[test]
 fn a_confident_decision_for_everyone_reaches_each_person_present() {
     let (game, _) = decide_at_the_cottage("Lovely weather today", &[], |_| "all".to_string());
-    let mut speakers = Vec::new();
-    for _ in 0..2 {
-        let dialogue = game.pending();
-        assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
-        speakers.push(
-            dialogue["input"]["speaker"]["displayName"]
-                .as_str()
-                .unwrap()
-                .to_string(),
-        );
-        game.resolve(&dialogue, json!({"dialogue": "It is, thank God."}));
-    }
+    let mut speakers = speakers_of(&game);
     speakers.sort();
     assert_eq!(speakers, ["Mícheál Connolly", "Róisín Connolly"]);
 }
 
-/// A confident "not listed" answers with the neutral reply, which reveals
-/// nothing about who exists, and makes no dialogue call.
+/// Design §8 rows 1 to 4 and 22 on the phone's path: "Hello" with both
+/// Connollys asks who it is for, with All; choosing Róisín sends the line
+/// to her without retyping and makes her the partner, so the next
+/// unaddressed line goes to her without a question, also after a relaunch;
+/// choosing All reaches both, and the next unaddressed line asks again.
 #[test]
-fn a_confident_decision_for_no_one_listed_gives_the_neutral_reply() {
-    let (game, result) =
-        decide_at_the_cottage("Seamus, are you about?", &[], |_| "not_listed".to_string());
-    assert!(game.pending().is_null(), "{}", game.pending());
-    assert!(
-        events_of_kind(&result, "npc_dialogue").is_empty(),
-        "{result}"
+fn unaddressed_speech_asks_and_the_choice_becomes_the_partner() {
+    let (mut game, _) = decide_at_the_cottage("Hello", &[2, 3], |_| "no_one".to_string());
+    let result = game.snapshot();
+    let request = result["activeRequestID"].clone();
+    let record = request_record(&result, &request);
+    let prompt = &record["pendingClarification"];
+    assert_eq!(prompt["question"], "Who are you speaking to?");
+    assert_eq!(
+        choice_entities(prompt),
+        [Some("2".to_string()), Some("3".to_string()), None]
     );
-    assert!(
-        events_of_kind(&result, "narration")
-            .iter()
-            .chain(events_of_kind(&result, "system").iter())
-            .any(|event| event
-                .to_string()
-                .contains("No one here answers to that name just now.")),
-        "{result}"
+    assert!(game.pending().is_null(), "no dialogue call until answered");
+
+    let answered = game.op(json!({
+        "op": "answer_clarification",
+        "logical_request_id": request,
+        "choice_id": "choose-npc-3",
+    }));
+    assert_eq!(answered["logicalRequestID"], request, "the same request");
+    let dialogue = game.pending();
+    assert_eq!(
+        dialogue["endpoint"]["role"], "dialogue",
+        "no second intent call"
+    );
+    assert_eq!(dialogue["input"]["playerInput"], "Hello");
+    assert_eq!(speakers_of(&game), ["Róisín Connolly"]);
+
+    // Row 3, and row 22 across a relaunch: the partner answers.
+    game.relaunch();
+    game.submit("And how's the harvest?");
+    let pending = game.pending();
+    let result = game.resolve(&pending, talk_decision("no_one", 0.95));
+    assert_ne!(result["status"], "awaiting_clarification", "{result}");
+    assert_eq!(speakers_of(&game), ["Róisín Connolly"]);
+
+    // Row 4: All reaches both and ends the partnership.
+    game.submit("Hello to ye");
+    let pending = game.pending();
+    let result = game.resolve(&pending, talk_decision("no_one", 0.95));
+    assert_ne!(
+        result["status"], "awaiting_clarification",
+        "the partner answers: {result}"
+    );
+    assert_eq!(speakers_of(&game), ["Róisín Connolly"]);
+    game.submit("Is it going to rain, do ye think?");
+    let pending = game.pending();
+    let option = option_named(&pending["input"], "present", "Mícheál Connolly");
+    game.resolve(&pending, talk_decision(&option, 0.95));
+    assert_eq!(
+        speakers_of(&game),
+        ["Mícheál Connolly"],
+        "Mícheál is the partner now"
+    );
+    game.submit("Well?");
+    let pending = game.pending();
+    let asked = game.resolve(&pending, talk_decision("no_one", 0.95));
+    assert_ne!(asked["status"], "awaiting_clarification", "{asked}");
+    assert_eq!(speakers_of(&game), ["Mícheál Connolly"]);
+    game.submit("Good day, everyone");
+    let pending = game.pending();
+    game.resolve(&pending, talk_decision("all", 0.95));
+    let mut both = speakers_of(&game);
+    both.sort();
+    assert_eq!(both, ["Mícheál Connolly", "Róisín Connolly"]);
+    game.submit("Grand.");
+    let pending = game.pending();
+    let asked = game.resolve(&pending, talk_decision("no_one", 0.95));
+    assert_eq!(question(&asked)["question"], "Who are you speaking to?");
+}
+
+/// Design §8 row 19 on the phone: the person chosen in answer to a question
+/// has left by the time the player answers. The game says so, sends
+/// nothing, and hands the line back to the composer.
+#[test]
+fn choosing_someone_who_has_left_returns_the_line_to_the_composer() {
+    let (game, _) = decide_at_the_cottage("Hello", &[2, 3], |_| "no_one".to_string());
+    let request = game.snapshot()["activeRequestID"].clone();
+    game.arrange(3, &[2], &[2, 3]);
+    let answered = game.op(json!({
+        "op": "answer_clarification",
+        "logical_request_id": request,
+        "choice_id": "choose-npc-3",
+    }));
+    assert!(game.pending().is_null(), "nothing is sent: {answered}");
+    assert_eq!(narration(&answered), ["Róisín Connolly is no longer here."]);
+    let terminal = events_of_kind(&answered, "response_completed");
+    assert_eq!(
+        terminal[0]["metadata"]["composerText"], "Hello",
+        "{answered}"
     );
 }
 
-/// Submits `text` and answers any intent call (naming `target`) until the
-/// turn ends or waits on a dialogue call; returns the last result.
-fn submit_through_intent(game: &Game, text: &str, target: &str) -> Value {
-    let mut result = game.submit(text);
-    for _ in 0..2 {
-        let pending = game.pending();
-        if pending.is_null() || pending["endpoint"]["role"] != "intent" {
-            break;
-        }
-        result = game.resolve(
-            &pending,
-            json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
-        );
+/// Design §8 row 5: with Peig alone at the Letter Office the recipient
+/// question has a single option, so the call offers no group options and
+/// no mentions, and Peig answers directly.
+#[test]
+fn one_person_present_answers_without_being_asked_about() {
+    let (game, _) = Game::new();
+    game.arrange(2, &[1], &[]);
+    game.submit("Hello");
+    let pending = game.pending();
+    let input = &pending["input"];
+    assert_eq!(input["present"].as_array().unwrap().len(), 1);
+    for list in ["everyone", "someoneElse", "noOne", "mentionable"] {
+        assert_eq!(input[list], json!([]), "{list}: {input}");
     }
-    result
+    game.resolve(&pending, talk_decision("p1", 1.0));
+    assert_eq!(speakers_of(&game), ["Peig Hannigan"]);
+}
+
+/// Design §8 rows 6 and 18: an @tag picks the recipient with no intent
+/// call; only that person answers, and a name mentioned in the line, of
+/// someone elsewhere, gets no system line.
+#[test]
+fn an_at_tag_picks_the_recipient_without_an_intent_call() {
+    let (game, _) = Game::new();
+    game.arrange(3, &[2, 3], &[2, 3]);
+    let result = game.submit("@Róisín Connolly is Mícheál well?");
+    let dialogue = game.pending();
+    assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{result}");
+    assert_eq!(speakers_of(&game), ["Róisín Connolly"]);
+
+    game.arrange(2, &[1], &[1]);
+    let result = game.submit("@Peig Hannigan The ribbon was woven by Róisín.");
+    assert!(narration(&result).is_empty(), "{result}");
+    assert_eq!(speakers_of(&game), ["Peig Hannigan"]);
 }
 
 fn narration(result: &Value) -> Vec<&str> {
@@ -1027,12 +1154,13 @@ fn narration(result: &Value) -> Vec<&str> {
         .collect()
 }
 
-/// Spec Milestone 3: the player cannot converse with someone who is not
-/// there. Mícheál is at Connolly Cottage all morning, so asking for him in
-/// the village is answered "not here", never by whoever is in the village
-/// and never through the dialogue Endpoint (#2047).
+/// Design §8 rows 11 and 31 (owner, 2026-10-17; replaces #2047's "not
+/// here"): Mícheál is at Connolly Cottage all morning. Asking for him in the
+/// village with nobody there gets the idle message only; with Peig there,
+/// Peig hears it and answers from what she knows. No line says he is not
+/// here.
 #[test]
-fn a_person_named_who_is_elsewhere_is_reported_absent_without_an_endpoint_call() {
+fn a_person_named_who_is_elsewhere_gets_no_system_line() {
     let (game, _) = Game::new();
     let mut checked_with_peig = false;
     for with_peig in [false, true] {
@@ -1046,31 +1174,32 @@ fn a_person_named_who_is_elsewhere_is_reported_absent_without_an_endpoint_call()
             "ask Mícheál about the cattle",
             "Mícheál, how are the cattle?",
         ] {
-            let result = submit_through_intent(&game, text, "Mícheál");
-            assert!(game.pending().is_null(), "{text}: {}", game.pending());
-            assert_eq!(result["terminalOutcome"], "succeeded", "{result}");
+            game.submit(text);
+            let pending = game.pending();
+            assert_eq!(pending["endpoint"]["role"], "intent", "{text}: {pending}");
+            let recipient = pending["input"]["present"][0]["optionId"]
+                .as_str()
+                .unwrap_or("no_one")
+                .to_string();
+            let result = game.resolve(&pending, talk_decision(&recipient, 1.0));
             assert!(
-                events_of_kind(&result, "npc_dialogue").is_empty(),
-                "{result}"
+                !narration(&result)
+                    .iter()
+                    .any(|line| line.contains("not here")),
+                "{text}: {result}"
             );
-            assert_eq!(narration(&result), ["Mícheál is not here."], "{text}");
+            if with_peig {
+                assert_eq!(speakers_of(&game), ["Peig Hannigan"]);
+            } else {
+                assert!(game.pending().is_null(), "{text}: {}", game.pending());
+                assert_eq!(result["terminalOutcome"], "succeeded", "{result}");
+                assert!(events_of_kind(&result, "npc_dialogue").is_empty());
+            }
         }
         checked_with_peig = with_peig;
     }
     assert!(checked_with_peig);
-
-    // Speaking to Peig about Mícheál still reaches Peig.
-    let asked = submit_through_intent(&game, "Peig, have you seen Mícheál?", "Peig");
-    let dialogue = game.pending();
-    assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{asked}");
-    assert!(
-        !narration(&asked)
-            .iter()
-            .any(|line| line.contains("not here")),
-        "{asked}"
-    );
 }
-
 /// The Endpoint path commits a reply after structural checks only: a reply
 /// naming a person and place the world does not have is not rewritten.
 #[test]

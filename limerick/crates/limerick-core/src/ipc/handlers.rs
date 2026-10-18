@@ -714,6 +714,29 @@ pub fn extract_npc_mentions(
     world: &WorldState,
     npc_manager: &NpcManager,
 ) -> MentionedNpcs {
+    extract_mentions(raw, world, npc_manager, true)
+}
+
+/// Extracts only the explicit `@tags` of a line: the people the player
+/// selected by typing `@` and a name, which pick the recipients without a
+/// System 1 call (dynamic NPC context design §3.1, step 1). Names merely
+/// mentioned in the line are not tags. `remaining` is the line without them.
+pub fn extract_npc_tags(raw: &str, world: &WorldState, npc_manager: &NpcManager) -> MentionedNpcs {
+    if !raw.contains('@') {
+        return MentionedNpcs {
+            names: vec![],
+            remaining: raw.trim().to_string(),
+        };
+    }
+    extract_mentions(raw, world, npc_manager, false)
+}
+
+fn extract_mentions(
+    raw: &str,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    natural: bool,
+) -> MentionedNpcs {
     let candidates = npc_mention_candidates(raw, world, npc_manager);
 
     if candidates.is_empty() {
@@ -758,7 +781,11 @@ pub fn extract_npc_mentions(
         }
     }
 
-    let natural_spans = find_natural_npc_mentions(raw, &candidates, &spans);
+    let natural_spans = if natural {
+        find_natural_npc_mentions(raw, &candidates, &spans)
+    } else {
+        Vec::new()
+    };
 
     if spans.is_empty() {
         if natural_spans.is_empty() {

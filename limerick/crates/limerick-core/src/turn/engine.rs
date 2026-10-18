@@ -50,6 +50,7 @@ use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptE
 use crate::config::{InferenceConfig, InferenceSubrole};
 use crate::game_loop::flush_staged_emissions;
 use crate::game_loop::inference::InProcessInference;
+use crate::game_loop::recipients::ALL_CHOICE_ID;
 use crate::game_loop::{
     AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
     handle_game_input_settled,
@@ -65,6 +66,10 @@ use crate::turn_inference::{
     TurnInference,
 };
 use crate::world::transport::TransportMode;
+
+/// Metadata key on a terminal event whose request sent nothing and hands
+/// its line back to the composer: the original text (design §3.4).
+pub const COMPOSER_TEXT_KEY: &str = "composerText";
 
 /// The line recorded when restart recovery interrupts an open request.
 pub const INTERRUPTED_MESSAGE: &str = "The previous response was interrupted; you can retry it.";
@@ -650,8 +655,11 @@ impl TurnEngine {
     /// Answers the question a request is parked on. The same attempt runs
     /// again from the original input, with the chosen person as the
     /// addressee and the intent resolved before the question (no second
-    /// intent call). If the chosen person has left, the request completes
-    /// with "X is no longer here." and nothing else changes.
+    /// intent call). If the chosen person has left, the request ends with
+    /// "X is no longer here.", nothing else changes, and the line goes back
+    /// to the composer (its terminal event carries [`COMPOSER_TEXT_KEY`]).
+    /// All reaches whoever is still present; with nobody left the line goes
+    /// back to the composer.
     pub async fn answer_clarification(
         &mut self,
         live: &GameLoopContext<'_>,
@@ -686,27 +694,45 @@ impl TurnEngine {
                 .insert("entityID".to_string(), entity.clone());
         }
 
+        // Presence is checked again (design §3.4): the world advanced while
+        // the question waited. A chosen person who has left is "no longer
+        // here"; All reaches whoever is still present, and nobody at all
+        // leaves nothing to say.
         let chosen = choice.entity_id.as_deref().and_then(parse_npc_id);
-        let present = match chosen {
-            Some(id) => {
-                let world = live.world.lock().await;
-                let npc_manager = live.npc_manager.lock().await;
-                npc_manager.npcs_at_ids(world.player_location).contains(&id)
-            }
-            None => false,
+        let present = {
+            let world = live.world.lock().await;
+            let npc_manager = live.npc_manager.lock().await;
+            npc_manager.npcs_at_ids(world.player_location)
         };
-        if !present {
-            let line = format!("{} is no longer here.", choice.label);
-            let mut notice = builder.event(TranscriptEventKind::Narration);
-            notice.content = Some(line.clone());
+        let unanswerable = match chosen {
+            Some(id) if present.contains(&id) => None,
+            Some(_) => Some(Some(format!("{} is no longer here.", choice.label))),
+            None if choice.id == ALL_CHOICE_ID && !present.is_empty() => None,
+            None => Some(None),
+        };
+        if let Some(line) = unanswerable {
+            // Nothing is sent and nothing changes. The request ends without
+            // using up the line: its terminal event hands the original text
+            // back to the composer (`composerText`), so the player can send
+            // it again without retyping.
+            let mut events = vec![selected];
+            if let Some(line) = &line {
+                let mut notice = builder.event(TranscriptEventKind::Narration);
+                notice.content = Some(line.clone());
+                events.push(notice);
+            }
             record.complete(self.revision)?;
-            let terminal =
+            let mut terminal =
                 builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
+            terminal
+                .metadata
+                .insert(COMPOSER_TEXT_KEY.to_string(), record.original_text.clone());
+            events.push(terminal);
             let events = self
                 .journal
                 .commit(TurnCommit {
                     record: record.clone(),
-                    events: vec![selected, notice, terminal],
+                    events,
                     task_mutations: Vec::new(),
                     state: None,
                 })
@@ -716,7 +742,9 @@ impl TurnEngine {
                 request_id: Some(request.clone()),
                 attempt_id: Some(attempt_id),
                 events,
-                emissions: release_system_line(live, line),
+                emissions: line
+                    .map(|line| release_system_line(live, line))
+                    .unwrap_or_default(),
                 status: TurnStatus::Completed {
                     outcome: TerminalOutcome::Succeeded,
                     revision: Some(self.revision),
@@ -785,7 +813,12 @@ impl TurnEngine {
                 IgnoredReason::StaleCall,
             ));
         };
-        if awaited.subrole == InferenceSubrole::Dialogue {
+        // An intent call lost to the connection fails the request the way a
+        // dialogue call does (design §4.4), so it records the same reason.
+        if matches!(
+            awaited.subrole,
+            InferenceSubrole::Dialogue | InferenceSubrole::Intent
+        ) {
             running.last_dialogue_failure = Some(match &resolution.outcome {
                 InferenceOutcome::Completed { .. } => None,
                 InferenceOutcome::Failed { kind, .. } => Some(*kind),
@@ -995,6 +1028,11 @@ impl TurnEngine {
         let record = &self.records[request_id];
         let settled = record.is_clarified().then(|| SettledInput {
             intent: record.resolved_intent.clone(),
+            decision: record.resolved_recipient.clone(),
+            everyone: record
+                .selected_addressees
+                .iter()
+                .any(|selection| selection.choice.id == ALL_CHOICE_ID),
             addressees: record
                 .selected_addressees
                 .iter()
@@ -1306,9 +1344,13 @@ impl TurnEngine {
         mut builder: EventBuilder,
         clarification: AddresseeClarification,
     ) -> Result<TurnStep, TurnError> {
-        let AddresseeClarification { prompt, intent } = clarification;
+        let AddresseeClarification {
+            prompt,
+            intent,
+            decision,
+        } = clarification;
         let mut record = self.records[request_id].clone();
-        record.await_clarification(prompt.clone(), intent)?;
+        record.await_clarification(prompt.clone(), intent, decision)?;
         let mut question = builder.event(TranscriptEventKind::ClarificationRequired);
         question.content = Some(prompt.question.clone());
         question.clarification = Some(prompt.clone());
