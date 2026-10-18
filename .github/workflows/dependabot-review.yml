@@ -1,9 +1,12 @@
 name: "Dependabot review"
 
-# Classifies Dependabot updates and flags major versions for coordinator review.
-# This workflow deliberately never enables or executes a merge: the portfolio
-# coordinator lands every dependency PR only after its proof, risk, CI, and
-# review gates have cleared.
+# Classifies Dependabot updates and flags major versions for the gatekeeper.
+# This workflow deliberately never enables or executes a merge. The weekly
+# upkeep routine on the owner's Mac (scripts/dependabot_upkeep.py, issue #2098)
+# keeps each PR current, records the mobile-verify pass for app-input bumps,
+# waits for the required checks, and then runs a fresh gatekeeper, which alone
+# decides whether the PR merges, goes back, or goes to the owner. Green CI is
+# necessary but never sufficient.
 
 on:
   pull_request_target:
@@ -27,14 +30,14 @@ jobs:
         id: meta
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
-      - name: "Leave patch and minor updates for the coordinator"
+      - name: "Leave patch and minor updates for the gatekeeper"
         if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
-        run: echo "Patch/minor update classified; merge remains coordinator-owned."
+        run: echo "Patch/minor update classified; merge remains gatekeeper-owned."
 
-      - name: "Flag majors for coordinator review"
+      - name: "Flag majors for gatekeeper review"
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: |
-          gh pr comment "$PR_URL" --body "Major version bump - coordinator review required. This workflow never enables merge; all Dependabot updates remain open until proof, risk, CI, and review gates clear."
+          gh pr comment "$PR_URL" --body "Major version bump: the gatekeeper should read the release notes for breaking changes. This workflow never enables merge; the weekly upkeep routine brings the PR up to date and hands it to a gatekeeper once its required checks pass."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
