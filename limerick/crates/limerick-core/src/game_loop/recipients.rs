@@ -147,6 +147,9 @@ pub fn resolve_recipients(
                 NpcReference::Ambiguous(_) | NpcReference::NotFound => {}
             }
         }
+        // Several recipients answer in roster (id) order, whatever order the
+        // player chose them in (design §2).
+        resolved.sort_by_key(|id| id.0);
         return match resolved.as_slice() {
             [] if present.len() == 1 => one(present[0]),
             [] => everyone(),
@@ -361,6 +364,19 @@ mod tests {
             }
             other => panic!("expected speakers, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn several_explicit_recipients_answer_in_roster_order() {
+        let (world, npcs) = room(HERE);
+        let request = AddressRequest {
+            explicit: vec!["Róisín Connolly".into(), "Mícheál Connolly".into()],
+            decision: None,
+        };
+        assert_eq!(
+            speakers(&resolve(&world, &npcs, &request)),
+            [(2, Addressing::SpokenTo), (3, Addressing::SpokenTo)]
+        );
     }
 
     #[test]

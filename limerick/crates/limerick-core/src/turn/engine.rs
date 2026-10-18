@@ -720,45 +720,9 @@ impl TurnEngine {
             None => Some(None),
         };
         if let Some(line) = unanswerable {
-            // Nothing is sent and nothing changes. The request ends without
-            // using up the line: its terminal event hands the original text
-            // back to the composer (`composerText`), so the player can send
-            // it again without retyping.
-            let mut events = vec![selected];
-            if let Some(line) = &line {
-                let mut notice = builder.event(TranscriptEventKind::Narration);
-                notice.content = Some(line.clone());
-                events.push(notice);
-            }
-            record.complete(self.revision)?;
-            let mut terminal =
-                builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
-            terminal
-                .metadata
-                .insert(COMPOSER_TEXT_KEY.to_string(), record.original_text.clone());
-            events.push(terminal);
-            let events = self
-                .journal
-                .commit(TurnCommit {
-                    record: record.clone(),
-                    events,
-                    task_mutations: Vec::new(),
-                    state: None,
-                })
-                .await?;
-            self.records.insert(request.clone(), record);
-            return Ok(TurnStep {
-                request_id: Some(request.clone()),
-                attempt_id: Some(attempt_id),
-                events,
-                emissions: line
-                    .map(|line| release_system_line(live, line))
-                    .unwrap_or_default(),
-                status: TurnStatus::Completed {
-                    outcome: TerminalOutcome::Succeeded,
-                    revision: Some(self.revision),
-                },
-            });
+            return self
+                .end_unsent(live, record, attempt_id, builder, vec![selected], line)
+                .await;
         }
 
         record.note_event_ordinal(builder.next_ordinal());
@@ -1281,6 +1245,15 @@ impl TurnEngine {
             }
         };
 
+        if let Some(line) = outcome.unsent {
+            // A reused answer no longer holds: the candidate is discarded.
+            drop(finished);
+            let record = self.records[&request_id].clone();
+            return self
+                .end_unsent(live, record, attempt_id, builder, Vec::new(), line)
+                .await;
+        }
+
         if let Some(clarification) = outcome.clarification {
             // The candidate is discarded: asking commits nothing.
             drop(finished);
@@ -1372,6 +1345,56 @@ impl TurnEngine {
             status: TurnStatus::Completed {
                 outcome: TerminalOutcome::Succeeded,
                 revision: Some(revision),
+            },
+        })
+    }
+
+    /// Ends the request without sending its line (design §3.4, §7): nothing
+    /// changes, `line` (if any) says why, and the terminal event hands the
+    /// original text back to the composer (`composerText`), so the player can
+    /// send it again without retyping.
+    async fn end_unsent(
+        &mut self,
+        live: &GameLoopContext<'_>,
+        mut record: RequestRecord,
+        attempt_id: ExecutionAttemptId,
+        mut builder: EventBuilder,
+        mut events: Vec<PendingEvent>,
+        line: Option<String>,
+    ) -> Result<TurnStep, TurnError> {
+        let request = record.id.clone();
+        if let Some(line) = &line {
+            let mut notice = builder.event(TranscriptEventKind::Narration);
+            notice.content = Some(line.clone());
+            events.push(notice);
+        }
+        record.complete(self.revision)?;
+        let mut terminal =
+            builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
+        terminal
+            .metadata
+            .insert(COMPOSER_TEXT_KEY.to_string(), record.original_text.clone());
+        events.push(terminal);
+        let events = self
+            .journal
+            .commit(TurnCommit {
+                record: record.clone(),
+                events,
+                task_mutations: Vec::new(),
+                state: None,
+            })
+            .await?;
+        self.records.insert(request.clone(), record);
+        Ok(TurnStep {
+            request_id: Some(request),
+            attempt_id: Some(attempt_id),
+            events,
+            emissions: line
+                .map(|line| release_system_line(live, line))
+                .unwrap_or_default(),
+            status: TurnStatus::Completed {
+                outcome: TerminalOutcome::Succeeded,
+                revision: Some(self.revision),
             },
         })
     }

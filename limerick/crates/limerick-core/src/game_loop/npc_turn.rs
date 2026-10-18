@@ -769,6 +769,13 @@ pub async fn handle_npc_conversation_settled(
                 ..GameInputOutcome::default()
             };
         }
+        Resolution::Nobody if answers.everyone || !answers.chosen.is_empty() => {
+            release_claim().await;
+            return GameInputOutcome {
+                unsent: Some(None),
+                ..GameInputOutcome::default()
+            };
+        }
         Resolution::Nobody => {
             release_claim().await;
             let msg = if ctx.idle_messages.is_empty() {
@@ -787,12 +794,10 @@ pub async fn handle_npc_conversation_settled(
         }
         Resolution::Gone(label) => {
             release_claim().await;
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", format!("{label} is no longer here.")))
-                    .unwrap_or(serde_json::Value::Null),
-            );
-            return GameInputOutcome::default();
+            return GameInputOutcome {
+                unsent: Some(Some(format!("{label} is no longer here."))),
+                ..GameInputOutcome::default()
+            };
         }
         Resolution::Speak { speakers, partner } => {
             // Set on the attempt's state, so it commits only with the turn.
@@ -945,6 +950,7 @@ pub async fn handle_npc_conversation_settled(
         task_mutations: assigned_tasks,
         dialogue_failure,
         clarification: None,
+        unsent: None,
     }
 }
 

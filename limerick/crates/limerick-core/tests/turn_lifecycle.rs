@@ -1973,6 +1973,89 @@ async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
     assert_reducer_contract(&journal.events(), &request);
 }
 
+// Gatekeeper finding on #2221: a retry that reuses a chosen recipient checks
+// presence again, as an answer does (design §3.4, §7). Someone who has left,
+// or an emptied room, sends nothing and hands the line back to the composer.
+#[tokio::test]
+async fn a_retry_after_the_chosen_person_or_everyone_left_returns_the_line() {
+    for everyone_left in [false, true] {
+        let live = Live::rundale().with_decisions();
+        let (_, duffy) = two_micheals(&live).await;
+        let (mut engine, journal) = engine(&live);
+        let line = "talk to Mícheál about the household";
+        let (asked, _, _) = submit_scripted(&mut engine, &live, said(line)).await;
+        let request = asked.request_id.clone().unwrap();
+        let step = engine
+            .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+            .await
+            .unwrap();
+        let dialogue = awaiting(&step).clone();
+        assert_eq!(dialogue.call.subrole, InferenceSubrole::Dialogue);
+        engine
+            .resume(
+                &live.ctx(),
+                resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+            )
+            .await
+            .unwrap();
+        {
+            let here = live.world.lock().await.player_location;
+            let away = if here == LocationId(1) {
+                LocationId(2)
+            } else {
+                LocationId(1)
+            };
+            let mut npcs = live.npc_manager.lock().await;
+            let leaving = if everyone_left {
+                npcs.npcs_at_ids(here)
+            } else {
+                vec![duffy]
+            };
+            for id in leaving {
+                npcs.get_mut(id).unwrap().set_location(away);
+            }
+        }
+        let before = live.fingerprint().await;
+
+        let done = engine.retry(&live.ctx(), &request).await.unwrap();
+        assert!(
+            matches!(
+                done.status,
+                TurnStatus::Completed {
+                    outcome: TerminalOutcome::Succeeded,
+                    ..
+                }
+            ),
+            "{:?}",
+            done.status
+        );
+        let notices: Vec<_> = done
+            .events
+            .iter()
+            .filter(|event| event.event.kind == TranscriptEventKind::Narration)
+            .filter_map(|event| event.event.content.as_deref())
+            .collect();
+        if everyone_left {
+            assert!(notices.is_empty(), "{notices:?}");
+        } else {
+            assert_eq!(notices, ["Mícheál Duffy is no longer here."]);
+        }
+        let terminal = done.events.last().unwrap();
+        assert_eq!(terminal.event.kind, TranscriptEventKind::ResponseCompleted);
+        assert_eq!(
+            terminal
+                .event
+                .metadata
+                .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+                .map(String::as_str),
+            Some(line),
+            "everyone_left={everyone_left}"
+        );
+        assert_eq!(live.fingerprint().await, before, "nothing changes");
+        assert_reducer_contract(&journal.events(), &request);
+    }
+}
+
 // Oracle: ios-port FFI `unresolved_clarification_survives_bounded_restart_projection`.
 // The in-memory journal has no bounded tail to fall out of; the port checks
 // that the journaled record, not engine memory, carries the question and

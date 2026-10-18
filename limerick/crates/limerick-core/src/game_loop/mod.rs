@@ -64,6 +64,11 @@ pub struct GameInputOutcome {
     /// The turn stopped before any dialogue to ask which person an explicit
     /// addressee meant. A turn engine parks the request on this question.
     pub clarification: Option<AddresseeClarification>,
+    /// The line was not spoken: a run that reused an earlier answer found the
+    /// chosen person gone (with the notice to show) or nobody present
+    /// (`None`). Nothing changes and the line goes back to the composer
+    /// (design §3.4, §7).
+    pub unsent: Option<Option<String>>,
 }
 
 impl GameInputOutcome {
