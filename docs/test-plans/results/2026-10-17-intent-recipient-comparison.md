@@ -123,6 +123,7 @@ All ask; none sends a line to the wrong person.
 
 - **A21 and A22**: "Peig, are you there?" reaches 0.70 for "someone not
   present" in two of five runs; otherwise Róisín takes about 0.3 and the game
-  asks.
+  asks. **Owner decision (2026-10-18):** accepted like A14 and A15; it never
+  sends the line to the wrong person.
 - **A34** (one run): "Drover, is it a good day for the fair?" fell just under
   the threshold for the "Drover" reference.
