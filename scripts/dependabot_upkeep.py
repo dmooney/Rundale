@@ -120,22 +120,62 @@ class Result:
 Executor = Callable[[Sequence[str], "Path | None", "float | None", "Path | None"], Result]
 
 
-def end_process_group(process: subprocess.Popen[Any], grace: float = 10) -> None:
-    """Stop a command started in its own session, and every descendant still in its group.
+STOP_GRACE = 120.0  # seconds a stopped command's group gets to shut down cleanly
 
-    Killing only the direct child would leave an agent's or a build's children
-    using the checkout after the routine moved on to the next pull request.
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def end_process_group(process: subprocess.Popen[Any], grace: float = STOP_GRACE) -> None:
+    """Stop a command started in its own session; return only once its whole group is gone.
+
+    SIGTERM goes to every member, and the routine waits for all of them, not
+    just the direct child: `just` exits at once while `verify.py` is still
+    stopping its own build groups, which it does on SIGTERM. Only members still
+    alive after `grace` get SIGKILL. SIGINT and SIGTERM to the routine are held
+    meanwhile, so a second signal cannot abandon the cleanup halfway. (This
+    follows `_stop_group` in mobile/scripts/verify.py, with a grace long enough
+    for that cleanup.)
     """
 
-    with suppress(ProcessLookupError, PermissionError):
-        os.killpg(process.pid, signal.SIGTERM)
-    with suppress(subprocess.TimeoutExpired):
-        process.wait(timeout=grace)
-    # Whatever is still in the group, leader or descendants, gets SIGKILL.
-    with suppress(ProcessLookupError, PermissionError):
-        os.killpg(process.pid, signal.SIGKILL)
-    with suppress(subprocess.TimeoutExpired):
-        process.wait(timeout=grace)
+    blocked = {signal.SIGINT, signal.SIGTERM}
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
+    try:
+        with suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGTERM)
+        deadline = time.monotonic() + grace
+        # poll() reaps the direct child: a zombie still counts as a member.
+        while process.poll() is None or _group_alive(process.pid):
+            if time.monotonic() >= deadline:
+                with suppress(ProcessLookupError, PermissionError):
+                    os.killpg(process.pid, signal.SIGKILL)
+                while process.poll() is None or _group_alive(process.pid):
+                    time.sleep(0.05)
+                break
+            time.sleep(0.05)
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+class Terminated(BaseException):
+    """launchd (or anyone) sent the routine SIGTERM."""
+
+
+def _raise_terminated(signum: int, frame: Any) -> None:
+    raise Terminated
+
+
+def handle_termination() -> None:
+    """Unwind on SIGTERM like Ctrl+C, so the running command's group is stopped first."""
+
+    signal.signal(signal.SIGTERM, _raise_terminated)
 
 
 def subprocess_executor(
@@ -1116,6 +1156,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     args = build_parser().parse_args(argv)
+    handle_termination()
     shell = Shell(dry_run=args.dry_run, log=sys.stdout)
     if args.command == "install":
         return install(args, shell)
@@ -1140,7 +1181,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         upkeep = Upkeep(
             shell, repo=args.repo, state=args.state, review=review, work=work, fix=args.fix
         )
-        outcomes, summary = upkeep.run(only=set(args.pr), exclude=set(args.exclude))
+        try:
+            outcomes, summary = upkeep.run(only=set(args.pr), exclude=set(args.exclude))
+        except Terminated:
+            print("Terminated; the running command's process group was stopped.", file=sys.stderr)
+            return 143
         upkeep.logs.mkdir(parents=True, exist_ok=True)
         (upkeep.logs / "summary.md").write_text(summary, encoding="utf-8")
         print("\n" + summary)

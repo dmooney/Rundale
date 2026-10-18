@@ -8,8 +8,12 @@ import importlib
 import io
 import json
 import os
+import shlex
+import signal
+import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 from collections.abc import Callable, Sequence
@@ -634,6 +638,43 @@ class ProcessTests(unittest.TestCase):
             else:
                 os.kill(child, 9)
                 self.fail("the backgrounded child outlived the timed-out command")
+
+    def test_a_stopped_group_gets_time_to_clean_up(self) -> None:
+        # The leader exits on SIGTERM at once; its child traps SIGTERM and needs
+        # a second to clean up, as verify.py does while stopping its builds.
+        with tempfile.TemporaryDirectory() as tmp:
+            done = Path(tmp) / "cleaned"
+            child = f"trap 'sleep 1; echo ok > {done}; exit 0' TERM; while :; do sleep 0.1; done"
+            script = f"sh -c {shlex.quote(child)} & wait"
+            result = upkeep.subprocess_executor(["sh", "-c", script], None, 1, None)
+            self.assertEqual(result.returncode, 124)
+            self.assertEqual(done.read_text(), "ok\n")
+
+    def test_sigterm_to_the_routine_stops_the_running_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = Path(tmp) / "child.pid"
+            program = textwrap.dedent(f"""
+                import sys
+                sys.path.insert(0, {str(Path(upkeep.__file__).parent)!r})
+                import dependabot_upkeep as upkeep
+                upkeep.handle_termination()
+                try:
+                    upkeep.subprocess_executor(
+                        ["sh", "-c", "sleep 60 & echo $! > {pidfile}; wait"], None, None, None
+                    )
+                except upkeep.Terminated:
+                    sys.exit(143)
+            """)
+            routine = subprocess.Popen([sys.executable, "-c", program])
+            deadline = time.monotonic() + 10
+            while not pidfile.exists() or not pidfile.read_text().strip():
+                self.assertLess(time.monotonic(), deadline, "the command never started")
+                time.sleep(0.05)
+            child = int(pidfile.read_text())
+            routine.send_signal(signal.SIGTERM)
+            self.assertEqual(routine.wait(timeout=30), 143)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child, 0)
 
     def test_stdin_is_closed_and_output_captured(self) -> None:
         result = upkeep.subprocess_executor(["sh", "-c", "cat; echo done"], None, 10, None)
