@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -76,12 +78,56 @@ CACHE_IGNORED_PATHSPECS = (
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    # The gate scripts' own tests, which CI's pytest runs and no gate reads.
+    ":(glob)mobile/scripts/test_*.py",
+    "mobile/scripts/fixtures",
     # Read only by the coverage gate, which reapplies it to reused passes.
     "mobile/coverage-baseline.json",
 )
 PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plist")
 # Measured Swift package line coverage and the allowed drop (#2103).
 COVERAGE_BASELINE = Path("mobile/coverage-baseline.json")
+# A recorded full pass (verify_record.py) is never re-checked against the
+# coverage baseline the way a reused suite is, so the baseline stays in its key.
+ATTESTATION_IGNORED_PATHSPECS = (
+    *(spec for spec in CACHE_IGNORED_PATHSPECS if spec != COVERAGE_BASELINE.as_posix()),
+    # The verification tools themselves, which their unit tests cover; they
+    # change nothing the app ships. release.py stays in: it writes Info.plist
+    # settings into the app.
+    "mobile/scripts/verify.py",
+    "mobile/scripts/verify_record.py",
+    "mobile/scripts/record-ui-test.py",
+    "mobile/scripts/__init__.py",
+)
+# Everything a full run builds or reads. A recorded pass covers only these, so
+# a merge that changes CI, Endpoints or desktop code leaves it valid. CI's
+# `mobile_app` path filter and the TestFlight triggers list the same paths.
+ATTESTATION_PATHSPECS = (
+    "mobile",
+    "mods",
+    "limerick/crates",
+    "limerick/testing",
+    "limerick/Cargo.toml",
+    "limerick/Cargo.lock",
+    # include_str! in limerick-inference, which the mobile build compiles.
+    "limerick/config",
+    "rust-toolchain.toml",
+    ".cargo",
+    # RundaleBugReportTests reads the shared phone report fixture.
+    "bug-report/test/fixtures",
+)
+
+
+def attestation_removals() -> list[list[str]]:
+    """`git rm --cached` arguments that leave only a recorded pass's inputs."""
+
+    base = ["rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--"]
+    return [
+        [*base, ".", *(f":(exclude){spec}" for spec in ATTESTATION_PATHSPECS)],
+        [*base, *ATTESTATION_IGNORED_PATHSPECS],
+    ]
+
+
 SWIFT_TOOLS_BIN = Path("mobile/.build/swift-tools/bin")
 FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-engine",
@@ -130,8 +176,52 @@ class CommandRunner(Protocol):
     ) -> CommandResult: ...
 
 
+def _stop_group(process: subprocess.Popen[str]) -> tuple[str, str]:
+    """Stop a command's whole process group and return its remaining output.
+
+    The group is gone when this returns: a member that ignores SIGTERM gets
+    SIGKILL. Ctrl+C and SIGTERM are held off meanwhile, so a second interrupt
+    cannot abandon the cleanup halfway.
+    """
+
+    blocked = {signal.SIGINT, signal.SIGTERM}
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked) if os.name == "posix" else None
+    try:
+        if os.name != "posix":
+            process.terminate()
+            out, err = process.communicate()
+            return _text(out), _text(err)
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+        drained = True
+        try:
+            out, err = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            out, err, drained = "", "", False
+        # poll() reaps the direct child: a zombie still counts as a member.
+        deadline = time.monotonic() + 5
+        while process.poll() is None or _group_alive(process.pid):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        if process.poll() is None or _group_alive(process.pid):
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            while process.poll() is None or _group_alive(process.pid):
+                time.sleep(0.05)
+        if not drained:
+            # Every member has exited, so the pipes are closed: read what the
+            # command wrote while it was being stopped.
+            more_out, more_err = process.communicate()
+            out, err = _text(out) + _text(more_out), _text(err) + _text(more_err)
+        return _text(out), _text(err)
+    finally:
+        if previous is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
 class SubprocessCommandRunner:
-    """Run each command in a process group so a timeout cleans up children."""
+    """Run each command in a process group so a timeout or interrupt cleans up children."""
 
     def run(
         self,
@@ -164,23 +254,12 @@ class SubprocessCommandRunner:
             )
         except subprocess.TimeoutExpired as exc:
             stdout, stderr = _text(exc.stdout), _text(exc.stderr)
-            if process is not None and process.poll() is None:
-                if os.name == "posix":
-                    with suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGTERM)
-                else:
-                    process.terminate()
-                try:
-                    tail_out, tail_err = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    if os.name == "posix":
-                        with suppress(ProcessLookupError):
-                            os.killpg(process.pid, signal.SIGKILL)
-                    else:
-                        process.kill()
-                    tail_out, tail_err = process.communicate()
-                stdout += _text(tail_out)
-                stderr += _text(tail_err)
+            # The leader may have exited while a descendant keeps the pipes
+            # open; stop whatever is left of the group either way.
+            if process is not None:
+                tail_out, tail_err = _stop_group(process)
+                stdout += tail_out
+                stderr += tail_err
             return CommandResult(
                 process.returncode if process is not None else None,
                 stdout=stdout,
@@ -192,6 +271,12 @@ class SubprocessCommandRunner:
             return CommandResult(
                 None, stderr=str(exc), duration_seconds=time.monotonic() - started, unavailable=True
             )
+        except BaseException:
+            # Ctrl+C or SIGTERM (see main): stop the child's group before the
+            # run's report-directory lock is released, so no build outlives it.
+            if process is not None:
+                _stop_group(process)
+            raise
         return CommandResult(
             process.returncode if process is not None else None,
             stdout=_text(stdout),
@@ -335,7 +420,121 @@ def _select_simulator(
     return matches[0], None
 
 
-DEFAULT_PARALLEL_WORKERS = 4
+# Measured on an 18-core M5 Pro: one combined run of every simulator suite took
+# 448 s with 4 workers and 353 s with 6.
+DEFAULT_PARALLEL_WORKERS = 6
+# Returned for a simulator suite queued for the combined run; never recorded.
+DEFERRED = "deferred"
+
+
+def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+
+    cases: list[tuple[str, str, str, str]] = []
+
+    def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
+        kind = str(node.get("nodeType", ""))
+        name = str(node.get("name", ""))
+        if kind.endswith("test bundle"):
+            bundle, suite = name, ""
+        elif kind == "Test Suite" and not suite:
+            suite = name
+        elif kind == "Test Case":
+            cases.append((bundle, suite, name, str(node.get("result", ""))))
+            return
+        for child in node.get("children") or ():
+            if isinstance(child, Mapping):
+                walk(child, bundle, suite)
+
+    for node in tree.get("testNodes") or ():
+        if isinstance(node, Mapping):
+            walk(node, "", "")
+    return cases
+
+
+def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
+    """Whether an `-only-testing` selector (bundle, bundle/class or bundle/class/test) names a case."""
+
+    path = (case[0], case[1], case[2].removesuffix("()"))
+    for selector in selectors:
+        parts = tuple(part.removesuffix("()") for part in selector.split("/"))
+        if path[: len(parts)] == parts:
+            return True
+    return False
+
+
+def _case_counts(results: Sequence[str]) -> dict[str, int]:
+    """Count xcresult case results into the summary's buckets; anything unknown fails."""
+
+    passed = sum(result == "Passed" for result in results)
+    skipped = sum(result == "Skipped" for result in results)
+    expected = sum(result == "Expected Failure" for result in results)
+    return {
+        "totalTestCount": len(results),
+        "passedTests": passed,
+        "failedTests": len(results) - passed - skipped - expected,
+        "skippedTests": skipped,
+        "expectedFailures": expected,
+    }
+
+
+def _result_status(counts: Mapping[str, int], result: Any = None) -> tuple[str, str | None]:
+    """Map reconciled xcresult counts to a suite status and reason."""
+
+    total, expected_failures = counts["totalTestCount"], counts["expectedFailures"]
+    if total == 0:
+        return UNAVAILABLE, "xcresult contains no executed tests"
+    if counts["failedTests"]:
+        return FAILED, f"xcresult reports {counts['failedTests']} failed test(s)"
+    if counts["skippedTests"]:
+        return SKIPPED, f"xcresult reports {counts['skippedTests']} skipped test(s)"
+    if counts["passedTests"] + expected_failures != total:
+        return FAILED, f"xcresult reports {counts['passedTests']} of {total} test(s) passed"
+    if result not in (None, "Passed"):
+        return FAILED, f"xcresult reports result {result!r}"
+    if expected_failures:
+        # Passing, but name the known defects so the report never hides them.
+        return (
+            PASSED,
+            f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
+        )
+    return PASSED, None
+
+
+def _running_command_lines() -> str | None:
+    """Every running process's full command line, or None if `ps` fails."""
+
+    try:
+        listed = subprocess.run(
+            ["ps", "-axww", "-o", "command="], capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return listed.stdout if listed.returncode == 0 else None
+
+
+def _raise_interrupt(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt
+
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class ReportDirectoryBusy(RuntimeError):
+    """Another run holds the report directory's lock."""
+
+    def __init__(self, report_dir: Path) -> None:
+        super().__init__(
+            f"another mobile-verify run is using {report_dir}; wait for it, or pass "
+            "--report-dir for a separate directory"
+        )
 
 
 class VerificationRun:
@@ -386,6 +585,8 @@ class VerificationRun:
         self.runner = command_runner or SubprocessCommandRunner()
         self.records: list[dict[str, Any]] = []
         self.results: dict[str, CommandResult] = {}
+        # Simulator suites a full run queues for one combined xcodebuild.
+        self._deferred: list[dict[str, Any]] | None = None
         self.simulator: dict[str, Any] | None = None
         self.physical_device: dict[str, str] | None = (
             {"identifier": device, "source": "override"} if device else None
@@ -1217,6 +1418,7 @@ class VerificationRun:
         name: str | None = None,
         only_testing: str | Sequence[str] | None = None,
         skip_testing: Sequence[str] = (),
+        summary_identifier: str | None = None,
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
         target_kind = (
@@ -1308,6 +1510,24 @@ class VerificationRun:
             )
             if reused is not None:
                 return reused
+        if self._deferred is not None and destination is not None and not is_physical:
+            self._deferred.append(
+                {
+                    "identifier": identifier,
+                    "name": name,
+                    "phase": phase,
+                    "selectors": [only_testing]
+                    if isinstance(only_testing, str)
+                    else list(only_testing or []),
+                    "skip_testing": list(skip_testing),
+                    "summary_identifier": summary_identifier or f"{identifier}-results",
+                    "command": command,
+                    "destination": destination,
+                    "derived": derived,
+                    "key": key,
+                }
+            )
+            return {"id": identifier, "status": DEFERRED}
         record = self._run(
             identifier=identifier,
             name=name,
@@ -1336,6 +1556,109 @@ class VerificationRun:
             if app_identity:
                 record.setdefault("details", {}).update(app_identity)
         return record
+
+    def _run_deferred_simulator_suites(self) -> None:
+        """Run the queued simulator suites as one xcodebuild and record each suite.
+
+        Separate runs each clone and boot their own simulators and wait on their
+        slowest test class; one run spreads every class across the workers.
+        Each suite still passes or fails on its own test cases.
+        """
+
+        pending, self._deferred = self._deferred or [], None
+        if not pending:
+            return
+        if any(spec["skip_testing"] for spec in pending):
+            raise ValueError("a combined simulator run cannot skip tests per suite")
+        selectors: list[str] = []
+        for spec in pending:
+            selectors += [s for s in spec["selectors"] if s not in selectors]
+        bundle = self._bundle("simulator-combined")
+        command: list[str] = []
+        parts = iter(pending[0]["command"])
+        for part in parts:
+            if part.startswith("-only-testing:"):
+                continue
+            command.append(part)
+            if part == "-resultBundlePath":
+                next(parts)
+                command.append(bundle)
+        at = command.index("-derivedDataPath")
+        command[at:at] = [f"-only-testing:{selector}" for selector in selectors]
+        run = self._run(
+            identifier="ios-simulator-combined-run",
+            name="Combined iOS simulator test run",
+            phase=pending[0]["phase"],
+            command=command,
+            required=False,
+            kind="infrastructure",
+            env=self._xcode_env(),
+            details={
+                "suites": [spec["identifier"] for spec in pending],
+                "destination": pending[0]["destination"],
+                "derived_data": pending[0]["derived"],
+                "result_bundle": bundle,
+            },
+        )
+        tree = self._execute(
+            ["xcrun", "xcresulttool", "get", "test-results", "tests", "--path", bundle, "--compact"]
+        )
+        cases: list[tuple[str, str, str, str]] | None = None
+        unreadable = _failure_reason(tree, "xcresulttool could not read the combined result bundle")
+        if tree.returncode == 0:
+            try:
+                parsed = json.loads(tree.stdout)
+            except json.JSONDecodeError as exc:
+                unreadable = f"xcresulttool returned invalid JSON: {exc}"
+            else:
+                if isinstance(parsed, Mapping):
+                    cases = _xcresult_cases(parsed)
+                else:
+                    unreadable = "xcresulttool returned a JSON value that is not an object"
+        app_identity = (
+            self._built_app_identity(self.root / pending[0]["derived"])
+            if run["status"] == PASSED
+            else {}
+        )
+        for spec in pending:
+            counts: dict[str, int] | None = None
+            reason: str | None
+            if cases is None:
+                status, reason = FAILED, unreadable
+            else:
+                counts = _case_counts([c[3] for c in cases if _selected(c, spec["selectors"])])
+                status, reason = _result_status(counts)
+                if status == PASSED and run["status"] != PASSED:
+                    status, reason = FAILED, f"the combined run failed: {run.get('reason')}"
+            details: dict[str, Any] = {
+                "scheme": self.scheme,
+                "destination": spec["destination"],
+                "target": "simulator",
+                "derived_data": spec["derived"],
+                "result_bundle": bundle,
+                "combined_run": "ios-simulator-combined-run",
+                **(counts or {}),
+                **({"cache_key": spec["key"]} if spec["key"] else {}),
+                **(app_identity if status == PASSED else {}),
+            }
+            self._record(
+                identifier=spec["identifier"],
+                name=spec["name"],
+                phase=spec["phase"],
+                status=status,
+                required=True,
+                reason=reason,
+                details=details,
+            )
+            self._record(
+                identifier=spec["summary_identifier"],
+                name="iOS simulator test-result validation",
+                phase=spec["phase"],
+                status=status,
+                required=True,
+                reason=reason,
+                details={"result_bundle": bundle, **(counts or {})},
+            )
 
     def _built_app_identity(self, derived_path: Path) -> dict[str, Any]:
         for plist_path in sorted(derived_path.glob("Build/Products/*/Rundale.app/Info.plist")):
@@ -1821,36 +2144,7 @@ class VerificationRun:
             self._change(test_record, FAILED, reason, counts)
             self._change(summary_record, FAILED, reason, counts)
             return
-        if total == 0:
-            result_status, result_reason = UNAVAILABLE, "xcresult contains no executed tests"
-        elif counts["failedTests"]:
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports {counts['failedTests']} failed test(s)",
-            )
-        elif counts["skippedTests"]:
-            result_status, result_reason = (
-                SKIPPED,
-                f"xcresult reports {counts['skippedTests']} skipped test(s)",
-            )
-        elif counts["passedTests"] + expected_failures != total:
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports {counts['passedTests']} of {total} test(s) passed",
-            )
-        elif summary.get("result") not in (None, "Passed"):
-            result_status, result_reason = (
-                FAILED,
-                f"xcresult reports result {summary.get('result')!r}",
-            )
-        elif expected_failures:
-            # Passing, but name the known defects so the report never hides them.
-            result_status, result_reason = (
-                PASSED,
-                f"xcresult reports {expected_failures} expected failure(s) (XCTExpectFailure)",
-            )
-        else:
-            result_status, result_reason = PASSED, None
+        result_status, result_reason = _result_status(counts, summary.get("result"))
         self._change(test_record, result_status, result_reason, counts)
         self._change(summary_record, result_status, result_reason, counts)
 
@@ -1903,6 +2197,7 @@ class VerificationRun:
                 "RundaleTests/TranscriptScrollingTests",
                 "RundaleTests/HeaderWeatherTests",
             ],
+            summary_identifier="ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(record, phase=1)
@@ -1960,6 +2255,7 @@ class VerificationRun:
                 "RundaleTests/RundaleEngineLifecycleTests",
                 "RundaleTests/RundaleBugReportTests",
             ],
+            summary_identifier="phase2-ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(
@@ -2014,6 +2310,7 @@ class VerificationRun:
             identifier=identifier,
             name=name,
             only_testing=PHASE3_UI_CLASSES,
+            summary_identifier="phase3-ios-simulator-test-results",
         )
         if record["status"] == PASSED:
             self._validate_result(
@@ -2132,6 +2429,8 @@ class VerificationRun:
             identifier="limerick-mobile-ffi-tests",
             name="Limerick mobile FFI tests",
             package="limerick-mobile-ffi",
+            # The System 1 comparison's opt-in baseline harness (#2220).
+            expected_ignored=("tests::addressee_baseline",),
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:
@@ -2314,6 +2613,7 @@ class VerificationRun:
                 identifier=identifier,
                 name=name,
                 only_testing=target,
+                summary_identifier=f"{identifier}-results",
             )
             if record["status"] == PASSED:
                 self._validate_result(record, phase=4, summary_identifier=f"{identifier}-results")
@@ -2450,10 +2750,14 @@ class VerificationRun:
             # before Phase 1 generates/builds that project, then retain the
             # single packaging result when Phase 2 runs its remaining gates.
             self._mobile_rust_packaging()
+            # Every simulator suite runs in one xcodebuild after Phase 4 queues
+            # its own, instead of one xcodebuild per suite.
+            self._deferred = []
             self._phase1()
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            self._run_deferred_simulator_suites()
             self._optional_physical_suites()
             if phase is None:
                 self._future()
@@ -2478,6 +2782,18 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+        with (self.report_dir / ".run.lock").open("w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ReportDirectoryBusy(self.report_dir) from None
+            # Held until the report is written: pruning must never remove what
+            # another run sharing this directory still builds into.
+            return self._locked_run(phase, fast=fast)
+
+    def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
+        self._prune_previous_runs()
         if fast:
             self._fast()
         else:
@@ -2515,7 +2831,92 @@ class VerificationRun:
         }
         self._write_reports(report)
         self._store_cached_passes(self.report_dir / "verify.json")
+        if phase is None and not fast and report["status"] == PASSED:
+            self._store_full_pass(report)
         return report
+
+    def _attestation_tree(self) -> str | None:
+        """Return the tested working tree's ATTESTATION_PATHSPECS, less the ignored paths."""
+
+        index_path = self._execute(["git", "rev-parse", "--git-path", "index"])
+        if index_path.returncode != 0 or not index_path.stdout.strip():
+            return None
+        source_index = self.root / index_path.stdout.strip()
+        with tempfile.TemporaryDirectory(prefix="rundale-verify-attest-") as scratch:
+            temporary_index = Path(scratch) / "index"
+            if source_index.is_file():
+                shutil.copyfile(source_index, temporary_index)
+            env = {**os.environ, "GIT_INDEX_FILE": str(temporary_index)}
+            for step in (
+                ["git", "add", "-A", "--", "."],
+                *(["git", *removal] for removal in attestation_removals()),
+            ):
+                if self._execute(step, env=env).returncode != 0:
+                    return None
+            tree = self._execute(["git", "write-tree"], env=env)
+        tree_id = tree.stdout.strip()
+        if tree.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree_id):
+            return None
+        return tree_id
+
+    def _store_full_pass(self, report: Mapping[str, Any]) -> None:
+        """Note a full pass by input tree, for `verify_record.py record` to post."""
+
+        tree = self._attestation_tree()
+        if tree is None:
+            return
+        passes = self.root / "mobile" / ".verification" / "passes"
+        passes.mkdir(parents=True, exist_ok=True)
+        (passes / f"{tree}.json").write_text(
+            json.dumps(
+                {
+                    "input_tree": tree,
+                    "content_key": self._content_key_value,
+                    "started_at": report["started_at"],
+                    "finished_at": report["finished_at"],
+                    "summary": report["summary"],
+                    "report": report["reports"]["json"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _prune_previous_runs(self) -> None:
+        """Delete earlier runs' build products and result bundles, unless in use.
+
+        Each run writes Xcode DerivedData, result bundles and Swift scratch
+        directories under its own timestamp, and nothing reads an earlier
+        run's: reused passes come from the cache. Kept, they filled the disk.
+        A run killed outright (SIGKILL) can leave its xcodebuild or swift build
+        running; every such command carries its run's timestamp in its
+        arguments, so a timestamp that appears in a running process's command
+        line is kept, however many runs later.
+        """
+
+        stamp = re.compile(r"(\d{8}T\d{12}Z)")
+        entries: dict[str, list[Path]] = {}
+        for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
+            folder = self.report_dir / name
+            for entry in folder.iterdir() if folder.is_dir() else ():
+                match = stamp.search(entry.name)
+                if match:
+                    entries.setdefault(match.group(1), []).append(entry)
+        if not entries:
+            return
+        in_use = _running_command_lines()
+        if in_use is None:
+            return  # without a process list, nothing is known to be free
+        for run, paths in entries.items():
+            if run in in_use:
+                continue
+            for entry in paths:
+                if entry.is_dir():
+                    shutil.rmtree(entry, ignore_errors=True)
+                else:
+                    entry.unlink(missing_ok=True)
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
         self.report_dir.mkdir(parents=True, exist_ok=True)
@@ -2682,7 +3083,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
     )
-    report = run.run(args.phase, fast=args.fast)
+    # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
+    # group before the report-directory lock is released.
+    signal.signal(signal.SIGTERM, _raise_interrupt)
+    try:
+        report = run.run(args.phase, fast=args.fast)
+    except ReportDirectoryBusy as exc:
+        print(f"mobile-verify: {exc}", file=sys.stderr)
+        return 2
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
     return int(report["exit_code"])
 

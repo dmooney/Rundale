@@ -7,6 +7,8 @@ set -euo pipefail
 : "${RUNTIME_SUITE_RESULT:?RUNTIME_SUITE_RESULT must be set}"
 : "${DIFFERENTIAL_REQUIRED:?DIFFERENTIAL_REQUIRED must be set}"
 : "${DIFFERENTIAL_RESULT:?DIFFERENTIAL_RESULT must be set}"
+: "${MOBILE_VERIFY_REQUIRED:?MOBILE_VERIFY_REQUIRED must be set}"
+: "${MOBILE_VERIFY_RESULT:?MOBILE_VERIFY_RESULT must be set}"
 
 echo "gated job results: $GATED_RESULTS"
 read -ra results <<<"$GATED_RESULTS"
@@ -53,6 +55,7 @@ check_conditional() {
 
 check_conditional "runtime correctness suite" "$RUNTIME_SUITE_REQUIRED" "$RUNTIME_SUITE_RESULT"
 check_conditional "differential proof" "$DIFFERENTIAL_REQUIRED" "$DIFFERENTIAL_RESULT"
+check_conditional "recorded mobile-verify pass" "$MOBILE_VERIFY_REQUIRED" "$MOBILE_VERIFY_RESULT"
 
 if [[ "$status" -ne 0 ]]; then
     echo "CI gate: FAIL — a gated job failed, was cancelled, or was skipped unexpectedly."

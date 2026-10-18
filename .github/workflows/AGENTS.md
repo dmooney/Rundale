@@ -109,6 +109,20 @@ just act-pr         # simulate the pull_request fast lane
 - The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Installs `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), runs `pnpm check` before `pnpm build`, then deploys `dist/` to GitHub Pages via `actions/deploy-pages@v5`. Uses `pnpm/action-setup@v6`. (Retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
+### `deploy-limerick-prod.yml` — Deploy Limerick Endpoints to limerick-prod
+
+- **Triggers:** `push` to `main` changing `endpoints/**`, `mods/rundale/endpoints/**`, `.gcloudignore` or the workflow; `workflow_dispatch` (on `main` only).
+- Runs `endpoints/deploy/limerick-prod.sh deploy <sha>` when server code changed, then `definitions replace` and `definitions verify`.
+- **Auth:** Workload Identity Federation as `limerick-deployer`; the provider accepts only this workflow's `job_workflow_ref` on `main` in the `limerick-prod` environment. Renaming the file or the environment needs `endpoints/deploy/setup-github-deploy.sh` re-run. Signs in after `pnpm install`.
+- **Concurrency:** `deploy-limerick-prod`, cancel-in-progress: **false**.
+
+### `testflight.yml` — Internal TestFlight upload
+
+- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `workflow_dispatch`.
+- Runs `python3 mobile/scripts/release.py testflight` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. It passes `--verify none` when `verify_record.py check --commit` finds a recorded `mobile-verify` pass for the commit's input tree, and `--verify all` (the full gate here) otherwise. The build number is App Store Connect's highest upload plus one, fetched with the API key; full history is checked out for the commit-count fallback.
+- **Auth:** an App Store Connect API key (`ASC_API_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`) and the private Firebase plist (`FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64`), secrets of the `testflight` environment ([runbook](../../mobile/testflight.md#uploading-from-github)).
+- **Concurrency:** `testflight`, cancel-in-progress: **false**.
+
 ### `release.yml` — Tag-driven release pipeline
 
 - **Triggers:** `push` tags matching `v[0-9]+.[0-9]+.[0-9]+*`; `workflow_dispatch` with `dry_run: true` (default).

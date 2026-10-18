@@ -72,6 +72,20 @@ pub struct ConversationExchange {
     pub npc_dialogue: String,
     /// Where this exchange took place.
     pub location: LocationId,
+    /// The NPCs present when the exchange was committed, speaker included.
+    ///
+    /// Exchanges in saves written before witnesses were recorded have none;
+    /// they count as witnessed only by their speaker (see
+    /// [`Self::witnessed_by`]).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub witnesses: BTreeSet<NpcId>,
+}
+
+impl ConversationExchange {
+    /// Whether `npc` was present for this exchange. The speaker always was.
+    pub fn witnessed_by(&self, npc: NpcId) -> bool {
+        self.speaker_id == npc || self.witnesses.contains(&npc)
+    }
 }
 
 /// Ring buffer of recent conversation exchanges across all locations.
@@ -208,6 +222,20 @@ impl ConversationLog {
             .into_iter()
             .rev()
             .collect()
+    }
+
+    /// Returns the last `n` exchanges `npc` witnessed, wherever they took
+    /// place, oldest first.
+    pub fn recent_witnessed_by(&self, npc: NpcId, n: usize) -> Vec<&ConversationExchange> {
+        let mut recent: Vec<&ConversationExchange> = self
+            .exchanges
+            .iter()
+            .rev()
+            .filter(|e| e.witnessed_by(npc))
+            .take(n)
+            .collect();
+        recent.reverse();
+        recent
     }
 
     /// Checks whether the given NPC was the speaker in any of the last `n`
@@ -380,7 +408,51 @@ mod tests {
             player_input: player_input.to_string(),
             npc_dialogue: npc_dialogue.to_string(),
             location: LocationId(location),
+            witnesses: BTreeSet::new(),
         }
+    }
+
+    #[test]
+    fn witnesses_filter_recent_exchanges_and_legacy_exchanges_count_only_the_speaker() {
+        let mut log = ConversationLog::new();
+        let mut with_witnesses = make_exchange(8, 1, "Peig", "Hello", "Good day.", 1);
+        with_witnesses.witnesses = [NpcId(1), NpcId(2)].into_iter().collect();
+        log.add(with_witnesses);
+        // A legacy exchange: no witnesses recorded.
+        log.add(make_exchange(9, 3, "Róisín", "Hello", "God bless.", 1));
+
+        let seen_by = |npc| {
+            log.recent_witnessed_by(NpcId(npc), 8)
+                .iter()
+                .map(|e| e.npc_dialogue.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(seen_by(1), vec!["Good day."]);
+        assert_eq!(seen_by(2), vec!["Good day."]);
+        assert_eq!(seen_by(3), vec!["God bless."]);
+        assert!(seen_by(4).is_empty());
+    }
+
+    #[test]
+    fn exchanges_from_saves_without_witnesses_load() {
+        let legacy = serde_json::json!({
+            "timestamp": "1820-03-20T08:00:00Z",
+            "speaker_id": 1,
+            "speaker_name": "Peig",
+            "player_input": "Hello",
+            "npc_dialogue": "Good day.",
+            "location": 2
+        });
+        let exchange: ConversationExchange = serde_json::from_value(legacy).unwrap();
+        assert!(exchange.witnesses.is_empty());
+        assert!(exchange.witnessed_by(NpcId(1)));
+        assert!(!exchange.witnessed_by(NpcId(2)));
+
+        let mut recorded = exchange.clone();
+        recorded.witnesses = [NpcId(1), NpcId(2)].into_iter().collect();
+        let restored: ConversationExchange =
+            serde_json::from_str(&serde_json::to_string(&recorded).unwrap()).unwrap();
+        assert_eq!(restored, recorded);
     }
 
     #[test]

@@ -349,6 +349,7 @@ mod tests {
             player_input: player_input.to_string(),
             npc_dialogue: npc_dialogue.to_string(),
             location,
+            witnesses: Default::default(),
         }
     }
 

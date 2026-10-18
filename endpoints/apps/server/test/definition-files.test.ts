@@ -265,12 +265,18 @@ describe("Endpoint definition files", () => {
     expect((await readDefinitionFiles(scratch)).map((f) => f.fileName)).toEqual(["a.v3.json"]);
   });
 
-  it("reads the Rundale mod's definitions as publishable Google versions", async () => {
+  it("reads the Rundale mod's definitions as publishable versions", async () => {
     const files = await readDefinitionFiles(rundaleEndpoints);
     expect(files.map((f) => f.fileName)).toEqual(
       (await readdir(rundaleEndpoints)).filter((name) => name.endsWith(".json")).sort(),
     );
-    const plan = planDefinitions(files, [], new Set(["google/gemini-3.5-flash-lite"]));
+    const models = new Set([
+      "google/gemini-3.5-flash-lite",
+      ...files
+        .filter((f) => f.definition.inferenceConfig.decision !== undefined)
+        .map((f) => `${f.definition.providerConfig.provider}/${f.definition.providerConfig.model}`),
+    ]);
+    const plan = planDefinitions(files, [], models);
     expect(plan.problems).toEqual([]);
     const dialogue = files.find((f) => f.slug === "rundale-dialogue" && f.version === 1)!;
     expect(dialogue.definition).toEqual(

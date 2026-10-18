@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
+import io
 import json
 import plistlib
 import subprocess
@@ -21,6 +23,18 @@ else:  # support both package-based pytest and direct unittest discovery
         if __package__
         else importlib.import_module("release")
     )
+
+
+def _pad(part: str) -> str:
+    return part + "=" * (-len(part) % 4)
+
+
+def _der_int(value: bytes) -> bytes:
+    """DER INTEGER for an unsigned big-endian value."""
+    value = value.lstrip(b"\x00") or b"\x00"
+    if value[0] & 0x80:
+        value = b"\x00" + value
+    return bytes([0x02, len(value)]) + value
 
 
 class ReleaseTests(unittest.TestCase):
@@ -77,20 +91,111 @@ class ReleaseTests(unittest.TestCase):
             subprocess.run(
                 [*git, "commit", "-q", "--allow-empty", "-m", message], cwd=self.root, check=True
             )
-        self.assertEqual(release.release_build_number(self.root), 3)
+        self.assertEqual(release.release_build_number(self.root, env={}), (3, False))
 
         shallow = self.root / "shallow"
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", f"file://{self.root}", str(shallow)], check=True
         )
         with self.assertRaisesRegex(RuntimeError, "shallow clone"):
-            release.release_build_number(shallow)
+            release.release_build_number(shallow, env={})
+
+    def test_release_build_number_is_app_store_connects_latest_plus_one(self):
+        key = self.root / "AuthKey_TEST.p8"
+        subprocess.run(
+            ["openssl", "ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", str(key)],
+            check=True,
+        )
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "ISSUER"}
+        tokens: list[str] = []
+
+        def latest(token: str) -> int | None:
+            tokens.append(token)
+            return 1330
+
+        self.assertEqual(
+            release.release_build_number(self.root, env=env, latest=latest), (1331, True)
+        )
+        header, claims, signature = tokens[0].split(".")
+        self.assertEqual(
+            json.loads(base64.urlsafe_b64decode(_pad(header))),
+            {"alg": "ES256", "kid": "KEYID", "typ": "JWT"},
+        )
+        body = json.loads(base64.urlsafe_b64decode(_pad(claims)))
+        self.assertEqual((body["iss"], body["aud"]), ("ISSUER", "appstoreconnect-v1"))
+        self.assertEqual(body["exp"] - body["iat"], 600)
+        raw = base64.urlsafe_b64decode(_pad(signature))
+        self.assertEqual(len(raw), 64)
+        # Re-encode r || s as DER and check it with the key's public half.
+        seq = _der_int(raw[:32]) + _der_int(raw[32:])
+        der = bytes([0x30, len(seq)]) + seq
+        (self.root / "sig.der").write_bytes(der)
+        public = self.root / "pub.pem"
+        subprocess.run(
+            ["openssl", "ec", "-in", str(key), "-pubout", "-out", str(public)],
+            check=True,
+            capture_output=True,
+        )
+        verified = subprocess.run(
+            [
+                "openssl",
+                "dgst",
+                "-sha256",
+                "-verify",
+                str(public),
+                "-signature",
+                str(self.root / "sig.der"),
+            ],
+            input=f"{header}.{claims}".encode(),
+            capture_output=True,
+        )
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+
+    def test_release_build_number_falls_back_when_app_store_connect_has_no_builds(self):
+        key = self.root / "AuthKey_TEST.p8"
+        subprocess.run(
+            ["openssl", "ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", str(key)],
+            check=True,
+        )
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "ISSUER"}
+        with patch.object(release, "commit_count", return_value=42):
+            self.assertEqual(
+                release.release_build_number(self.root, env=env, latest=lambda _: None), (42, False)
+            )
+
+    def test_latest_uploaded_build_takes_the_highest_number_across_pages(self):
+        pages = [
+            {
+                "data": [{"attributes": {"version": v}} for v in ("1330", "1323", "x")],
+                "links": {"next": "https://api.appstoreconnect.apple.com/v1/builds?cursor=2"},
+            },
+            {"data": [{"attributes": {"version": "1400"}}], "links": {}},
+        ]
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch.object(
+            release.urllib.request,
+            "urlopen",
+            side_effect=[Response(json.dumps(page).encode()) for page in pages],
+        ) as urlopen:
+            self.assertEqual(release.latest_uploaded_build("TOKEN"), 1400)
+        first, second = (call.args[0] for call in urlopen.call_args_list)
+        self.assertEqual(first.get_header("Authorization"), "Bearer TOKEN")
+        self.assertIn("filter[app]=6811694290", first.full_url)
+        self.assertTrue(second.full_url.endswith("cursor=2"))
+        self.assertEqual(second.get_header("Authorization"), "Bearer TOKEN")
 
     def test_testflight_requests_the_commit_count_without_editing_project_yml(self):
         before = self.paths.project_spec.read_bytes()
         runner = release.Release(self.paths, runner=self.runner)
         with (
-            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(release, "release_build_number", return_value=(1259, False)),
             patch.object(runner, "validate_archive") as validate,
             patch.object(runner, "validate_distribution_ipa"),
         ):
@@ -101,6 +206,22 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.paths.project_spec.read_bytes(), before)
         receipt = json.loads(self.paths.receipt.read_text())
         self.assertEqual(receipt["requestedBuild"], 1259)
+
+    def test_testflight_keeps_an_app_store_connect_number_exactly(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(runner, "validate_archive") as validate,
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        archive = next(c for c in self.commands if "archive" in c)
+        self.assertIn("CURRENT_PROJECT_VERSION=1331", archive)
+        validate.assert_called_once_with(expected_build=1331)
+        upload_options = plistlib.loads(self.paths.export_options.read_bytes())
+        self.assertFalse(upload_options["manageAppVersionAndBuildNumber"])
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual((receipt["requestedBuild"], receipt["uploadedBuild"]), (1331, 1331))
 
     def test_build_orders_rust_xcodegen_and_unsigned_build(self):
         runner = release.Release(self.paths, runner=self.runner)
@@ -244,17 +365,91 @@ class ReleaseTests(unittest.TestCase):
         before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         runner = release.Release(self.paths, dry_run=True, runner=self.runner)
         runner.build()
-        with patch.object(release, "release_build_number", return_value=1259):
+        key = self.root.parent / "AuthKey_DRYRUN.p8"
+        key.write_text("not a real key\n")
+        self.addCleanup(key.unlink)
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "ISSUER"}
+        with (
+            patch.dict(release.os.environ, env),
+            patch.object(release, "release_build_number", side_effect=AssertionError("network")),
+            patch.object(release, "commit_count", return_value=1259),
+        ):
             runner.testflight()
         after = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
         self.assertFalse(self.paths.output.exists())
         self.assertEqual(self.commands, [])
 
+    def test_testflight_without_verify_builds_rust_itself(self):
+        runner = release.Release(self.paths, runner=self.runner, verify=False)
+        with (
+            patch.object(release, "release_build_number", return_value=(1259, False)),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        self.assertFalse(any("verify.py" in " ".join(c) for c in self.commands))
+        self.assertTrue(self.commands[0][-1].endswith("build-rust-mobile.sh"))
+        self.assertEqual(self.commands[1][0], "xcodegen")
+        self.assertIn("archive", self.commands[2])
+        self.assertEqual(release.parse_args(["testflight"]).verify, "all")
+        self.assertEqual(release.parse_args(["testflight", "--verify", "none"]).verify, "none")
+
+    def test_signing_uses_the_xcode_account_without_an_api_key(self):
+        self.assertEqual(release.signing_auth_args({}), ["-allowProvisioningUpdates"])
+
+    def test_signing_uses_a_complete_api_key(self):
+        key = self.root / "AuthKey.p8"
+        key.write_text("synthetic", encoding="utf-8")
+        args = release.signing_auth_args(
+            {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "issuer"}
+        )
+        self.assertEqual(
+            args,
+            [
+                "-allowProvisioningUpdates",
+                "-authenticationKeyPath",
+                str(key),
+                "-authenticationKeyID",
+                "KEYID",
+                "-authenticationKeyIssuerID",
+                "issuer",
+            ],
+        )
+
+    def test_signing_rejects_a_partial_or_missing_api_key(self):
+        with self.assertRaisesRegex(RuntimeError, "ASC_ISSUER_ID"):
+            release.signing_auth_args({"ASC_KEY_PATH": "x", "ASC_KEY_ID": "KEYID"})
+        with self.assertRaisesRegex(RuntimeError, "does not name a file"):
+            release.signing_auth_args(
+                {
+                    "ASC_KEY_PATH": str(self.root / "missing.p8"),
+                    "ASC_KEY_ID": "K",
+                    "ASC_ISSUER_ID": "I",
+                }
+            )
+
+    def test_every_signing_xcodebuild_call_carries_the_api_key(self):
+        key = self.root / "AuthKey.p8"
+        key.write_text("synthetic", encoding="utf-8")
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "issuer"}
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.dict(release.os.environ, env),
+            patch.object(release, "release_build_number", return_value=(1259, False)),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        signing = [c for c in self.commands if "-allowProvisioningUpdates" in c]
+        self.assertEqual(len(signing), 3)
+        for command in signing:
+            self.assertEqual(command[command.index("-authenticationKeyID") + 1], "KEYID")
+
     def test_testflight_orders_checks_archive_validation_then_upload(self):
         runner = release.Release(self.paths, runner=self.runner)
         with (
-            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(release, "release_build_number", return_value=(1259, False)),
             patch.object(runner, "validate_archive") as validate,
             patch.object(runner, "validate_distribution_ipa") as validate_ipa,
         ):
@@ -372,7 +567,7 @@ class ReleaseTests(unittest.TestCase):
 
         runner = release.Release(self.paths, runner=recording_runner)
         with (
-            patch.object(release, "release_build_number", return_value=1259),
+            patch.object(release, "release_build_number", return_value=(1259, False)),
             self.assertRaisesRegex(RuntimeError, "missing Info.plist"),
         ):
             runner.testflight()

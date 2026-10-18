@@ -343,6 +343,7 @@ async fn get_turn_preserves_each_canonical_player_input() {
             player_input: "first question".to_string(),
             npc_dialogue: "first answer".to_string(),
             location,
+            witnesses: Default::default(),
         });
         world.conversation_log.add(ConversationExchange {
             timestamp: Utc::now(),
@@ -351,6 +352,7 @@ async fn get_turn_preserves_each_canonical_player_input() {
             player_input: "second question".to_string(),
             npc_dialogue: "second answer".to_string(),
             location,
+            witnesses: Default::default(),
         });
     }
     state.conversation.lock().await.last_player_input =

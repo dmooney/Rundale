@@ -110,6 +110,10 @@ test:
 mobile-verify *ARGS:
     python3 mobile/scripts/verify.py {{ARGS}}
 
+# Post HEAD's full mobile-verify pass to GitHub after pushing (CI checks for it)
+mobile-verify-record:
+    python3 mobile/scripts/verify_record.py record
+
 # Build the Release iPhone app without uploading
 mobile-build *ARGS:
     python3 mobile/scripts/release.py build {{ARGS}}
