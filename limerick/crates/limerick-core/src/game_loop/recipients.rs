@@ -10,7 +10,7 @@
 //! conversation turn acts on it.
 
 use crate::endpoint_input::Addressing;
-use crate::intent_decision::{DecidedRecipient, RecipientDecision};
+use crate::intent_decision::{DecidedRecipient, RecipientDecision, reference_candidates};
 use crate::npc::NpcId;
 use crate::npc::manager::{NpcManager, NpcReference};
 use crate::turn::{ClarificationChoice, ClarificationPrompt};
@@ -215,14 +215,16 @@ pub fn resolve_recipients(
                     Resolution::Gone(label(id))
                 };
             }
-            match npc_manager.resolve_reference_at(phrase, here) {
-                NpcReference::Unique(id) => return one(id),
-                NpcReference::Ambiguous(candidates) if clarify => {
-                    return Resolution::Ask(which_prompt(npc_manager, phrase, &candidates));
+            // The people the reference fits are the ones it was offered for,
+            // whoever has been introduced.
+            match reference_candidates(phrase, &present, npc_manager).as_slice() {
+                [id] => return one(*id),
+                several @ [_, ..] if clarify => {
+                    return Resolution::Ask(which_prompt(npc_manager, phrase, several));
                 }
-                NpcReference::Ambiguous(_) => return everyone(),
+                [_, ..] => return everyone(),
                 // The room changed since the call: treat it as unsure.
-                NpcReference::NotFound => true,
+                [] => true,
             }
         }
         DecidedRecipient::NoOne => false,
@@ -495,6 +497,22 @@ mod tests {
             speakers(&resolve_recipients(&world, &npcs, &request, answers, true)),
             [(3, Addressing::SpokenTo)]
         );
+    }
+
+    #[test]
+    fn a_shared_first_name_asks_which_whoever_has_been_introduced() {
+        let (world, mut npcs) = room(HERE);
+        npcs.add_npc(person(4, "Mícheál Ó Briain", "Farmer", HERE));
+        let request = decided(DecidedRecipient::Reference("Mícheál".into()), &[]);
+        for introduced in [&[][..], &[2][..], &[2, 4][..]] {
+            for id in introduced {
+                npcs.mark_introduced(NpcId(*id));
+            }
+            let Resolution::Ask(prompt) = resolve(&world, &npcs, &request) else {
+                panic!("asks which Mícheál with {introduced:?} introduced");
+            };
+            assert_eq!(prompt.choices.len(), 2, "{introduced:?}");
+        }
     }
 
     #[test]

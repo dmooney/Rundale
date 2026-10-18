@@ -203,6 +203,49 @@ fn bounded(text: &str, max: usize) -> String {
     text.trim().chars().take(max).collect()
 }
 
+/// Whether `c` belongs to a word of the player's line: a letter, or a
+/// combining mark (a fada typed as a separate character stays in its word).
+fn is_word_char(c: char) -> bool {
+    c.is_alphabetic() || ('\u{0300}'..='\u{036F}').contains(&c)
+}
+
+/// Whether a folded `word` of the line is a first name, family name or
+/// occupation word of `npc`, whether or not the player has met them. This is
+/// the one test behind both the reference options offered to System 1 and the
+/// people a chosen reference means, so the two cannot disagree.
+fn reference_fits(npc: &crate::npc::Npc, word: &str) -> bool {
+    let names = words(&npc.name);
+    let roles = words(&npc.occupation);
+    names.first().is_some_and(|first| first == word)
+        || names.last().is_some_and(|last| last == word)
+        || roles
+            .iter()
+            .any(|role| role == word && !MINOR.contains(&role.as_str()))
+}
+
+/// The people among `candidates` that `reference` fits, by the same test as
+/// the options offered, so a reference System 1 chose means the people it
+/// offered however many of them the player has met.
+pub fn reference_candidates(
+    reference: &str,
+    candidates: &[NpcId],
+    npc_manager: &NpcManager,
+) -> Vec<NpcId> {
+    let folded = words(reference);
+    let [word] = folded.as_slice() else {
+        return Vec::new();
+    };
+    candidates
+        .iter()
+        .copied()
+        .filter(|id| {
+            npc_manager
+                .get(*id)
+                .is_some_and(|npc| reference_fits(npc, word))
+        })
+        .collect()
+}
+
 /// Words of `text`, folded for matching.
 fn words(text: &str) -> Vec<String> {
     fold(text)
@@ -349,7 +392,7 @@ pub fn intent_input(
     // or occupation word of several people present (design §4.3).
     let mut references = Vec::new();
     let original: Vec<&str> = line
-        .split(|c: char| !c.is_alphabetic())
+        .split(|c: char| !is_word_char(c))
         .filter(|word| !word.is_empty())
         .collect();
     let mut seen: Vec<String> = Vec::new();
@@ -360,15 +403,7 @@ pub fn intent_input(
         let fits: Vec<&crate::npc::Npc> = present_people
             .iter()
             .copied()
-            .filter(|npc| {
-                let names = words(&npc.name);
-                let roles = words(&npc.occupation);
-                names.first() == Some(&word)
-                    || names.last() == Some(&word)
-                    || roles
-                        .iter()
-                        .any(|role| role == &word && !MINOR.contains(&role.as_str()))
-            })
+            .filter(|npc| reference_fits(npc, &word))
             .collect();
         if fits.len() < 2 || references.len() >= MAX_REFERENCES {
             continue;
@@ -613,6 +648,62 @@ mod tests {
             phrases: HashMap::from([("s1".into(), "the old well".into())]),
             groups: vec![ALL_OPTION, SOMEONE_ELSE_OPTION, NO_ONE_OPTION],
         }
+    }
+
+    /// Two Mícheáls and Róisín at the cottage (location 3).
+    fn two_micheals() -> (WorldState, NpcManager) {
+        use crate::npc::Npc;
+        use crate::npc::types::NpcState;
+        let mut world = WorldState::new();
+        world.player_location = crate::world::LocationId(3);
+        let mut npcs = NpcManager::new();
+        for (id, name) in [
+            (1, "Mícheál Connolly"),
+            (2, "Mícheál Ó Briain"),
+            (3, "Róisín Connolly"),
+        ] {
+            let mut npc = Npc::new_test_npc();
+            npc.id = NpcId(id);
+            npc.name = name.to_string();
+            npc.occupation = "Farmer".to_string();
+            npc.set_location_and_state(crate::world::LocationId(3), NpcState::Present);
+            npcs.add_npc(npc);
+        }
+        (world, npcs)
+    }
+
+    #[test]
+    fn a_reference_keeps_the_players_spelling_when_a_fada_is_a_separate_character() {
+        let (world, npcs) = two_micheals();
+        for line in [
+            "ask Mícheál about the road",
+            "ask Mi\u{301}chea\u{301}l about the road",
+        ] {
+            let (input, _) = intent_input(&world, &npcs, line);
+            let phrases: Vec<&str> = input
+                .references
+                .iter()
+                .map(|reference| reference.phrase.as_str())
+                .collect();
+            let wanted = line.split_whitespace().nth(1).unwrap();
+            assert_eq!(phrases, [wanted], "{line:?}");
+        }
+    }
+
+    #[test]
+    fn a_chosen_reference_means_everyone_it_was_offered_for_met_or_not() {
+        let (_, mut npcs) = two_micheals();
+        let present = npcs.npcs_at_ids(crate::world::LocationId(3));
+        let both = reference_candidates("Mícheál", &present, &npcs);
+        assert_eq!(both.len(), 2);
+        npcs.mark_introduced(NpcId(1));
+        assert_eq!(reference_candidates("Mícheál", &present, &npcs), both);
+        npcs.mark_introduced(NpcId(2));
+        assert_eq!(
+            reference_candidates("Mi\u{301}chea\u{301}l", &present, &npcs),
+            both
+        );
+        assert_eq!(reference_candidates("Róisín", &present, &npcs).len(), 1);
     }
 
     fn choice(choice: &str, p: f64) -> Value {
