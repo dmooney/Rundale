@@ -14,7 +14,7 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    (`verify_record.py check` says so) is merged with `main` locally, passes
    `just mobile-verify --phase all` in a clean checkout, is pushed, and gets
    its pass recorded (`just mobile-verify-record`). Only one mobile-verify
-   runs at a time;
+   runs at a time: verify.py holds a lock shared by every worktree on the Mac;
 4. waits for the required checks. On a red PR it makes one bounded fix
    attempt (`claude -p`), and leaves the PR open if that fails. A red PR is
    never handed on for merge;
@@ -49,8 +49,8 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import ExitStack, contextmanager, suppress
+from collections.abc import Callable, Sequence
+from contextlib import ExitStack, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
@@ -83,10 +83,11 @@ SECONDS = {
     "head": 180,
     "checks": 3 * 3600,
     "probe": 3600,
-    "verify": 4 * 3600,
+    # verify.py may first wait up to 6 hours for another worktree's run.
+    "verify": 10 * 3600,
     "fix": 3600,
     "gatekeeper": 3600,
-    "verify_lock": 6 * 3600,
+    "verify_wait": 6 * 3600,
 }
 POLL = 60
 GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
@@ -572,32 +573,20 @@ class Upkeep:
         ]  # fmt: skip
         return all(self.sh.run(step, cwd=self.work, mutating=True).ok for step in steps)
 
-    @contextmanager
-    def verify_slot(self) -> Iterator[None]:
-        """Hold the routine's mobile-verify lock and wait out any other mobile-verify run.
+    def wait_for_other_verifiers(self) -> None:
+        """Wait while a mobile-verify run that predates the host lock is going.
 
-        The simulator and the shared Cargo target allow one run at a time.
-        Runs started outside this routine do not take the lock, so also wait
-        while `pgrep` finds one.
+        verify.py itself serializes every non-fast run on this Mac with a
+        host-wide lock (`RUNDALE_MOBILE_VERIFY_LOCK`), whichever worktree or
+        entry point starts it; this only covers runs from older checkouts.
         """
 
-        self.state.mkdir(parents=True, exist_ok=True)
-        deadline = self.clock() + SECONDS["verify_lock"]
-        with (self.state / "mobile-verify.lock").open("w") as lock:
-            while True:
-                try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if self.clock() >= deadline:
-                        raise TimeoutError("mobile-verify lock still held") from None
-                    self.sleep(POLL)
-            while self.another_verify_running():
-                if self.clock() >= deadline:
-                    raise TimeoutError("another mobile-verify run is still going")
-                self.sh.say("  waiting for another mobile-verify run to finish")
-                self.sleep(POLL)
-            yield
+        deadline = self.clock() + SECONDS["verify_wait"]
+        while self.another_verify_running():
+            if self.clock() >= deadline:
+                raise TimeoutError("another mobile-verify run is still going")
+            self.sh.say("  waiting for another mobile-verify run to finish")
+            self.sleep(POLL)
 
     def another_verify_running(self) -> bool:
         cmd = ["pgrep", "-fl", VERIFY_PROCESS]
@@ -614,14 +603,14 @@ class Upkeep:
                 "[dry-run] would run: just mobile-verify --phase all (in the work checkout)"
             )
             return True
-        with self.verify_slot():
-            result = self.sh.run(
-                ["just", "mobile-verify", "--phase", "all"],
-                cwd=self.work,
-                timeout=SECONDS["verify"],
-                mutating=True,
-                output=self.logs / f"pr-{pr.number}-mobile-verify.log",
-            )
+        self.wait_for_other_verifiers()
+        result = self.sh.run(
+            ["just", "mobile-verify", "--phase", "all"],
+            cwd=self.work,
+            timeout=SECONDS["verify"],
+            mutating=True,
+            output=self.logs / f"pr-{pr.number}-mobile-verify.log",
+        )
         return result.ok
 
     def record(self) -> bool:

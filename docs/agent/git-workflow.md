@@ -66,8 +66,9 @@ it:
    test CI's "Recorded mobile-verify pass" job applies) is merged with `main`
    in a clean checkout, passes `just mobile-verify --phase all`, is pushed, and
    gets `just mobile-verify-record` (a recorded pass is reused when the merge
-   changed no app input). One mobile-verify runs at a time: the
-   routine holds a lock and waits for any other run `pgrep` finds;
+   changed no app input). One mobile-verify runs at a time: `verify.py` holds
+   a lock every worktree on the Mac shares (`RUNDALE_MOBILE_VERIFY_LOCK`), and
+   the routine also waits while `pgrep` finds a run from an older checkout;
 3. waits for the required checks. A red pull request gets one bounded
    `claude -p` fix; if that makes no commit or the checks stay red, the pull
    request stays open and is reported. A red pull request is never handed on

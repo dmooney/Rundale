@@ -512,14 +512,6 @@ class FlowTests(UpkeepCase):
         self.assertEqual(outcome.status, "error")
         self.assertEqual(self.world.ran("just"), [])
 
-    def test_mobile_verify_lock_is_exclusive(self) -> None:
-        routine = self.make()
-        routine.state.mkdir(parents=True)
-        with (routine.state / "mobile-verify.lock").open("w") as held:
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with self.assertRaises(TimeoutError), routine.verify_slot():
-                self.fail("entered a held slot")
-
     def test_red_pr_gets_one_fix_then_a_codex_gatekeeper(self) -> None:
         self.world.add(30)
         red = [{"name": "CI gate", "bucket": "fail", "link": "l"}]
