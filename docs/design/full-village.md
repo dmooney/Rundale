@@ -70,19 +70,17 @@ only hub.
 
 Placement rules:
 
-- **Homes 150–750 m from the village road,** which plays as a 2–10 minute walk.
-  The engine turns the distance between coordinates into minutes at 1.25 m/s,
-  rounded up, with a 1-minute floor (`meters_to_minutes` in `limerick-world`).
-  So the rule is a distance: a home placed too close still shows as a 1-minute
-  walk. The existing homes are 190 m and 263 m away.
+- **Homes sit where they plausibly would in a small village,** a few minutes'
+  walk from the road at most. No distance band is imposed. The engine turns the
+  distance between coordinates into minutes at 1.25 m/s, rounded up, with a
+  1-minute floor (`meters_to_minutes` in `limerick-world`), so neighbouring homes
+  all show as a 1-minute walk. The existing homes are 190 m and 263 m away
+  (3 and 4 minutes).
 - **Coordinates come from the geo tool** (`/rundale-geo-tool`). The new homes are
   fictional and placed relative to the village, with an honest `geo_source`, as
   the existing two are.
-- **Five exits from the village road.** That is one more than is comfortable, but
-  it stays readable: "You can go to: Letter Office, Connolly Cottage, Gallagher's
-  Forge, Darcy's, Schoolhouse" wraps to three lines on a small iPhone. If later
-  targets add more places, the street splits into two locations rather than
-  growing a longer list.
+- **Five exits from the village road,** one per home. The world, not the screen,
+  sets how many exits a place has; long lists wrap or scroll.
 - **Short names with distinct one-word aliases:** office, cottage, forge,
   Darcy's, school. Kilteevan Village already uses "road" and "village", so no new
   place may.
@@ -131,9 +129,9 @@ Rules every stage checks:
   people; crowds come from gatherings, such as evenings at Darcy's. Under the
   [recipient contract](dynamic-npc-context.md) (§3.1, step 5), an unaddressed line
   with two or more people present asks "Who are you speaking to?", with one button
-  per person and **All**. When a stage first produces a crowd, that stage also
-  makes the question work for a crowd, for example by listing first the people the
-  player has been talking with.
+  per person and **All**. The player scrolls sideways through the buttons when
+  there are more than fit (owner, 2026-10-18), so a crowd needs no special
+  handling.
 - **One schedule for every day, for now.** Sunday Mass and Saturday market need
   the chapel and the market town, and neither is in this target. Until a stage adds
   the chapel, every NPC has one schedule for all days, as the tiny world does.
@@ -155,7 +153,7 @@ issue #2200 lands the regression fixture, the gate and the proposal template.
 | Stage | Adds                                                    | World after               | What it tests first                                                 |
 | ----- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------- |
 | 1     | The Gallaghers and their forge                          | 4 locations, 6 people     | A third household; a family of three at home together               |
-| 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering; the recipient question in a crowd             |
+| 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering                                                |
 | 3     | The Brennans and the school                             | 6 locations, 12 people    | Five exits on the village road; the recipient re-run                |
 | 4     | A third member for the Hannigan and Connolly households | 6 locations, 14–15 people | Growing an existing household without breaking its tested behaviour |
 
@@ -165,7 +163,7 @@ them without affecting the fixture's tests.
 
 Each stage issue states the player need, the data review of anything reused,
 acceptance criteria (the world sheet and its oracle agree, exits and presence
-within the limits above, walks in the 2–10 minute band), the test plan, and a
+match the world sheet), the test plan, and a
 paced simulator walkthrough as evidence.
 
 ## Sources
