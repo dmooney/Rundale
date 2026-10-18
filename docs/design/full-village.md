@@ -148,7 +148,7 @@ Rules every stage checks:
 One household per stage. Each stage adds one location and at most three people,
 leaves a playable world that agrees with the world sheet, and passes the Phase 6
 gate (`just mobile-verify --phase 6`). Stages start after Milestone 5 closes and
-#2200 lands the regression fixture, the gate and the proposal template.
+issue #2200 lands the regression fixture, the gate and the proposal template.
 
 | Stage | Adds                                                    | World after               | What it tests first                                                 |
 | ----- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------- |
