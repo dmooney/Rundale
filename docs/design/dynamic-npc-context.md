@@ -265,7 +265,10 @@ narrower uncertain rule the input comparison proposed
 was not adopted: the 2026-10-17 decisions remove the case it addressed. For
 every expected case the definition must leave one plausible answer, so a
 low-confidence answer on a clear case is fixed in the definition, not covered
-by an engine fallback.
+by an engine fallback. The definition shipped with #2221 was checked against
+Appendices A and B under these rules
+([results](../test-plans/results/2026-10-17-intent-recipient-comparison.md)):
+258 of 275 lines right with no wrong route at 0.70.
 
 ### 4.4 Failure
 

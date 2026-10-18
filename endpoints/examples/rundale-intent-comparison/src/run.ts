@@ -7,6 +7,11 @@
 //   TYPESAFE_API_KEY=… GOOGLE_API_KEY=… pnpm --filter \
 //     @limerick/rundale-intent-comparison compare --out <dir> [--runs 5]
 //
+// Since #2221 the engine path the baseline measured is gone, so a new run
+// reuses a recorded baseline with `--baseline-from <earlier raw.json>`
+// (no GOOGLE_API_KEY needed). Outcomes follow the recipient policy of
+// design §3.1 as amended on 2026-10-17.
+//
 // Writes <dir>/requests.json, <dir>/raw.json (every call) and
 // <dir>/summary.json. Keep <dir> outside the repository: run data is archived,
 // not committed.
@@ -35,6 +40,7 @@ import {
   resolveInput,
   score,
   startingThresholds,
+  engineThresholds,
   type BaselineObservation,
   type DecisionOutput,
   type Outcome,
@@ -462,8 +468,25 @@ async function main() {
   } else {
     const prices = decisionPrices();
     const decisions = await runCandidates(runs, prices);
-    const intents = await recordIntents(runs);
-    const observations = runBaseline(out, intents);
+    // `--baseline-from <raw.json>` reuses a recorded run's baseline (its
+    // Gemini intents and the engine before Jev), which no longer exists to
+    // run again; the candidates are still called live.
+    const baselineFrom = process.argv.includes("--baseline-from")
+      ? resolve(
+          process.env.INIT_CWD ?? process.cwd(),
+          process.argv[process.argv.indexOf("--baseline-from") + 1] ?? "",
+        )
+      : undefined;
+    let intents: IntentCall[];
+    let observations: BaselineObservation[];
+    if (baselineFrom === undefined) {
+      intents = await recordIntents(runs);
+      observations = runBaseline(out, intents);
+    } else {
+      const recorded = JSON.parse(readFileSync(baselineFrom, "utf8")) as typeof raw;
+      intents = recorded.intents;
+      observations = recorded.observations;
+    }
     raw = { prices, decisions, intents, observations };
     writeFileSync(join(out, "raw.json"), `${JSON.stringify(raw, null, 2)}\n`);
   }
@@ -539,27 +562,9 @@ async function main() {
             : "none";
         }, runs),
         atStartingThresholds: scoreCandidate(decisions, model, runs, startingThresholds),
-        // The results document's proposed uncertain rule at 0.70 / 0.70.
-        proposedRuleAt070: scoreCandidate(decisions, model, runs, {
-          choice: 0.7,
-          mention: 0.7,
-          proposedUncertainRule: true,
-        }),
+        // The engine's thresholds (design §4.3): 0.70 for both questions.
+        atEngineThresholds: scoreCandidate(decisions, model, runs, engineThresholds),
         best: bestThresholds(decisions, model, runs) ?? null,
-        // Question-1 thresholds under the results document's proposed rule, at 0.70 for question 2.
-        proposedRuleSensitivity: Object.fromEntries(
-          [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95].map((choice) => {
-            const t = scoreCandidate(decisions, model, runs, {
-              choice,
-              mention: 0.7,
-              proposedUncertainRule: true,
-            });
-            return [
-              choice.toFixed(2),
-              `${t.correct}/${t.confidentWrongRoutes}/${t.unnecessaryQuestions}`,
-            ];
-          }),
-        ),
         // correct/confident wrong routes/unnecessary questions per threshold pair.
         sensitivity: Object.fromEntries(
           [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95].map((choice) => [
@@ -580,9 +585,9 @@ async function main() {
   };
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
   for (const candidate of summary.candidates) {
-    const start = candidate.atStartingThresholds;
+    const start = candidate.atEngineThresholds;
     console.log(
-      `${candidate.model}: ${start.correct}/${start.runs} correct, ${start.confidentWrongRoutes} wrong routes, ${start.unnecessaryQuestions} unnecessary questions at 0.80/0.70; p50 ${candidate.p50Ms?.toFixed(0)} ms, p95 ${candidate.p95Ms?.toFixed(0)} ms`,
+      `${candidate.model}: ${start.correct}/${start.runs} correct, ${start.confidentWrongRoutes} wrong routes, ${start.unnecessaryQuestions} unnecessary questions at 0.70/0.70; p50 ${candidate.p50Ms?.toFixed(0)} ms, p95 ${candidate.p95Ms?.toFixed(0)} ms`,
     );
   }
   console.log(
