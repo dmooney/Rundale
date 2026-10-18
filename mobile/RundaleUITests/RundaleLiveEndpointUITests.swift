@@ -227,6 +227,55 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(5)
     }
 
+    /// Dynamic NPC context §3.1, live, paced for a recording: with Peig alone
+    /// on the village road an unaddressed line and a line naming Mícheál,
+    /// who is at home, both reach her; at the cottage "Hello" asks who it is
+    /// for; a line to Peig, who is on the road, reaches both Connollys.
+    func test08LiveASpokenLineReachesThePeoplePresent() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        hold(3)
+        // 08:00: Peig waits on the village road; the Connollys are at home.
+        _ = submit("/wait 60")
+        _ = submit("/people")
+        XCTAssertTrue(waitForTranscriptText("Letter-office keeper", timeout: 15))
+        hold(3)
+
+        _ = submit("Good morning to you")
+        XCTAssertTrue(waitForCommittedReplies(1), "Peig answers")
+        hold(6)
+        _ = submit("Mícheál, are you about?")
+        XCTAssertTrue(waitForCommittedReplies(2), "Peig answers a line naming Mícheál")
+        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
+        hold(6)
+
+        goToTheCottage()
+        hold(4)
+        _ = submit("Hello")
+        XCTAssertTrue(app.otherElements["clarification"].waitForExistence(timeout: 45))
+        XCTAssertTrue(waitForTranscriptText("Who are you speaking to?", timeout: 3))
+        hold(5)
+        app.buttons["clarification.option.choose-npc-3"].tap()
+        XCTAssertTrue(waitForCommittedReplies(3), "Róisín answers")
+        hold(6)
+
+        _ = submit("ask Peig about the road")
+        XCTAssertTrue(waitForCommittedReplies(5), "both Connollys hear it and answer")
+        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        hold(8)
+    }
+
+    private func waitForCommittedReplies(_ count: Int, timeout: TimeInterval = 60) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let seen = app.transcriptRows().filter { $0.kind == "npc_dialogue" && $0.state == "committed" }.count
+            if seen >= count { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return false
+    }
+
     /// The last committed reply is Róisín's: her row is labelled with her
     /// description (or her name, once she has given it), never Mícheál's.
     private func assertLastReplyIsRoisins() {
