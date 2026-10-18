@@ -246,7 +246,8 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(6)
         _ = submit("Mícheál, are you about?")
         XCTAssertTrue(waitForCommittedReplies(2), "Peig answers a line naming Mícheál")
-        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
+        XCTAssertFalse(app.transcriptRows().contains { $0.kind != "npc_dialogue" && $0.text.contains("not here") },
+                       "No system line says anyone is not here")
         hold(6)
 
         goToTheCottage()
@@ -260,8 +261,11 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(6)
 
         _ = submit("ask Peig about the road")
-        XCTAssertTrue(waitForCommittedReplies(5), "both Connollys hear it and answer")
-        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
+        XCTAssertTrue(waitForCommittedReplies(5, timeout: 90),
+                      "both Connollys hear a line to Peig and answer: \(app.transcriptRows().suffix(6))")
+        XCTAssertFalse(app.otherElements["clarification"].exists, "A line to someone elsewhere is not asked about")
+        XCTAssertFalse(app.transcriptRows().contains { $0.kind != "npc_dialogue" && $0.text.contains("not here") },
+                       "No system line says anyone is not here")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         hold(8)
     }

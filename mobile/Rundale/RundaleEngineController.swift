@@ -5,6 +5,14 @@ import LimerickEndpointKit
 import RundaleBridge
 import RundaleKit
 
+/// The attempt id one Endpoint call sends. The server keys a stream by
+/// request and attempt, and one line can call several speakers in one
+/// attempt, so each call sends its own id: the call id "{attempt}#{n}",
+/// with '#' (not a valid correlation character) made '.'.
+private func endpointAttemptID(callID: String) -> String {
+    callID.replacingOccurrences(of: "#", with: ".")
+}
+
 /// The native application adapter. Rust owns the game/session state and its
 /// SQLite transaction boundaries; this main-actor object only projects Rust
 /// semantic events for SwiftUI and owns the platform Endpoint stream.
@@ -598,7 +606,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 let request = try EndpointRequest(
                     url: endpointURL,
                     requestID: invocation.logicalRequestID.rawValue,
-                    attemptID: invocation.attemptID.rawValue,
+                    attemptID: endpointAttemptID(callID: invocation.callID),
                     idempotencyKey: invocation.callID,
                     endpointVersion: invocation.version,
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
@@ -1013,7 +1021,11 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
                     guard let requestURL else {
                         throw LimerickEndpointError.invalidURL
                     }
-                    let identities = try Self.identities(from: request.httpBody, url: requestURL)
+                    let identities = try Self.identities(
+                        from: request.httpBody,
+                        attemptID: request.value(forHTTPHeaderField: "X-Attempt-Id"),
+                        url: requestURL
+                    )
                     let input = identities.input.lowercased()
                     if identities.role == "player_intent" {
                         // The intent Endpoint is a decision and does not stream:
@@ -1096,13 +1108,13 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
         let intentInput: [String: Any]
     }
 
-    private static func identities(from body: Data?, url: URL) throws -> Identities {
+    private static func identities(from body: Data?, attemptID headerAttemptID: String?, url: URL) throws -> Identities {
         guard let body,
               let root = try JSONSerialization.jsonObject(with: body) as? [String: Any],
               let input = root["input"] as? [String: Any],
               let role = input["role"] as? String,
               let requestID = input["logicalRequestID"] as? String,
-              let attemptID = input["attemptID"] as? String,
+              let attemptID = headerAttemptID ?? input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
               // The intent input carries the line as `line`; dialogue as `playerInput`.
               let playerInput = input[role == "player_intent" ? "line" : "playerInput"] as? String else {
