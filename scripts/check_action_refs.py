@@ -18,7 +18,8 @@ Reusable workflows (`owner/repo/.github/workflows/x.yml@ref`) are checked the
 same way against their `workflow_call` inputs. Local actions (`./...`) and
 `docker://` images are skipped. CI runs it with `actionlint` in the
 `workflow-quality` job; run it locally with
-`python3 scripts/check_action_refs.py` (needs `gh` signed in).
+`.venv-dev/bin/python scripts/check_action_refs.py` after `just setup-py`
+(it needs PyYAML and a signed-in `gh`).
 """
 
 from __future__ import annotations

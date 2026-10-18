@@ -62,6 +62,8 @@ DEFAULT_STATE = Path.home() / "Library" / "Application Support" / "rundale-depen
 AGENT_LABEL = "com.rundale.dependabot-upkeep"
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / f"{AGENT_LABEL}.plist"
 REVIEW_BRANCH = "dependabot-upkeep/review"
+VENV_PYTHON = Path(".venv-dev/bin/python")
+ENSURE_VENV = ["bash", "limerick/scripts/ensure-deps.sh", "py"]
 TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
@@ -265,6 +267,10 @@ class CommandError(RuntimeError):
         self.result = result
 
 
+# Failures that end one pull request's processing (or one read), not the run.
+RECOVERABLE = (CommandError, RuntimeError, TimeoutError, ValueError, KeyError)
+
+
 @dataclass
 class PullRequest:
     number: int
@@ -388,7 +394,9 @@ def cap_body(text: str, limit: int = GITHUB_BODY_LIMIT) -> str:
     return f"{text[:kept]}\n\n[truncated {len(text) - kept} chars]"
 
 
-def render_summary(outcomes: Sequence[Outcome], *, when: str, dry_run: bool) -> str:
+def render_summary(
+    outcomes: Sequence[Outcome], *, when: str, dry_run: bool, problems: Sequence[str] = ()
+) -> str:
     def line(o: Outcome) -> str:
         app = {True: " (app input)", False: "", None: ""}[o.app_input]
         notes = "".join(f"\n  - {note}" for note in o.notes)
@@ -403,7 +411,9 @@ def render_summary(outcomes: Sequence[Outcome], *, when: str, dry_run: bool) -> 
     for heading, group in (("Merged", merged), ("Needs attention", attention), ("Other", rest)):
         if group:
             parts += ["", f"### {heading}", "", *map(line, group)]
-    if not outcomes:
+    if problems:
+        parts += ["", "### Problems", "", *(f"- {problem}" for problem in problems)]
+    elif not outcomes:
         parts += ["", "No open Dependabot pull requests."]
     return "\n".join(parts) + "\n"
 
@@ -426,6 +436,7 @@ class Upkeep:
         self.sleep, self.clock = sleep, clock
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.logs = state / "logs" / stamp
+        self.problems: list[str] = []  # run-level failures, reported in the summary
 
     def did(self, past: str, present: str) -> str:
         return f"would {present}" if self.sh.dry_run else past
@@ -859,7 +870,7 @@ class Upkeep:
             return self._process(pr, outcome)
         except MergeConflict as conflict:
             return self.ask_dependabot(pr, outcome, str(conflict))
-        except (CommandError, RuntimeError, TimeoutError) as error:
+        except RECOVERABLE as error:
             outcome.status, outcome.detail = "error", str(error)
             return outcome
 
@@ -969,13 +980,27 @@ class Upkeep:
 
     def run(self, *, only: set[int], exclude: set[int]) -> tuple[list[Outcome], str]:
         self.sh.say(f"Dependabot upkeep for {self.repo}{' (dry run)' if self.sh.dry_run else ''}")
-        prs = [pr for pr in self.open_prs() if not only or pr.number in only]
+        try:
+            prs = [pr for pr in self.open_prs() if not only or pr.number in only]
+        except RECOVERABLE as error:
+            self.problems.append(f"could not list the open Dependabot pull requests: {error}")
+            prs = []
         outcomes = []
         for listed in prs:
             self.sh.say(f"\n#{listed.number} {listed.title}")
-            # Earlier merges in this run move main, and the owner may label a PR meanwhile.
-            pr = self.refresh(listed)
-            outcome = self.process(pr, exclude)
+            try:
+                # Earlier merges in this run move main, and the owner may label a PR meanwhile.
+                pr = self.refresh(listed)
+            except RECOVERABLE as error:
+                outcome = Outcome(
+                    listed.number,
+                    listed.title,
+                    listed.url,
+                    "error",
+                    f"could not re-read it: {error}",
+                )
+            else:
+                outcome = self.process(pr, exclude)
             for note in outcome.notes:
                 self.sh.say(f"  - {note}")
             self.sh.say(f"  => {outcome.status}: {outcome.detail}")
@@ -983,7 +1008,9 @@ class Upkeep:
         if not self.sh.dry_run:
             self.final_sweep(outcomes, exclude)
         when = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        summary = render_summary(outcomes, when=when, dry_run=self.sh.dry_run)
+        summary = render_summary(
+            outcomes, when=when, dry_run=self.sh.dry_run, problems=self.problems
+        )
         return outcomes, summary
 
     def final_sweep(self, outcomes: Sequence[Outcome], exclude: set[int]) -> None:
@@ -998,7 +1025,12 @@ class Upkeep:
             for o in outcomes
             if o.status in {"red", "changes", "blocked", "error", "timeout"}
         }
-        for pr in self.open_prs():
+        try:
+            current = self.open_prs()
+        except RECOVERABLE as error:
+            self.problems.append(f"the final update could not list the pull requests: {error}")
+            return
+        for pr in current:
             held = pr.number in exclude or pr.draft or OWNER_LABEL in pr.labels
             if pr.number not in still_open or held:
                 continue
@@ -1006,7 +1038,7 @@ class Upkeep:
             try:
                 if self.behind_by(pr):
                     self.bring_current(pr, outcome)
-            except (CommandError, RuntimeError, TimeoutError) as error:
+            except RECOVERABLE as error:
                 outcome.notes.append(f"final update failed: {error}")
 
     def post_summary(self, summary: str) -> None:
@@ -1080,8 +1112,12 @@ def install(args: argparse.Namespace, shell: Shell) -> int:
         ).ok
     ):
         return 1
+    # The routine imports PyYAML: run it from the review checkout's .venv-dev,
+    # which `ensure-deps.sh py` provisions from requirements-dev.txt.
+    if not shell.run(ENSURE_VENV, cwd=review, mutating=True).ok and not args.dry_run:
+        return 1
     plist = launch_agent_plist(
-        python=sys.executable,
+        python=str(review / VENV_PYTHON),
         script=review / "scripts" / "dependabot_upkeep.py",
         state=state,
         path_env=os.environ.get("PATH", "/usr/bin:/bin"),
@@ -1099,7 +1135,7 @@ def install(args: argparse.Namespace, shell: Shell) -> int:
     when = plist["StartCalendarInterval"]
     shell.say(
         f"Installed {LAUNCH_AGENT}: Mondays at {when['Hour']:02d}:{when['Minute']:02d} local "
-        f"time. Logs in {state / 'logs'}. Remove with `{shlex.join([sys.executable, str(Path(__file__).resolve()), 'uninstall'])}`."
+        f"time. Logs in {state / 'logs'}. Remove with `just dependabot-upkeep uninstall`."
     )
     return 0
 
@@ -1150,12 +1186,17 @@ def self_update(review: Path, argv: Sequence[str], lock: TextIO) -> None:
     Called with the run lock held; the new process inherits it (`--lock-fd`).
     """
 
-    for step in (["git", "fetch", "-q", "origin"], ["git", "reset", "-q", "--hard", "origin/main"]):
+    steps = (
+        ["git", "fetch", "-q", "origin"],
+        ["git", "reset", "-q", "--hard", "origin/main"],
+        ENSURE_VENV,  # requirements-dev.txt may have changed
+    )
+    for step in steps:
         subprocess.run(step, cwd=review, check=True, stdin=subprocess.DEVNULL)
     os.set_inheritable(lock.fileno(), True)
     rest = [a for a in argv if a != "--self-update"] + ["--lock-fd", str(lock.fileno())]
-    script = review / "scripts" / "dependabot_upkeep.py"
-    os.execv(sys.executable, [sys.executable, str(script), *rest])
+    python = str(review / VENV_PYTHON)
+    os.execv(python, [python, str(review / "scripts" / "dependabot_upkeep.py"), *rest])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1224,7 +1265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             except CommandError as error:
                 print(f"The summary was not posted: {error}", file=sys.stderr)
                 return 1
-    return 1 if any(o.status == "error" for o in outcomes) else 0
+    failed = upkeep.problems or any(o.status == "error" for o in outcomes)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

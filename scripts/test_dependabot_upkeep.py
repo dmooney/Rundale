@@ -89,6 +89,8 @@ class FakeWorld:
         self.generation = 0
         self.work_pr: int | None = None
         self.comment_rc = 0
+        self.view_fail: set[int] = set()
+        self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
     def add(self, number: int, *, behind: int = 0, classify: int = 3, **extra: Any) -> None:
         self.prs[number] = pr_json(number, f"{number:04d}{'0' * 36}", **extra)
@@ -155,9 +157,14 @@ class FakeWorld:
 
     def gh(self, args: tuple[str, ...]) -> Result:
         if args[:2] == ("pr", "list"):
+            self.list_ok -= 1
+            if self.list_ok < 0:
+                return Result(1, "", "HTTP 502: Bad Gateway")
             return self.ok([self.prs[n] for n in sorted(self.prs) if n not in self.merged])
         if args[:2] == ("pr", "view"):
             number, fields = int(args[2]), args[args.index("--json") + 1]
+            if number in self.view_fail:
+                return Result(1, "", "HTTP 502: Bad Gateway")
             if fields == "state":
                 return self.ok({"state": "MERGED" if number in self.merged else "OPEN"})
             if fields == "files":
@@ -610,6 +617,33 @@ class SweepAndSummaryTests(UpkeepCase):
         # the run only the red, unheld 80 is refreshed.
         self.assertEqual(updated, ["82", "80"])
 
+    def test_a_pr_that_cannot_be_read_does_not_stop_the_others(self) -> None:
+        self.world.add(90)
+        self.world.add(91)
+        self.world.view_fail.add(90)
+        self.world.gatekeeper[91] = self.world.approve_and_merge(91)
+        outcomes, summary = self.make().run(only=set(), exclude=set())
+        self.assertEqual([o.status for o in outcomes], ["error", "merged"])
+        self.assertIn("could not re-read it", outcomes[0].detail)
+        self.assertIn("#90", summary)
+        self.assertIn("#91", summary)
+
+    def test_github_failures_outside_a_pr_are_reported_in_the_summary(self) -> None:
+        self.world.add(92)
+        self.world.checks[92] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
+        self.world.list_ok = 1  # the inventory works; the final sweep's read fails
+        routine = self.make(fix=False)
+        outcomes, summary = routine.run(only=set(), exclude=set())
+        self.assertEqual([o.status for o in outcomes], ["red"])
+        self.assertEqual(len(routine.problems), 1)
+        self.assertIn("### Problems", summary)
+        self.assertIn("final update could not list", summary)
+        self.world.list_ok = 0  # now the inventory itself fails
+        routine = self.make()
+        outcomes, summary = routine.run(only=set(), exclude=set())
+        self.assertEqual(outcomes, [])
+        self.assertIn("could not list the open Dependabot pull requests", summary)
+
     def test_undelivered_summary_fails_the_run(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
         self.world.comment_rc = 1
@@ -746,8 +780,9 @@ class MainTests(unittest.TestCase):
                 self.assertRaises(SystemExit),
             ):
                 upkeep.main(["--state", str(state), "run", "--self-update"])
-            self.assertEqual(git.call_count, 2)  # fetch, reset
+            self.assertEqual(git.call_count, 3)  # fetch, reset, provision .venv-dev
             self.assertNotIn("--self-update", seen["argv"])
+            self.assertTrue(seen["argv"][0].endswith("review/.venv-dev/bin/python"))
             self.assertTrue(seen["argv"][1].endswith("review/scripts/dependabot_upkeep.py"))
             self.assertTrue(seen["inheritable"])
             self.assertTrue(seen["inherited"])

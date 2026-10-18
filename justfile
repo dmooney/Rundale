@@ -115,8 +115,8 @@ mobile-verify-record:
     python3 mobile/scripts/verify_record.py record
 
 # Weekly Dependabot upkeep (run --dry-run | run | install | uninstall); see scripts/dependabot_upkeep.py
-dependabot-upkeep *ARGS:
-    python3 scripts/dependabot_upkeep.py {{ARGS}}
+dependabot-upkeep *ARGS: setup-py
+    .venv-dev/bin/python scripts/dependabot_upkeep.py {{ARGS}}
 
 # Build the Release iPhone app without uploading
 mobile-build *ARGS:
