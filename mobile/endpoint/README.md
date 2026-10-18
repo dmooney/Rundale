@@ -178,7 +178,9 @@ the cottage asking which Connolly before anyone answers, the #1901 probe
 that an accepted reply agrees with the speaker's current location, "Hello" at
 the cottage asking who it is for and the chosen Róisín answering, and
 "Róisín, what news…?" reaching Róisín before any introduction (dynamic NPC
-context §8 rows 2 and 7). It is opt-in and needs a Firebase App Check
+context §8 rows 2 and 7), and a paced run where a spoken line reaches the
+people present (one person present answers any line; two present ask on
+"Hello"; a line to someone elsewhere reaches both). It is opt-in and needs a Firebase App Check
 debug token registered for the Rundale iOS app. Against `limerick-prod`:
 
 ```sh
