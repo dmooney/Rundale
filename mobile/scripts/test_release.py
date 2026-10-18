@@ -163,8 +163,14 @@ class ReleaseTests(unittest.TestCase):
                 release.release_build_number(self.root, env=env, latest=lambda _: None), (42, False)
             )
 
-    def test_latest_uploaded_build_takes_the_highest_numeric_version(self):
-        body = {"data": [{"attributes": {"version": v}} for v in ("1323", "1330", "99", "x")]}
+    def test_latest_uploaded_build_takes_the_highest_number_across_pages(self):
+        pages = [
+            {
+                "data": [{"attributes": {"version": v}} for v in ("1330", "1323", "x")],
+                "links": {"next": "https://api.appstoreconnect.apple.com/v1/builds?cursor=2"},
+            },
+            {"data": [{"attributes": {"version": "1400"}}], "links": {}},
+        ]
 
         class Response(io.BytesIO):
             def __enter__(self):
@@ -174,12 +180,16 @@ class ReleaseTests(unittest.TestCase):
                 return False
 
         with patch.object(
-            release.urllib.request, "urlopen", return_value=Response(json.dumps(body).encode())
+            release.urllib.request,
+            "urlopen",
+            side_effect=[Response(json.dumps(page).encode()) for page in pages],
         ) as urlopen:
-            self.assertEqual(release.latest_uploaded_build("TOKEN"), 1330)
-        request = urlopen.call_args.args[0]
-        self.assertEqual(request.get_header("Authorization"), "Bearer TOKEN")
-        self.assertIn("filter[app]=6811694290", request.full_url)
+            self.assertEqual(release.latest_uploaded_build("TOKEN"), 1400)
+        first, second = (call.args[0] for call in urlopen.call_args_list)
+        self.assertEqual(first.get_header("Authorization"), "Bearer TOKEN")
+        self.assertIn("filter[app]=6811694290", first.full_url)
+        self.assertTrue(second.full_url.endswith("cursor=2"))
+        self.assertEqual(second.get_header("Authorization"), "Bearer TOKEN")
 
     def test_testflight_requests_the_commit_count_without_editing_project_yml(self):
         before = self.paths.project_spec.read_bytes()

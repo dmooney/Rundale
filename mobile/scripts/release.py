@@ -248,18 +248,23 @@ def app_store_connect_token(key_path: str, key_id: str, issuer: str, now: int | 
 
 
 def latest_uploaded_build(token: str) -> int | None:
-    """The highest build number App Store Connect holds for the app, or None."""
+    """The highest build number App Store Connect holds for the app, or None.
 
-    request = urllib.request.Request(
-        APP_STORE_CONNECT_BUILDS_URL, headers={"Authorization": f"Bearer {token}"}
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        body = json.load(response)
-    versions = [
-        int(build["attributes"]["version"])
-        for build in body.get("data", [])
-        if str(build.get("attributes", {}).get("version", "")).isdigit()
-    ]
+    Follows every page: the highest number need not be among the newest uploads.
+    """
+
+    versions: list[int] = []
+    url: str | None = APP_STORE_CONNECT_BUILDS_URL
+    while url:
+        request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            body = json.load(response)
+        versions.extend(
+            int(build["attributes"]["version"])
+            for build in body.get("data", [])
+            if str(build.get("attributes", {}).get("version", "")).isdigit()
+        )
+        url = body.get("links", {}).get("next")
     return max(versions, default=None)
 
 
