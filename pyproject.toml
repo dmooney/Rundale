@@ -35,8 +35,9 @@ exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs', 'mo
 # contract tests under limerick/testing/eval; the differential proof tools test
 # under limerick/scripts/proof; the mobile verification and release runners
 # test under mobile/scripts; the local OSV gate tests under
-# limerick/scripts/security. Collect all five in the CI pytest gate.
-testpaths = ["rundale-bench", "limerick/testing/eval", "limerick/scripts/proof", "mobile/scripts", "limerick/scripts/security"]
+# limerick/scripts/security; the Dependabot upkeep routine and the workflow
+# action-reference check test under scripts. Collect all six in the CI pytest gate.
+testpaths = ["rundale-bench", "limerick/testing/eval", "limerick/scripts/proof", "mobile/scripts", "limerick/scripts/security", "scripts"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
 addopts = "-q"
