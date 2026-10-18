@@ -340,7 +340,10 @@ def summarize_checks(checks: Sequence[dict[str, Any]]) -> tuple[str, list[str]]:
 
 
 def workflow_triggers(text: str) -> set[str]:
-    document = yaml.safe_load(text) or {}
+    try:
+        document = yaml.safe_load(text) or {}
+    except yaml.YAMLError:
+        return set()
     on = document.get("on", document.get(True)) if isinstance(document, dict) else None
     if isinstance(on, str):
         return {on}
@@ -745,6 +748,8 @@ class Upkeep:
         )
         workflows = {}
         for path in listing.stdout.split():
+            if not path.endswith((".yml", ".yaml")):
+                continue  # AGENTS.md and disabled workflows live here too
             text = self.sh.run(
                 ["git", "show", f"refs/upkeep/pr/{pr.number}:{path}"], cwd=self.review
             )
@@ -1118,12 +1123,37 @@ def uninstall(args: argparse.Namespace, shell: Shell) -> int:
 # Entry point ---------------------------------------------------------------------
 
 
-def self_update(review: Path, argv: Sequence[str]) -> None:
-    """Move the routine's checkout to origin/main and re-exec the updated script."""
+def acquire_run_lock(state: Path, inherited_fd: int | None) -> TextIO | None:
+    """The run lock, or None while another run holds it.
+
+    A self-updated run inherits its parent's locked descriptor across exec, so
+    the lock is held from before the checkout moves until the run ends.
+    """
+
+    state.mkdir(parents=True, exist_ok=True)
+    lock = (
+        os.fdopen(inherited_fd, "w")
+        if inherited_fd is not None
+        else (state / "upkeep.lock").open("w")
+    )
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.close()
+        return None
+    return lock
+
+
+def self_update(review: Path, argv: Sequence[str], lock: TextIO) -> None:
+    """Move the routine's checkout to origin/main and re-exec the updated script.
+
+    Called with the run lock held; the new process inherits it (`--lock-fd`).
+    """
 
     for step in (["git", "fetch", "-q", "origin"], ["git", "reset", "-q", "--hard", "origin/main"]):
         subprocess.run(step, cwd=review, check=True, stdin=subprocess.DEVNULL)
-    rest = [a for a in argv if a != "--self-update"]
+    os.set_inheritable(lock.fileno(), True)
+    rest = [a for a in argv if a != "--self-update"] + ["--lock-fd", str(lock.fileno())]
     script = review / "scripts" / "dependabot_upkeep.py"
     os.execv(sys.executable, [sys.executable, str(script), *rest])
 
@@ -1145,6 +1175,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--no-summary", dest="summary", action="store_false")
     run.add_argument("--repo", default=os.environ.get("RUNDALE_UPKEEP_REPO", "dmooney/Rundale"))
     run.add_argument("--self-update", action="store_true", help=argparse.SUPPRESS)
+    run.add_argument("--lock-fd", type=int, help=argparse.SUPPRESS)
     inst = sub.add_parser("install", help="install the weekly LaunchAgent")
     inst.add_argument("--exclude", type=int, action="append", default=[])
     inst.add_argument("--dry-run", action="store_true")
@@ -1163,21 +1194,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "uninstall":
         return uninstall(args, shell)
     review, work = args.state / "review", args.state / "work"
-    if args.self_update:
-        self_update(review, argv)
     if not review.exists():
         # Before `install`, plan from this checkout (dry runs and tests only).
-        if not args.dry_run:
+        if not args.dry_run or args.self_update:
             print(f"No routine checkout at {review}; run `install` first.", file=sys.stderr)
             return 2
         review = work = ROOT
-    args.state.mkdir(parents=True, exist_ok=True)
-    with (args.state / "upkeep.lock").open("w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print("Another upkeep run holds the lock; exiting.", file=sys.stderr)
-            return 3
+    lock = acquire_run_lock(args.state, args.lock_fd)
+    if lock is None:
+        print("Another upkeep run holds the lock; exiting.", file=sys.stderr)
+        return 3
+    with lock:
+        if args.self_update:
+            self_update(review, argv, lock)
         upkeep = Upkeep(
             shell, repo=args.repo, state=args.state, review=review, work=work, fix=args.fix
         )

@@ -19,6 +19,7 @@ import unittest
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -315,6 +316,9 @@ class PureLogicTests(unittest.TestCase):
         self.assertEqual(upkeep.summarize_checks([check("fail")]), ("fail", ["CI gate (u)"]))
         self.assertEqual(upkeep.summarize_checks([check("cancel")])[0], "fail")
 
+    def test_unparseable_workflow_text_has_no_triggers(self) -> None:
+        self.assertEqual(upkeep.workflow_triggers("key: [unclosed"), set())
+
     def test_unexercised_workflows(self) -> None:
         workflows = {
             ".github/workflows/release.yml": RELEASE,
@@ -529,6 +533,7 @@ class FlowTests(UpkeepCase):
         self.world.add(70)
         self.world.files[70] = [".github/workflows/release.yml", ".github/workflows/ci.yml"]
         self.world.workflows = {
+            ".github/workflows/AGENTS.md": "# Notes\n- **a:** [not yaml\n",
             ".github/workflows/release.yml": RELEASE,
             ".github/workflows/ci.yml": CI,
             ".github/workflows/full-ci.yml": FULL_CI,
@@ -702,6 +707,51 @@ class MainTests(unittest.TestCase):
             with (state / "upkeep.lock").open("w") as held:
                 fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 self.assertEqual(upkeep.main(["--state", str(state), "run"]), 3)
+
+    def test_self_update_waits_for_the_lock_before_touching_the_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            (state / "review").mkdir()
+            with (
+                (state / "upkeep.lock").open("w") as held,
+                patch.object(
+                    upkeep, "self_update", side_effect=AssertionError("updated without the lock")
+                ),
+            ):
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.assertEqual(upkeep.main(["--state", str(state), "run", "--self-update"]), 3)
+
+    def test_self_update_hands_the_held_lock_to_the_new_process(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)
+            (state / "review").mkdir()
+            seen: dict[str, Any] = {}
+
+            def execv(_exe: str, argv: list[str]) -> None:
+                # Runs where the new process would start, with the lock still held.
+                fd = int(argv[argv.index("--lock-fd") + 1])
+                seen["argv"], seen["inheritable"] = argv, os.get_inheritable(fd)
+                # Re-locking the inherited descriptor (the same open file
+                # description) succeeds; any other open of the lock fails.
+                inherited = upkeep.acquire_run_lock(state, os.dup(fd))
+                seen["inherited"] = inherited is not None
+                seen["other"] = upkeep.acquire_run_lock(state, None)
+                if inherited is not None:
+                    inherited.close()
+                raise SystemExit(0)
+
+            with (
+                patch.object(upkeep.subprocess, "run") as git,
+                patch.object(upkeep.os, "execv", side_effect=execv),
+                self.assertRaises(SystemExit),
+            ):
+                upkeep.main(["--state", str(state), "run", "--self-update"])
+            self.assertEqual(git.call_count, 2)  # fetch, reset
+            self.assertNotIn("--self-update", seen["argv"])
+            self.assertTrue(seen["argv"][1].endswith("review/scripts/dependabot_upkeep.py"))
+            self.assertTrue(seen["inheritable"])
+            self.assertTrue(seen["inherited"])
+            self.assertIsNone(seen["other"])
 
     def test_real_run_requires_install(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
