@@ -17,6 +17,9 @@ an upload edits no file and leaves nothing to commit; the value in
 (`ASC_KEY_PATH`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, as the GitHub workflow has), the
 number is one above the highest build App Store Connect already holds, so the
 logged number is the one TestFlight shows, whichever branch or machine uploads.
+Xcode is told not to renumber it, so if another upload takes that number first the
+upload fails rather than landing under a different one. `--dry-run` skips the
+lookup.
 Without a key it falls back to HEAD's commit count (`git rev-list --count HEAD`),
 and Xcode may renumber the upload to follow App Store Connect's existing builds;
 check the actual uploaded number before reporting it to the user. Applicable feature-specific

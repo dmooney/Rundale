@@ -532,7 +532,11 @@ class Release:
                 print(
                     "Skipping mobile-verify (--verify none): the caller found a recorded pass for this tree."
                 )
-            build, fixed = release_build_number(self.paths.root)
+            if self.dry_run:
+                # A preview signs nothing and makes no network request.
+                build, fixed = commit_count(self.paths.root), False
+            else:
+                build, fixed = release_build_number(self.paths.root)
             if fixed:
                 print(f"Build number: {build} (App Store Connect's latest upload plus one)")
             else:
@@ -585,7 +589,7 @@ class Release:
                 cwd=self.paths.root,
             )
             self.validate_distribution_ipa(expected_build=build)
-            options = self.write_export_options()
+            options = self.write_export_options(renumber=not fixed)
             self.run_command(
                 [
                     "xcodebuild",
@@ -709,7 +713,7 @@ class Release:
                 + ("; ".join(authorities) or "no signing authority")
             )
 
-    def write_export_options(self, *, upload: bool = True) -> Path:
+    def write_export_options(self, *, upload: bool = True, renumber: bool = True) -> Path:
         options = {
             "method": "app-store-connect",
             "destination": "upload" if upload else "export",
@@ -717,8 +721,10 @@ class Release:
             "signingStyle": "automatic",
             "testFlightInternalTestingOnly": True,
             # Only the upload may renumber; the local export keeps the
-            # archive's build so its number can be checked.
-            "manageAppVersionAndBuildNumber": upload,
+            # archive's build so its number can be checked. A number taken
+            # from App Store Connect is kept exactly: if another upload took
+            # it meanwhile, the upload fails instead of silently renumbering.
+            "manageAppVersionAndBuildNumber": upload and renumber,
             "uploadSymbols": upload,
         }
         path = self.paths.export_options if upload else self.paths.distribution_export_options

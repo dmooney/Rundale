@@ -197,6 +197,22 @@ class ReleaseTests(unittest.TestCase):
         receipt = json.loads(self.paths.receipt.read_text())
         self.assertEqual(receipt["requestedBuild"], 1259)
 
+    def test_testflight_keeps_an_app_store_connect_number_exactly(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(runner, "validate_archive") as validate,
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+        archive = next(c for c in self.commands if "archive" in c)
+        self.assertIn("CURRENT_PROJECT_VERSION=1331", archive)
+        validate.assert_called_once_with(expected_build=1331)
+        upload_options = plistlib.loads(self.paths.export_options.read_bytes())
+        self.assertFalse(upload_options["manageAppVersionAndBuildNumber"])
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual((receipt["requestedBuild"], receipt["uploadedBuild"]), (1331, 1331))
+
     def test_build_orders_rust_xcodegen_and_unsigned_build(self):
         runner = release.Release(self.paths, runner=self.runner)
         runner.validate_app = lambda *args, **kwargs: None
@@ -339,7 +355,15 @@ class ReleaseTests(unittest.TestCase):
         before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         runner = release.Release(self.paths, dry_run=True, runner=self.runner)
         runner.build()
-        with patch.object(release, "release_build_number", return_value=(1259, False)):
+        key = self.root.parent / "AuthKey_DRYRUN.p8"
+        key.write_text("not a real key\n")
+        self.addCleanup(key.unlink)
+        env = {"ASC_KEY_PATH": str(key), "ASC_KEY_ID": "KEYID", "ASC_ISSUER_ID": "ISSUER"}
+        with (
+            patch.dict(release.os.environ, env),
+            patch.object(release, "release_build_number", side_effect=AssertionError("network")),
+            patch.object(release, "commit_count", return_value=1259),
+        ):
             runner.testflight()
         after = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
