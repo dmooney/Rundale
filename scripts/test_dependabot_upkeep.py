@@ -91,6 +91,9 @@ class FakeWorld:
         self.comment_rc = 0
         self.view_fail: set[int] = set()
         self.commits_fail: set[int] = set()
+        self.fix_app_inputs: set[int] = set()  # PRs whose fix touches an app input
+        self.main_moves_inputs: set[int] = set()  # PRs whose merge with main changes inputs
+        self.ls_tree_fails = False
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
@@ -140,6 +143,9 @@ class FakeWorld:
             return self.gh(cmd[1:])
         if cmd[0] == "git":
             return self.git(cmd[1:], cwd)
+        if cmd[0] == sys.executable and cmd[1:3] == ("mobile/scripts/verify_record.py", "tree"):
+            app = cmd[3] == "HEAD" and self.work_pr in self.fix_app_inputs | self.main_moves_inputs
+            return Result(0, "app-tree\n" if app else "base-tree\n")
         if cmd[0] == sys.executable and cmd[1] == "mobile/scripts/verify_record.py":
             return Result(self.classify[int(cmd[-1])])
         if cmd[0] == "pgrep":
@@ -239,7 +245,11 @@ class FakeWorld:
                 )
             return Result(0, f"{count}\n")
         if args[0] == "ls-tree":
+            if self.ls_tree_fails:
+                return Result(128, "", "fatal: not a tree object")
             return Result(0, "\n".join(sorted(self.workflows)))
+        if args[0] == "merge-base":
+            return Result(0, "base\n")
         if args[0] == "show":
             return Result(0, self.workflows[args[-1].split(":", 1)[1]])
         if args[0] in ("fetch", "clean", "merge", "reset"):
@@ -442,6 +452,23 @@ class FlowTests(UpkeepCase):
         )  # fmt: skip
         self.assertEqual(self.world.ran("gh", "api", "-X", "PUT"), [])  # pushed, not update-branch
 
+    def test_recorded_app_pr_behind_main_reuses_its_pass_when_main_changed_no_input(self) -> None:
+        self.world.add(24, behind=2, classify=upkeep.RECORDED)
+        self.world.gatekeeper[24] = self.world.approve_and_merge(24)
+        outcome = self.outcome(24)
+        self.assertEqual(outcome.status, "merged")
+        self.assertIn("main changed no app input; the recorded pass still applies", outcome.notes)
+        self.assertEqual(self.world.ran("just"), [])
+        self.assertEqual(len(self.world.ran("git", "push")), 1)
+
+    def test_recorded_app_pr_is_reverified_when_main_changed_an_input(self) -> None:
+        self.world.add(25, behind=2, classify=upkeep.RECORDED)
+        self.world.main_moves_inputs.add(25)
+        self.world.gatekeeper[25] = self.world.approve_and_merge(25)
+        self.assertEqual(self.outcome(25).status, "merged")
+        self.assertEqual(len(self.world.ran("just", "mobile-verify")), 1)
+        self.assertEqual(len(self.world.ran("just", "mobile-verify-record")), 1)
+
     def test_recorded_current_app_pr_skips_mobile_verify(self) -> None:
         self.world.add(21, classify=upkeep.RECORDED)
         self.world.gatekeeper[21] = self.world.approve_and_merge(21)
@@ -490,6 +517,23 @@ class FlowTests(UpkeepCase):
         codex = self.world.ran("codex")[0]
         self.assertEqual(codex[:3], ("codex", "exec", "-C"))
         self.assertEqual(len(self.world.ran("git", "push")), 1)
+
+    def test_a_fix_that_touches_app_inputs_is_verified_and_recorded(self) -> None:
+        self.world.add(34)  # a tooling bump: no app input until the fix
+        red = [{"name": "CI gate", "bucket": "fail", "link": "l"}]
+        green = [{"name": "CI gate", "bucket": "pass", "link": "l"}]
+        self.world.checks[34] = [red, green]
+        self.world.fix_commits[34] = 1
+        self.world.fix_app_inputs.add(34)
+        self.world.gatekeeper[34] = self.world.approve_and_merge(34)
+        outcome = self.outcome(34)
+        self.assertEqual(outcome.status, "merged")
+        self.assertTrue(outcome.app_input)
+        self.assertIn("the fix changes app inputs", outcome.notes)
+        order = [cmd[:2] for cmd, _ in self.world.calls if cmd[0] in ("just", "git") and cmd[1] in ("mobile-verify", "push", "mobile-verify-record")]  # fmt: skip
+        self.assertEqual(
+            order, [("just", "mobile-verify"), ("git", "push"), ("just", "mobile-verify-record")]
+        )
 
     def test_red_pr_left_open_when_the_fix_makes_no_commit(self) -> None:
         self.world.add(31)
@@ -567,6 +611,17 @@ class FlowTests(UpkeepCase):
         self.assertIn("release.yml", dispatch)
         self.assertIn("dry_run=true", dispatch)
         self.assertEqual(len(self.world.ran("gh", "pr", "comment")), 1)
+
+    def test_unreadable_workflows_are_an_error_not_a_skipped_probe(self) -> None:
+        self.world.add(72)
+        self.world.files[72] = [".github/workflows/release.yml"]
+        self.world.workflows = {".github/workflows/release.yml": RELEASE}
+        self.world.ls_tree_fails = True
+        outcome = self.outcome(72)
+        self.assertEqual(outcome.status, "error")
+        self.assertIn("ls-tree", outcome.detail)
+        self.assertEqual(self.world.ran("gh", "workflow", "run"), [])
+        self.assertEqual(self.world.ran("claude"), [])
 
     def test_failed_release_dry_run_blocks_the_gatekeeper(self) -> None:
         self.world.add(71)

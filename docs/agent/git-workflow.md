@@ -65,7 +65,8 @@ it:
    A pull request that changes app inputs (`verify_record.py check`, the same
    test CI's "Recorded mobile-verify pass" job applies) is merged with `main`
    in a clean checkout, passes `just mobile-verify --phase all`, is pushed, and
-   gets `just mobile-verify-record`. One mobile-verify runs at a time: the
+   gets `just mobile-verify-record` (a recorded pass is reused when the merge
+   changed no app input). One mobile-verify runs at a time: the
    routine holds a lock and waits for any other run `pgrep` finds;
 3. waits for the required checks. A red pull request gets one bounded
    `claude -p` fix; if that makes no commit or the checks stay red, the pull

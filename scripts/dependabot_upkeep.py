@@ -490,13 +490,24 @@ class Upkeep:
 
     # Steps ------------------------------------------------------------------
 
-    def classify(self, pr: PullRequest) -> int:
-        """verify_record.py's view of the PR head: RECORDED, NEEDS_PASS or NOT_APP_INPUT."""
+    def read(self, cmd: Sequence[str], cwd: Path) -> str:
+        """A read-only command's output; a failure raises instead of reading as empty."""
 
-        self.sh.run(
+        result = self.sh.run(cmd, cwd=cwd)
+        if not result.ok:
+            raise CommandError(cmd, result)
+        return result.stdout
+
+    def fetch_pr(self, pr: PullRequest) -> None:
+        self.read(
             ["git", "fetch", "-q", "origin", pr.base_ref, f"+refs/pull/{pr.number}/head:refs/upkeep/pr/{pr.number}"],
             cwd=self.review,
         )  # fmt: skip
+
+    def classify(self, pr: PullRequest) -> int:
+        """verify_record.py's view of the PR head: RECORDED, NEEDS_PASS or NOT_APP_INPUT."""
+
+        self.fetch_pr(pr)
         result = self.sh.run(
             [sys.executable, "mobile/scripts/verify_record.py", "check", "--pr", str(pr.number)],
             cwd=self.review,
@@ -661,6 +672,16 @@ class Upkeep:
             outcome.notes.append(
                 f"{self.did('merged', 'merge')} main locally ({behind} commits behind)"
             )
+            if (
+                status == RECORDED
+                and not self.sh.dry_run
+                and self.input_tree("HEAD") == self.input_tree(pr.head_sha)
+            ):
+                # Main changed no app input, so the recorded pass still covers the tree.
+                outcome.notes.append("main changed no app input; the recorded pass still applies")
+                if not self.push_work(pr):
+                    raise RuntimeError("pushing the update to the PR branch failed")
+                return self.wait_for_head(pr, pr.head_sha), True
         passed = self.mobile_verify(pr)
         outcome.notes.append(
             "would run mobile-verify --phase all and record the pass"
@@ -722,10 +743,27 @@ class Upkeep:
             return None
         return pr
 
+    def input_tree(self, rev: str) -> str:
+        """REV's app-input tree in the work checkout (verify_record.py's definition)."""
+
+        return self.read(
+            [sys.executable, "mobile/scripts/verify_record.py", "tree", rev], self.work
+        ).strip()
+
+    def work_changes_app_inputs(self, pr: PullRequest) -> bool:
+        """Whether the work checkout's HEAD changes app inputs against main, as CI will judge it."""
+
+        base = self.read(["git", "merge-base", "HEAD", f"origin/{pr.base_ref}"], self.work).strip()
+        return self.input_tree("HEAD") != self.input_tree(base)
+
     def push_fix(self, pr: PullRequest, outcome: Outcome) -> tuple[PullRequest, bool]:
         """Verify (when app input), push and record the fix; (PR, app gate satisfied)."""
 
         passed = True
+        if not outcome.app_input and self.work_changes_app_inputs(pr):
+            # A fix to tooling can still touch an app input (a lockfile, mobile/).
+            outcome.app_input = True
+            outcome.notes.append("the fix changes app inputs")
         if outcome.app_input:
             passed = self.mobile_verify(pr)
             outcome.notes.append(f"mobile-verify after the fix {'passed' if passed else 'FAILED'}")
@@ -742,29 +780,17 @@ class Upkeep:
         changed = [f["path"] for f in (files or {}).get("files", [])]
         if not any(p.startswith(".github/workflows/") for p in changed):
             return True
-        # The head may have moved since classify() fetched it.
-        self.sh.run(
-            [
-                "git",
-                "fetch",
-                "-q",
-                "origin",
-                f"+refs/pull/{pr.number}/head:refs/upkeep/pr/{pr.number}",
-            ],
-            cwd=self.review,
+        self.fetch_pr(pr)  # the head may have moved since classify() fetched it
+        ref = f"refs/upkeep/pr/{pr.number}"
+        listing = self.read(
+            ["git", "ls-tree", "--name-only", ref, ".github/workflows/"], self.review
         )
-        listing = self.sh.run(
-            ["git", "ls-tree", "--name-only", f"refs/upkeep/pr/{pr.number}", ".github/workflows/"],
-            cwd=self.review,
-        )
-        workflows = {}
-        for path in listing.stdout.split():
-            if not path.endswith((".yml", ".yaml")):
-                continue  # AGENTS.md and disabled workflows live here too
-            text = self.sh.run(
-                ["git", "show", f"refs/upkeep/pr/{pr.number}:{path}"], cwd=self.review
-            )
-            workflows[path] = text.stdout
+        workflows = {
+            path: self.read(["git", "show", f"{ref}:{path}"], self.review)
+            for path in listing.split()
+            # AGENTS.md and disabled workflows live here too.
+            if path.endswith((".yml", ".yaml"))
+        }
         ok = True
         for path in unexercised_workflows(changed, workflows):
             name = path.rsplit("/", 1)[1]
@@ -812,8 +838,11 @@ class Upkeep:
         return False
 
     def gatekeeper(self, pr: PullRequest, family: str) -> Result:
-        self.sh.run(["git", "fetch", "-q", "origin"], cwd=self.review)
-        self.sh.run(["git", "reset", "-q", "--hard", "origin/main"], cwd=self.review, mutating=True)
+        self.read(["git", "fetch", "-q", "origin"], self.review)
+        reset = ["git", "reset", "-q", "--hard", "origin/main"]
+        moved = self.sh.run(reset, cwd=self.review, mutating=True)
+        if not moved.ok:
+            raise CommandError(reset, moved)
         prompt = f"Run the gatekeeper skill on PR {pr.number}."
         output = self.logs / f"pr-{pr.number}-gatekeeper-{family}.log"
         if family == "codex":
