@@ -122,7 +122,8 @@ tested inputs, limited to what a full run builds or reads
 coverage baseline, which a recorded pass is never re-checked against, plus the
 verification tools (`verify.py`, `verify_record.py`, `record-ui-test.py`), which
 their unit tests cover. `release.py` stays in, since it writes Info.plist
-settings into the app. A merge
+settings into the app. The recorded-pass input tree excludes `AGENTS.md` files
+at any depth. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge
 onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `just mobile-verify-record` (`verify_record.py record`) posts that tree as a

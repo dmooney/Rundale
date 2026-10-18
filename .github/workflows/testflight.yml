@@ -22,6 +22,7 @@ on:
       - "limerick/config/**"
       - "rust-toolchain.toml"
       - ".cargo/**"
+      - "!**/AGENTS.md"
       - ".github/workflows/testflight.yml"
   workflow_dispatch:
 
