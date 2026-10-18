@@ -731,8 +731,8 @@ class Upkeep:
             outcome.notes.append(f"mobile-verify after the fix {'passed' if passed else 'FAILED'}")
         if not self.push_work(pr):
             raise RuntimeError("pushing the fix failed")
-        if outcome.app_input and passed:
-            self.record()
+        if outcome.app_input and passed and not self.record():
+            raise RuntimeError("just mobile-verify-record failed after the fix")
         return self.wait_for_head(pr, pr.head_sha), passed
 
     def probe_workflows(self, pr: PullRequest, outcome: Outcome) -> bool:
@@ -869,7 +869,12 @@ class Upkeep:
                 raise MergeConflict("conflicts with main")
             return self._process(pr, outcome)
         except MergeConflict as conflict:
-            return self.ask_dependabot(pr, outcome, str(conflict))
+            try:
+                return self.ask_dependabot(pr, outcome, str(conflict))
+            except RECOVERABLE as error:
+                outcome.status = "error"
+                outcome.detail = f"{conflict}; could not ask Dependabot to rebuild it: {error}"
+                return outcome
         except RECOVERABLE as error:
             outcome.status, outcome.detail = "error", str(error)
             return outcome
@@ -880,10 +885,10 @@ class Upkeep:
         # Dependabot rebases only while no one else has pushed to its branch.
         others = self.commit_authors(pr) - {"dependabot[bot]"}
         command = "@dependabot recreate" if others else "@dependabot rebase"
-        self.sh.run(
-            ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body", command],
-            mutating=True,
-        )
+        cmd = ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body", command]
+        asked = self.sh.run(cmd, mutating=True)
+        if not asked.ok:
+            raise CommandError(cmd[:3], asked)
         outcome.status = "conflict"
         outcome.detail = f"{reason}; {self.did('asked', 'ask')} `{command}`"
         return outcome
@@ -1000,7 +1005,10 @@ class Upkeep:
                     f"could not re-read it: {error}",
                 )
             else:
-                outcome = self.process(pr, exclude)
+                try:
+                    outcome = self.process(pr, exclude)
+                except RECOVERABLE as error:  # the last boundary: one PR never ends the run
+                    outcome = Outcome(pr.number, pr.title, pr.url, "error", str(error))
             for note in outcome.notes:
                 self.sh.say(f"  - {note}")
             self.sh.say(f"  => {outcome.status}: {outcome.detail}")
@@ -1262,7 +1270,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.summary:
             try:
                 upkeep.post_summary(summary)
-            except CommandError as error:
+            except RECOVERABLE as error:
                 print(f"The summary was not posted: {error}", file=sys.stderr)
                 return 1
     failed = upkeep.problems or any(o.status == "error" for o in outcomes)

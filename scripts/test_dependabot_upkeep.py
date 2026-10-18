@@ -90,6 +90,8 @@ class FakeWorld:
         self.work_pr: int | None = None
         self.comment_rc = 0
         self.view_fail: set[int] = set()
+        self.commits_fail: set[int] = set()
+        self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
     def add(self, number: int, *, behind: int = 0, classify: int = 3, **extra: Any) -> None:
@@ -177,7 +179,9 @@ class FakeWorld:
             return self.ok(current, 1 if failing else 0)
         if args[:2] == ("issue", "comment"):
             return Result(self.comment_rc, "", "HTTP 502" if self.comment_rc else "")
-        if args[:2] in (("pr", "comment"), ("issue", "pin")):
+        if args[:2] == ("pr", "comment"):
+            return Result(1, "", "HTTP 502") if int(args[2]) in self.comment_fail else self.ok()
+        if args[:2] == ("issue", "pin"):
             return self.ok()
         if args[:2] == ("issue", "list"):
             return self.ok(self.issues)
@@ -206,6 +210,8 @@ class FakeWorld:
             number = next(n for n, p in self.prs.items() if p["headRefOid"] == head)
             return self.ok({"behind_by": self.behind[number]})
         number = int(path.split("/")[-2])
+        if path.endswith("/commits") and number in self.commits_fail:
+            return Result(1, "", "HTTP 502: Bad Gateway")
         if path.endswith("/commits"):
             return self.ok([self.commits[number]])
         if path.endswith("/reviews"):
@@ -627,6 +633,21 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertIn("could not re-read it", outcomes[0].detail)
         self.assertIn("#90", summary)
         self.assertIn("#91", summary)
+
+    def test_failed_conflict_recovery_does_not_stop_the_others(self) -> None:
+        self.world.add(93, mergeable="CONFLICTING")
+        self.world.add(94, mergeable="CONFLICTING")
+        self.world.add(95)
+        self.world.commits_fail.add(93)  # cannot read who pushed to the branch
+        self.world.comment_fail.add(94)  # cannot post the rebase request
+        self.world.gatekeeper[95] = self.world.approve_and_merge(95)
+        routine = self.make()
+        outcomes, summary = routine.run(only=set(), exclude=set())
+        routine.post_summary(summary)
+        self.assertEqual([o.status for o in outcomes], ["error", "error", "merged"])
+        self.assertIn("could not ask Dependabot to rebuild it", outcomes[0].detail)
+        self.assertIn("could not ask Dependabot to rebuild it", outcomes[1].detail)
+        self.assertEqual(len(self.world.ran("gh", "issue", "comment")), 1)
 
     def test_github_failures_outside_a_pr_are_reported_in_the_summary(self) -> None:
         self.world.add(92)
