@@ -125,16 +125,18 @@ Rules every stage checks:
 
 ## 4. Keeping it playable on the phone
 
-- **At most four people in one place** at every hour the world sheet lists. A
-  whole household at home is at most three or four, so this mainly constrains the
-  village road in the afternoon and Darcy's in the evening, where visitors
-  join the Darcys. Stages stagger schedules to keep to it. Under the
+- **No cap on how many people share a place.** Schedules follow what people in
+  the village would plausibly do, not a limit set by the screen (owner,
+  2026-10-18). With households of about three, most places hold one to three
+  people; crowds come from gatherings, such as evenings at Darcy's. Under the
   [recipient contract](dynamic-npc-context.md) (§3.1, step 5), an unaddressed line
-  with two or more people present asks "Who are you speaking to?". With four
-  people that is five buttons, four people and **All**.
-- **One schedule for every day.** An 1820 Sunday would put the whole village at
-  Mass at once. The tiny world uses one schedule for all days, and this target
-  does too. Sundays and market days wait for a later proposal.
+  with two or more people present asks "Who are you speaking to?", with one button
+  per person and **All**. When a stage first produces a crowd, that stage also
+  makes the question work for a crowd, for example by listing first the people the
+  player has been talking with.
+- **One schedule for every day, for now.** Sunday Mass and Saturday market need
+  the chapel and the market town, and neither is in this target. Until a stage adds
+  the chapel, every NPC has one schedule for all days, as the tiny world does.
 - **Context size.** Each dialogue call carries every NPC and every place (the
   contract's §6 snapshot, `knownPeople` and `knownPlaces`). Fifteen people and six
   places is a modest increase on three and three. At parish scale this has to
@@ -153,7 +155,7 @@ issue #2200 lands the regression fixture, the gate and the proposal template.
 | Stage | Adds                                                    | World after               | What it tests first                                                 |
 | ----- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------- |
 | 1     | The Gallaghers and their forge                          | 4 locations, 6 people     | A third household; a family of three at home together               |
-| 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering at the four-person cap                         |
+| 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering; the recipient question in a crowd             |
 | 3     | The Brennans and the school                             | 6 locations, 12 people    | Five exits on the village road; the recipient re-run                |
 | 4     | A third member for the Hannigan and Connolly households | 6 locations, 14–15 people | Growing an existing household without breaking its tested behaviour |
 
