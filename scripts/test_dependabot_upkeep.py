@@ -74,7 +74,7 @@ class FakeWorld:
         self.behind: dict[int, int] = {}
         self.classify: dict[int, int] = {}
         self.conflicts: set[int] = set()
-        self.checks: dict[int, list[list[dict[str, str]]]] = {}
+        self.checks: dict[int, list[Any]] = {}  # check lists, or a failure name
         self.commits: dict[int, list[dict[str, Any]]] = {}
         self.reviews: dict[int, list[dict[str, Any]]] = {}
         self.merged: set[int] = set()
@@ -94,6 +94,8 @@ class FakeWorld:
         self.fix_app_inputs: set[int] = set()  # PRs whose fix touches an app input
         self.main_moves_inputs: set[int] = set()  # PRs whose merge with main changes inputs
         self.ls_tree_fails = False
+        self.pinned = True
+        self.dispatch_fails = False
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
@@ -180,7 +182,13 @@ class FakeWorld:
             return self.ok(self.prs[number])
         if args[:2] == ("pr", "checks"):
             states = self.checks[int(args[2])]
-            current = states.pop(0) if len(states) > 1 else states[0]
+            current: Any = states.pop(0) if len(states) > 1 else states[0]
+            if current == "none-yet":
+                return Result(1, "", "no required checks reported on the 'x' branch")
+            if current == "api-error":
+                return Result(1, "", "HTTP 502: Bad Gateway")
+            if current == "garbled":
+                return Result(0, "<html>", "")
             failing = any(c["bucket"] == "fail" for c in current)
             return self.ok(current, 1 if failing else 0)
         if args[:2] == ("issue", "comment"):
@@ -191,10 +199,12 @@ class FakeWorld:
             return self.ok()
         if args[:2] == ("issue", "list"):
             return self.ok(self.issues)
+        if args[:2] == ("issue", "view"):
+            return self.ok({"isPinned": self.pinned})
         if args[:2] == ("issue", "create"):
             return Result(0, f"https://github.com/{REPO}/issues/77\n")
         if args[:2] == ("workflow", "run"):
-            return self.ok()
+            return Result(1, "", "HTTP 422") if self.dispatch_fails else self.ok()
         if args[:2] == ("run", "list"):
             return self.ok(self.runs)
         if args[:2] == ("run", "rerun"):
@@ -495,6 +505,13 @@ class FlowTests(UpkeepCase):
         self.assertEqual(len(self.world.ran("pgrep")), 3)
         self.assertGreaterEqual(self.clock[0], 2 * upkeep.POLL)
 
+    def test_a_failing_pgrep_is_an_error_not_a_free_slot(self) -> None:
+        self.world.add(26, classify=upkeep.NEEDS_PASS)
+        self.world.pgrep = [3]
+        outcome = self.outcome(26)
+        self.assertEqual(outcome.status, "error")
+        self.assertEqual(self.world.ran("just"), [])
+
     def test_mobile_verify_lock_is_exclusive(self) -> None:
         routine = self.make()
         routine.state.mkdir(parents=True)
@@ -549,6 +566,22 @@ class FlowTests(UpkeepCase):
         self.world.add(32)
         self.world.checks[32] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
         self.assertEqual(self.outcome(32, fix=False).status, "red")
+        self.assertEqual(self.world.ran("claude"), [])
+
+    def test_checks_not_yet_registered_count_as_pending(self) -> None:
+        self.world.add(35)
+        green = [{"name": "CI gate", "bucket": "pass", "link": "l"}]
+        self.world.checks[35] = ["none-yet", "api-error", green]  # one transient read failure
+        self.world.gatekeeper[35] = self.world.approve_and_merge(35)
+        self.assertEqual(self.outcome(35).status, "merged")
+
+    def test_repeated_check_read_failures_are_an_error_not_a_timeout(self) -> None:
+        for number, failure in ((36, "api-error"), (37, "garbled")):
+            self.world.add(number)
+            self.world.checks[number] = [failure]
+            outcome = self.outcome(number)
+            self.assertEqual(outcome.status, "error", failure)
+            self.assertIn("gh pr checks", outcome.detail)
         self.assertEqual(self.world.ran("claude"), [])
 
     def test_checks_that_never_finish_time_out(self) -> None:
@@ -612,6 +645,15 @@ class FlowTests(UpkeepCase):
         self.assertIn("dry_run=true", dispatch)
         self.assertEqual(len(self.world.ran("gh", "pr", "comment")), 1)
 
+    def test_a_release_dry_run_that_cannot_start_is_an_error(self) -> None:
+        self.world.add(73)
+        self.world.files[73] = [".github/workflows/release.yml"]
+        self.world.workflows = {".github/workflows/release.yml": RELEASE}
+        self.world.dispatch_fails = True
+        outcome = self.outcome(73)
+        self.assertEqual(outcome.status, "error")
+        self.assertEqual(self.world.ran("claude"), [])
+
     def test_unreadable_workflows_are_an_error_not_a_skipped_probe(self) -> None:
         self.world.add(72)
         self.world.files[72] = [".github/workflows/release.yml"]
@@ -646,6 +688,14 @@ class FlowTests(UpkeepCase):
         self.make().post_summary("hello")
         self.assertEqual(self.world.ran("gh", "issue", "create"), [])
         self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+
+    def test_an_unpinned_tracking_issue_is_pinned_again(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "pin"), [])
+        self.world.pinned = False
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "5")
 
     def test_tracking_issue_is_created_and_pinned_once(self) -> None:
         self.make().post_summary("hello")

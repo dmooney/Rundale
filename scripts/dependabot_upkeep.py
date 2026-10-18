@@ -477,15 +477,28 @@ class Upkeep:
         return {(c.get("author") or {}).get("login", "") for page in pages or [] for c in page}
 
     def checks(self, pr: PullRequest) -> tuple[str, list[str]]:
-        result = self.sh.run(
-            ["gh", "pr", "checks", str(pr.number), "-R", self.repo, "--required",
-             "--json", "name,bucket,link"],
-        )  # fmt: skip
-        # Exit 1 means a failing check (JSON still printed) or no checks yet; 8 is pending.
+        """The required checks' state; a failed or malformed read raises."""
+
+        cmd = ["gh", "pr", "checks", str(pr.number), "-R", self.repo, "--required",
+               "--json", "name,bucket,link"]  # fmt: skip
+        result = self.sh.run(cmd)
+        # gh exits 0 when all pass, 1 when one fails (JSON still printed) or
+        # none are reported yet, and 8 while some are pending.
+        if result.returncode == 1 and not result.stdout.strip():
+            if (
+                "no required checks reported" in result.stderr
+                or "no checks reported" in result.stderr
+            ):
+                return "pending", []  # CI has not registered the new head's checks yet
+            raise CommandError(cmd, result)
+        if result.returncode not in (0, 1, 8):
+            raise CommandError(cmd, result)
         try:
-            data = json.loads(result.stdout) if result.stdout.strip() else []
+            data = json.loads(result.stdout)
         except json.JSONDecodeError:
-            data = []
+            raise CommandError(cmd, result) from None
+        if not isinstance(data, list):
+            raise CommandError(cmd, result)
         return summarize_checks(data)
 
     # Steps ------------------------------------------------------------------
@@ -579,12 +592,19 @@ class Upkeep:
                     if self.clock() >= deadline:
                         raise TimeoutError("mobile-verify lock still held") from None
                     self.sleep(POLL)
-            while self.sh.run(["pgrep", "-fl", VERIFY_PROCESS]).ok:
+            while self.another_verify_running():
                 if self.clock() >= deadline:
                     raise TimeoutError("another mobile-verify run is still going")
                 self.sh.say("  waiting for another mobile-verify run to finish")
                 self.sleep(POLL)
             yield
+
+    def another_verify_running(self) -> bool:
+        cmd = ["pgrep", "-fl", VERIFY_PROCESS]
+        found = self.sh.run(cmd)
+        if found.returncode not in (0, 1):  # 1: no match; anything else is pgrep failing
+            raise CommandError(cmd, found)
+        return found.returncode == 0
 
     def mobile_verify(self, pr: PullRequest) -> bool:
         """Run the full gate on the work checkout's HEAD; True when it passed."""
@@ -631,10 +651,10 @@ class Upkeep:
                     "--json", "databaseId,status,conclusion",
                 )  # fmt: skip
             if run.get("conclusion") == "failure":
-                self.sh.run(
-                    ["gh", "run", "rerun", str(run["databaseId"]), "-R", self.repo, "--failed"],
-                    mutating=True,
-                )
+                cmd = ["gh", "run", "rerun", str(run["databaseId"]), "-R", self.repo, "--failed"]
+                rerun = self.sh.run(cmd, mutating=True)
+                if not rerun.ok:
+                    raise CommandError(cmd, rerun)
 
     def bring_current(self, pr: PullRequest, outcome: Outcome) -> tuple[PullRequest, bool]:
         """Update the PR from main and record its mobile-verify pass when needed.
@@ -703,9 +723,20 @@ class Upkeep:
         return pr, passed
 
     def wait_for_checks(self, pr: PullRequest) -> tuple[str, list[str]]:
+        """Poll the required checks; three failed reads in a row end the PR's processing."""
+
         deadline = self.clock() + SECONDS["checks"]
+        failed_reads = 0
         while True:
-            state, failing = self.checks(pr)
+            try:
+                state, failing = self.checks(pr)
+            except CommandError:
+                failed_reads += 1
+                if failed_reads >= 3 or self.sh.dry_run:
+                    raise
+                self.sleep(POLL)
+                continue
+            failed_reads = 0
             if state != "pending" or self.sh.dry_run:
                 return state, failing
             if self.clock() >= deadline:
@@ -716,7 +747,7 @@ class Upkeep:
         """One bounded `claude -p` fix on the PR head; the pushed PR, or None."""
 
         if not self.checkout_work(pr) and not self.sh.dry_run:
-            return None
+            raise RuntimeError("could not check out the PR head for the fix attempt")
         prompt = (
             f"Dependabot pull request #{pr.number} ({pr.title}) in {self.repo} fails these "
             f"checks: {'; '.join(failing) or 'see the PR'}. This checkout is at its head "
@@ -807,13 +838,13 @@ class Upkeep:
         self, pr: PullRequest, name: str, inputs: dict[str, str], outcome: Outcome
     ) -> bool:
         args = [arg for key, value in inputs.items() for arg in ("-f", f"{key}={value}")]
-        started = self.sh.run(
-            ["gh", "workflow", "run", name, "-R", self.repo, "--ref", pr.head_ref, *args],
-            mutating=True,
-        )
+        dispatch = ["gh", "workflow", "run", name, "-R", self.repo, "--ref", pr.head_ref, *args]
+        started = self.sh.run(dispatch, mutating=True)
         if started.skipped:
             outcome.notes.append(f"would dry-run {name} on the PR branch")
             return True
+        if not started.ok:
+            raise CommandError(dispatch, started)
         deadline = self.clock() + SECONDS["probe"]
         while self.clock() < deadline:
             self.sleep(POLL)
@@ -827,12 +858,12 @@ class Upkeep:
                 passed = run["conclusion"] == "success"
                 note = f"{name} dry run on {pr.head_sha[:12]}: {run['conclusion']} ({run['url']})"
                 outcome.notes.append(note)
-                self.sh.run(
-                    ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body",
-                     cap_body(f"Dependabot upkeep: {note}. `{name}` never runs on pull requests, "
-                              "so this manual dry run is its only check before merge.")],
-                    mutating=True,
-                )  # fmt: skip
+                comment = ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body",
+                           cap_body(f"Dependabot upkeep: {note}. `{name}` never runs on pull "
+                                    "requests, so this manual dry run is its only check before merge.")]  # fmt: skip
+                posted = self.sh.run(comment, mutating=True)
+                if not posted.ok:  # the gatekeeper must see the result
+                    raise CommandError(comment[:3], posted)
                 return passed
         outcome.notes.append(f"{name} dry run did not finish within an hour")
         return False
@@ -992,7 +1023,13 @@ class Upkeep:
         )  # fmt: skip
         for issue in issues or []:
             if TRACKING_MARKER in (issue.get("body") or ""):
-                return int(issue["number"])
+                number = int(issue["number"])
+                pinned = self.gh(
+                    "issue", "view", str(number), "-R", self.repo, "--json", "isPinned"
+                )
+                if not (pinned or {}).get("isPinned"):
+                    self.pin(number)
+                return number
         body = (
             f"{TRACKING_MARKER}\nThe weekly Dependabot upkeep routine "
             "(`scripts/dependabot_upkeep.py`, issue #2098) comments here after each run: "
@@ -1009,8 +1046,17 @@ class Upkeep:
         if not created.ok:
             raise CommandError(["gh", "issue", "create"], created)
         number = int(created.stdout.strip().rsplit("/", 1)[1])
-        self.sh.run(["gh", "issue", "pin", str(number), "-R", self.repo], mutating=True)
+        self.pin(number)
         return number
+
+    def pin(self, number: int) -> None:
+        """Pin the tracking issue; a failure is reported, and the next run tries again."""
+
+        pinned = self.sh.run(["gh", "issue", "pin", str(number), "-R", self.repo], mutating=True)
+        if not pinned.ok:
+            problem = f"could not pin #{number}: {pinned.stderr.strip()}"
+            self.sh.say(problem)
+            self.problems.append(problem)
 
     def run(self, *, only: set[int], exclude: set[int]) -> tuple[list[Outcome], str]:
         self.sh.say(f"Dependabot upkeep for {self.repo}{' (dry run)' if self.sh.dry_run else ''}")
@@ -1131,7 +1177,8 @@ def install(args: argparse.Namespace, shell: Shell) -> int:
     review, work = state / "review", state / "work"
     (state / "logs").mkdir(parents=True, exist_ok=True)
     source = ROOT
-    shell.run(["git", "fetch", "-q", "origin", "main"], cwd=source)
+    if not shell.run(["git", "fetch", "-q", "origin", "main"], cwd=source).ok:
+        return 1
     if not review.exists():
         steps = [
             ["git", "worktree", "add", "-q", "-B", REVIEW_BRANCH, str(review), "origin/main"],
