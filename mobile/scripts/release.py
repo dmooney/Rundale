@@ -17,6 +17,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
+import urllib.request
+from base64 import urlsafe_b64encode
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -197,13 +200,71 @@ def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
     ]
 
 
-def release_build_number(root: Path) -> int:
-    """Return HEAD's commit count, the build number an upload requests.
+APP_STORE_CONNECT_APP_ID = "6811694290"
+APP_STORE_CONNECT_BUILDS_URL = (
+    "https://api.appstoreconnect.apple.com/v1/builds"
+    f"?filter[app]={APP_STORE_CONNECT_APP_ID}&sort=-uploadedDate&limit=200&fields[builds]=version"
+)
 
-    It rises with every commit on main, so each upload asks for a higher
-    number than the last without editing project.yml. App Store Connect may
-    still renumber the build (manageAppVersionAndBuildNumber).
-    """
+
+def _b64url(data: bytes) -> str:
+    return urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _der_to_raw_signature(der: bytes) -> bytes:
+    """Turn an ECDSA DER signature (SEQUENCE of r, s) into JWT's raw r || s."""
+
+    def read_int(offset: int) -> tuple[bytes, int]:
+        if der[offset] != 0x02:
+            raise RuntimeError("unexpected ECDSA signature encoding")
+        length = der[offset + 1]
+        value = der[offset + 2 : offset + 2 + length].lstrip(b"\x00")
+        if len(value) > 32:
+            raise RuntimeError("unexpected ECDSA signature length")
+        return value.rjust(32, b"\x00"), offset + 2 + length
+
+    if der[0] != 0x30:
+        raise RuntimeError("unexpected ECDSA signature encoding")
+    offset = 3 if der[1] & 0x80 else 2
+    r, offset = read_int(offset)
+    s, _ = read_int(offset)
+    return r + s
+
+
+def app_store_connect_token(key_path: str, key_id: str, issuer: str, now: int | None = None) -> str:
+    """A 10-minute App Store Connect API token, signed ES256 with `openssl`."""
+
+    now = int(time.time()) if now is None else now
+    header = _b64url(json.dumps({"alg": "ES256", "kid": key_id, "typ": "JWT"}).encode())
+    claims = {"iss": issuer, "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"}
+    signing_input = f"{header}.{_b64url(json.dumps(claims).encode())}"
+    der = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-sign", key_path],
+        input=signing_input.encode(),
+        check=True,
+        capture_output=True,
+    ).stdout
+    return f"{signing_input}.{_b64url(_der_to_raw_signature(der))}"
+
+
+def latest_uploaded_build(token: str) -> int | None:
+    """The highest build number App Store Connect holds for the app, or None."""
+
+    request = urllib.request.Request(
+        APP_STORE_CONNECT_BUILDS_URL, headers={"Authorization": f"Bearer {token}"}
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        body = json.load(response)
+    versions = [
+        int(build["attributes"]["version"])
+        for build in body.get("data", [])
+        if str(build.get("attributes", {}).get("version", "")).isdigit()
+    ]
+    return max(versions, default=None)
+
+
+def commit_count(root: Path) -> int:
+    """HEAD's commit count, the fallback build number without an API key."""
     shallow = subprocess.run(
         ["git", "rev-parse", "--is-shallow-repository"],
         cwd=root,
@@ -223,6 +284,29 @@ def release_build_number(root: Path) -> int:
         text=True,
     ).stdout.strip()
     return int(count)
+
+
+def release_build_number(
+    root: Path,
+    env: dict[str, str] | None = None,
+    latest: Callable[[str], int | None] = latest_uploaded_build,
+) -> tuple[int, bool]:
+    """The build number to upload, and whether App Store Connect fixed it.
+
+    With an App Store Connect API key, it is one above the highest build
+    already uploaded, so the archive carries the number TestFlight shows,
+    whichever branch or machine uploads. Without a key it falls back to
+    HEAD's commit count, and Xcode may renumber the upload
+    (manageAppVersionAndBuildNumber).
+    """
+
+    env = dict(os.environ) if env is None else env
+    key_path, key_id, issuer = (env.get(name, "") for name in ASC_KEY_ENV)
+    if key_path and key_id and issuer:
+        highest = latest(app_store_connect_token(key_path, key_id, issuer))
+        if highest is not None:
+            return highest + 1, True
+    return commit_count(root), False
 
 
 def project_value(project_spec: Path, key: str) -> str:
@@ -448,8 +532,14 @@ class Release:
                 print(
                     "Skipping mobile-verify (--verify none): the caller found a recorded pass for this tree."
                 )
-            build = release_build_number(self.paths.root)
-            print(f"Requested build number: {build} (commit count of HEAD)")
+            build, fixed = release_build_number(self.paths.root)
+            if fixed:
+                print(f"Build number: {build} (App Store Connect's latest upload plus one)")
+            else:
+                print(
+                    f"Requested build number: {build} (commit count of HEAD; no API key, "
+                    "so Xcode may renumber the upload)"
+                )
             # The verifier builds the Rust framework; without it, build it here.
             self.common_prepare(build_rust=not self.verify)
             self.run_command(
@@ -517,8 +607,8 @@ class Release:
                             "status": "upload_requested",
                             "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
                             "requestedBuild": build,
-                            "uploadedBuild": None,
-                            "appStoreConnectAppID": "6811694290",
+                            "uploadedBuild": build if fixed else None,
+                            "appStoreConnectAppID": APP_STORE_CONNECT_APP_ID,
                             "testingStatus": "pending_apple_processing",
                         },
                         indent=2,
@@ -529,7 +619,10 @@ class Release:
                 print(
                     "Upload succeeded; Apple processing/compliance and Testing status remain pending."
                 )
-                print("Xcode manages the uploaded build number; confirm it in App Store Connect.")
+                if not fixed:
+                    print(
+                        "Xcode manages the uploaded build number; confirm it in App Store Connect."
+                    )
                 print(f"Upload log and receipt: {self.paths.output}")
 
     def validate_app(
