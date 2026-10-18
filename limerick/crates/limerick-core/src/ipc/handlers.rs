@@ -416,6 +416,28 @@ fn mention_boundary(ch: Option<char>) -> bool {
     }
 }
 
+/// Byte length of the longest prefix of `rest` that spells `wanted` once
+/// both are folded with the engine's name fold, ending at a mention
+/// boundary. Fadas may be typed, left out, or typed as combining marks.
+fn folded_prefix_len(rest: &str, wanted: &str) -> Option<usize> {
+    let wanted = crate::npc::fold_name(wanted);
+    if wanted.is_empty() {
+        return None;
+    }
+    let mut best = None;
+    for (index, ch) in rest.char_indices() {
+        let end = index + ch.len_utf8();
+        let folded = crate::npc::fold_name(&rest[..end]);
+        if !wanted.starts_with(folded.as_str()) {
+            break;
+        }
+        if folded == wanted && mention_boundary(rest[end..].chars().next()) {
+            best = Some(end);
+        }
+    }
+    best
+}
+
 #[derive(Debug, Clone)]
 struct NpcMentionCandidate {
     text: String,
@@ -718,22 +740,13 @@ pub fn extract_npc_mentions(
         let rest = &raw[at + 1..];
         let mut matched: Option<(usize, String)> = None;
         for candidate in &candidates {
-            if rest.len() < candidate.text.len() {
-                continue;
-            }
-            let candidate_len = candidate.text.len();
-            let Some(text) = rest.get(..candidate_len) else {
+            // Folded on both sides (design §3.5): "@Roisin" tags Róisín.
+            let Some(candidate_len) = folded_prefix_len(rest, &candidate.text) else {
                 continue;
             };
-            let Some(after) = rest.get(candidate_len..) else {
-                continue;
-            };
-            if text.eq_ignore_ascii_case(&candidate.text) && mention_boundary(after.chars().next())
-            {
-                match &matched {
-                    Some((len, _)) if *len >= candidate_len => {}
-                    _ => matched = Some((candidate_len, candidate.target.clone())),
-                }
+            match &matched {
+                Some((len, _)) if *len >= candidate_len => {}
+                _ => matched = Some((candidate_len, candidate.target.clone())),
             }
         }
 
@@ -1764,6 +1777,28 @@ mod tests {
 
         assert_eq!(extracted.names, ["Padraig O'Brien"]);
         assert_eq!(extracted.remaining, "what have you heard?");
+    }
+
+    /// Design §3.5: an @tag typed as text folds like every name matcher, so
+    /// fadas may be left out or typed as combining marks.
+    #[test]
+    fn an_at_tag_typed_without_fadas_or_with_combining_marks_tags_the_person() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.set_location(world.player_location);
+        npc.name = "Róisín Connolly".to_string();
+        npc_mgr.add_npc(npc);
+
+        for raw in [
+            "@Roisin Connolly any news?",
+            "@roisin connolly any news?",
+            "@Ro\u{301}isi\u{301}n Connolly any news?",
+        ] {
+            let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+            assert_eq!(extracted.names, ["Róisín Connolly"], "{raw:?}");
+            assert_eq!(extracted.remaining, "any news?", "{raw:?}");
+        }
     }
 
     #[test]
