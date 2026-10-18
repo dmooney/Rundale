@@ -58,18 +58,11 @@
       "residents": []
     },
     {
-      "aliases": [
-        "office",
-        "post office",
-        "letters",
-        "the letter office"
-      ],
+      "aliases": ["office", "post office", "letters", "the letter office"],
       "description": "A narrow counter, pigeonholes of folded paper, and a small turf fire.",
       "name": "Letter Office",
       "optionId": "l2",
-      "residents": [
-        "a sharp-eyed woman with a satchel of letters"
-      ]
+      "residents": ["a sharp-eyed woman with a satchel of letters"]
     },
     {
       "aliases": [
