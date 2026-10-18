@@ -7,7 +7,9 @@
 > `requests.json`, the state and questions each case sends; `summary.json`)
 > is kept out of git, in the owner's iCloud Drive under
 > `Rundale/test-data/2026-10-17-intent-recipient-comparison/`: `cmp-old` is
-> the 2026-10-10 run re-scored, `cmp-new1` to `cmp-new4` the four runs below.
+> the 2026-10-10 run re-scored, `cmp-new1` to `cmp-new4` the four runs below,
+> and `2026-10-18-cmp-partner`, `-cmp-carry` and `-cmp-carry2` the partner
+> variants under Open cases.
 
 **Result.** The shipped definition (run 3) gets 258 of 275 lines right with
 no line sent to the wrong person, against 242 and 5 wrong routes for the
@@ -101,8 +103,24 @@ All ask; none sends a line to the wrong person.
   Mícheál still keep the black cow?" should be "no one in particular", so the
   partner answers. Jev gives Mícheál 0.38 to 0.44 for the harvest line (a
   topic he knows) and splits the cow line between the two Connollys, so both
-  come out unsure and the game asks. Jev is not told who the partner is. The
-  owner's call: whether the input should say who the partner is.
+  come out unsure and the game asks. Jev is not told who the partner is.
+  On 2026-10-18 the owner asked for the partner to be tried in the input.
+  Three variants were run (5 runs per case, at the engine's thresholds):
+
+  | Variant                                                       | Correct | Wrong routes | Unnecessary questions |
+  | ------------------------------------------------------------- | ------: | -----------: | --------------------: |
+  | Shipped (run 3)                                               | 258/275 |            0 |                    16 |
+  | A `partner` flag on each person present, in the criterion     | 249/275 |            0 |                    23 |
+  | A "carries on the conversation" option in place of "no one"   | 258/275 |            5 |                    12 |
+  | The same, with the "no one" examples kept (oaths, follow-ups) | 251/275 |            1 |                    19 |
+
+  A14 and A15 still asked in every run of every variant: "And how's the
+  harvest?" draws Mícheál (a smallholder) whatever the partner, and the
+  variants cost correct answers or added wrong routes elsewhere (A30's oath
+  without its example). **Owner decision (2026-10-18):** keep the shipped
+  definition, without the partner, and accept that A14 and A15 ask "Who are
+  you speaking to?". They never send a line to the wrong person.
+
 - **A21 and A22**: "Peig, are you there?" reaches 0.70 for "someone not
   present" in two of five runs; otherwise Róisín takes about 0.3 and the game
   asks.
