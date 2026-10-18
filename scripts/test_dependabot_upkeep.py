@@ -7,8 +7,10 @@ import fcntl
 import importlib
 import io
 import json
+import os
 import sys
 import tempfile
+import time
 import unittest
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -81,6 +83,7 @@ class FakeWorld:
         self.issues: list[dict[str, Any]] = []
         self.generation = 0
         self.work_pr: int | None = None
+        self.comment_rc = 0
 
     def add(self, number: int, *, behind: int = 0, classify: int = 3, **extra: Any) -> None:
         self.prs[number] = pr_json(number, f"{number:04d}{'0' * 36}", **extra)
@@ -160,7 +163,9 @@ class FakeWorld:
             current = states.pop(0) if len(states) > 1 else states[0]
             failing = any(c["bucket"] == "fail" for c in current)
             return self.ok(current, 1 if failing else 0)
-        if args[:2] in (("pr", "comment"), ("issue", "pin"), ("issue", "comment")):
+        if args[:2] == ("issue", "comment"):
+            return Result(self.comment_rc, "", "HTTP 502" if self.comment_rc else "")
+        if args[:2] in (("pr", "comment"), ("issue", "pin")):
             return self.ok()
         if args[:2] == ("issue", "list"):
             return self.ok(self.issues)
@@ -355,6 +360,7 @@ class PureLogicTests(unittest.TestCase):
         )
         self.assertEqual(plist["Label"], "com.rundale.dependabot-upkeep")
         self.assertEqual(plist["StartCalendarInterval"]["Weekday"], 1)
+        self.assertEqual(plist["ProcessType"], "Standard")
         args = plist["ProgramArguments"]
         self.assertEqual(args[:3], ["/usr/bin/caffeinate", "-i", "/opt/homebrew/bin/python3"])
         self.assertEqual(args[4:], ["run", "--self-update", "--exclude", "2238"])
@@ -569,6 +575,69 @@ class FlowTests(UpkeepCase):
         self.assertEqual(len(self.world.ran("gh", "issue", "create")), 1)
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "77")
         self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "77")
+
+
+class SweepAndSummaryTests(UpkeepCase):
+    def test_final_sweep_updates_red_prs_but_never_owner_held_ones(self) -> None:
+        red = [{"name": "CI gate", "bucket": "fail", "link": "l"}]
+        for number in (80, 81, 82, 83):
+            self.world.add(number)
+        self.world.checks[80] = [red]
+        self.world.checks[83] = [red]
+
+        def merge_and_move_main(_family: str) -> None:
+            self.world.merged.add(81)
+            for other in (80, 82, 83):
+                self.world.behind[other] = 1
+            # The owner takes PR 83 while the run is going.
+            self.world.prs[83]["labels"] = [{"name": "needs-owner"}]
+
+        self.world.gatekeeper[81] = merge_and_move_main
+        self.world.gatekeeper[82] = self.world.verdict(82, "handoff")
+        outcomes, _ = self.make(fix=False).run(only=set(), exclude=set())
+        self.assertEqual([o.status for o in outcomes], ["red", "merged", "handoff", "owner"])
+        updated = [cmd[4].split("/")[-2] for cmd in self.world.ran("gh", "api", "-X", "PUT")]
+        # 82 was behind when processed and 83 was labelled before its turn; after
+        # the run only the red, unheld 80 is refreshed.
+        self.assertEqual(updated, ["82", "80"])
+
+    def test_undelivered_summary_fails_the_run(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.comment_rc = 1
+        with self.assertRaises(upkeep.CommandError):
+            self.make().post_summary("hello")
+
+    def test_summary_is_capped_below_githubs_body_limit(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("x" * 100_000)
+        body = self.world.ran("gh", "issue", "comment")[0][-1]
+        self.assertLessEqual(len(body), int(upkeep.GITHUB_BODY_LIMIT * 0.9))
+        self.assertTrue(body.endswith("chars]"))
+        self.assertEqual(upkeep.cap_body("short"), "short")
+
+
+class ProcessTests(unittest.TestCase):
+    def test_a_timeout_stops_the_commands_descendants_too(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = Path(tmp) / "child.pid"
+            script = f"sleep 60 & echo $! > {pidfile}; wait"
+            result = upkeep.subprocess_executor(["sh", "-c", script], None, 1, None)
+            self.assertEqual(result.returncode, 124)
+            child = int(pidfile.read_text())
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(child, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            else:
+                os.kill(child, 9)
+                self.fail("the backgrounded child outlived the timed-out command")
+
+    def test_stdin_is_closed_and_output_captured(self) -> None:
+        result = upkeep.subprocess_executor(["sh", "-c", "cat; echo done"], None, 10, None)
+        self.assertEqual((result.returncode, result.stdout), (0, "done\n"))
 
 
 class MergeOwnershipTests(unittest.TestCase):

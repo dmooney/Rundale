@@ -45,11 +45,12 @@ import os
 import plistlib
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
@@ -86,6 +87,7 @@ SECONDS = {
     "verify_lock": 6 * 3600,
 }
 POLL = 60
+GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
 
 # verify_record.py check exit statuses.
 RECORDED, NEEDS_PASS, NOT_APP_INPUT = 0, 1, 3
@@ -118,37 +120,61 @@ class Result:
 Executor = Callable[[Sequence[str], "Path | None", "float | None", "Path | None"], Result]
 
 
+def end_process_group(process: subprocess.Popen[Any], grace: float = 10) -> None:
+    """Stop a command started in its own session, and every descendant still in its group.
+
+    Killing only the direct child would leave an agent's or a build's children
+    using the checkout after the routine moved on to the next pull request.
+    """
+
+    with suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGTERM)
+    with suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=grace)
+    # Whatever is still in the group, leader or descendants, gets SIGKILL.
+    with suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGKILL)
+    with suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=grace)
+
+
 def subprocess_executor(
     cmd: Sequence[str], cwd: Path | None, timeout: float | None, output: Path | None
 ) -> Result:
-    """Run a command with stdin closed: `claude -p` and `codex exec` wait on an open stdin."""
+    """Run a command in its own process group with stdin closed.
 
-    try:
+    `claude -p` and `codex exec` wait forever on an open stdin. On a timeout
+    the whole group is stopped, not just the direct child.
+    """
+
+    with ExitStack() as stack:
+        sink: TextIO | None = None
         if output is not None:
             output.parent.mkdir(parents=True, exist_ok=True)
-            with output.open("a", encoding="utf-8") as sink:
-                logged = subprocess.run(
-                    list(cmd),
-                    cwd=cwd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=sink,
-                    stderr=subprocess.STDOUT,
-                    timeout=timeout,
-                )
-            return Result(logged.returncode, f"(output in {output})")
-        done = subprocess.run(
-            list(cmd),
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return Result(done.returncode, done.stdout, done.stderr)
-    except subprocess.TimeoutExpired:
-        return Result(124, "", f"timed out after {timeout}s: {shlex.join(cmd)}")
-    except FileNotFoundError as error:
-        return Result(127, "", str(error))
+            sink = stack.enter_context(output.open("a", encoding="utf-8"))
+        try:
+            process = subprocess.Popen(
+                list(cmd),
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=sink if sink is not None else subprocess.PIPE,
+                stderr=subprocess.STDOUT if sink is not None else subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+        except FileNotFoundError as error:
+            return Result(127, "", str(error))
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            end_process_group(process)
+            return Result(124, "", f"timed out after {timeout}s: {shlex.join(cmd)}")
+        except BaseException:
+            end_process_group(process)
+            raise
+        if sink is not None:
+            return Result(process.returncode, f"(output in {output})")
+        return Result(process.returncode, stdout or "", stderr or "")
 
 
 class Shell:
@@ -306,6 +332,17 @@ def unexercised_workflows(changed: Sequence[str], workflows: dict[str, str]) -> 
         and path in workflows
         and path not in on_pr | called
     )
+
+
+def cap_body(text: str, limit: int = GITHUB_BODY_LIMIT) -> str:
+    """Truncate a GitHub body to 90% of its limit, marking what was cut."""
+
+    budget = int(limit * 0.9)
+    if len(text) <= budget:
+        return text
+    marker_room = len(f"\n\n[truncated {len(text)} chars]")
+    kept = budget - marker_room
+    return f"{text[:kept]}\n\n[truncated {len(text) - kept} chars]"
 
 
 def render_summary(outcomes: Sequence[Outcome], *, when: str, dry_run: bool) -> str:
@@ -710,8 +747,8 @@ class Upkeep:
                 outcome.notes.append(note)
                 self.sh.run(
                     ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body",
-                     f"Dependabot upkeep: {note}. `{name}` never runs on pull requests, so "
-                     "this manual dry run is its only check before merge."],
+                     cap_body(f"Dependabot upkeep: {note}. `{name}` never runs on pull requests, "
+                              "so this manual dry run is its only check before merge.")],
                     mutating=True,
                 )  # fmt: skip
                 return passed
@@ -873,7 +910,7 @@ class Upkeep:
             "and pinned."
         )
         created = self.sh.run(
-            ["gh", "issue", "create", "-R", self.repo, "--title", TRACKING_TITLE, "--body", body,
+            ["gh", "issue", "create", "-R", self.repo, "--title", TRACKING_TITLE, "--body", cap_body(body),
              "--label", "dependencies", "--label", "infra", "--label", "P3"],
             mutating=True,
         )  # fmt: skip
@@ -889,29 +926,36 @@ class Upkeep:
         self.sh.say(f"Dependabot upkeep for {self.repo}{' (dry run)' if self.sh.dry_run else ''}")
         prs = [pr for pr in self.open_prs() if not only or pr.number in only]
         outcomes = []
-        for pr in prs:
-            self.sh.say(f"\n#{pr.number} {pr.title}")
+        for listed in prs:
+            self.sh.say(f"\n#{listed.number} {listed.title}")
+            # Earlier merges in this run move main, and the owner may label a PR meanwhile.
+            pr = self.refresh(listed)
             outcome = self.process(pr, exclude)
             for note in outcome.notes:
                 self.sh.say(f"  - {note}")
             self.sh.say(f"  => {outcome.status}: {outcome.detail}")
             outcomes.append(outcome)
         if not self.sh.dry_run:
-            self.final_sweep(outcomes)
+            self.final_sweep(outcomes, exclude)
         when = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         summary = render_summary(outcomes, when=when, dry_run=self.sh.dry_run)
         return outcomes, summary
 
-    def final_sweep(self, outcomes: Sequence[Outcome]) -> None:
-        """Leave every PR still open current with main, after this run's merges."""
+    def final_sweep(self, outcomes: Sequence[Outcome], exclude: set[int]) -> None:
+        """Leave every PR still open current with main, after this run's merges.
+
+        A PR handed or escalated to the owner, or labelled `needs-owner` since
+        it was processed, is the owner's now and is not touched.
+        """
 
         still_open = {
             o.number
             for o in outcomes
-            if o.status in {"red", "changes", "handoff", "escalated", "blocked", "error", "timeout"}
+            if o.status in {"red", "changes", "blocked", "error", "timeout"}
         }
         for pr in self.open_prs():
-            if pr.number not in still_open:
+            held = pr.number in exclude or pr.draft or OWNER_LABEL in pr.labels
+            if pr.number not in still_open or held:
                 continue
             outcome = next(o for o in outcomes if o.number == pr.number)
             try:
@@ -925,10 +969,10 @@ class Upkeep:
         if number is None:  # dry run, no tracking issue yet
             self.sh.say(f"[dry-run] would comment the summary on a new '{TRACKING_TITLE}' issue")
             return
-        self.sh.run(
-            ["gh", "issue", "comment", str(number), "-R", self.repo, "--body", summary],
-            mutating=True,
-        )
+        cmd = ["gh", "issue", "comment", str(number), "-R", self.repo, "--body", cap_body(summary)]
+        posted = self.sh.run(cmd, mutating=True)
+        if not posted.ok:
+            raise CommandError(cmd[:4], posted)
 
 
 # Install / uninstall ------------------------------------------------------------
@@ -961,7 +1005,8 @@ def launch_agent_plist(
         "EnvironmentVariables": {"PATH": path_env, "RUNDALE_UPKEEP_STATE": str(state)},
         # A Monday the Mac sleeps through runs once on wake (cron would skip it).
         "StartCalendarInterval": {"Weekday": 1, "Hour": hour, "Minute": minute},
-        "ProcessType": "Background",
+        # Not "Background": launchd throttles that CPU and I/O, and mobile-verify builds.
+        "ProcessType": "Standard",
         "StandardOutPath": str(state / "logs" / "launchd.log"),
         "StandardErrorPath": str(state / "logs" / "launchd.log"),
     }
@@ -1100,7 +1145,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         (upkeep.logs / "summary.md").write_text(summary, encoding="utf-8")
         print("\n" + summary)
         if args.summary:
-            upkeep.post_summary(summary)
+            try:
+                upkeep.post_summary(summary)
+            except CommandError as error:
+                print(f"The summary was not posted: {error}", file=sys.stderr)
+                return 1
     return 1 if any(o.status == "error" for o in outcomes) else 0
 
 
