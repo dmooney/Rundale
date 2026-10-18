@@ -75,7 +75,9 @@ Placement rules:
   distance between coordinates into minutes at 1.25 m/s, rounded up, with a
   1-minute floor (`meters_to_minutes` in `limerick-world`), so neighbouring homes
   all show as a 1-minute walk. The existing homes are 190 m and 263 m away
-  (3 and 4 minutes).
+  (3 and 4 minutes). The same function caps a walk at 120 minutes, which
+  understates real distances at parish scale (Kilteevan to Curraghboy is about
+  16.5 km, roughly three and a half hours on foot).
 - **Coordinates come from the geo tool** (`/rundale-geo-tool`). The new homes are
   fictional and placed relative to the village, with an honest `geo_source`, as
   the existing two are.
