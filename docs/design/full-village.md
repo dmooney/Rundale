@@ -56,17 +56,17 @@ only hub.
                        \       /
  Connolly Cottage -- Kilteevan Village -- Darcy's
                           |
-                    Fallon's Cabin
+                     Schoolhouse
 ```
 
-| Location                 | Exits                                                                       | Household | What it adds                                     |
-| ------------------------ | --------------------------------------------------------------------------- | --------- | ------------------------------------------------ |
-| Kilteevan Village (have) | Letter Office, Connolly Cottage, Gallagher's Forge, Darcy's, Fallon's Cabin | —         | The street, where households cross paths.        |
-| Letter Office (have)     | Kilteevan Village                                                           | Hannigan  | News from beyond the parish; the gossip source.  |
-| Connolly Cottage (have)  | Kilteevan Village                                                           | Connolly  | Smallholding.                                    |
-| Gallagher's Forge        | Kilteevan Village                                                           | Gallagher | A workplace people come to.                      |
-| Darcy's                  | Kilteevan Village                                                           | Darcy     | A house that sells drink: the evening gathering. |
-| Fallon's Cabin           | Kilteevan Village                                                           | Fallon    | A labouring family, the village's poorest.       |
+| Location                 | Exits                                                                    | Household | What it adds                                                                        |
+| ------------------------ | ------------------------------------------------------------------------ | --------- | ----------------------------------------------------------------------------------- |
+| Kilteevan Village (have) | Letter Office, Connolly Cottage, Gallagher's Forge, Darcy's, Schoolhouse | —         | The street, where households cross paths.                                           |
+| Letter Office (have)     | Kilteevan Village                                                        | Hannigan  | News from beyond the parish; the gossip source.                                     |
+| Connolly Cottage (have)  | Kilteevan Village                                                        | Connolly  | Smallholding.                                                                       |
+| Gallagher's Forge        | Kilteevan Village                                                        | Gallagher | A workplace people come to.                                                         |
+| Darcy's                  | Kilteevan Village                                                        | Darcy     | Public house and huckster's shop: salt, tobacco and candles by day, drink at night. |
+| Schoolhouse              | Kilteevan Village                                                        | Brennan   | A cabin where the hedge school meets; the village's readers and writers.            |
 
 Placement rules:
 
@@ -80,11 +80,11 @@ Placement rules:
   the existing two are.
 - **Five exits from the village road.** That is one more than is comfortable, but
   it stays readable: "You can go to: Letter Office, Connolly Cottage, Gallagher's
-  Forge, Darcy's, Fallon's Cabin" wraps to three lines on a small iPhone. If later
+  Forge, Darcy's, Schoolhouse" wraps to three lines on a small iPhone. If later
   targets add more places, the street splits into two locations rather than
   growing a longer list.
 - **Short names with distinct one-word aliases:** office, cottage, forge,
-  Darcy's, cabin. Kilteevan Village already uses "road" and "village", so no new
+  Darcy's, school. Kilteevan Village already uses "road" and "village", so no new
   place may.
 
 Shared places that are not homes, such as a chapel, the holy well or the bog, are
@@ -94,13 +94,13 @@ not in this target. They are candidates for the next one.
 
 Names, ages and roles are provisional until each stage's data review.
 
-| Household                    | People                                                                                          | Stage |
-| ---------------------------- | ----------------------------------------------------------------------------------------------- | ----- |
-| Hannigan, Letter Office      | Peig (54, letter-office keeper); her nephew, who carries letters (new)                          | 4     |
-| Connolly, Connolly Cottage   | Mícheál (38, smallholder and drover); Róisín (31, spinner); their widowed mother (new)          | 4     |
-| Gallagher, Gallagher's Forge | Séamus (42, blacksmith); his wife; Colm (15, apprentice)                                        | 1     |
-| Darcy, Darcy's               | Pádraig (58, keeps the house and sells drink); his wife; Niamh (22, their daughter)             | 2     |
-| Fallon, Fallon's Cabin       | Donncha (26, labourer hired by the day); his wife; his mother, who keeps hens and tells stories | 3     |
+| Household                    | People                                                                                                                        | Stage |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Hannigan, Letter Office      | Peig (54, letter-office keeper); her nephew, who carries letters (new)                                                        | 4     |
+| Connolly, Connolly Cottage   | Mícheál (38, smallholder and drover); Róisín (31, spinner); their widowed mother (new)                                        | 4     |
+| Gallagher, Gallagher's Forge | Séamus (42, blacksmith); his wife; Colm (15, apprentice)                                                                      | 1     |
+| Darcy, Darcy's               | Pádraig (58, publican and shopkeeper); his wife; Niamh (22, their daughter)                                                   | 2     |
+| Brennan, Schoolhouse         | Aoife (29, hedge schoolmistress); her father, the old schoolmaster, who writes letters for those who cannot; her brother (17) | 3     |
 
 That is 2 + 3 + 3 + 3 + 3 = 14 people, or 15 if one household has four. The
 owner's average of three allows either.
@@ -119,9 +119,9 @@ Rules every stage checks:
   in the parish records are not used.
 - **Reused pre-reset characters are reviewed, not copied.** Séamus and Colm
   Gallagher and Pádraig and Niamh Darcy come from the pre-reset world
-  (`limerick/testing/fixtures/mods/rundale-legacy/`). Máire Gallagher does not,
-  because of the probe rule. Donncha replaces the pre-reset labourer Sean Ruadh
-  Kelly for the same reason.
+  (`limerick/testing/fixtures/mods/rundale-legacy/`). So does Aoife
+  Brennan, who now heads a schoolhouse household instead of living with the
+  Gallaghers. Máire Gallagher does not return, because of the probe rule.
 
 ## 4. Keeping it playable on the phone
 
@@ -154,7 +154,7 @@ issue #2200 lands the regression fixture, the gate and the proposal template.
 | ----- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------- |
 | 1     | The Gallaghers and their forge                          | 4 locations, 6 people     | A third household; a family of three at home together               |
 | 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering at the four-person cap                         |
-| 3     | The Fallons and their cabin                             | 6 locations, 12 people    | Five exits on the village road; the recipient re-run                |
+| 3     | The Brennans and the school                             | 6 locations, 12 people    | Five exits on the village road; the recipient re-run                |
 | 4     | A third member for the Hannigan and Connolly households | 6 locations, 14–15 people | Growing an existing household without breaking its tested behaviour |
 
 Stage 4 changes households that come from the tiny world. The tiny world stays
