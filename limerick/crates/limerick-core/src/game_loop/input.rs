@@ -14,19 +14,23 @@
 
 use tokio_util::sync::CancellationToken;
 
+use crate::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE;
+use crate::game_loop::recipients::{AddressRequest, Answers};
 use crate::game_loop::{
-    ADDRESSEE_CLARIFICATION_FLAG, GameInputOutcome, GameLoopContext, SettledInput, handle_movement,
+    GameInputOutcome, GameLoopContext, SettledInput, handle_movement,
     handle_npc_conversation_settled,
 };
 use crate::input::{
     AtmosphericTopic, PlayerIntent, detect_atmospheric_topic, is_directed_instruction_dialogue,
     is_physical_action_shaped, is_player_dialogue_with_addressees, parse_intent_local,
 };
-use crate::intent_decision::{DecidedRecipient, intent_from_decision};
+use crate::intent_decision::{RecipientDecision, intent_from_decision};
 use crate::ipc::commands::listen::{AtmospherePresentation, render_place_atmosphere};
-use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
+use crate::ipc::{extract_npc_tags, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
-use crate::turn_inference::{InferenceCall, InferenceOutcome, ResponseShape, RouteStatus};
+use crate::turn_inference::{
+    FailureReason, InferenceCall, InferenceOutcome, ResponseShape, RouteStatus,
+};
 use crate::world::transport::TransportMode;
 
 // ── Look ──────────────────────────────────────────────────────────────────────
@@ -302,21 +306,47 @@ pub async fn handle_game_input_settled(
         }
     }
 
-    // Parse intent: local keywords first, then the Intent role for input the
-    // local parser does not recognise. A failed or malformed Intent reply is
-    // `Unknown`, never an error.
+    // An @tag typed in the line is an explicit selection, like a chip
+    // (design §3.1, step 1): it picks the recipients without a System 1
+    // call, and the line sent to them is the line without the tag.
+    let (explicit, spoken) = if addressed_to.is_empty() {
+        let tags = {
+            let world = ctx.world.lock().await;
+            let npc_manager = ctx.npc_manager.lock().await;
+            extract_npc_tags(&raw, &world, &npc_manager)
+        };
+        if tags.names.is_empty() {
+            (Vec::new(), raw.clone())
+        } else {
+            (tags.names, tags.remaining)
+        }
+    } else {
+        (addressed_to.clone(), raw.clone())
+    };
+    let is_explicit = !explicit.is_empty();
+
+    // Parse intent: local keywords settle plain commands; every other line
+    // gets the Intent role. On an Endpoint host that is the `rundale-intent`
+    // decision, which also says who the line is for (design §4.2, §4.6), so
+    // a line the local parser takes for talk still gets it. A failed or
+    // malformed Intent reply is `Unknown` (or the local reading), never an
+    // error, except a lost connection, which fails the request recoverably
+    // (§4.4).
     let inference = ctx.inference();
     let intent_route = match settled {
         Some(_) => RouteStatus::Unavailable,
+        None if is_explicit => RouteStatus::Unavailable,
         None => {
             inference
                 .route(limerick_config::InferenceSubrole::Intent)
                 .await
         }
     };
-    // Who a line is for, when the intent Endpoint's decision settled it
-    // (design §4.6). `None` when the intent came from anywhere else.
-    let mut decided: Option<DecidedRecipient> = None;
+    // The System 1 answer about who the line is for. `None` when no
+    // decision Endpoint answered (an explicit selection, a local command,
+    // or an in-process host), which the recipient rules take as "no one in
+    // particular".
+    let mut decided: Option<RecipientDecision> = settled.and_then(|s| s.decision.clone());
     let intent = if let Some(settled) = settled {
         // An earlier run of this request resolved the intent; reuse it.
         settled.intent.clone()
@@ -328,46 +358,91 @@ pub async fn handle_game_input_settled(
             world.clock.inference_pause();
             world.tick_generation
         };
-        let parsed = match parse_intent_local(&raw) {
-            Some(local) => local,
-            None => {
-                // An Endpoint host answers with the decision; an in-process
-                // host answers the rendered prompt with intent JSON.
-                let (endpoint, options) = {
-                    let world = ctx.world.lock().await;
-                    let npc_manager = ctx.npc_manager.lock().await;
-                    match crate::endpoint_input::intent_endpoint(
-                        ctx.endpoints,
-                        &world,
-                        &npc_manager,
-                        &raw,
-                    ) {
-                        Some((call, options)) => (Some(call), Some(options)),
-                        None => (None, None),
-                    }
-                };
+        let local = parse_intent_local(&raw);
+        // An Endpoint host answers with the decision; an in-process host
+        // answers the rendered prompt with intent JSON.
+        let endpoint = {
+            let world = ctx.world.lock().await;
+            let npc_manager = ctx.npc_manager.lock().await;
+            crate::endpoint_input::intent_endpoint(ctx.endpoints, &world, &npc_manager, &raw)
+        };
+        let talk_or_unknown = local
+            .as_ref()
+            .is_none_or(|local| local.intent == crate::input::IntentKind::Talk);
+        let parsed = match endpoint {
+            Some((call, options)) if talk_or_unknown => {
                 let call = InferenceCall {
                     subrole: limerick_config::InferenceSubrole::Intent,
                     system: Some(crate::input::intent_system_prompt().to_string()),
                     prompt: raw.clone(),
                     response: ResponseShape::IntentJson,
                     correlation_id: None,
-                    endpoint,
+                    endpoint: Some(call),
                 };
                 match inference.complete(call).await {
-                    InferenceOutcome::Completed { text, .. } => match options
-                        .as_ref()
-                        .and_then(|options| intent_from_decision(&text, options, &raw))
-                    {
-                        Some(decision) => {
-                            decided = Some(decision.recipient);
-                            decision.intent
+                    InferenceOutcome::Completed { text, .. } => {
+                        match intent_from_decision(&text, &options, &raw) {
+                            Some(decision) => {
+                                decided = Some(decision.recipient);
+                                decision.intent
+                            }
+                            // An in-process host answers the rendered prompt
+                            // with intent JSON, not a decision: there is no
+                            // System 1 answer, so the unaddressed-line rules
+                            // apply (the partner answers, else the game asks;
+                            // design §4.2).
+                            None if is_intent_json(&text) => local.unwrap_or_else(|| {
+                                crate::input::intent_from_reply_text(&text, &raw)
+                            }),
+                            // Not an answer to the options offered: a
+                            // failed call, which is unsure (§3.1, step 3).
+                            None => {
+                                decided = Some(RecipientDecision::default());
+                                local.unwrap_or_else(|| {
+                                    crate::input::intent_from_reply_text(&text, &raw)
+                                })
+                            }
                         }
-                        None => crate::input::intent_from_reply_text(&text, &raw),
-                    },
-                    InferenceOutcome::Failed { .. } => crate::input::unknown_intent(&raw),
+                    }
+                    InferenceOutcome::Failed { report, .. }
+                        if report.reason == Some(FailureReason::Offline) =>
+                    {
+                        {
+                            let mut world = ctx.world.lock().await;
+                            world.clock.inference_resume();
+                        }
+                        return GameInputOutcome {
+                            dialogue_failure: Some(DIALOGUE_RETRY_MESSAGE.to_string()),
+                            ..GameInputOutcome::default()
+                        };
+                    }
+                    InferenceOutcome::Failed { .. } => {
+                        decided = Some(RecipientDecision::default());
+                        local.unwrap_or_else(|| crate::input::unknown_intent(&raw))
+                    }
                 }
             }
+            // A plain command the local parser settled: no call.
+            Some(_) => local.expect("a command was parsed locally"),
+            None => match local {
+                Some(local) => local,
+                None => {
+                    let call = InferenceCall {
+                        subrole: limerick_config::InferenceSubrole::Intent,
+                        system: Some(crate::input::intent_system_prompt().to_string()),
+                        prompt: raw.clone(),
+                        response: ResponseShape::IntentJson,
+                        correlation_id: None,
+                        endpoint: None,
+                    };
+                    match inference.complete(call).await {
+                        InferenceOutcome::Completed { text, .. } => {
+                            crate::input::intent_from_reply_text(&text, &raw)
+                        }
+                        InferenceOutcome::Failed { .. } => crate::input::unknown_intent(&raw),
+                    }
+                }
+            },
         };
         {
             let mut world = ctx.world.lock().await;
@@ -393,13 +468,14 @@ pub async fn handle_game_input_settled(
         }
         Some(parsed)
     } else {
-        // No Intent route configured — use local keyword parsing only.
+        // No Intent call (no route, or an explicit selection): local keyword
+        // parsing only.
         parse_intent_local(&raw)
     };
 
     // Atmospheric topics supplement conversational turns; they do not replace
     // the original action or addressed NPC exchange.
-    emit_supplemental_place_atmosphere(ctx, intent.as_ref(), &raw, !addressed_to.is_empty()).await;
+    emit_supplemental_place_atmosphere(ctx, intent.as_ref(), &raw, is_explicit).await;
 
     let is_move = intent
         .as_ref()
@@ -413,10 +489,6 @@ pub async fn handle_game_input_settled(
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Examine))
         .unwrap_or(false);
-    let is_talk = intent
-        .as_ref()
-        .map(|i| matches!(i.intent, crate::input::IntentKind::Talk))
-        .unwrap_or(false);
     let is_interact = intent
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Interact))
@@ -429,15 +501,11 @@ pub async fn handle_game_input_settled(
         .as_ref()
         .filter(|_i| is_examine)
         .and_then(|i| i.target.clone());
-    let talk_target = intent
-        .as_ref()
-        .filter(|_i| is_talk)
-        .and_then(|i| i.target.clone());
 
-    // #1450: when `addressed_to` is non-empty the player is explicitly directing
-    // speech at a named NPC — movement classification must NOT win. Skip the move
-    // branch so the input routes to `handle_npc_conversation` instead.
-    if is_move && addressed_to.is_empty() {
+    // #1450: when the player explicitly addresses someone (a chip or an
+    // @tag), movement classification must NOT win. Skip the move branch so
+    // the input routes to NPC conversation instead.
+    if is_move && !is_explicit {
         match try_handle_move(ctx, move_target, transport, reaction_templates).await {
             MoveDispatch::Handled => return GameInputOutcome::default(),
             // TODO #40/#56: Move-no-target at a populated location falls through
@@ -465,7 +533,7 @@ pub async fn handle_game_input_settled(
     // Additionally, mirror the #1450 pattern: if the player explicitly addresses
     // an NPC while performing an action, route to NPC conversation so the NPC
     // can witness/react rather than the generic narration handler intercepting.
-    if is_interact && addressed_to.is_empty() && !is_directed_instruction_dialogue(&raw) {
+    if is_interact && !is_explicit && !is_directed_instruction_dialogue(&raw) {
         let flag_enabled = {
             let config = ctx.config.lock().await;
             !config.flags.is_disabled("interact-narration")
@@ -487,23 +555,19 @@ pub async fn handle_game_input_settled(
     // the LLM — e.g. "draw a bucket of water" when the intent model returns
     // Unknown due to load or quantisation drift.
     //
-    // Gated by `interact-narration` (same flag) and only fires when
-    // `addressed_to` is empty, mirroring the primary `is_interact` guard
-    // above.  When the flag is disabled or the player is addressing an NPC
-    // the input falls through to NPC conversation (legacy behaviour).
-    // `unwrap_or(true)` — when `intent` is `None` the LLM call failed
-    // entirely; that is semantically equivalent to `Unknown` and the
+    // Gated by `interact-narration` (same flag) and only fires when the
+    // player addressed no one explicitly, mirroring the primary
+    // `is_interact` guard above.  When the flag is disabled or the player is
+    // addressing an NPC the input falls through to NPC conversation (legacy
+    // behaviour). `unwrap_or(true)` — when `intent` is `None` the LLM call
+    // failed entirely; that is semantically equivalent to `Unknown` and the
     // no-silent-drop fallback must fire (if the input is action-shaped).
     let is_unknown = intent
         .as_ref()
         .map(|i| matches!(i.intent, crate::input::IntentKind::Unknown))
         .unwrap_or(true);
     let directed_instruction = is_directed_instruction_dialogue(&raw);
-    if is_unknown
-        && addressed_to.is_empty()
-        && !directed_instruction
-        && is_physical_action_shaped(&raw)
-    {
+    if is_unknown && !is_explicit && !directed_instruction && is_physical_action_shaped(&raw) {
         let flag_enabled = {
             let config = ctx.config.lock().await;
             !config.flags.is_disabled("interact-narration")
@@ -513,293 +577,36 @@ pub async fn handle_game_input_settled(
         }
     }
 
-    // Resolve ordered NPC recipients from visible local names.
-    // Also validate the LLM's talk_target — only accept it when it resolves
-    // to an actual co-located NPC (by name or role vocative). Non-NPC nouns
-    // such as "a boat" or the player's own name must not be pushed into the
-    // target list: they will generate a spurious "X is not here." message
-    // (#1220, #1227).
-    let clarify = !ctx
-        .config
-        .lock()
-        .await
-        .flags
-        .is_disabled(ADDRESSEE_CLARIFICATION_FLAG);
-    let (mentions, explicit_recipient_names, validated_talk_target, vocative, asked) = {
-        let world = ctx.world.lock().await;
-        let npc_manager = ctx.npc_manager.lock().await;
-        let mentions = extract_npc_mentions(&raw, &world, &npc_manager);
-        // A message that opens by addressing a name or role ("Widow, any
-        // news?") is spoken to whoever that resolves to, not to whoever is
-        // first. A leading word that matches no one ("Well, ...") is not an
-        // address; the name of someone elsewhere is, so the turn says they
-        // are not here.
-        let vocative = leading_vocative(&raw)
-            .filter(|_| clarify)
-            .filter(|vocative| {
-                !matches!(
-                    npc_manager.resolve_reference_at(vocative, world.player_location),
-                    crate::npc::manager::NpcReference::NotFound
-                ) || npc_manager.names_someone_elsewhere(vocative, world.player_location)
-            })
-            .map(str::to_string);
-        // "ask Connolly about the household" names who is asked, whatever
-        // the intent model returns for it. Words that name no one ("ask
-        // around if ...") are not an address; the name of someone elsewhere
-        // is, so the turn says they are not here rather than letting whoever
-        // is present answer for them.
-        let asked = asked_addressee(&raw)
-            .filter(
-                |asked| match npc_manager.resolve_reference_at(asked, world.player_location) {
-                    crate::npc::manager::NpcReference::Unique(_) => true,
-                    crate::npc::manager::NpcReference::Ambiguous(_) => clarify,
-                    crate::npc::manager::NpcReference::NotFound => {
-                        npc_manager.names_someone_elsewhere(asked, world.player_location)
-                    }
-                },
-            )
-            .map(str::to_string);
-        let explicit_recipient_names = explicit_talk_recipient_clause(&raw)
-            .map(|clause| extract_npc_mentions(clause, &world, &npc_manager).names);
-        // An ambiguous target is kept when clarification is on, so the
-        // turn asks who was meant instead of falling back to whoever is
-        // first ("ask Connolly" with both Connollys present).
-        let validated = if is_talk {
-            talk_target.filter(|t| {
-                match npc_manager.resolve_reference_at(t, world.player_location) {
-                    crate::npc::manager::NpcReference::Unique(_) => true,
-                    crate::npc::manager::NpcReference::Ambiguous(_) => clarify,
-                    crate::npc::manager::NpcReference::NotFound => false,
-                }
-            })
-        } else {
-            None
-        };
-        (
-            mentions,
-            explicit_recipient_names,
-            validated,
-            vocative,
-            asked,
-        )
+    // Who hears the line: the recipient policy of design §3.1. The engine's
+    // name matchers no longer decide whether a word is an address; an
+    // explicit selection or the System 1 answer does.
+    let request = AddressRequest {
+        explicit,
+        decision: decided.clone(),
     };
-
-    // Explicit recipients are authoritative. A chip-selected addressee, or the
-    // recipient clause in `talk to X about Y`, must not be polluted by other
-    // parish names mentioned in the message body. Otherwise asking Seamus
-    // "Where is Padraig?" addresses both men and emits a false
-    // "Padraig Darcy is not here." line. Free-form dialogue without an
-    // explicit recipient still routes to every naturally mentioned local NPC.
-    let mut targets: Vec<String> =
-        Vec::with_capacity(addressed_to.len() + mentions.names.len() + 1);
-    // A decision that names no one (unsure, or nobody in particular) leaves
-    // the line to the word matching below, which still asks "Which
-    // Connolly?" when the player's own words name several people. The
-    // unaddressed rules of design §3.1 replace that with #2221.
-    let decided = decided.filter(|decided| {
-        is_talk
-            && addressed_to.is_empty()
-            && !matches!(
-                decided,
-                DecidedRecipient::Undecided | DecidedRecipient::NoOne
-            )
-            // With clarification off, a word that fits several people is
-            // not asked about; the word matching picks as it always has.
-            && (clarify || !matches!(decided, DecidedRecipient::Reference(_)))
-    });
-    if let Some(decided) = decided {
-        // The decision names the recipient; the word-matching heuristics
-        // below are not consulted.
-        match decided {
-            DecidedRecipient::Present(name)
-            | DecidedRecipient::Elsewhere(name)
-            | DecidedRecipient::Reference(name) => push_unique_target(&mut targets, name),
-            DecidedRecipient::All => {
-                let world = ctx.world.lock().await;
-                let npc_manager = ctx.npc_manager.lock().await;
-                for npc in npc_manager.npcs_at(world.player_location) {
-                    push_unique_target(&mut targets, npc.name.clone());
-                }
-            }
-            DecidedRecipient::NotListed => {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log("system", NO_ONE_ANSWERS))
-                        .unwrap_or(serde_json::Value::Null),
-                );
-                return GameInputOutcome::default();
-            }
-            DecidedRecipient::NoOne | DecidedRecipient::Undecided => {
-                unreachable!("filtered out above")
-            }
-        }
-    } else if !addressed_to.is_empty() {
-        for name in addressed_to {
-            push_unique_target(&mut targets, name);
-        }
-    } else if let Some(explicit_names) = explicit_recipient_names {
-        for name in explicit_names {
-            push_unique_target(&mut targets, name);
-        }
-        if let Some(target) = validated_talk_target {
-            push_unique_target(&mut targets, target);
-        }
-        if targets.is_empty()
-            && let Some(clause) = explicit_talk_recipient_clause(&raw)
-        {
-            push_unique_target(&mut targets, clause.to_string());
-        }
-    } else {
-        if let Some(vocative) = vocative {
-            push_unique_target(&mut targets, vocative);
-        }
-        if let Some(asked) = asked {
-            push_unique_target(&mut targets, asked);
-        }
-        for name in mentions.names {
-            push_unique_target(&mut targets, name);
-        }
-        if let Some(target) = validated_talk_target {
-            push_unique_target(&mut targets, target);
-        }
-    }
-
-    let answered = settled.map_or(&[][..], |settled| settled.addressees.as_slice());
+    let chosen = settled.map_or(&[][..], |settled| settled.addressees.as_slice());
+    let answers = Answers {
+        chosen,
+        everyone: settled.is_some_and(|settled| settled.everyone),
+    };
     let mut outcome =
-        handle_npc_conversation_settled(ctx, mentions.remaining, targets, answered, spawn_loading)
-            .await;
+        handle_npc_conversation_settled(ctx, spoken, request, answers, spawn_loading).await;
     if let Some(clarification) = outcome.clarification.as_mut() {
         clarification.intent = intent;
+        clarification.decision = decided;
     }
     outcome
 }
 
-/// The name or role a message opens by addressing: the words before its
-/// first comma, without a leading greeting or article ("Widow, any news?"
-/// gives "Widow"; "Hello Peig, could you help?" gives "Peig"). A greeting
-/// set off on its own ("Good morning, Father, ...") defers to the next
-/// comma-delimited words. `None` when there is no such opening or it is
-/// longer than a name.
-fn leading_vocative(raw: &str) -> Option<&str> {
-    let mut segments = raw.split(',');
-    let first = segments.next()?;
-    let mut head = without_openers(first);
-    if head.is_empty() {
-        head = without_openers(segments.next()?);
-    }
-    // The address must be followed by the rest of the message.
-    segments.next()?;
-    let head = head.trim_matches(|ch: char| !ch.is_alphanumeric());
-    (!head.is_empty() && head.split_whitespace().count() <= 4).then_some(head)
-}
-
-/// `text` trimmed, without a leading greeting and then a leading article.
-fn without_openers(text: &str) -> &str {
-    const OPENERS: &[&str] = &[
-        "good morning",
-        "good afternoon",
-        "good evening",
-        "good day",
-        "hello",
-        "hi",
-        "hey",
-        "the",
-    ];
-    let mut text = text.trim();
-    for opener in OPENERS {
-        let Some(prefix) = text.get(..opener.len()) else {
-            continue;
-        };
-        let rest = &text[opener.len()..];
-        if prefix.eq_ignore_ascii_case(opener)
-            && (rest.is_empty() || rest.starts_with(char::is_whitespace))
-        {
-            text = rest.trim_start();
-        }
-    }
-    text
-}
-
-/// The reply to a name that fits no one the player can address (design §3.1):
-/// it reveals nothing about who exists.
-pub const NO_ONE_ANSWERS: &str = "No one here answers to that name just now.";
-
-fn push_unique_target(targets: &mut Vec<String>, target: String) {
-    if !targets
-        .iter()
-        .any(|existing| existing.eq_ignore_ascii_case(&target))
-    {
-        targets.push(target);
-    }
-}
-
-/// Who an "ask X ..." message is put to: the words after "ask" up to where
-/// the question starts ("ask Connolly about the household" gives
-/// "Connolly"; "ask Peig if the post came" gives "Peig"). `None` when there
-/// is no such opening ("ask around", "ask about the fair") or it is longer
-/// than a name.
-fn asked_addressee(raw: &str) -> Option<&str> {
-    const QUESTION_STARTS: &[&str] = &[
-        "about",
-        "regarding",
-        "to",
-        "for",
-        "if",
-        "whether",
-        "what",
-        "where",
-        "when",
-        "why",
-        "how",
-        "who",
-        "is",
-        "was",
-        "did",
-        "does",
-    ];
-    let trimmed = raw.trim();
-    let lower = trimmed.to_ascii_lowercase();
-    if !lower.starts_with("ask ") {
-        return None;
-    }
-    let rest = &trimmed["ask ".len()..];
-    let mut end = None;
-    let mut offset = 0;
-    for word in rest.split(' ') {
-        if QUESTION_STARTS.contains(&word.to_ascii_lowercase().as_str()) {
-            end = Some(offset);
-            break;
-        }
-        offset += word.len() + 1;
-    }
-    let head = rest[..end?]
-        .trim()
-        .trim_matches(|ch: char| !ch.is_alphanumeric());
-    (!head.is_empty() && head.split_whitespace().count() <= 4).then_some(head)
-}
-
-fn explicit_talk_recipient_clause(raw: &str) -> Option<&str> {
-    let trimmed = raw.trim();
-    let lower = trimmed.to_ascii_lowercase();
-    let prefix_len = if lower.starts_with("talk to ") {
-        "talk to ".len()
-    } else if lower.starts_with("speak to ") {
-        "speak to ".len()
-    } else {
-        return None;
-    };
-
-    let lower_remainder = &lower[prefix_len..];
-    let clause_end = [" about ", " regarding "]
-        .iter()
-        .filter_map(|delimiter| lower_remainder.find(delimiter))
-        .min()
-        .unwrap_or(lower_remainder.len());
-    let clause = trimmed[prefix_len..prefix_len + clause_end].trim();
-    (!clause.is_empty()).then_some(clause)
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+/// Whether `text` is the intent JSON an in-process host answers with
+/// (`{"intent": …}`), rather than a System 1 decision.
+fn is_intent_json(text: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .is_some_and(|value| value.get("intent").is_some())
+}
 
 #[cfg(test)]
 mod tests {
@@ -818,82 +625,6 @@ mod tests {
             id: "walking".to_string(),
             speed_m_per_s: 1.2,
         }
-    }
-
-    #[test]
-    fn explicit_talk_recipient_clause_stops_before_message_body() {
-        assert_eq!(
-            super::explicit_talk_recipient_clause(
-                "talk to Seamus Gallagher about Where is Padraig Darcy?"
-            ),
-            Some("Seamus Gallagher")
-        );
-        assert_eq!(
-            super::explicit_talk_recipient_clause("SPEAK TO Peig Hannigan REGARDING the road"),
-            Some("Peig Hannigan")
-        );
-        assert_eq!(
-            super::explicit_talk_recipient_clause("talk to Seamus Gallagher and Colm Gallagher",),
-            Some("Seamus Gallagher and Colm Gallagher")
-        );
-        assert_eq!(
-            super::explicit_talk_recipient_clause("Where is Padraig Darcy?"),
-            None
-        );
-    }
-
-    #[test]
-    fn asked_addressee_is_who_the_question_is_put_to() {
-        use super::asked_addressee;
-        assert_eq!(
-            asked_addressee("ask Connolly about the household"),
-            Some("Connolly")
-        );
-        assert_eq!(
-            asked_addressee("Ask Peig Hannigan if the post came"),
-            Some("Peig Hannigan")
-        );
-        assert_eq!(
-            asked_addressee("ask Mícheál whether the cattle are sold"),
-            Some("Mícheál")
-        );
-        assert_eq!(
-            asked_addressee("ask the widow, what news?"),
-            Some("the widow")
-        );
-        assert_eq!(asked_addressee("ask about the fair"), None);
-        assert_eq!(asked_addressee("ask around"), None);
-        assert_eq!(asked_addressee("ask for directions"), None);
-        assert_eq!(asked_addressee("Where is Peig?"), None);
-        assert_eq!(
-            asked_addressee("ask the old man by the gate in the long coat about it"),
-            None,
-            "longer than a name"
-        );
-    }
-
-    #[test]
-    fn leading_vocative_takes_the_opening_address_without_greeting() {
-        use super::leading_vocative;
-        assert_eq!(leading_vocative("Widow, any news?"), Some("Widow"));
-        assert_eq!(
-            leading_vocative("Hello Peig, could you help?"),
-            Some("Peig")
-        );
-        assert_eq!(
-            leading_vocative("Good morning, Father Tierney, how are you?"),
-            Some("Father Tierney"),
-            "a greeting on its own defers to the next words"
-        );
-        assert_eq!(leading_vocative("Hello, how are you?"), None);
-        assert_eq!(leading_vocative("The widow, is she well?"), Some("widow"));
-        assert_eq!(leading_vocative("Well, it is a fine day."), Some("Well"));
-        assert_eq!(leading_vocative("Widow any news"), None, "no comma");
-        assert_eq!(
-            leading_vocative("I think that the harvest will be good, though"),
-            None,
-            "too long to be a name"
-        );
     }
 
     #[tokio::test]
@@ -1126,8 +857,11 @@ mod tests {
         }));
     }
 
+    /// Design §3.1 (owner, 2026-10-17): an @tag for someone absent is treated
+    /// like a line spoken to someone elsewhere, so it reaches Liam, the one
+    /// person present, and no system line names Siobhan.
     #[tokio::test]
-    async fn absent_at_mention_fails_closed_before_inference_or_bystander_effects() {
+    async fn an_at_tag_for_someone_absent_reaches_the_one_person_present() {
         let emitter = Arc::new(CapturingEmitter::new());
         let world_state = WorldState::new();
         let player_location = world_state.player_location;
@@ -1183,24 +917,28 @@ mod tests {
 
         {
             let logs = emitter.events.lock().unwrap();
-            assert!(logs.iter().any(|(name, payload)| {
-                name == "text-log"
-                    && payload.get("source").and_then(|value| value.as_str()) == Some("system")
-                    && payload.get("content").and_then(|value| value.as_str())
-                        == Some("Siobhan Murphy is not here.")
-            }));
             assert!(logs.iter().all(|(_, payload)| {
                 payload
                     .get("content")
                     .and_then(|value| value.as_str())
-                    .is_none_or(|content| !content.contains("LLM is not configured"))
+                    .is_none_or(|content| !content.contains("not here"))
+            }));
+            // The line went on to Liam; this test has no model, so the turn
+            // stops at the missing provider.
+            assert!(logs.iter().any(|(_, payload)| {
+                payload
+                    .get("content")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|content| content.contains("LLM is not configured"))
             }));
         }
-        assert!(matches!(
-            bus.try_recv(),
-            Ok(limerick_types::GameEvent::AddressedAbsentNpc { ref name, .. })
-                if name == "Siobhan Murphy"
-        ));
+        assert!(
+            !matches!(
+                bus.try_recv(),
+                Ok(limerick_types::GameEvent::AddressedAbsentNpc { .. })
+            ),
+            "naming someone absent is not an event"
+        );
         let manager = npc_manager.lock().await;
         assert!(manager.all_npcs().all(|npc| npc.memory.is_empty()));
         assert!(

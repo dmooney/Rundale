@@ -173,9 +173,9 @@ fn baseline_test_all_locations() {
     check_or_update_baseline("test_all_locations");
 }
 
-/// Regression coverage for #985 — addressing an absent NPC must surface a
-/// system "{name} is not here." message rather than letting a different
-/// co-located NPC speak as a silent fallback.
+/// Addressing an absent NPC (#985, revised by #2221): the people present
+/// hear the line and answer, and no system line says the absent person is
+/// not here (design §3.1).
 #[test]
 fn baseline_test_address_absent_npc() {
     check_or_update_baseline("test_address_absent_npc");

@@ -212,6 +212,9 @@ pub fn advance_world(
     // 2. NPC schedules → arrivals/departures published on the world bus.
     let schedule_events =
         npc.tick_schedules(&world.clock, &world.graph, world.weather, &world.event_bus);
+    // A partner who left ends the conversation (dynamic NPC context design
+    // §2), even if they come back before the player speaks again.
+    npc.end_partnership_unless_at(world.player_location);
 
     // 3. Tier reassignment (post-move, matching the real-time loops).
     let tier_transitions = npc.assign_tiers(world, &[]);

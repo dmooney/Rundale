@@ -7,10 +7,12 @@
     "major": 1,
     "minor": 0
   },
-  "elsewhere": [],
+  "everyone": [],
   "idempotencyKey": "fixture-logical-request:fixture-attempt",
   "line": "Let's make for the Letter Office",
   "logicalRequestID": "fixture-logical-request",
+  "mentionable": [],
+  "noOne": [],
   "phrases": [
     {
       "optionId": "s1",
@@ -90,5 +92,6 @@
   ],
   "references": [],
   "role": "player_intent",
-  "sessionID": "fixture-session"
+  "sessionID": "fixture-session",
+  "someoneElse": []
 }

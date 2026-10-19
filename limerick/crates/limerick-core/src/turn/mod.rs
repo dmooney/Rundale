@@ -35,9 +35,9 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub use commands::{COMMANDS, CommandSpec, CompletionWord, LocalCommand};
 pub use engine::{
-    HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, LoadingHook,
-    PendingInference, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep,
-    drive_in_process,
+    COMPOSER_TEXT_KEY, HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes,
+    LoadingHook, PendingInference, TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus,
+    TurnStep, drive_in_process,
 };
 pub use host::{InProcessSubmission, InProcessTurns};
 pub use ids::{
