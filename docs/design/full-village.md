@@ -92,18 +92,17 @@ not in this target. They are candidates for the next one.
 
 ## 3. Households
 
-Names, ages and roles are provisional until each stage's data review.
+Names, ages and roles are provisional until the stage 1 data review.
 
-| Household                    | People                                                                                                                        | Stage |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----- |
-| Hannigan, Letter Office      | Peig (54, letter-office keeper); her nephew, who carries letters (new)                                                        | 4     |
-| Connolly, Connolly Cottage   | Mícheál (38, smallholder and drover); Róisín (31, spinner); their widowed mother (new)                                        | 4     |
-| Gallagher, Gallagher's Forge | Séamus (42, blacksmith); his wife; Colm (15, apprentice)                                                                      | 1     |
-| Darcy, Darcy's               | Pádraig (58, publican and shopkeeper); his wife; Niamh (22, their daughter)                                                   | 2     |
-| Brennan, Schoolhouse         | Aoife (29, hedge schoolmistress); her father, the old schoolmaster, who writes letters for those who cannot; her brother (17) | 3     |
+| Household                    | People                                                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Hannigan, Letter Office      | Peig (54, letter-office keeper); her nephew, who carries letters (new)                                                        |
+| Connolly, Connolly Cottage   | Mícheál (38, smallholder and drover); Róisín (31, spinner); their widowed mother (new)                                        |
+| Gallagher, Gallagher's Forge | Séamus (42, blacksmith); his wife; Colm (15, apprentice); their young daughter                                                |
+| Darcy, Darcy's               | Pádraig (58, publican and shopkeeper); his wife; Niamh (22, their daughter)                                                   |
+| Brennan, Schoolhouse         | Aoife (29, hedge schoolmistress); her father, the old schoolmaster, who writes letters for those who cannot; her brother (17) |
 
-That is 2 + 3 + 3 + 3 + 3 = 14 people, or 15 if one household has four. The
-owner's average of three allows either.
+That is 2 + 3 + 4 + 3 + 3 = 15 people, 12 of them new.
 
 Rules every stage checks:
 
@@ -142,31 +141,29 @@ Rules every stage checks:
   places is a modest increase on three and three. At parish scale this has to
   change, which is another reason the parish needs its own design.
 - **The recipient decision** offers every person present and every introduced
-  person elsewhere (contract §4.3). Stage 3 re-runs the labelled recipient cases
+  person elsewhere (contract §4.3). Stage 1 re-runs the labelled recipient cases
   with the larger roster.
 
 ## 5. Stages
 
-One household per stage. Each stage adds one location and at most three people,
-leaves a playable world that agrees with the world sheet, and passes the Phase 6
-gate (`just mobile-verify --phase 6`). Stages start after Milestone 5 closes and
-issue #2200 lands the regression fixture, the gate and the proposal template.
+**Stage 1 is the whole first target:** the three new households and their homes,
+and the new members of Peig's and the Connollys' households, in one issue. The
+world goes from 3 locations and 3 people to 6 locations and 15 people. Stage 1
+starts after Milestone 5 closes and issue #2200 lands the regression fixture, the
+Phase 6 gate and the proposal template.
 
-| Stage | Adds                                                    | World after               | What it tests first                                                 |
-| ----- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------- |
-| 1     | The Gallaghers and their forge                          | 4 locations, 6 people     | A third household; a family of three at home together               |
-| 2     | The Darcys and their house                              | 5 locations, 9 people     | An evening gathering                                                |
-| 3     | The Brennans and the school                             | 6 locations, 12 people    | Five exits on the village road; the recipient re-run                |
-| 4     | A third member for the Hannigan and Connolly households | 6 locations, 14–15 people | Growing an existing household without breaking its tested behaviour |
+Stage 1 grows households that come from the tiny world. The tiny world stays as
+the separate regression fixture (#2200), so the production world may grow them
+without affecting the fixture's tests.
 
-Stage 4 changes households that come from the tiny world. The tiny world stays
-as the separate regression fixture (#2200), so the production world may grow
-them without affecting the fixture's tests.
+Later stages grow toward the whole village, then the parish, sized from the
+historical population (§1.1). Each gets its own proposal and issue when its time
+comes.
 
-Each stage issue states the player need, the data review of anything reused,
-acceptance criteria (the world sheet and its oracle agree, exits and presence
-match the world sheet), the test plan, and a
-paced simulator walkthrough as evidence.
+Every stage issue states the player need, the data review of anything reused,
+acceptance criteria (including the world sheet and its oracle agreeing), the
+test plan, and a paced simulator walkthrough as evidence. It passes the Phase 6
+gate (`just mobile-verify --phase 6`).
 
 ## Sources
 
