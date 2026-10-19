@@ -42,16 +42,11 @@ export interface Thresholds {
   mention: number;
   /** Minimum probability of the chosen action, destination and target (§4.6); default 0.7. */
   action?: number;
-  /**
-   * The results document's proposal, not the approved design: an uncertain
-   * answer whose most likely option is not a person present (someone
-   * elsewhere, a name not listed, or a reference) gives that option's reply
-   * and sends nothing, instead of reaching the one person present.
-   */
-  proposedUncertainRule?: boolean;
 }
 
 export const startingThresholds: Thresholds = { choice: 0.8, mention: 0.7, action: 0.7 };
+/** `ANSWER_THRESHOLD` and `MENTION_THRESHOLD` in `limerick_core::intent_decision`. */
+export const engineThresholds: Thresholds = { choice: 0.7, mention: 0.7, action: 0.7 };
 
 const top = (answer: ChoiceAnswer | undefined) =>
   answer === undefined
@@ -107,11 +102,6 @@ export function resolveInput(
   return resolveDecision(item, input, output, thresholds);
 }
 
-/** Whether System 1 runs for the case at all (design §3.1, "Nobody present"). */
-export function decisionRuns(item: LabelledCase): boolean {
-  return item.present.length > 0 || item.introduced.length > 0;
-}
-
 function unaddressed(item: LabelledCase, mentioned: number[], uncertain: boolean): Outcome {
   if (!uncertain && item.partner !== undefined && item.present.includes(item.partner)) {
     return {
@@ -120,15 +110,16 @@ function unaddressed(item: LabelledCase, mentioned: number[], uncertain: boolean
       joins: mentioned.filter((id) => id !== item.partner),
     };
   }
-  if (item.present.length === 1) return { kind: "send", recipients: [item.present[0]!], joins: [] };
-  if (item.present.length === 0) return { kind: "idle" };
   return { kind: "ask", mentioned };
 }
 
 /**
- * The resolution table of design §3.1 step 4 and the unaddressed rules of
- * step 5, applied to one validated System 1 answer. `undefined` is a failed
- * call other than lost connectivity, which counts as uncertain (§4.4).
+ * The recipient policy of design §3.1 (as amended 2026-10-17), applied to one
+ * validated System 1 answer. Nobody present gets the idle message; one person
+ * present answers whatever the line says; with two or more, a line to someone
+ * not present reaches everyone, as All does, and an unsure answer asks.
+ * `undefined` is a failed call other than lost connectivity, which counts as
+ * uncertain (§4.4).
  */
 export function resolveDecision(
   item: LabelledCase,
@@ -136,7 +127,8 @@ export function resolveDecision(
   output: DecisionOutput | undefined,
   thresholds: Thresholds,
 ): Outcome {
-  if (!decisionRuns(item)) return { kind: "idle" };
+  if (item.present.length === 0) return { kind: "idle" };
+  if (item.present.length === 1) return { kind: "send", recipients: [item.present[0]!], joins: [] };
   if (output === undefined) return unaddressed(item, [], true);
   const presentIds = input.values.present.map((option) => option.optionId);
   const mentioned = presentIds
@@ -144,41 +136,23 @@ export function resolveDecision(
     .map((optionId) => input.people.get(optionId)!);
   const choice = output.recipient.choice;
   const probability = output.recipient.probabilities[choice] ?? 0;
-  if (probability < thresholds.choice) {
-    const presentChoice = input.values.present.some((option) => option.optionId === choice);
-    if (
-      thresholds.proposedUncertainRule === true &&
-      !presentChoice &&
-      choice !== "all" &&
-      choice !== "no_one"
-    ) {
-      return resolveDecision(
-        item,
-        input,
-        { ...output, recipient: { ...output.recipient, probabilities: { [choice]: 1 } } },
-        { ...thresholds, proposedUncertainRule: false },
-      );
-    }
-    if (item.present.length === 0) return { kind: "idle" };
-    // Question 2 has its own threshold, so a confident mention still joins
-    // after the player's choice (§3.1 step 5).
-    return unaddressed(item, mentioned, true);
+  // Question 2 has its own threshold, so a confident mention still joins
+  // after the player's choice (§3.1 step 5).
+  if (probability < thresholds.choice) return unaddressed(item, mentioned, true);
+  // Runs recorded before 2026-10-17 offered "not_listed" and people elsewhere
+  // (`e<n>`) where the definition now offers "someone_else"; a re-score maps
+  // them to it.
+  const someoneElse = choice === "someone_else" || choice === "not_listed" || /^e\d+$/.test(choice);
+  if (choice === "all" || someoneElse) {
+    return { kind: "send", recipients: [...item.present], joins: [] };
   }
-  if (choice === "all") {
-    return item.present.length === 0
-      ? { kind: "idle" }
-      : { kind: "send", recipients: [...item.present], joins: [] };
-  }
-  if (choice === "not_listed") return { kind: "neutral" };
   if (choice === "no_one") return unaddressed(item, mentioned, false);
   const reference = input.references.get(choice);
   if (reference !== undefined) return { kind: "which", among: reference };
   const person = input.people.get(choice);
   if (person === undefined) return { kind: "failed" };
-  if (choice.startsWith("p")) return { kind: "send", recipients: [person], joins: [] };
-  return { kind: "not_here", person };
+  return { kind: "send", recipients: [person], joins: [] };
 }
-
 export interface BaselineObservation {
   id: string;
   run: number;

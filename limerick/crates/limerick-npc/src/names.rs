@@ -106,3 +106,53 @@ pub fn forbidden_greeting_directive(time_of_day: TimeOfDay) -> Option<&'static s
         TimeOfDay::Morning | TimeOfDay::Midday => None,
     }
 }
+
+/// `text` folded for matching names the player types: lowercased, with
+/// accents removed from precomposed Latin letters and combining marks
+/// dropped. "Roisin", "róisín" and "Róisín" typed with combining fadas all
+/// fold to "roisin" (design `docs/design/dynamic-npc-context.md` §3.5,
+/// #2167). Every name matcher and the `/debug` lookup fold with this one
+/// function.
+pub fn fold_name(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        .filter(|c| !matches!(*c, '\u{0300}'..='\u{036F}'))
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
+            'ç' | 'ć' | 'ĉ' | 'ċ' | 'č' => 'c',
+            'ď' => 'd',
+            'é' | 'è' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => 'e',
+            'ĝ' | 'ğ' | 'ġ' | 'ģ' => 'g',
+            'ĥ' => 'h',
+            'í' | 'ì' | 'î' | 'ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' => 'i',
+            'ĵ' => 'j',
+            'ķ' => 'k',
+            'ĺ' | 'ļ' | 'ľ' => 'l',
+            'ñ' | 'ń' | 'ņ' | 'ň' => 'n',
+            'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ō' | 'ŏ' | 'ő' => 'o',
+            'ŕ' | 'ŗ' | 'ř' => 'r',
+            'ś' | 'ŝ' | 'ş' | 'š' => 's',
+            'ţ' | 'ť' => 't',
+            'ú' | 'ù' | 'û' | 'ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => 'u',
+            'ŵ' => 'w',
+            'ý' | 'ÿ' | 'ŷ' => 'y',
+            'ź' | 'ż' | 'ž' => 'z',
+            other => other,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod fold_tests {
+    use super::fold_name;
+
+    #[test]
+    fn precomposed_and_combining_fadas_fold_to_the_same_name() {
+        assert_eq!(fold_name("Róisín"), "roisin");
+        assert_eq!(fold_name("ROISIN"), "roisin");
+        assert_eq!(fold_name("Ro\u{301}isi\u{301}n"), "roisin");
+        assert_eq!(fold_name("Mícheál Connolly"), "micheal connolly");
+        assert_eq!(fold_name("Mi\u{301}chea\u{301}l"), "micheal");
+        assert_eq!(fold_name("Seán"), "sean");
+    }
+}

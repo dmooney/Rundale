@@ -1535,11 +1535,10 @@ impl GameTestHarness {
     /// (`limerick_core::ipc::resolve_addressed_targets`).
     ///
     /// When the addressed NPC is co-located, this delegates to the
-    /// canned-response flow keyed on that NPC's name. When the addressed
-    /// NPC is not at the player's location, the harness emits the same
-    /// `"{name} is not here."` system message that the real backend emits
-    /// via `text-log` and returns `ActionResult::SystemCommand` so the
-    /// fixture baseline can diff it (#985).
+    /// canned-response flow keyed on that NPC's name. A name that fits no
+    /// one present gets no system line: like the real backend (design
+    /// `docs/design/dynamic-npc-context.md` §3.1), the line reaches whoever
+    /// is present, or the empty-location message when nobody is.
     fn handle_addressed_npc(&mut self, text: &str, name: &str) -> ActionResult {
         let addressed = limerick_core::ipc::resolve_addressed_targets(
             &self.app.world,
@@ -1547,21 +1546,13 @@ impl GameTestHarness {
             &[name.to_string()],
         );
 
-        if !addressed.absent.is_empty() {
-            let absent_name = &addressed.absent[0];
-            let msg = format!("{absent_name} is not here.");
-            self.app.world.log(msg.clone());
-            return ActionResult::SystemCommand { response: msg };
-        }
-
         // Resolved → dispatch to a canned-response NPC turn that is forced
         // to the addressed speaker (rather than the first co-located NPC).
         if let Some(speaker_id) = addressed.resolved.first().copied() {
             return self.handle_npc_interaction_for(text, speaker_id);
         }
 
-        // Defensive: should not be reached. Empty target should have been
-        // filtered by the caller.
+        // Nobody here by that name: the people present hear it.
         self.handle_npc_interaction(text)
     }
 
@@ -1659,19 +1650,10 @@ impl GameTestHarness {
         let mentions =
             limerick_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
 
+        // No line is answered with a system line about someone absent
+        // (design §3.1): nobody present gets the empty-location message, and
+        // a name that fits no one present reaches whoever is here.
         if npcs_here.is_empty() {
-            if !mentions.names.is_empty() {
-                let addressed = limerick_core::ipc::resolve_addressed_targets(
-                    &self.app.world,
-                    &self.app.npc_manager,
-                    &mentions.names,
-                );
-                if let Some(absent_name) = addressed.absent.first() {
-                    let msg = format!("{absent_name} is not here.");
-                    self.app.world.log(msg.clone());
-                    return ActionResult::SystemCommand { response: msg };
-                }
-            }
             let msg = self.empty_location_dialogue_message();
             self.app.world.log(msg.clone());
             return ActionResult::SystemCommand { response: msg };
@@ -1690,20 +1672,6 @@ impl GameTestHarness {
                 &mentions.names,
             )
         };
-
-        if !mentions.names.is_empty() && target_ids.is_empty() {
-            let addressed = limerick_core::ipc::resolve_addressed_targets(
-                &self.app.world,
-                &self.app.npc_manager,
-                &mentions.names,
-            );
-            if let Some(absent_name) = addressed.absent.first() {
-                let msg = format!("{absent_name} is not here.");
-                self.app.world.log(msg.clone());
-                return ActionResult::SystemCommand { response: msg };
-            }
-            return ActionResult::NpcNotAvailable;
-        }
 
         let ordered_npcs: Vec<(NpcId, String, String)> = if target_ids.is_empty() {
             npcs_here
@@ -2427,8 +2395,11 @@ mod tests {
         );
     }
 
+    /// Design §3.1 (owner, 2026-10-17; supersedes #1532): asking after
+    /// someone absent in an empty church gets the empty-location message,
+    /// never a line saying they are not here.
     #[test]
-    fn natural_absent_presence_query_reports_named_absence_at_empty_church() {
+    fn natural_absent_presence_query_at_empty_church_gets_the_empty_message() {
         let mut h = GameTestHarness::new();
         h.advance_time(90);
         let moved = h.execute("go to St. Brigid's Church");
@@ -2442,19 +2413,17 @@ mod tests {
             "Is Father Declan here? I should like to introduce myself to the parish priest.",
         );
 
-        assert_eq!(
-            result,
-            ActionResult::SystemCommand {
-                response: "Fr. Declan Tierney is not here.".to_string()
-            }
-        );
+        let ActionResult::SystemCommand { response } = result else {
+            panic!("expected the empty-location message, got {result:?}");
+        };
+        assert!(!response.contains("not here"), "{response}");
         assert!(
-            h.app
+            !h.app
                 .world
                 .text_log
                 .iter()
-                .any(|line| line.contains("Fr. Declan Tierney is not here.")),
-            "absence feedback must be logged for script output"
+                .any(|line| line.contains("not here")),
+            "no line answers the name"
         );
     }
 

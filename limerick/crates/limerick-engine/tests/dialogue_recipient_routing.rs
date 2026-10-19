@@ -115,7 +115,7 @@ fn explicit_talk_recipient_is_not_confused_with_absent_question_subject() {
 }
 
 #[test]
-fn explicit_talk_recipient_does_not_make_present_question_subject_reply() {
+fn an_at_tag_recipient_does_not_make_a_present_question_subject_reply() {
     let (mut harness, seamus_id, padraig_id) = setup(true);
     harness.mock().push_for(
         "Seamus Gallagher",
@@ -127,8 +127,7 @@ fn explicit_talk_recipient_does_not_make_present_question_subject_reply() {
     );
     let mut receiver = harness.app.world.event_bus.subscribe();
 
-    let emitted =
-        harness.execute_via_real_loop("talk to Seamus Gallagher about Where is Padraig Darcy?");
+    let emitted = harness.execute_via_real_loop("@Seamus Gallagher Where is Padraig Darcy?");
     let game_events = drain(&mut receiver);
     let speakers = game_events
         .iter()
@@ -149,45 +148,39 @@ fn explicit_talk_recipient_does_not_make_present_question_subject_reply() {
     );
 }
 
+/// Design §3.1 (owner, 2026-10-17): an @tag for someone absent is treated
+/// like a line spoken to someone elsewhere, so Seamus, the one person
+/// present, hears it and answers. No system line names Padraig.
 #[test]
-fn absent_at_mention_never_retargets_present_bystander() {
+fn an_absent_at_tag_reaches_the_one_person_present() {
     let (mut harness, seamus_id, padraig_id) = setup(false);
     harness.mock().push_for(
         "Seamus Gallagher",
-        "I am present, though 'tis Padraig ye were addressing, not myself.".to_string(),
+        "Padraig? He's not been in since Sunday.".to_string(),
     );
-    let before_memories = harness.app.npc_manager.get(seamus_id).unwrap().memory.len();
     let mut receiver = harness.app.world.event_bus.subscribe();
 
     let emitted = harness.execute_via_real_loop("@Padraig Darcy Are you still here?");
     let game_events = drain(&mut receiver);
 
-    assert!(emitted.iter().any(|(name, payload)| {
-        name == "text-log"
-            && payload.get("source").and_then(serde_json::Value::as_str) == Some("system")
-            && payload.get("content").and_then(serde_json::Value::as_str)
-                == Some("Padraig Darcy is not here.")
-    }));
-    assert!(game_events.iter().any(|event| matches!(
-        event,
-        GameEvent::AddressedAbsentNpc { name, .. } if name == "Padraig Darcy"
-    )));
     assert!(
-        game_events
+        !emitted.iter().any(|(_, payload)| payload
+            .get("content")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|content| content.contains("not here"))),
+        "{emitted:?}"
+    );
+    assert!(
+        !game_events
             .iter()
-            .all(|event| !matches!(event, GameEvent::DialogueOccurred { .. }))
-    );
-    assert_eq!(
-        harness.app.npc_manager.get(seamus_id).unwrap().memory.len(),
-        before_memories
+            .any(|event| matches!(event, GameEvent::AddressedAbsentNpc { .. }))
     );
     assert!(
-        harness
-            .app
-            .world
-            .conversation_log
-            .exchanges_since(0)
-            .is_empty()
+        game_events.iter().any(|event| matches!(
+            event,
+            GameEvent::DialogueOccurred { npc_id, .. } if *npc_id == seamus_id
+        )),
+        "{game_events:?}"
     );
     assert_ne!(seamus_id, padraig_id);
 }

@@ -72,7 +72,7 @@ fn streamed_text(events: &[(String, serde_json::Value)]) -> String {
 
 fn force_turn(harness: &mut GameTestHarness, speaker: &str, input: &str, reply: &str) -> String {
     harness.mock().push_json_for(speaker, dialogue_json(reply));
-    let events = harness.execute_via_real_loop(&format!("talk to {speaker} about {input}"));
+    let events = harness.execute_via_real_loop(&format!("@{speaker} {input}"));
     let rendered = streamed_text(&events);
     let serialized = serde_json::to_string(&events).expect("UI events serialize");
     assert!(
@@ -130,9 +130,8 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
         })
         .to_string(),
     );
-    let asked = harness.execute_via_real_loop(&format!(
-        "talk to {speaker} about Have you seen my cousin Cormac Finn?"
-    ));
+    let asked =
+        harness.execute_via_real_loop(&format!("@{speaker} Have you seen my cousin Cormac Finn?"));
     assert!(streamed_text(&asked).contains("any Cormac Finn"));
     assert_eq!(
         force_turn(
@@ -154,9 +153,8 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
         })
         .to_string(),
     );
-    let denial = harness.execute_via_real_loop(&format!(
-        "talk to {speaker} about Is there a ruined abbey nearby?"
-    ));
+    let denial =
+        harness.execute_via_real_loop(&format!("@{speaker} Is there a ruined abbey nearby?"));
     assert!(streamed_text(&denial).contains("no such abbey"));
     assert_eq!(
         force_turn(
@@ -384,7 +382,7 @@ fn player_established_object_material_survives_a_multiturn_real_loop() {
         .to_string(),
     );
     let first = harness.execute_via_real_loop(&format!(
-        "talk to {speaker} about The red wool ribbon has one blue stitch through its centre."
+        "@{speaker} The red wool ribbon has one blue stitch through its centre."
     ));
     assert!(streamed_text(&first).contains("red wool ribbon"));
 

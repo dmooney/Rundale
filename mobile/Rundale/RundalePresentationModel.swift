@@ -40,6 +40,8 @@ struct PresentedClarification: Equatable, Sendable {
         let id: String
         let label: String
         let detail: String?
+        /// What VoiceOver reads instead of the label, when the engine gives one.
+        var accessibilityLabel: String?
     }
 
     let prompt: String
@@ -92,6 +94,8 @@ final class RundalePresentationModel: ObservableObject {
     static let bugDescriptionLimit = 2_000
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
+    /// The last terminal event whose returned line refilled the composer.
+    private var lastComposerReturnEventID: SemanticEventID?
     private var transcriptTraceEntries: [UITestTranscriptTraceEntry] = []
     private var transcriptTraceLastState: [String: UITestTranscriptTraceEntry] = [:]
     private let transcriptTraceOrigin = Date()
@@ -131,6 +135,7 @@ final class RundalePresentationModel: ObservableObject {
         isStreaming = Self.isWorking(state)
         isFollowingNewest = state.viewport.isFollowingNewest
         lastAnnouncedEventID = self.session.lastEvent?.eventID
+        lastComposerReturnEventID = self.session.lastEvent?.eventID
     }
 
     deinit {
@@ -636,6 +641,20 @@ final class RundalePresentationModel: ObservableObject {
             }
             activeSourceDraftID = nil
         }
+
+        // A request that sent nothing because the person chosen had left
+        // hands its line back (design §3.4). It refills an empty composer
+        // only, so it never overwrites what the player has started typing.
+        if let event = session.lastEvent,
+           event.eventID != lastComposerReturnEventID,
+           event.kind == .responseCompleted,
+           let returned = event.metadata["composerText"] {
+            lastComposerReturnEventID = event.eventID
+            if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                draft = returned
+                noteDraftMutation()
+            }
+        }
     }
 
     private func publishAccessibilityNotice(for event: SemanticEvent?) {
@@ -759,7 +778,9 @@ final class RundalePresentationModel: ObservableObject {
         PresentedClarification(
             prompt: value.prompt.question,
             options: value.prompt.choices.map {
-                PresentedClarification.Option(id: $0.id, label: $0.label, detail: nil)
+                PresentedClarification.Option(
+                    id: $0.id, label: $0.label, detail: nil, accessibilityLabel: $0.accessibilityLabel
+                )
             }
         )
     }

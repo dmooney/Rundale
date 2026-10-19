@@ -39,6 +39,7 @@ impl GameSnapshot {
             player_name: world.player_name.clone(),
             player_progress: world.player_progress.clone(),
             npcs_who_know_player_name: npc_manager.player_name_known_set(),
+            conversation_partner: npc_manager.partner(),
             active_session: world.active_session.clone(),
             content: world.content.clone(),
         }
@@ -210,6 +211,11 @@ impl GameSnapshot {
             self.introduced_npcs,
             self.npcs_who_know_player_name,
         );
+        // The partnership is current conversation state, saved like
+        // presence (design §3.2); it ends if the partner is not with the
+        // player in the restored world.
+        npc_manager.set_partner(self.conversation_partner);
+        npc_manager.end_partnership_unless_at(self.player_location);
 
         world.gossip_network = self.gossip_network;
         // #1838 compatibility repair: #1396 restored this durable set and then

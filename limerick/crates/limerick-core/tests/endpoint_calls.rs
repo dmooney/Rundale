@@ -202,7 +202,7 @@ async fn turn_engine_calls_carry_the_mod_endpoint_references_and_inputs() {
     let npc = live.npc_here().await;
 
     let step = engine
-        .submit(&live.ctx(&endpoints), talk_to(&npc))
+        .submit(&live.ctx(&endpoints), says(PLAYER_LINE))
         .await
         .expect("submit");
     let intent = awaiting(&step).clone();
@@ -386,11 +386,10 @@ async fn desktop_request_bodies(with_endpoints: bool) -> Vec<Value> {
     } else {
         EndpointCatalog::default()
     };
-    let npc = live.npc_here().await;
     limerick_core::game_loop::handle_game_input(
         &live.ctx(&endpoints),
         PLAYER_LINE.to_string(),
-        vec![npc],
+        Vec::new(),
         &Live::transport(),
         &live.game_mod.reactions,
         || None,
@@ -1005,5 +1004,738 @@ async fn the_snapshot_names_todays_festival() {
             assert_eq!(input["festival"], festival, "{at}, speaker {speaker:?}");
         }
         assert!(npcs.get(peig).is_some());
+    }
+}
+
+// ── Recipient resolution (dynamic NPC context design §3 and §8) ─────────────
+//
+// Each test runs the canonical world on the production turn path. The
+// scripted transport answers the `rundale-intent` decision from the call's
+// own options, the way Jev would on that case, so these rows test what the
+// engine does with an answer, not the model.
+
+/// How the scripted Jev answers the recipient and mention questions.
+struct Answer {
+    /// A person's full name, or a fixed option ("all", "someone_else",
+    /// "no_one"), or `ref:<phrase>` for a reference option.
+    recipient: &'static str,
+    probability: f64,
+    /// Full names of people the line talks about.
+    mentioned: &'static [&'static str],
+}
+
+const NO_ONE: Answer = Answer {
+    recipient: "no_one",
+    probability: 0.95,
+    mentioned: &[],
+};
+
+fn to(name: &'static str) -> Answer {
+    Answer {
+        recipient: name,
+        probability: 0.95,
+        mentioned: &[],
+    }
+}
+
+/// The decision reply for `answer`, using the option ids the call offered.
+fn decision_for(input: &Value, answer: &Answer) -> String {
+    let present = input["present"].as_array().unwrap();
+    let id_of = |name: &str| {
+        present
+            .iter()
+            .find(|person| person["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is not offered: {input}"))["optionId"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let recipient = match answer.recipient {
+        fixed @ ("all" | "someone_else" | "no_one") => fixed.to_string(),
+        reference if reference.starts_with("ref:") => input["references"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|option| option["phrase"] == reference[4..])
+            .unwrap_or_else(|| panic!("{reference} is not offered: {input}"))["optionId"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        name => id_of(name),
+    };
+    let mentioned: serde_json::Map<String, Value> = answer
+        .mentioned
+        .iter()
+        .map(|name| (id_of(name), json!(0.9)))
+        .collect();
+    let choice = |option: &str, p: f64| json!({"choice": option, "confidence": p, "probabilities": {option: p}});
+    json!({
+        "action": choice("talk", 0.99),
+        "destination": choice("none", 0.9),
+        "target": choice("none", 0.9),
+        "recipient": choice(&recipient, answer.probability),
+        "mentioned": mentioned,
+        "atmosphere": choice("none", 0.99),
+    })
+    .to_string()
+}
+
+/// What one turn did.
+struct Turn {
+    step: TurnStep,
+    /// Speakers and how each came to answer, in order.
+    speakers: Vec<(String, String)>,
+    /// Every journaled event's content.
+    lines: Vec<String>,
+    /// The intent call's input, if one was made.
+    intent: Option<Value>,
+}
+
+/// Runs `step` to its end: the intent call answered with `answer`, every
+/// dialogue call with a short line.
+async fn run_turn(
+    engine: &mut TurnEngine,
+    live: &Live,
+    endpoints: &EndpointCatalog,
+    mut step: TurnStep,
+    answer: &Answer,
+) -> Turn {
+    let mut speakers = Vec::new();
+    let mut lines: Vec<String> = Vec::new();
+    let mut intent = None;
+    loop {
+        lines.extend(step.events.iter().filter_map(|e| e.event.content.clone()));
+        let TurnStatus::AwaitingInference(pending) = &step.status else {
+            break;
+        };
+        let pending = pending.clone();
+        let reply = match pending.call.subrole {
+            InferenceSubrole::Intent => {
+                let input =
+                    serde_json::to_value(&pending.call.endpoint.as_ref().unwrap().input).unwrap();
+                let reply = decision_for(&input, answer);
+                intent = Some(input);
+                reply
+            }
+            InferenceSubrole::Dialogue => {
+                let input = dialogue_snapshot(&pending);
+                speakers.push((
+                    input["speaker"]["displayName"]
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+                    input["addressing"].as_str().unwrap().to_string(),
+                ));
+                dialogue_reply("Aye, indeed.")
+            }
+            other => panic!("unexpected workload {other:?}"),
+        };
+        step = resolve(engine, live, endpoints, &pending, completed(reply)).await;
+    }
+    Turn {
+        step,
+        speakers,
+        lines,
+        intent,
+    }
+}
+
+async fn say(
+    engine: &mut TurnEngine,
+    live: &Live,
+    endpoints: &EndpointCatalog,
+    line: &str,
+    answer: Answer,
+) -> Turn {
+    let step = engine
+        .submit(&live.ctx(endpoints), says(line))
+        .await
+        .expect("submit");
+    run_turn(engine, live, endpoints, step, &answer).await
+}
+
+async fn choose(
+    engine: &mut TurnEngine,
+    live: &Live,
+    endpoints: &EndpointCatalog,
+    turn: &Turn,
+    choice: &str,
+) -> Turn {
+    let request = turn.step.request_id.clone().unwrap();
+    let step = engine
+        .answer_clarification(&live.ctx(endpoints), &request, choice)
+        .await
+        .expect("answer");
+    run_turn(engine, live, endpoints, step, &NO_ONE).await
+}
+
+fn asked(turn: &Turn) -> &limerick_core::turn::ClarificationPrompt {
+    match &turn.step.status {
+        TurnStatus::AwaitingClarification(prompt) => prompt,
+        other => panic!("expected a question, got {other:?}"),
+    }
+}
+
+fn names(turn: &Turn) -> Vec<&str> {
+    turn.speakers
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect()
+}
+
+fn no_absence_line(turn: &Turn) {
+    assert!(
+        !turn
+            .lines
+            .iter()
+            .any(|line| line.contains("not here") || line.contains("No one here answers")),
+        "no line answers a name: {:?}",
+        turn.lines
+    );
+}
+
+/// Makes `name` the partner. The id is looked up first: holding the NPC
+/// lock while `id_of` takes it again would deadlock.
+async fn set_partner(live: &Live, name: &str) {
+    let id = live.id_of(name).await;
+    live.npc_manager.lock().await.set_partner(Some(id));
+}
+
+async fn introduce(live: &Live, name: &str) {
+    let id = live.id_of(name).await;
+    live.npc_manager.lock().await.mark_introduced(id);
+}
+
+const M: &str = "Mícheál Connolly";
+const R: &str = "Róisín Connolly";
+const P: &str = "Peig Hannigan";
+
+/// Both Connollys at home, the player with them, Peig at the Letter Office.
+async fn at_the_cottage(live: &Live) {
+    live.arrange(COTTAGE, &[(M, COTTAGE), (R, COTTAGE), (P, LETTER_OFFICE)])
+        .await;
+}
+
+async fn partner(live: &Live) -> Option<String> {
+    let npcs = live.npc_manager.lock().await;
+    npcs.partner()
+        .and_then(|id| npcs.get(id))
+        .map(|npc| npc.name.clone())
+}
+
+/// Rows 1 to 4: "Hello" asks who with both labels and All, and makes no
+/// dialogue call; choosing Róisín sends the line to her without retyping
+/// and makes her the partner, so "And how's the harvest?" goes to her
+/// without a question; choosing All reaches both, and the next unaddressed
+/// line asks.
+#[tokio::test]
+async fn rows_1_to_4_unaddressed_speech_asks_then_the_partner_answers() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    let mut engine = canonical_engine(&live);
+
+    let hello = say(&mut engine, &live, &endpoints, "Hello", NO_ONE).await;
+    let prompt = asked(&hello);
+    assert_eq!(prompt.question, "Who are you speaking to?");
+    let labels: Vec<&str> = prompt.choices.iter().map(|c| c.label.as_str()).collect();
+    assert_eq!(labels.len(), 3);
+    assert_eq!(labels[2], "All");
+    assert_eq!(
+        prompt.choices[2].accessibility_label.as_deref(),
+        Some("Everyone here")
+    );
+    assert!(hello.speakers.is_empty(), "no dialogue call until answered");
+
+    let roisin = format!("choose-npc-{}", live.id_of(R).await.0);
+    let chosen = choose(&mut engine, &live, &endpoints, &hello, &roisin).await;
+    assert_eq!(chosen.speakers, [(R.to_string(), "spoken_to".to_string())]);
+    assert_eq!(partner(&live).await.as_deref(), Some(R));
+
+    let harvest = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "And how's the harvest?",
+        NO_ONE,
+    )
+    .await;
+    assert_eq!(names(&harvest), [R], "no question: the partner answers");
+
+    let again = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Grand",
+        Answer {
+            probability: 0.4,
+            ..NO_ONE
+        },
+    )
+    .await;
+    let everyone = choose(&mut engine, &live, &endpoints, &again, "choose-all").await;
+    assert_eq!(
+        everyone.speakers,
+        [
+            (M.to_string(), "part_of_all".to_string()),
+            (R.to_string(), "part_of_all".to_string())
+        ]
+    );
+    assert_eq!(partner(&live).await, None, "All ends the partnership");
+    let next = say(&mut engine, &live, &endpoints, "Well?", NO_ONE).await;
+    assert_eq!(asked(&next).question, "Who are you speaking to?");
+}
+
+/// Row 5: Peig alone; the recipient question has a single option, so it is
+/// not offered to Jev, and Peig answers directly.
+#[tokio::test]
+async fn row_5_one_person_present_answers_directly() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.arrange(
+        LETTER_OFFICE,
+        &[(P, LETTER_OFFICE), (M, COTTAGE), (R, COTTAGE)],
+    )
+    .await;
+    let mut engine = canonical_engine(&live);
+    let turn = say(&mut engine, &live, &endpoints, "Hello", to(P)).await;
+    assert_eq!(names(&turn), [P]);
+    let input = turn.intent.unwrap();
+    for list in ["everyone", "someoneElse", "noOne", "mentionable"] {
+        assert_eq!(input[list], json!([]), "{list}");
+    }
+}
+
+/// Rows 6 and 18: an @tag or chip picks the recipient with no question and
+/// no intent call; only that person answers, and a name in the line of
+/// someone elsewhere gets no "not here" line.
+#[tokio::test]
+async fn rows_6_and_18_explicit_selection_skips_system_1() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    let mut engine = canonical_engine(&live);
+    let tagged = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "@Róisín Connolly any news?",
+        NO_ONE,
+    )
+    .await;
+    assert!(tagged.intent.is_none(), "no intent call");
+    assert_eq!(names(&tagged), [R]);
+    let step = engine
+        .submit(&live.ctx(&endpoints), spoken_to("Any news?", &[M]))
+        .await
+        .unwrap();
+    let chip = run_turn(&mut engine, &live, &endpoints, step, &NO_ONE).await;
+    assert!(chip.intent.is_none(), "no intent call");
+    assert_eq!(names(&chip), [M]);
+
+    live.arrange(
+        LETTER_OFFICE,
+        &[(P, LETTER_OFFICE), (M, COTTAGE), (R, COTTAGE)],
+    )
+    .await;
+    let ribbon = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "@Peig Hannigan The ribbon was woven by Róisín.",
+        NO_ONE,
+    )
+    .await;
+    assert_eq!(names(&ribbon), [P]);
+    no_absence_line(&ribbon);
+}
+
+/// Rows 7 to 9: before any introduction, a line Jev reads as spoken to
+/// Róisín reaches her. The call offers her full name, so it can.
+#[tokio::test]
+async fn rows_7_to_9_a_name_reaches_its_person_before_an_introduction() {
+    for line in [
+        "Róisín, what news is there from the village?",
+        "ask Róisín about the village",
+        "Roisin, what news is there from the village?",
+    ] {
+        let live = Live::canonical();
+        let endpoints = live.game_mod.endpoints.clone();
+        at_the_cottage(&live).await;
+        let mut engine = canonical_engine(&live);
+        let turn = say(&mut engine, &live, &endpoints, line, to(R)).await;
+        assert_eq!(names(&turn), [R], "{line}");
+        let input = turn.intent.unwrap();
+        assert!(
+            input["present"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|person| person["name"] == R && person["introduced"] == false),
+            "{input}"
+        );
+    }
+}
+
+/// Rows 10 and 12: a line spoken to someone not present, or to a name that
+/// fits no one, reaches both Connollys and ends the partnership; no system
+/// line answers the name, and nobody elsewhere is in the call.
+#[tokio::test]
+async fn rows_10_and_12_someone_not_present_reaches_everyone_here() {
+    for line in ["ask Seán about the road", "Peig, are you there?"] {
+        let live = Live::canonical();
+        let endpoints = live.game_mod.endpoints.clone();
+        at_the_cottage(&live).await;
+        set_partner(&live, R).await;
+        let mut engine = canonical_engine(&live);
+        let turn = say(&mut engine, &live, &endpoints, line, to("someone_else")).await;
+        assert_eq!(names(&turn), [M, R], "{line}");
+        no_absence_line(&turn);
+        assert_eq!(partner(&live).await, None, "{line}");
+        assert!(turn.intent.unwrap().get("elsewhere").is_none());
+    }
+}
+
+/// Row 11: with Peig alone, "Mícheál, hello" goes to Peig, and neither the
+/// intent call nor her snapshot says where Mícheál is.
+#[tokio::test]
+async fn row_11_naming_someone_elsewhere_reaches_the_person_present() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.arrange(
+        LETTER_OFFICE,
+        &[(P, LETTER_OFFICE), (M, COTTAGE), (R, COTTAGE)],
+    )
+    .await;
+    {
+        let mut npcs = live.npc_manager.lock().await;
+        let id = npcs.all_npcs().find(|npc| npc.name == M).unwrap().id;
+        npcs.mark_introduced(id);
+    }
+    let mut engine = canonical_engine(&live);
+    let step = engine
+        .submit(&live.ctx(&endpoints), says("Mícheál, hello"))
+        .await
+        .unwrap();
+    let intent = awaiting(&step).clone();
+    let input = serde_json::to_value(&intent.call.endpoint.as_ref().unwrap().input).unwrap();
+    // Only the people present are offered; no one elsewhere, so the call
+    // says nothing of where Mícheál is.
+    assert!(input.get("elsewhere").is_none(), "{input}");
+    let offered: Vec<&str> = input["present"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|person| person["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(offered, [P]);
+    let step = resolve(
+        &mut engine,
+        &live,
+        &endpoints,
+        &intent,
+        completed(decision_for(&input, &to(P))),
+    )
+    .await;
+    let snapshot = dialogue_snapshot(awaiting(&step));
+    assert_eq!(snapshot["speaker"]["displayName"], P);
+    for person in snapshot["knownPeople"].as_array().unwrap() {
+        assert!(person.get("location").is_none(), "{person}");
+    }
+    let rest = run_turn(&mut engine, &live, &endpoints, step, &NO_ONE).await;
+    assert_eq!(names(&rest), [P]);
+    no_absence_line(&rest);
+}
+
+/// Rows 13 and 14: an exclamation naming a Mary elsewhere, or an ordinary
+/// remark, is not an address: with no partner it asks, with a partner the
+/// partner answers.
+#[tokio::test]
+async fn rows_13_and_14_a_remark_is_not_an_address() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    {
+        // The fixture's Mary Brennan, at the Letter Office.
+        let mut npcs = live.npc_manager.lock().await;
+        let mut mary = npcs.all_npcs().find(|npc| npc.name == P).unwrap().clone();
+        mary.id = NpcId(40);
+        mary.name = "Mary Brennan".to_string();
+        npcs.add_npc(mary);
+    }
+    let mut engine = canonical_engine(&live);
+    let line = "Mary, mother of God, look at the rain!";
+    let first = say(&mut engine, &live, &endpoints, line, NO_ONE).await;
+    assert_eq!(asked(&first).question, "Who are you speaking to?");
+    no_absence_line(&first);
+    set_partner(&live, M).await;
+    let with_partner = say(&mut engine, &live, &endpoints, line, NO_ONE).await;
+    assert_eq!(names(&with_partner), [M]);
+    let fine_day = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Well, it is a fine day.",
+        NO_ONE,
+    )
+    .await;
+    assert_eq!(names(&fine_day), [M]);
+}
+
+/// Rows 15 to 17: a person mentioned joins an unaddressed line after the
+/// partner, never an addressed one; with no partner the line asks first,
+/// and the person mentioned joins after the choice.
+#[tokio::test]
+async fn rows_15_to_17_mentions_join_unaddressed_lines() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    set_partner(&live, R).await;
+    let mut engine = canonical_engine(&live);
+
+    let cow = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Does Mícheál still keep the black cow?",
+        Answer {
+            mentioned: &[M],
+            ..NO_ONE
+        },
+    )
+    .await;
+    assert_eq!(
+        cow.speakers,
+        [
+            (R.to_string(), "spoken_to".to_string()),
+            (M.to_string(), "joining_mentioned".to_string())
+        ]
+    );
+    assert_eq!(partner(&live).await.as_deref(), Some(R), "Róisín stays");
+
+    let well = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Róisín, is Mícheál well?",
+        Answer {
+            mentioned: &[M],
+            ..to(R)
+        },
+    )
+    .await;
+    assert_eq!(names(&well), [R], "an addressed line: nobody joins");
+
+    live.npc_manager.lock().await.set_partner(None);
+    let butter = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "I hear Róisín makes fine butter.",
+        Answer {
+            mentioned: &[R],
+            ..NO_ONE
+        },
+    )
+    .await;
+    assert!(
+        butter.intent.is_some(),
+        "a first-person line still gets the call"
+    );
+    let micheal = format!("choose-npc-{}", live.id_of(M).await.0);
+    let chosen = choose(&mut engine, &live, &endpoints, &butter, &micheal).await;
+    assert_eq!(
+        chosen.speakers,
+        [
+            (M.to_string(), "spoken_to".to_string()),
+            (R.to_string(), "joining_mentioned".to_string())
+        ]
+    );
+    assert_eq!(partner(&live).await.as_deref(), Some(M));
+}
+
+/// Row 19: a question pending; Róisín leaves before the answer. The game
+/// says she is no longer here, sends nothing, and hands the line back.
+#[tokio::test]
+async fn row_19_a_chosen_person_who_left_returns_the_line() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    introduce(&live, R).await;
+    let mut engine = canonical_engine(&live);
+    let hello = say(&mut engine, &live, &endpoints, "Hello", NO_ONE).await;
+    live.arrange(COTTAGE, &[(R, VILLAGE)]).await;
+    let roisin = format!("choose-npc-{}", live.id_of(R).await.0);
+    let answered = choose(&mut engine, &live, &endpoints, &hello, &roisin).await;
+    assert!(answered.speakers.is_empty());
+    assert!(
+        answered
+            .lines
+            .contains(&"Róisín Connolly is no longer here.".to_string())
+    );
+    let terminal = answered.step.events.last().unwrap();
+    assert_eq!(
+        terminal
+            .event
+            .metadata
+            .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+            .map(String::as_str),
+        Some("Hello")
+    );
+}
+
+/// Row 20: the partner leaves; the next unaddressed line resolves afresh.
+#[tokio::test]
+async fn row_20_a_partner_who_left_no_longer_answers() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.arrange(COTTAGE, &[(P, COTTAGE), (M, COTTAGE), (R, COTTAGE)])
+        .await;
+    set_partner(&live, R).await;
+    live.arrange(COTTAGE, &[(R, VILLAGE)]).await;
+    let mut engine = canonical_engine(&live);
+    let turn = say(&mut engine, &live, &endpoints, "Hello", NO_ONE).await;
+    let prompt = asked(&turn);
+    assert_eq!(prompt.choices.len(), 3, "Peig, Mícheál and All");
+}
+
+/// Row 21: unsure, or a failed call, with both Connollys present asks.
+#[tokio::test]
+async fn row_21_an_unsure_answer_asks() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    set_partner(&live, R).await;
+    let mut engine = canonical_engine(&live);
+    let unsure = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Good morning to you",
+        Answer {
+            probability: 0.6,
+            ..to(R)
+        },
+    )
+    .await;
+    assert_eq!(asked(&unsure).question, "Who are you speaking to?");
+
+    let step = engine
+        .submit(&live.ctx(&endpoints), says("Good morning to you"))
+        .await
+        .unwrap();
+    let pending = awaiting(&step).clone();
+    let failed = resolve(
+        &mut engine,
+        &live,
+        &endpoints,
+        &pending,
+        InferenceOutcome::Failed {
+            kind: limerick_core::turn_inference::InferenceFailureKind::Protocol,
+            message: "MODEL_ERROR".to_string(),
+            report: CallReport::default(),
+        },
+    )
+    .await;
+    assert!(matches!(
+        failed.status,
+        TurnStatus::AwaitingClarification(_)
+    ));
+}
+
+/// Row 22 (engine half): the partner is saved with the game.
+#[tokio::test]
+async fn row_22_the_partner_is_saved_with_the_game() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    let mut engine = canonical_engine(&live);
+    say(&mut engine, &live, &endpoints, "Good morning", to(R)).await;
+    let snapshot = {
+        let world = live.world.lock().await;
+        let npcs = live.npc_manager.lock().await;
+        limerick_core::persistence::GameSnapshot::capture(&world, &npcs)
+    };
+    assert_eq!(snapshot.conversation_partner, Some(live.id_of(R).await));
+}
+
+/// Rows 27 and 29: a word that fits both Connollys asks which; "talk to
+/// Mícheál about Róisín" is spoken to Mícheál alone.
+#[tokio::test]
+async fn rows_27_and_29_references_ask_and_talk_to_scopes_the_line() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    at_the_cottage(&live).await;
+    let mut engine = canonical_engine(&live);
+    let which = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "ask Connolly about the household",
+        to("ref:Connolly"),
+    )
+    .await;
+    let prompt = asked(&which);
+    assert_eq!(prompt.question, "Which Connolly do you mean?");
+    assert_eq!(prompt.choices.len(), 2);
+    assert!(which.speakers.is_empty());
+
+    let talk = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "talk to Mícheál about Róisín",
+        Answer {
+            mentioned: &[R],
+            ..to(M)
+        },
+    )
+    .await;
+    assert_eq!(names(&talk), [M]);
+}
+
+/// Row 30: three people present, a line spoken to two of them comes out
+/// unsure, so the game asks, offering each person and All.
+#[tokio::test]
+async fn row_30_three_present_and_unsure_asks() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.arrange(VILLAGE, &[(P, VILLAGE), (M, VILLAGE), (R, VILLAGE)])
+        .await;
+    let mut engine = canonical_engine(&live);
+    let turn = say(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Mícheál and Róisín, will ye walk up the road with me?",
+        Answer {
+            probability: 0.5,
+            ..to(M)
+        },
+    )
+    .await;
+    assert_eq!(asked(&turn).choices.len(), 4);
+}
+
+/// Rows 31 and 32: with nobody present, a name gets the idle message only,
+/// and the call does not ask Jev who the line is for.
+#[tokio::test]
+async fn rows_31_and_32_nobody_present_gets_the_idle_message() {
+    for (line, introduced) in [("Mícheál, hello", true), ("Hello?", false)] {
+        let live = Live::canonical();
+        let endpoints = live.game_mod.endpoints.clone();
+        live.arrange(VILLAGE, &[(P, LETTER_OFFICE), (M, COTTAGE), (R, COTTAGE)])
+            .await;
+        if introduced {
+            introduce(&live, M).await;
+        }
+        let mut engine = canonical_engine(&live);
+        let turn = say(&mut engine, &live, &endpoints, line, NO_ONE).await;
+        assert!(turn.speakers.is_empty(), "{line}");
+        no_absence_line(&turn);
+        let input = turn.intent.expect("the call still decides the action");
+        assert_eq!(input["noOne"], json!([{"optionId": "no_one"}]), "{line}");
+        assert_eq!(input["present"], json!([]));
+        assert_eq!(input["everyone"], json!([]));
     }
 }

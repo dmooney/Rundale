@@ -51,6 +51,7 @@ struct Live {
     inference_config: InferenceConfig,
     emitter: Arc<CapturingEmitter>,
     reaction_templates: ReactionTemplates,
+    endpoints: limerick_core::game_mod::EndpointCatalog,
 }
 
 impl Live {
@@ -74,7 +75,19 @@ impl Live {
             inference_config: InferenceConfig::default(),
             emitter: Arc::new(CapturingEmitter::new()),
             reaction_templates: game_mod.reactions.clone(),
+            endpoints: limerick_core::game_mod::NO_ENDPOINTS.clone(),
         }
+    }
+
+    /// The same world, with the canonical mod's Endpoint definitions: the
+    /// intent call is the `rundale-intent` decision (design §4.6), which
+    /// the scripted host answers with [`decision_reply`].
+    fn with_decisions(mut self) -> Self {
+        let canonical = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        self.endpoints = GameMod::load(&canonical)
+            .expect("load mods/rundale")
+            .endpoints;
+        self
     }
 
     fn ctx(&self) -> GameLoopContext<'_> {
@@ -87,7 +100,7 @@ impl Live {
             emitter: self.emitter.clone() as Arc<dyn EventEmitter>,
             inference_config: &self.inference_config,
             pronunciations: &[],
-            endpoints: &limerick_core::game_mod::NO_ENDPOINTS,
+            endpoints: &self.endpoints,
             client: &self.client,
             cloud_client: &self.cloud_client,
             language: limerick_core::npc::LanguageSettings::english_only(),
@@ -170,9 +183,40 @@ fn npc_reply() -> String {
     .to_string()
 }
 
+/// A `rundale-intent` decision for the call's own options: speech, spoken
+/// to the first reference option when the line has one ("Which Mícheál?"),
+/// otherwise to no one in particular (or, with one person present, to the
+/// only option the call offers).
+fn decision_reply(pending: &PendingInference) -> String {
+    let input = serde_json::to_value(&pending.call.endpoint.as_ref().unwrap().input).unwrap();
+    let recipient = if let Some(reference) = input["references"].get(0) {
+        reference["optionId"].as_str().unwrap().to_string()
+    } else if let Some(no_one) = input["noOne"].get(0) {
+        no_one["optionId"].as_str().unwrap().to_string()
+    } else {
+        input["present"][0]["optionId"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let choice = |option: &str, p: f64| serde_json::json!({"choice": option, "confidence": p, "probabilities": {option: p}});
+    serde_json::json!({
+        "action": choice("talk", 0.99),
+        "destination": choice("none", 0.9),
+        "target": choice("none", 0.9),
+        "recipient": choice(&recipient, 0.95),
+        "mentioned": {},
+        "atmosphere": choice("none", 0.99),
+    })
+    .to_string()
+}
+
 /// The scripted host: a canned answer for every workload.
 fn scripted(pending: &PendingInference, intent_target: &str) -> InferenceOutcome {
     match pending.call.subrole {
+        InferenceSubrole::Intent if pending.call.endpoint.is_some() => {
+            completed(&decision_reply(pending))
+        }
         // An empty target classifies the input as speech to whoever is
         // addressed; otherwise as travel to the target.
         InferenceSubrole::Intent if intent_target.is_empty() => completed(
@@ -233,10 +277,14 @@ async fn run_scripted(
     (step, events, calls)
 }
 
-/// Answers the intent call (as speech) and returns the step suspended on
-/// the dialogue call.
+/// Answers the intent call (as speech), when there is one, and returns the
+/// step suspended on the dialogue call. A line with an explicit recipient
+/// makes no intent call (design §3.1, step 1).
 async fn to_dialogue(engine: &mut TurnEngine, live: &Live, step: TurnStep) -> TurnStep {
     let pending = awaiting(&step).clone();
+    if pending.call.subrole == InferenceSubrole::Dialogue {
+        return step;
+    }
     assert_eq!(pending.call.subrole, InferenceSubrole::Intent);
     let next = engine
         .resume(&live.ctx(), resolution(&pending, scripted(&pending, "")))
@@ -327,7 +375,8 @@ async fn dialogue_is_accepted_before_inference_and_commits_one_exchange() {
         kinds(&step.events),
         vec![TranscriptEventKind::PlayerCommand]
     );
-    assert_eq!(awaiting(&step).call.subrole, InferenceSubrole::Intent);
+    // An explicit recipient makes no intent call (design §3.1, step 1).
+    assert_eq!(awaiting(&step).call.subrole, InferenceSubrole::Dialogue);
     assert_eq!(journal.events().len(), 1);
     let step = to_dialogue(&mut engine, &live, step).await;
     let pending = awaiting(&step).clone();
@@ -339,7 +388,7 @@ async fn dialogue_is_accepted_before_inference_and_commits_one_exchange() {
     );
 
     // Nothing is visible or authoritative while the attempt is suspended.
-    assert!(step.events.is_empty());
+    assert_eq!(journal.events().len(), 1, "only the command is journaled");
     let command = &journal.events()[0].event;
     assert_eq!(
         command.content.as_deref(),
@@ -550,7 +599,7 @@ async fn a_failed_dialogue_commits_nothing_and_retries_as_a_new_attempt() {
     let second = awaiting(&retry).clone();
     assert_eq!(
         second.call.subrole,
-        InferenceSubrole::Intent,
+        InferenceSubrole::Dialogue,
         "the retry re-runs the whole turn"
     );
     assert_ne!(second.attempt_id, first.attempt_id);
@@ -600,6 +649,83 @@ async fn a_failed_dialogue_commits_nothing_and_retries_as_a_new_attempt() {
         "the retried line is recorded once"
     );
     assert_reducer_contract(&journal.events(), &first.request_id);
+}
+
+/// Answers the step's intent call as speech and returns the step suspended
+/// on the dialogue call.
+async fn past_intent(engine: &mut TurnEngine, live: &Live, step: TurnStep) -> TurnStep {
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    let next = engine
+        .resume(&live.ctx(), resolution(&intent, scripted(&intent, "")))
+        .await
+        .expect("resume the intent call");
+    assert_eq!(awaiting(&next).call.subrole, InferenceSubrole::Dialogue);
+    next
+}
+
+// Gatekeeper finding on #2221: a retry must not ask System 1 again, or it
+// could change the action or the recipients the first attempt settled.
+#[tokio::test]
+async fn a_retry_reuses_the_settled_intent_reply_after_a_failure_and_after_a_restart() {
+    let live = Live::rundale();
+    let journal = Arc::new(MemoryTurnJournal::new());
+    // One person present: the intent call still decides the action.
+    only_present(&live, &["Peig Hannigan"]).await;
+
+    // A dialogue failure, then a retry: the retry goes straight to dialogue.
+    let mut engine = TurnEngine::new(journal.clone(), live.rules());
+    let step = engine
+        .submit(&live.ctx(), said("Is there work going here?"))
+        .await
+        .unwrap();
+    let dialogue = awaiting(&past_intent(&mut engine, &live, step).await).clone();
+    engine
+        .resume(
+            &live.ctx(),
+            resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+        )
+        .await
+        .unwrap();
+    assert!(
+        journal
+            .request(&dialogue.request_id)
+            .unwrap()
+            .settled_intent_reply
+            .is_some(),
+        "the intent reply is journaled"
+    );
+    let retry = engine
+        .retry(&live.ctx(), &dialogue.request_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting(&retry).call.subrole,
+        InferenceSubrole::Dialogue,
+        "the retry reuses the intent reply"
+    );
+
+    // The process stops while the retry's dialogue call is in flight.
+    drop(engine);
+    let mut restarted = TurnEngine::new(journal.clone(), live.rules());
+    restarted.recover().await.unwrap();
+    let retry = restarted
+        .retry(&live.ctx(), &dialogue.request_id)
+        .await
+        .unwrap();
+    let (done, _, calls) = run_scripted(&mut restarted, &live, retry, "").await;
+    assert!(
+        !calls.contains(&InferenceSubrole::Intent),
+        "the journaled reply survives the restart: {calls:?}"
+    );
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_reducer_contract(&journal.events(), &dialogue.request_id);
 }
 
 // Oracle: `correlated_endpoint_failure_is_terminal_and_retryable` (worker
@@ -1541,7 +1667,7 @@ async fn submit_scripted(
 // matches names and first names, so the port uses a shared first name.
 #[tokio::test]
 async fn an_ambiguous_addressee_asks_survives_restart_and_the_answer_continues_the_request() {
-    let live = Live::rundale();
+    let live = Live::rundale().with_decisions();
     let (connolly, duffy) = two_micheals(&live).await;
     let (mut engine, journal) = engine(&live);
     let before = live.fingerprint().await;
@@ -1656,14 +1782,55 @@ async fn a_full_name_tag_selects_one_person_without_asking() {
     assert_eq!(speakers(&events), vec!["Mícheál Connolly".to_string()]);
 }
 
-// Oracle: ios-port `explicit_absent_addressee_does_not_fall_back_to_present_npc`.
+// Design §3.1 (owner, 2026-10-17), replacing the ios-port oracle
+// `explicit_absent_addressee_does_not_fall_back_to_present_npc`: a line
+// addressed to someone absent reaches the people present, and no system
+// line names the absent person.
+// PR gatekeeper finding on #2263: an @tag for a first name two people
+// present share asks which, whoever the player has been introduced to, with
+// or without fadas, and makes no System 1 call.
 #[tokio::test]
-async fn an_absent_explicit_addressee_does_not_fall_back_to_someone_present() {
-    let live = Live::rundale();
-    only_present(&live, &["Peig Hannigan"]).await;
+async fn a_shared_first_name_tag_asks_which_whoever_has_been_introduced() {
+    for introduced in [0usize, 1, 2] {
+        for tag in ["@Micheal", "@Mícheál"] {
+            let live = Live::rundale().with_decisions();
+            let ids = only_present(&live, &["Roisin Connolly", "Cormac Duffy"]).await;
+            {
+                let mut npcs = live.npc_manager.lock().await;
+                npcs.get_mut(ids[0]).unwrap().name = "Mícheál Connolly".to_string();
+                npcs.get_mut(ids[1]).unwrap().name = "Mícheál Duffy".to_string();
+                for id in &ids[..introduced] {
+                    npcs.mark_introduced(*id);
+                }
+            }
+            let (mut engine, _) = engine(&live);
+            let (asked, _, calls) =
+                submit_scripted(&mut engine, &live, said(&format!("{tag} how is the road?"))).await;
+            assert!(!calls.contains(&InferenceSubrole::Intent), "{calls:?}");
+            let prompt = asking(&asked);
+            let chosen: Vec<_> = prompt
+                .choices
+                .iter()
+                .filter_map(|choice| choice.entity_id.clone())
+                .collect();
+            assert_eq!(
+                chosen,
+                [ids[0].0.to_string(), ids[1].0.to_string()],
+                "{tag} with {introduced} introduced"
+            );
+        }
+    }
+}
+
+// Gatekeeper finding on #2221: an @tag for a name in nobody's roster is
+// still an explicit selection; it reaches everyone present without System 1.
+#[tokio::test]
+async fn a_tag_for_a_name_no_one_has_reaches_everyone_present_without_a_call() {
+    let live = Live::rundale().with_decisions();
+    only_present(&live, &["Peig Hannigan", "Cormac Duffy"]).await;
     let (mut engine, _) = engine(&live);
-    let (done, events, calls) =
-        submit_scripted(&mut engine, &live, said("talk to Padraig about work")).await;
+    let (done, _, calls) =
+        submit_scripted(&mut engine, &live, said("@Seamus how is the road?")).await;
     assert!(matches!(
         done.status,
         TurnStatus::Completed {
@@ -1671,60 +1838,64 @@ async fn an_absent_explicit_addressee_does_not_fall_back_to_someone_present() {
             ..
         }
     ));
-    assert!(!calls.contains(&InferenceSubrole::Dialogue));
-    assert!(speakers(&events).is_empty());
-    assert!(contents(&events).contains(&"Padraig is not here.".to_string()));
+    assert!(!calls.contains(&InferenceSubrole::Intent), "{calls:?}");
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| **call == InferenceSubrole::Dialogue)
+            .count(),
+        2,
+        "both people present hear it: {calls:?}"
+    );
 }
 
-// Oracle: ios-port `leading_vocative_still_selects_explicit_present_npc`.
 #[tokio::test]
-async fn a_leading_vocative_addresses_that_person_not_whoever_is_first() {
+async fn an_absent_explicit_addressee_reaches_the_people_present() {
     let live = Live::rundale();
-    // Padraig (id 1) is first; the message opens by addressing the widow.
-    only_present(&live, &["Padraig Darcy", "Peig Hannigan"]).await;
+    only_present(&live, &["Peig Hannigan"]).await;
     let (mut engine, _) = engine(&live);
-    let (_, events, _) = submit_scripted(&mut engine, &live, said("Widow, any news?")).await;
-    let widow = {
-        let npcs = live.npc_manager.lock().await;
-        let peig = npcs
-            .all_npcs()
-            .find(|npc| npc.name == "Peig Hannigan")
-            .unwrap();
-        npcs.display_name(peig).to_string()
-    };
-    assert_eq!(speakers(&events).len(), 1);
-    assert!(speakers(&events)[0].eq_ignore_ascii_case(&widow));
+    let (done, events, calls) =
+        submit_scripted(&mut engine, &live, said("@Padraig Darcy how is work?")).await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(!calls.contains(&InferenceSubrole::Intent), "{calls:?}");
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| **call == InferenceSubrole::Dialogue)
+            .count(),
+        1,
+        "Peig, the one person present, hears it: {calls:?}"
+    );
+    assert!(
+        !contents(&events)
+            .iter()
+            .any(|line| line.contains("not here"))
+    );
 
-    let (_, events, _) = submit_scripted(
-        &mut engine,
-        &live,
-        said("Hello Peig Hannigan, could you help?"),
-    )
-    .await;
-    assert_eq!(speakers(&events).len(), 1);
-    assert!(speakers(&events)[0].eq_ignore_ascii_case(&widow));
-
-    // An opening that names no one present is not an address.
-    let (_, events, _) = submit_scripted(&mut engine, &live, said("Well, it is a fine day.")).await;
-    assert_eq!(speakers(&events).len(), 1);
+    // Two present: both hear it, as for All.
+    only_present(&live, &["Peig Hannigan", "Cormac Duffy"]).await;
+    let (_, events, calls) =
+        submit_scripted(&mut engine, &live, said("@Padraig Darcy how is work?")).await;
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| **call == InferenceSubrole::Dialogue)
+            .count(),
+        2,
+        "{calls:?}"
+    );
     assert!(
         !contents(&events)
             .iter()
             .any(|line| line.contains("not here"))
     );
 }
-
-#[tokio::test]
-async fn an_ambiguous_leading_vocative_asks_which_person() {
-    let live = Live::rundale();
-    two_micheals(&live).await;
-    let (mut engine, _) = engine(&live);
-    let (asked, _, calls) =
-        submit_scripted(&mut engine, &live, said("Mícheál, is the mill working?")).await;
-    assert_eq!(asking(&asked).choices.len(), 2);
-    assert!(!calls.contains(&InferenceSubrole::Dialogue));
-}
-
 // Oracle: ios-port `dialogue_body_mention_does_not_address_absent_npc`.
 #[tokio::test]
 async fn a_body_mention_of_someone_absent_does_not_address_them() {
@@ -1770,7 +1941,7 @@ async fn new_input_cancels_a_pending_question_first() {
     let pending = asked.request_id.clone().unwrap();
 
     let (done, events, _) =
-        submit_scripted(&mut engine, &live, said("Mícheál Duffy, good day.")).await;
+        submit_scripted(&mut engine, &live, said("@Mícheál Duffy good day.")).await;
     let cancelled = &events[0].event;
     assert_eq!(cancelled.request_id.as_ref(), Some(&pending));
     assert_eq!(cancelled.kind, TranscriptEventKind::ResponseCompleted);
@@ -1804,7 +1975,7 @@ async fn new_input_cancels_a_pending_question_first() {
 
 #[tokio::test]
 async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
-    let live = Live::rundale();
+    let live = Live::rundale().with_decisions();
     let (_, duffy) = two_micheals(&live).await;
     let (mut engine, journal) = engine(&live);
     let (asked, _, _) = submit_scripted(
@@ -1850,10 +2021,235 @@ async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
         done.events[1].event.content.as_deref(),
         Some("Mícheál Duffy is no longer here.")
     );
+    // Design §3.4: nothing is sent, and the line returns to the composer.
+    assert_eq!(
+        done.events[2]
+            .event
+            .metadata
+            .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+            .map(String::as_str),
+        Some("talk to Mícheál about the household")
+    );
     assert_eq!(live.fingerprint().await, before);
     assert_eq!(live.emitter.events(), done.emissions);
     assert!(journal.request(&request).unwrap().has_committed());
     assert_reducer_contract(&journal.events(), &request);
+}
+
+// Gatekeeper finding on #2221: a failed commit while ending a retry whose
+// chosen person left ends the request `Failed` (retryable), not stranded.
+#[tokio::test]
+async fn a_failed_unsent_commit_leaves_the_request_retryable() {
+    let live = Live::rundale().with_decisions();
+    let (_, duffy) = two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let line = "talk to Mícheál about the household";
+    let (asked, _, _) = submit_scripted(&mut engine, &live, said(line)).await;
+    let request = asked.request_id.clone().unwrap();
+    let step = engine
+        .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+        .await
+        .unwrap();
+    let dialogue = awaiting(&step).clone();
+    engine
+        .resume(
+            &live.ctx(),
+            resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+        )
+        .await
+        .unwrap();
+    {
+        let here = live.world.lock().await.player_location;
+        let away = if here == LocationId(1) {
+            LocationId(2)
+        } else {
+            LocationId(1)
+        };
+        live.npc_manager
+            .lock()
+            .await
+            .get_mut(duffy)
+            .unwrap()
+            .set_location(away);
+    }
+
+    journal.fail_next_commits(1);
+    let error = engine.retry(&live.ctx(), &request).await.unwrap_err();
+    assert!(matches!(error, TurnError::Journal(_)), "{error}");
+    assert_eq!(
+        engine.request(&request).unwrap().phase,
+        RequestPhase::Failed
+    );
+
+    let done = engine.retry(&live.ctx(), &request).await.unwrap();
+    assert_eq!(
+        done.events
+            .last()
+            .unwrap()
+            .event
+            .metadata
+            .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+            .map(String::as_str),
+        Some(line)
+    );
+    assert_reducer_contract(&journal.events(), &request);
+}
+
+// Gatekeeper finding on #2221: with the canonical mod's Endpoints declared,
+// an in-process host still answers the intent call with intent JSON. That is
+// no System 1 answer, so a follow-up goes to the partner instead of asking.
+#[tokio::test]
+async fn an_in_process_intent_reply_lets_the_partner_answer_a_follow_up() {
+    let live = Live::rundale().with_decisions();
+    let ids = only_present(&live, &["Peig Hannigan", "Cormac Duffy"]).await;
+    live.npc_manager.lock().await.set_partner(Some(ids[0]));
+    let (mut engine, _journal) = engine(&live);
+    let step = engine
+        .submit(&live.ctx(), said("And how is the harvest?"))
+        .await
+        .unwrap();
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    let in_process = serde_json::json!({"intent": "talk", "target": null, "dialogue": "And how is the harvest?"});
+    let next = engine
+        .resume(
+            &live.ctx(),
+            resolution(&intent, completed(&in_process.to_string())),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting(&next).call.subrole,
+        InferenceSubrole::Dialogue,
+        "the partner answers: {:?}",
+        next.status
+    );
+}
+
+// Gatekeeper finding on #2221: a journal write that fails while the intent
+// reply is saved ends the attempt `Failed` (retryable) instead of stranding
+// the request on a call that was already answered.
+#[tokio::test]
+async fn a_failed_intent_reply_write_fails_the_attempt_and_the_retry_succeeds() {
+    let live = Live::rundale();
+    let (mut engine, journal) = engine(&live);
+    only_present(&live, &["Peig Hannigan"]).await;
+    let step = engine
+        .submit(&live.ctx(), said("Is there work going here?"))
+        .await
+        .unwrap();
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    journal.fail_next_writes(1);
+    let failed = engine
+        .resume(&live.ctx(), resolution(&intent, scripted(&intent, "")))
+        .await
+        .unwrap();
+    assert!(matches!(
+        failed.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Failed,
+            revision: None
+        }
+    ));
+    let record = engine.request(&intent.request_id).unwrap();
+    assert_eq!(record.phase, RequestPhase::Failed);
+    assert!(record.settled_intent_reply.is_none());
+
+    let retry = engine.retry(&live.ctx(), &intent.request_id).await.unwrap();
+    let (done, _, calls) = run_scripted(&mut engine, &live, retry, "").await;
+    assert_eq!(calls.first(), Some(&InferenceSubrole::Intent), "{calls:?}");
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_reducer_contract(&journal.events(), &intent.request_id);
+}
+
+// Gatekeeper finding on #2221: a retry that reuses a chosen recipient checks
+// presence again, as an answer does (design §3.4, §7). Someone who has left,
+// or an emptied room, sends nothing and hands the line back to the composer.
+#[tokio::test]
+async fn a_retry_after_the_chosen_person_or_everyone_left_returns_the_line() {
+    for everyone_left in [false, true] {
+        let live = Live::rundale().with_decisions();
+        let (_, duffy) = two_micheals(&live).await;
+        let (mut engine, journal) = engine(&live);
+        let line = "talk to Mícheál about the household";
+        let (asked, _, _) = submit_scripted(&mut engine, &live, said(line)).await;
+        let request = asked.request_id.clone().unwrap();
+        let step = engine
+            .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+            .await
+            .unwrap();
+        let dialogue = awaiting(&step).clone();
+        assert_eq!(dialogue.call.subrole, InferenceSubrole::Dialogue);
+        engine
+            .resume(
+                &live.ctx(),
+                resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+            )
+            .await
+            .unwrap();
+        {
+            let here = live.world.lock().await.player_location;
+            let away = if here == LocationId(1) {
+                LocationId(2)
+            } else {
+                LocationId(1)
+            };
+            let mut npcs = live.npc_manager.lock().await;
+            let leaving = if everyone_left {
+                npcs.npcs_at_ids(here)
+            } else {
+                vec![duffy]
+            };
+            for id in leaving {
+                npcs.get_mut(id).unwrap().set_location(away);
+            }
+        }
+        let before = live.fingerprint().await;
+
+        let done = engine.retry(&live.ctx(), &request).await.unwrap();
+        assert!(
+            matches!(
+                done.status,
+                TurnStatus::Completed {
+                    outcome: TerminalOutcome::Succeeded,
+                    ..
+                }
+            ),
+            "{:?}",
+            done.status
+        );
+        let notices: Vec<_> = done
+            .events
+            .iter()
+            .filter(|event| event.event.kind == TranscriptEventKind::Narration)
+            .filter_map(|event| event.event.content.as_deref())
+            .collect();
+        if everyone_left {
+            assert!(notices.is_empty(), "{notices:?}");
+        } else {
+            assert_eq!(notices, ["Mícheál Duffy is no longer here."]);
+        }
+        let terminal = done.events.last().unwrap();
+        assert_eq!(terminal.event.kind, TranscriptEventKind::ResponseCompleted);
+        assert_eq!(
+            terminal
+                .event
+                .metadata
+                .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+                .map(String::as_str),
+            Some(line),
+            "everyone_left={everyone_left}"
+        );
+        assert_eq!(live.fingerprint().await, before, "nothing changes");
+        assert_reducer_contract(&journal.events(), &request);
+    }
 }
 
 // Oracle: ios-port FFI `unresolved_clarification_survives_bounded_restart_projection`.
@@ -1950,9 +2346,12 @@ async fn stop_cancels_a_pending_question_and_a_late_reply_is_ignored() {
     assert_eq!(engine.open_request(), None);
 }
 
+/// With the clarification kill switch off the game never asks: a line it
+/// would ask about reaches everyone present, never a silent default to one
+/// person, and no line names anyone absent.
 #[tokio::test]
-async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
-    let live = Live::rundale();
+async fn with_the_flag_off_a_line_that_would_ask_reaches_everyone_present() {
+    let live = Live::rundale().with_decisions();
     two_micheals(&live).await;
     live.config
         .lock()
@@ -1973,8 +2372,15 @@ async fn with_the_flag_off_an_ambiguous_addressee_is_reported_as_before() {
             ..
         }
     ));
-    assert!(contents(&events).contains(&"Mícheál is not here.".to_string()));
+    assert!(
+        !contents(&events)
+            .iter()
+            .any(|line| line.contains("not here"))
+    );
     assert!(!kinds(&events).contains(&TranscriptEventKind::ClarificationRequired));
+    let mut heard = speakers(&events);
+    heard.sort();
+    assert_eq!(heard, ["Mícheál Connolly", "Mícheál Duffy"]);
 }
 
 #[tokio::test]
@@ -2370,7 +2776,8 @@ async fn saves_of_every_prior_format_open_and_journal_turns() {
     for (fixture, format, fallback_lines) in [
         ("pre_turn_journal_save.db", 1, 0),
         ("turn_journal_v2_save.db", 2, 0),
-        ("future_format_unknown_event_save.db", 4, 1),
+        ("format_3_save.db", 3, 0),
+        ("future_format_unknown_event_save.db", 5, 1),
     ] {
         let live = Live::rundale();
         let content = live.world.lock().await.content.clone();

@@ -12,6 +12,7 @@
 //! | 1 | before #2037 | branches, snapshots, world-event journal; no marker |
 //! | 2 | #2037 | adds `requests` and `transcript_events`; no marker |
 //! | 3 | #2038 | stamps `user_version`; snapshots record their content identity |
+//! | 4 | #2221 | snapshots record the conversation partner |
 //!
 //! Unmarked saves are detected as version 1 or 2 by their tables. Opening an
 //! older save migrates it forward and stamps the current version. A save
@@ -40,7 +41,10 @@ use crate::IntoLimerickDbError as _;
 use limerick_types::{ContentIdentity, LimerickError};
 
 /// The save format this build writes.
-pub const SAVE_FORMAT_VERSION: u32 = 3;
+pub const SAVE_FORMAT_VERSION: u32 = 4;
+
+/// The first format that stamps `user_version` (#2038).
+const FIRST_STAMPED_FORMAT: u32 = 3;
 
 /// Tables this build reads and the columns it reads from each.
 const TABLES: &[(&str, &[&str])] = &[
@@ -216,7 +220,8 @@ fn inspect_connection(
         ));
     }
     let has_turn_journal = TURN_JOURNAL_TABLES.iter().all(|table| has(table));
-    if stamped_version >= SAVE_FORMAT_VERSION
+    // Every stamped format (3 onwards) has all the base and journal tables.
+    if stamped_version >= FIRST_STAMPED_FORMAT
         && let Some(missing) = BASE_TABLES
             .iter()
             .chain(TURN_JOURNAL_TABLES)

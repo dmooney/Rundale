@@ -40,18 +40,27 @@ describe("comparison input", () => {
     expect(fold("Róisín")).toBe("roisin");
   });
 
-  it("offers people present, then people met elsewhere, in roster order", () => {
+  it("offers the people present in roster order, and nobody elsewhere", () => {
     const built = buildInput(byId("A21"), loadPeople(npcs));
     expect(built.values.present.map((p) => [p.optionId, p.name])).toEqual([
       ["p1", "Mícheál Connolly"],
       ["p2", "Róisín Connolly"],
     ]);
-    expect(built.values.elsewhere).toEqual([{ optionId: "e1", name: "Peig Hannigan" }]);
+    expect(built.values).not.toHaveProperty("elsewhere");
     expect(built.values.present.every((p) => p.introduced)).toBe(true);
+    expect(built.values.everyone).toEqual([{ optionId: "all" }]);
+    expect(built.values.someoneElse).toEqual([{ optionId: "someone_else" }]);
+    expect(built.values.noOne).toEqual([{ optionId: "no_one" }]);
+    expect(built.values.mentionable.map((p) => p.optionId)).toEqual(["p1", "p2"]);
   });
 
-  it("leaves out absent people the player has not met", () => {
-    expect(buildInput(byId("A22"), loadPeople(npcs)).values.elsewhere).toEqual([]);
+  it("leaves the recipient one option with one person or nobody present", () => {
+    const one = buildInput(byId("A25"), loadPeople(npcs)).values;
+    expect([one.everyone, one.someoneElse, one.noOne, one.mentionable]).toEqual([[], [], [], []]);
+    const nobody = buildInput(byId("A33"), loadPeople(npcs)).values;
+    expect(nobody.present).toEqual([]);
+    expect(nobody.noOne).toEqual([{ optionId: "no_one" }]);
+    expect(nobody.everyone).toEqual([]);
   });
 
   it("finds a family name and a shared role as references", () => {
@@ -89,14 +98,26 @@ describe("resolution policy", () => {
     });
   });
 
-  it("maps references, absent people and unknown names", () => {
+  it("asks which for a reference, and sends a line to someone absent to everyone", () => {
     expect(resolve("A9", answer("r1"))).toEqual({ kind: "which", among: [MICHEAL, ROISIN] });
-    expect(resolve("A21", answer("e1"))).toEqual({ kind: "not_here", person: PEIG });
-    expect(resolve("A12", answer("not_listed"))).toEqual({ kind: "neutral" });
+    for (const id of ["A12", "A21", "A22"]) {
+      expect(resolve(id, answer("someone_else"))).toEqual({
+        kind: "send",
+        recipients: [MICHEAL, ROISIN],
+        joins: [],
+      });
+    }
   });
 
-  it("makes no call with nobody present and nobody met", () => {
-    expect(resolve("A28", answer("p1"))).toEqual({ kind: "idle" });
+  it("sends any line to the one person present", () => {
+    for (const id of ["A24", "A25"]) {
+      expect(resolve(id, answer("p1", 1))).toEqual({ kind: "send", recipients: [PEIG], joins: [] });
+    }
+  });
+
+  it("gives the idle message with nobody present", () => {
+    expect(resolve("A28", answer("no_one", 1))).toEqual({ kind: "idle" });
+    expect(resolve("A33", answer("no_one", 1))).toEqual({ kind: "idle" });
   });
 });
 
@@ -144,39 +165,6 @@ describe("scoring", () => {
     expect(
       baselineOutcome(byId("A9"), { ...observation, asked: true, choices: ["2", "3"] }, names),
     ).toEqual({ kind: "which", among: [MICHEAL, ROISIN] });
-  });
-});
-
-describe("proposed uncertain rule", () => {
-  const people = loadPeople(npcs);
-  const a25 = byId("A25");
-  const uncertainElsewhere = answer("e1", 0.76);
-
-  it("sends an uncertain answer about someone elsewhere to the one person present", () => {
-    expect(
-      resolveDecision(a25, buildInput(a25, people), uncertainElsewhere, startingThresholds),
-    ).toEqual({ kind: "send", recipients: [PEIG], joins: [] });
-  });
-
-  it("gives that option's reply instead under the proposal", () => {
-    expect(
-      resolveDecision(a25, buildInput(a25, people), uncertainElsewhere, {
-        ...startingThresholds,
-        proposedUncertainRule: true,
-      }),
-    ).toEqual({ kind: "not_here", person: MICHEAL });
-  });
-});
-
-describe("proposed uncertain rule with nobody present", () => {
-  it("says the person met is not here rather than the idle message", () => {
-    const a33 = byId("A33");
-    expect(
-      resolveDecision(a33, buildInput(a33, loadPeople(npcs)), answer("e1", 0.67), {
-        ...startingThresholds,
-        proposedUncertainRule: true,
-      }),
-    ).toEqual({ kind: "not_here", person: MICHEAL });
   });
 });
 
