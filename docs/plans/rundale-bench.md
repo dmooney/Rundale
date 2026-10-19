@@ -1,6 +1,6 @@
 # Rundale-Bench Plan
 
-> Status: In progress · Updated: 2026-05-25 · [Docs Index](../index.md)
+> Status: Abandoned for current model evaluations; retained as historical context for pre-3.0 tooling. Use only for a requested legacy run. Updated: 2026-10-18 · [Docs Index](../index.md)
 
 > Back to [Docs Index](../index.md) | Siblings: [LLM Quality Evals Plan](llm-quality-evals.md), [Promptfoo Pentest Plan](promptfoo-pentest-plan.md)
 

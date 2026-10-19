@@ -1,13 +1,23 @@
-# Rundale Benchmark 3.0 — migration bridge and interview archive
+# Rundale Benchmark 3.0 — repository handoff and interview archive
+
+> Status: Planned · blocked pending verification of the full new-site launch
+> (current results, archived results, and evidence links). Benchmark repository
+> PRs 1 and 2 have merged; that foundation and provisional judging do not satisfy
+> the launch evidence requirement. Updated: 2026-10-18 · [Docs Index](../index.md)
 
 This file preserves the October 11, 2026 owner interview and subsequent scope
 history. It is not the canonical implementation specification. Benchmark 3.0
-is being implemented in the public [dmooney/rundale-bench repository](https://github.com/dmooney/rundale-bench);
-see [PR #1](https://github.com/dmooney/rundale-bench/pull/1) for current CI,
-review, and merge status. The new repository's README and skill are the canonical
-implementation and operating instructions. Its website migration has not yet
-been verified live; the legacy site workflow remains active until that
-verification is reported.
+belongs to the public [dmooney/rundale-bench repository](https://github.com/dmooney/rundale-bench).
+Read its current instructions, specification, suite, and qualification evidence
+for execution and publication readiness. The website and all benchmark behavior
+belong there; this repository retains only historical tooling and routing guidance.
+
+Keep the legacy site workflow enabled until the new site's current results,
+archives, and evidence links are verified. Record that acceptance in the
+follow-up PR that retires the workflow; this repository handoff PR
+([dmooney/Rundale#2259](https://github.com/dmooney/Rundale/pull/2259)) does not
+retire it. A successful foundation-only deployment does not satisfy the full
+launch criteria.
 
 The original interview and superseded broader design are retained below as
 provenance, not as current requirements. In particular, only explicit requests
@@ -53,7 +63,7 @@ Rundale/Limerick is a pinned, versioned dependency. The pull request and current
 repository documentation are the source of implementation status; this archive
 does not certify that CI passed, the PR merged, or the website is live.
 
-## Scope and evals
+## Superseded broader scope and evals
 
 Cloud models only initially, using native provider APIs only. No OpenRouter
 fallback. Each model and reasoning setting has a separate leaderboard entry;
@@ -64,7 +74,9 @@ Default to the highest supported reasoning setting. Additional settings are run
 only when requested. A model without a reasoning control uses its supported
 configuration; the runner must record that fact rather than invent a setting.
 
-Every request attempts the same comprehensive suite:
+The following comprehensive suite was proposed in the original interview. It
+is superseded by the three-eval October 17 scope above and is not the current
+Benchmark 3.0 requirement:
 
 | Eval                   | Intended coverage                                                                     | Scoring still to settle                                  |
 | ---------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -205,8 +217,9 @@ the version with a recorded runner revision.
 
 ## Proposed acceptance criteria
 
-These operational criteria are draft implementation targets; they do not settle
-the open design choices above.
+These criteria belong to the superseded broader interview scope and apply only
+if that scope is explicitly reactivated. They do not describe the current
+three-eval benchmark or settle the open design choices above.
 
 - A single model request completes native API setup, comprehensive execution,
   scoring, publication, and leaderboard update without routine owner input.
@@ -223,5 +236,5 @@ the open design choices above.
 - The repository's site serves the updated leaderboard and run evidence;
   successful upload alone is not proof that the published result is visible.
 
-No new paid evaluations, judge calibration, repository migration, or publishing
-has been performed as part of this draft.
+Implementation, repository migration, and publication status are tracked in
+the linked repository and PRs; this interview archive is not a status report.

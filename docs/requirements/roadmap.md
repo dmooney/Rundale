@@ -57,12 +57,15 @@ trigger.
 | Ambient sound                                       | Implemented | [Ambient Sound](../design/ambient-sound.md)                                             | [015](../adr/015-ambient-sound-system.md)                                                                     |
 | limerick-geo-tool (OSM pipeline)                    | Implemented | [Geo-Tool](../design/geo-tool.md)                                                       | [011](../adr/011-geo-tool-osm-pipeline.md)                                                                    |
 | Testing harness                                     | Implemented | [Testing Harness](../design/testing.md)                                                 | —                                                                                                             |
-| rundale-bench model-quality benchmark               | In progress | [Rundale-Bench plan](../plans/rundale-bench.md)                                         | —                                                                                                             |
+| rundale-bench model-quality benchmark               | Blocked     | [Benchmark 3.0 migration bridge](../plans/rundale-bench-3.0.md)                         | [Historical v1 plan](../plans/rundale-bench.md)                                                               |
 | LLM-as-judge quality evals                          | Partial     | [LLM Quality Evals plan](../plans/llm-quality-evals.md)                                 | —                                                                                                             |
 | Promptfoo pentest harness                           | Proposed    | [Promptfoo Pentest plan](../plans/promptfoo-pentest-plan.md)                            | —                                                                                                             |
 | Hiberno-English dialogue fine-tune                  | Proposed    | [Gemma 4 training plan](../plans/gemma4-rundale-training-plan.md)                       | [005](../adr/005-ollama-local-inference.md)                                                                   |
 | LLM demo / auto-player mode                         | Implemented | [Demo mode plan](../plans/archive/demo-mode.md)                                         | —                                                                                                             |
 | Mythology layer                                     | Proposed    | [Mythology Hooks](../design/ideas/mythology-hooks.md)                                   | —                                                                                                             |
+
+Benchmark 3.0 execution and publication readiness are governed by the current
+instructions and pinned qualification evidence in [dmooney/rundale-bench](https://github.com/dmooney/rundale-bench).
 
 ## Historical phases
 

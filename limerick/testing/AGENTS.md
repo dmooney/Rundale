@@ -17,7 +17,7 @@ just agent-check     # proof-evidence gate
 - **Integration-test cwd = crate root**, not workspace root. Fixture paths are `../../testing/fixtures/...` from `limerick/crates/<name>/`.
 - **`scenarios/` is the regression format for new gameplay coverage.** Every YAML step runs through the shipping game loop and has a machine oracle. `fixtures/test_*.txt` is the legacy compatibility corpus.
 - **`proofs/` scripts are evidence, not tests.** They use legacy harness syntax (one command per line, `#` comments) and are never swept as regressions merely because they exist.
-- **`rundale-bench/` (repo root) corpus is append-only** so scores stay comparable: never edit existing prompts. The formal v1 freeze is still pending (see [`rundale-bench/AGENTS.md`](../../rundale-bench/AGENTS.md)). Use `/rundale-bench eval-dialogue` to compare new candidates.
+- **`rundale-bench/` (repo root) contains the pre-3.0 corpus and tooling.** Keep its historical corpus append-only when reproducing a requested legacy result (see [`rundale-bench/AGENTS.md`](../../rundale-bench/AGENTS.md)). Current model evaluations route to [dmooney/rundale-bench](https://github.com/dmooney/rundale-bench); read its current instructions and qualification evidence before running or publishing. Do not use `/rundale-bench eval-dialogue` for current requests.
 - **`evals/` rubrics gate gameplay PRs.** Touching a rubric retroactively invalidates baselines — bump the version + note in PR.
 - **`GameTestHarness::new()` and the `test_*.txt` fixtures play the large 1820 world in `limerick/testing/fixtures/mods/rundale-legacy/`, not `mods/rundale` (#2040).** Run those fixtures with `--game-mod testing/fixtures/mods/rundale-legacy`; tests of the shipped world use `GameTestHarness::new_with_mod_dir`.
 
