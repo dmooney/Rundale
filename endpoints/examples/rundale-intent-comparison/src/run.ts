@@ -36,7 +36,6 @@ import { buildDecisionRequest, DeterministicRuntime, RuntimeError } from "@limer
 import { cases as allCases, type LabelledCase } from "./cases.js";
 import {
   baselineOutcome,
-  decisionRuns,
   resolveInput,
   score,
   startingThresholds,
@@ -147,7 +146,10 @@ function valuesFor(item: LabelledCase, version: EndpointVersionSnapshot) {
 /** The exact state and questions each case sends, for the record. */
 function writeRequests(out: string, version: EndpointVersionSnapshot): void {
   const decision = version.inferenceConfig.decision!;
-  const requests = cases.filter(decisionRuns).map((item) => {
+  // Since the owner's decisions of 2026-10-17 (#2221) every case gets the
+  // System 1 call, whoever is present: with nobody or one person present it
+  // still decides the action.
+  const requests = cases.map((item) => {
     const { values } = valuesFor(item, version);
     const built = buildDecisionRequest(decision, "<model>", values, version.instructions);
     return { id: item.id, state: built.invocation.state, questions: built.invocation.questions };
@@ -211,7 +213,7 @@ async function runCandidates(runs: number, prices: Record<string, ModelPrice>) {
   const calls: DecisionCall[] = [];
   for (const model of candidates) {
     const version = snapshot(definitionPath, model);
-    for (const item of cases.filter(decisionRuns)) {
+    for (const item of cases) {
       const input = { values: valuesFor(item, version).values };
       for (let run = 0; run < runs; run += 1) {
         const started = performance.now();

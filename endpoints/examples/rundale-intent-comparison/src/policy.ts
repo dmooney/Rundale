@@ -102,16 +102,6 @@ export function resolveInput(
   return resolveDecision(item, input, output, thresholds);
 }
 
-/**
- * Whether System 1 runs for the case. Since the owner's decisions of
- * 2026-10-17 (#2221) every line the local parser does not settle gets the
- * call, whoever is present: with nobody or one person present it still
- * decides the action, and only the recipient question is answered in code.
- */
-export function decisionRuns(_item: LabelledCase): boolean {
-  return true;
-}
-
 function unaddressed(item: LabelledCase, mentioned: number[], uncertain: boolean): Outcome {
   if (!uncertain && item.partner !== undefined && item.present.includes(item.partner)) {
     return {
