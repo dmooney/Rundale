@@ -65,8 +65,23 @@ web PORT="3001":
 # "Docs/data formatting" job), known vulnerabilities in changed lockfiles
 # (CI's OSV-Scanner scan-pr), full Python quality job, then the engine's
 # format, lint, tests, placeholder scan, and doc-paths
-check: docs-check osv-changed python-quality
+check: docs-check osv-changed endpoints-changed python-quality
     cd limerick && just check
+
+# CI's Endpoints job (format, lint, typecheck, tests, build: `pnpm check` in
+# endpoints/), run when this branch or the working tree changes endpoints/.
+endpoints-changed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    base=$(git merge-base HEAD origin/main 2>/dev/null || echo origin/main)
+    if git diff --quiet "$base" -- endpoints && git diff --quiet HEAD -- endpoints \
+        && [ -z "$(git ls-files --others --exclude-standard -- endpoints)" ]; then
+        echo "endpoints-changed: no endpoints/ changes; skipped."
+        exit 0
+    fi
+    cd endpoints
+    pnpm install --frozen-lockfile --silent
+    pnpm check
 
 # Fail on known vulnerabilities that lockfiles changed against origin/main add,
 # as CI's OSV-Scanner scan-pr does. Needs osv-scanner (brew install osv-scanner).
@@ -95,7 +110,7 @@ repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
 
 # Pre-push gate: check + game harness walkthrough
-verify: docs-check osv-changed python-quality
+verify: docs-check osv-changed endpoints-changed python-quality
     cd limerick && just verify
 
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
