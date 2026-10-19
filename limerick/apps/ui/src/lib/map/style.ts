@@ -20,7 +20,7 @@ import type {
 	LayerSpecification,
 	RasterSourceSpecification,
 } from 'maplibre-gl';
-import type { TileSource } from '$lib/types';
+import type { TileSource } from '#lib/types.ts';
 
 export type MapVariant = 'minimap' | 'full';
 

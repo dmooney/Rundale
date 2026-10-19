@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStyle, defaultGlyphsUrl, type ThemeColors } from './style';
-import type { TileSource } from '$lib/types';
+import type { TileSource } from '#lib/types.ts';
 
 const THEME: ThemeColors = {
 	bg: '#fafad8',

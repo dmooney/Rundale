@@ -5,7 +5,7 @@ import {
 	computeOffMapCounts,
 	edgeKey,
 } from './geojson';
-import type { MapData } from '$lib/types';
+import type { MapData } from '#lib/types.ts';
 
 function buildMap(overrides: Partial<MapData> = {}): MapData {
 	return {

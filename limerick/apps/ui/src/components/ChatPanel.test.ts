@@ -21,11 +21,11 @@ import {
 	addReaction,
 	replaceStreamEntryContent,
 } from '../stores/game';
-import type { WorldSnapshot } from '$lib/types';
+import type { WorldSnapshot } from '#lib/types.ts';
 import ChatPanel from './ChatPanel.svelte';
 
 // Mock the IPC layer
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	reactToMessage: vi.fn(() => Promise.resolve()),
 }));
 
@@ -184,12 +184,12 @@ describe('ChatPanel', () => {
 
 	describe('reaction IPC failure rollback', () => {
 		afterEach(async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			(reactToMessage as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 		});
 
 		it('removes optimistic reaction when reactToMessage IPC fails', async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			(reactToMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
 				new Error('Network error'),
 			);
@@ -894,7 +894,7 @@ describe('ChatPanel', () => {
 		});
 
 		it('clicking reaction adds to entry reactions and calls IPC', async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			textLog.set([
 				{ id: 'msg-1', source: 'Padraig', content: 'The rent was raised.' },
 			]);

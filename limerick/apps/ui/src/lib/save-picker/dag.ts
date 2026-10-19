@@ -4,7 +4,7 @@
  * No Svelte or DOM dependencies — safe to unit-test in Node/jsdom.
  */
 
-import type { SaveBranchDisplay } from '$lib/types';
+import type { SaveBranchDisplay } from '#lib/types.ts';
 
 export const NODE_W = 160;
 export const NODE_H = 70;

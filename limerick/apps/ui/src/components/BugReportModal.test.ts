@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import type { BugReportResult } from '$lib/types';
+import type { BugReportResult } from '#lib/types.ts';
 
 /** Flush all pending microtasks + Svelte ticks. */
 async function flush() {
@@ -24,7 +24,7 @@ const mockOpenUrl = vi.fn<(url: string) => Promise<void>>(() =>
 	Promise.resolve(),
 );
 
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	submitBugReport: (args: unknown) => mockSubmitBugReport(args),
 	openUrl: (url: string) => mockOpenUrl(url),
 }));

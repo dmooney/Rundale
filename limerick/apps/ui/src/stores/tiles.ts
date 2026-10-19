@@ -13,7 +13,7 @@
  */
 
 import { writable } from 'svelte/store';
-import type { TileSource, UiConfig } from '$lib/types';
+import type { TileSource, UiConfig } from '#lib/types.ts';
 
 const STORAGE_KEY = 'limerick.tile-source';
 

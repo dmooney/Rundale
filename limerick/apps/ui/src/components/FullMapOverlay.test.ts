@@ -3,14 +3,14 @@ import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { flushSync } from 'svelte';
 import { mapData } from '../stores/game';
 import FullMapOverlay from './FullMapOverlay.svelte';
-import { submitInput } from '$lib/ipc';
+import { submitInput } from '#lib/ipc.ts';
 
 // MapLibre GL JS requires WebGL, which jsdom doesn't provide. Mock the
 // module so FullMapOverlay mounts without trying to create a real map.
 vi.mock('maplibre-gl');
 
 // Mock the IPC layer used by onLocationClick.
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	submitInput: vi.fn(() => Promise.resolve()),
 }));
 
@@ -21,7 +21,7 @@ const moveUnsubscribeSpy = vi.fn();
 let locationClickHandler:
 	((info: { id: string; name: string; adjacent: boolean }) => void) | undefined;
 
-vi.mock('$lib/map/controller', () => {
+vi.mock('#lib/map/controller.ts', () => {
 	class FakeMapController {
 		onLocationClick(
 			handler: (info: { id: string; name: string; adjacent: boolean }) => void,

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MapTooltipInfo } from '$lib/types';
+	import type { MapTooltipInfo } from '#lib/types.ts';
 
 	let { info, variant = 'minimap' }: { info: MapTooltipInfo | null; variant?: 'minimap' | 'full' } = $props();
 </script>

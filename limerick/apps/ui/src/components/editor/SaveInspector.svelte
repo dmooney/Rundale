@@ -4,9 +4,9 @@
 		editorListSaves,
 		editorListBranches,
 		editorReadSnapshot
-	} from '$lib/editor-ipc';
-	import { runWithLoading } from '$lib/async-loading';
-	import type { SaveFileSummary, BranchSummary, SnapshotDetail } from '$lib/editor-types';
+	} from '#lib/editor-ipc.ts';
+	import { runWithLoading } from '#lib/async-loading.ts';
+	import type { SaveFileSummary, BranchSummary, SnapshotDetail } from '#lib/editor-types.ts';
 
 	let saves: SaveFileSummary[] = $state([]);
 	let selectedSave: SaveFileSummary | null = $state(null);

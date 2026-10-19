@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { positionAlongPath, drawIconImage } from './controller';
-import type { TravelWaypoint } from '$lib/types';
+import type { TravelWaypoint } from '#lib/types.ts';
 
 // ─── drawIconImage ────────────────────────────────────────────────────────────
 //

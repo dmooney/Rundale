@@ -14,7 +14,7 @@ import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
 const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
 }));
 

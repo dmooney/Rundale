@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { DebugSnapshot } from '$lib/types';
+import type { DebugSnapshot } from '#lib/types.ts';
 
 /** Whether the debug panel is visible. */
 export const debugVisible = writable<boolean>(false);

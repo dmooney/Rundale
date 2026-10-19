@@ -9,10 +9,10 @@
 		editorValidation,
 		editorSelectedLocationId
 	} from '../../stores/editor';
-	import { editorUpdateLocations, editorSave } from '$lib/editor-ipc';
-	import type { GeoKind, LocationData } from '$lib/editor-types';
-	import { normalizeLocationCaches, offsetLatLon } from '$lib/editor-map';
-	import { EditorLocationMap } from '$lib/editor/location-map';
+	import { editorUpdateLocations, editorSave } from '#lib/editor-ipc.ts';
+	import type { GeoKind, LocationData } from '#lib/editor-types.ts';
+	import { normalizeLocationCaches, offsetLatLon } from '#lib/editor-map.ts';
+	import { EditorLocationMap } from '#lib/editor/location-map.ts';
 
 	let mapContainer: HTMLDivElement | undefined = $state(undefined);
 	let componentDisposed = false;

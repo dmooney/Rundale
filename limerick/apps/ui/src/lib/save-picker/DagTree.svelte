@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { type LayoutResult, NODE_W, NODE_H, GAP_Y } from './dag';
-	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
+	import type { SaveFileInfo, SaveBranchDisplay } from '#lib/types.ts';
 
 	let {
 		activeFile = null as SaveFileInfo | null,

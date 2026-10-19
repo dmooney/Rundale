@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount, onDestroy } from 'svelte';
-	import { captureScreen } from '$lib/screenshot';
+	import { captureScreen } from '#lib/screenshot.ts';
 	import {
 		getGraphicalReadiness,
 		onRequestScreenshot,
@@ -12,7 +12,7 @@
 		notifyScreenshotStarted,
 		notifyScreenshotCaptured,
 		notifyScreenshotError,
-	} from '$lib/ipc';
+	} from '#lib/ipc.ts';
 
 	let { children } = $props();
 

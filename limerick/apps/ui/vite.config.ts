@@ -1,9 +1,21 @@
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-	plugins: [sveltekit(), svelteTesting()],
+	plugins: [
+		sveltekit({
+			adapter: adapter({
+				pages: 'dist',
+				assets: 'dist',
+				fallback: 'index.html',
+				precompress: false,
+				strict: false,
+			}),
+		}),
+		svelteTesting(),
+	],
 	clearScreen: false,
 	server: {
 		// Port priority: LIMERICK_DEV_PORT (project-specific override) > PORT

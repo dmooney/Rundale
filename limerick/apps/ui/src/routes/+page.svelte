@@ -24,9 +24,9 @@
 		disposeTransport,
 		toggleFullscreen,
 		isTauri,
-	} from '$lib/ipc';
-	import { captureScreen } from '$lib/screenshot';
-	import { createPageController } from '$lib/page-controller';
+	} from '#lib/ipc.ts';
+	import { captureScreen } from '#lib/screenshot.ts';
+	import { createPageController } from '#lib/page-controller.ts';
 
 	/** Transient toast text shown after a screenshot is saved (or fails). */
 	let screenshotToast = $state<string | null>(null);

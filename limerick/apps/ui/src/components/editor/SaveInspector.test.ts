@@ -5,7 +5,7 @@ import type {
 	SaveFileSummary,
 	BranchSummary,
 	SnapshotDetail,
-} from '$lib/editor-types';
+} from '#lib/editor-types.ts';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 	editorReadSnapshot: vi.fn<() => Promise<SnapshotDetail | null>>(),
 }));
 
-vi.mock('$lib/editor-ipc', () => ({
+vi.mock('#lib/editor-ipc.ts', () => ({
 	editorListSaves: mocks.editorListSaves,
 	editorListBranches: mocks.editorListBranches,
 	editorReadSnapshot: mocks.editorReadSnapshot,

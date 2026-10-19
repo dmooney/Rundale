@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { TravelStartPayload, TravelWaypoint } from '$lib/types';
+import type { TravelStartPayload, TravelWaypoint } from '#lib/types.ts';
 
 /** Current travel animation state (null when not traveling). */
 export interface TravelState {

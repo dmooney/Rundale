@@ -11,11 +11,11 @@ import {
 } from '../stores/surfaceCoordinator';
 import SurfaceHost from './SurfaceHost.svelte';
 
-vi.mock('$lib/screenshot', () => ({
+vi.mock('#lib/screenshot.ts', () => ({
 	captureScreen: vi.fn(async () => 'data:image/png;base64,fresh-chat'),
 }));
 
-vi.mock('$lib/map/controller', () => ({
+vi.mock('#lib/map/controller.ts', () => ({
 	MapController: class {
 		onLocationClick() {}
 		onLocationHover() {}

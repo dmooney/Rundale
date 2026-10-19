@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { notebookActionDraft, npcAddressName } from './actions';
-import type { NpcInfo } from '$lib/types';
+import type { NpcInfo } from '#lib/types.ts';
 
 const roisin: NpcInfo = {
 	npc_id: 6,

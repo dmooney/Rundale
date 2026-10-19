@@ -3,7 +3,7 @@ import { render } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { languageHints, nameHints, uiConfig, npcsHere } from '../stores/game';
 import Sidebar from './Sidebar.svelte';
-import type { LanguageHint, NpcInfo } from '$lib/types';
+import type { LanguageHint, NpcInfo } from '#lib/types.ts';
 
 const IRISH_HINTS: LanguageHint[] = [
 	{ word: 'sláinte', pronunciation: 'SLAWN-cha', meaning: 'health / cheers' },
