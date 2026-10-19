@@ -53,20 +53,29 @@ def triggers(paths: Iterable[str]) -> bool:
     )
 
 
+def git(argv: Sequence[str], runner: Runner) -> str:
+    result = runner(["git", *argv])
+    if result.returncode != 0:
+        raise SystemExit(
+            f"endpoints-changed: `git {' '.join(argv)}` failed: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
 def changed_paths(base: str, runner: Runner) -> list[str]:
-    merge_base = runner(["git", "merge-base", base, "HEAD"]).stdout.strip()
+    merge_base = git(["merge-base", base, "HEAD"], runner).strip()
     if not merge_base:
         raise SystemExit(f"endpoints-changed: cannot find the merge base with {base}")
-    committed = runner(["git", "diff", "--name-only", f"{merge_base}...HEAD"])
-    uncommitted = runner(["git", "diff", "--name-only", "HEAD"])
-    untracked = runner(["git", "ls-files", "--others", "--exclude-standard"])
+    # Without rename detection a move lists both its old and new paths, as
+    # CI's path filter does, so moving a file out of a watched directory
+    # still runs the job.
+    outputs = (
+        git(["diff", "--name-only", "--no-renames", f"{merge_base}...HEAD"], runner),
+        git(["diff", "--name-only", "--no-renames", "HEAD"], runner),
+        git(["ls-files", "--others", "--exclude-standard"], runner),
+    )
     return sorted(
-        {
-            line.strip()
-            for result in (committed, uncommitted, untracked)
-            for line in result.stdout.splitlines()
-            if line.strip()
-        }
+        {line.strip() for output in outputs for line in output.splitlines() if line.strip()}
     )
 
 

@@ -38,6 +38,8 @@ class FakeRunner:
         if argv[:2] == ["git", "merge-base"]:
             return subprocess.CompletedProcess(argv, 0, "abc123\n", "")
         if argv[:2] == ["git", "diff"]:
+            # A rename-detecting diff would list only a move's new path.
+            assert "--no-renames" in argv, argv
             key = "committed" if argv[-1].endswith("...HEAD") else "uncommitted"
             return subprocess.CompletedProcess(argv, 0, self.git[key], "")
         if argv[:2] == ["git", "ls-files"]:
@@ -92,6 +94,23 @@ def test_a_markdown_endpoint_change_runs_when_any_other_file_is_code() -> None:
     )
     assert endpoints_changed.main([], runner) == 0
     assert len(runner.pnpm) == 2
+
+
+@pytest.mark.parametrize("where", ["committed", "uncommitted"])
+def test_moving_a_file_out_of_a_watched_directory_runs_the_check(where: str) -> None:
+    # With --no-renames, git lists the move's old path as deleted.
+    moved = ["endpoints/packages/runtime/src/old.ts", "limerick/new.ts"]
+    runner = FakeRunner(committed=moved) if where == "committed" else FakeRunner(uncommitted=moved)
+    assert endpoints_changed.main([], runner) == 0
+    assert len(runner.pnpm) == 2
+
+
+def test_a_failed_git_command_fails_instead_of_skipping() -> None:
+    def runner(argv: Sequence[str], cwd: str | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(list(argv), 128, "", "fatal: not a git repository")
+
+    with pytest.raises(SystemExit, match="failed"):
+        endpoints_changed.main([], runner)
 
 
 @pytest.mark.parametrize("step", ["install", "check"])
