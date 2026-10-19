@@ -988,26 +988,41 @@ fn resolve_reference_matches_a_family_name_without_an_introduction() {
     );
 }
 
+/// Design §3.5, #2167: names match with or without fadas, typed as
+/// precomposed letters or as combining marks, on both sides.
 #[test]
-fn names_someone_elsewhere_only_for_people_not_present() {
+fn names_and_roles_match_without_fadas_or_with_combining_marks() {
     let mut mgr = NpcManager::new();
-    mgr.add_npc(named_npc(1, "Peig Hannigan", "Postmistress", 2));
     mgr.add_npc(named_npc(2, "Mícheál Connolly", "Drover", 3));
+    mgr.add_npc(named_npc(3, "Róisín Connolly", "Spinner", 3));
+    mgr.mark_introduced(NpcId(3));
 
-    for name in ["Mícheál Connolly", "mícheál", "Connolly", " Connolly "] {
-        assert!(mgr.names_someone_elsewhere(name, LocationId(2)), "{name}");
-    }
-    // Present, even before an introduction: never reported absent.
-    for name in ["Peig", "Hannigan", "Peig Hannigan"] {
-        assert!(!mgr.names_someone_elsewhere(name, LocationId(2)), "{name}");
-    }
-    assert!(!mgr.names_someone_elsewhere("Mícheál", LocationId(3)));
-    for words in ["around", "the cattle", "Drover", ""] {
-        assert!(
-            !mgr.names_someone_elsewhere(words, LocationId(2)),
-            "{words:?} names no one"
+    for typed in [
+        "Roisin",
+        "roisin",
+        "Róisín",
+        "Ro\u{301}isi\u{301}n",
+        "ROISIN",
+    ] {
+        assert_eq!(
+            mgr.resolve_reference_at(typed, LocationId(3)),
+            NpcReference::Unique(NpcId(3)),
+            "{typed:?}"
         );
     }
+    assert_eq!(
+        mgr.resolve_reference_at("Micheal Connolly", LocationId(3)),
+        NpcReference::Unique(NpcId(2)),
+        "a full name needs no introduction"
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("Conno\u{301}lly", LocationId(3)),
+        NpcReference::Ambiguous(vec![NpcId(2), NpcId(3)])
+    );
+    assert_eq!(
+        mgr.resolve_reference_at("SPINNER", LocationId(3)),
+        NpcReference::Unique(NpcId(3))
+    );
 }
 
 #[test]
