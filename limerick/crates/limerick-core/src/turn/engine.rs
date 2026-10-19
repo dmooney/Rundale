@@ -43,13 +43,14 @@ use super::ids::{
 use super::journal::{JournalError, TurnCommit, TurnJournal};
 use super::lifecycle::{
     ClarificationPrompt, IgnoredReason, LifecycleError, RequestPhase, RequestRecord,
-    TerminalOutcome,
+    SettledIntentReply, TerminalOutcome,
 };
 use super::projection::{project_emissions, scene_event};
 use super::transcript::{EventBuilder, PendingEvent, TranscriptEvent, TranscriptEventKind};
 use crate::config::{InferenceConfig, InferenceSubrole};
 use crate::game_loop::flush_staged_emissions;
 use crate::game_loop::inference::InProcessInference;
+use crate::game_loop::recipients::ALL_CHOICE_ID;
 use crate::game_loop::{
     AddresseeClarification, GameInputOutcome, GameLoopContext, SettledInput, TurnCandidate,
     handle_game_input_settled,
@@ -65,6 +66,10 @@ use crate::turn_inference::{
     TurnInference,
 };
 use crate::world::transport::TransportMode;
+
+/// Metadata key on a terminal event whose request sent nothing and hands
+/// its line back to the composer: the original text (design §3.4).
+pub const COMPOSER_TEXT_KEY: &str = "composerText";
 
 /// The line recorded when restart recovery interrupts an open request.
 pub const INTERRUPTED_MESSAGE: &str = "The previous response was interrupted; you can retry it.";
@@ -375,7 +380,16 @@ type AttemptFuture = Pin<Box<dyn Future<Output = GameInputOutcome> + Send>>;
 struct AwaitedCall {
     id: InferenceCallId,
     subrole: InferenceSubrole,
+    /// For an intent call, its fingerprint, so the reply can be journaled.
+    intent_call: Option<String>,
     reply: oneshot::Sender<InferenceOutcome>,
+}
+
+/// What identifies an intent call: its instructions, prompt and Endpoint
+/// input. Two calls with the same fingerprint ask System 1 the same question.
+fn intent_fingerprint(call: &InferenceCall) -> String {
+    serde_json::to_string(&(call.system.as_deref(), &call.prompt, call.endpoint.as_ref()))
+        .unwrap_or_default()
 }
 
 /// The attempt currently executing.
@@ -650,8 +664,11 @@ impl TurnEngine {
     /// Answers the question a request is parked on. The same attempt runs
     /// again from the original input, with the chosen person as the
     /// addressee and the intent resolved before the question (no second
-    /// intent call). If the chosen person has left, the request completes
-    /// with "X is no longer here." and nothing else changes.
+    /// intent call). If the chosen person has left, the request ends with
+    /// "X is no longer here.", nothing else changes, and the line goes back
+    /// to the composer (its terminal event carries [`COMPOSER_TEXT_KEY`]).
+    /// All reaches whoever is still present; with nobody left the line goes
+    /// back to the composer.
     pub async fn answer_clarification(
         &mut self,
         live: &GameLoopContext<'_>,
@@ -686,42 +703,26 @@ impl TurnEngine {
                 .insert("entityID".to_string(), entity.clone());
         }
 
+        // Presence is checked again (design §3.4): the world advanced while
+        // the question waited. A chosen person who has left is "no longer
+        // here"; All reaches whoever is still present, and nobody at all
+        // leaves nothing to say.
         let chosen = choice.entity_id.as_deref().and_then(parse_npc_id);
-        let present = match chosen {
-            Some(id) => {
-                let world = live.world.lock().await;
-                let npc_manager = live.npc_manager.lock().await;
-                npc_manager.npcs_at_ids(world.player_location).contains(&id)
-            }
-            None => false,
+        let present = {
+            let world = live.world.lock().await;
+            let npc_manager = live.npc_manager.lock().await;
+            npc_manager.npcs_at_ids(world.player_location)
         };
-        if !present {
-            let line = format!("{} is no longer here.", choice.label);
-            let mut notice = builder.event(TranscriptEventKind::Narration);
-            notice.content = Some(line.clone());
-            record.complete(self.revision)?;
-            let terminal =
-                builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
-            let events = self
-                .journal
-                .commit(TurnCommit {
-                    record: record.clone(),
-                    events: vec![selected, notice, terminal],
-                    task_mutations: Vec::new(),
-                    state: None,
-                })
-                .await?;
-            self.records.insert(request.clone(), record);
-            return Ok(TurnStep {
-                request_id: Some(request.clone()),
-                attempt_id: Some(attempt_id),
-                events,
-                emissions: release_system_line(live, line),
-                status: TurnStatus::Completed {
-                    outcome: TerminalOutcome::Succeeded,
-                    revision: Some(self.revision),
-                },
-            });
+        let unanswerable = match chosen {
+            Some(id) if present.contains(&id) => None,
+            Some(_) => Some(Some(format!("{} is no longer here.", choice.label))),
+            None if choice.id == ALL_CHOICE_ID && !present.is_empty() => None,
+            None => Some(None),
+        };
+        if let Some(line) = unanswerable {
+            return self
+                .end_unsent(live, record, attempt_id, builder, vec![selected], line)
+                .await;
         }
 
         record.note_event_ordinal(builder.next_ordinal());
@@ -785,7 +786,12 @@ impl TurnEngine {
                 IgnoredReason::StaleCall,
             ));
         };
-        if awaited.subrole == InferenceSubrole::Dialogue {
+        // An intent call lost to the connection fails the request the way a
+        // dialogue call does (design §4.4), so it records the same reason.
+        if matches!(
+            awaited.subrole,
+            InferenceSubrole::Dialogue | InferenceSubrole::Intent
+        ) {
             running.last_dialogue_failure = Some(match &resolution.outcome {
                 InferenceOutcome::Completed { .. } => None,
                 InferenceOutcome::Failed { kind, .. } => Some(*kind),
@@ -794,6 +800,53 @@ impl TurnEngine {
                 InferenceOutcome::Completed { .. } => None,
                 InferenceOutcome::Failed { report, .. } => report.reason,
             };
+        }
+        let settled = match (&awaited.intent_call, &resolution.outcome) {
+            (Some(call), InferenceOutcome::Completed { text, .. }) => Some(SettledIntentReply {
+                call: call.clone(),
+                text: text.clone(),
+            }),
+            _ => None,
+        };
+        // Journal the intent reply before the attempt reads it, so a retry or
+        // a restart reuses it (see `RequestRecord::settled_intent_reply`).
+        if let Some(settled) = settled {
+            let mut record = self.records[&request_id].clone();
+            record.settled_intent_reply = Some(settled);
+            if let Err(error) = self.journal.update(record.clone(), Vec::new()).await {
+                // The attempt cannot go on without its reply journaled; it
+                // ends `Failed` (retryable) instead of waiting on a call that
+                // was already answered.
+                let running = self.running.take().expect("checked above");
+                let attempt_id = running.attempt_id.clone();
+                let mut builder = EventBuilder::new(
+                    request_id.clone(),
+                    Some(attempt_id.clone()),
+                    running.next_ordinal,
+                );
+                drop(awaited);
+                drop(running);
+                let events = self
+                    .end_uncommitted(
+                        &request_id,
+                        &mut builder,
+                        TerminalOutcome::Failed,
+                        "journal",
+                        &error.to_string(),
+                    )
+                    .await?;
+                return Ok(TurnStep {
+                    request_id: Some(request_id),
+                    attempt_id: Some(attempt_id),
+                    events,
+                    emissions: Vec::new(),
+                    status: TurnStatus::Completed {
+                        outcome: TerminalOutcome::Failed,
+                        revision: None,
+                    },
+                });
+            }
+            self.records.insert(request_id, record);
         }
         // The attempt is suspended on exactly this call, so the receiver is
         // alive; a send failure would mean the attempt already ended.
@@ -995,6 +1048,11 @@ impl TurnEngine {
         let record = &self.records[request_id];
         let settled = record.is_clarified().then(|| SettledInput {
             intent: record.resolved_intent.clone(),
+            decision: record.resolved_recipient.clone(),
+            everyone: record
+                .selected_addressees
+                .iter()
+                .any(|selection| selection.choice.id == ALL_CHOICE_ID),
             addressees: record
                 .selected_addressees
                 .iter()
@@ -1095,53 +1153,71 @@ impl TurnEngine {
 
     /// Polls the running attempt until it asks for inference or finishes.
     async fn advance(&mut self, live: &GameLoopContext<'_>) -> Result<TurnStep, TurnError> {
-        let running = self
-            .running
-            .as_mut()
-            .expect("advance is only called with a running attempt");
-        let next = tokio::select! {
-            biased;
-            outcome = running.future.as_mut() => Next::Finished(outcome),
-            Some(call) = running.calls.recv() => Next::Call(call),
-        };
-        match next {
-            Next::Call(YieldedCall {
-                call,
-                streaming,
-                reply,
-            }) => {
-                let record = self
-                    .records
-                    .get_mut(&running.request_id)
-                    .expect("a running attempt has a record");
-                let id = record.next_call()?;
-                let base_revision = record
-                    .current_attempt()
-                    .expect("a running request has an attempt")
-                    .base_revision;
-                running.awaiting = Some(AwaitedCall {
-                    id: id.clone(),
-                    subrole: call.subrole,
+        loop {
+            let running = self
+                .running
+                .as_mut()
+                .expect("advance is only called with a running attempt");
+            let next = tokio::select! {
+                biased;
+                outcome = running.future.as_mut() => Next::Finished(outcome),
+                Some(call) = running.calls.recv() => Next::Call(call),
+            };
+            match next {
+                Next::Call(YieldedCall {
+                    call,
+                    streaming,
                     reply,
-                });
-                Ok(TurnStep {
-                    request_id: Some(running.request_id.clone()),
-                    attempt_id: Some(running.attempt_id.clone()),
-                    events: Vec::new(),
-                    emissions: Vec::new(),
-                    status: TurnStatus::AwaitingInference(PendingInference {
-                        id,
-                        request_id: running.request_id.clone(),
-                        attempt_id: running.attempt_id.clone(),
-                        base_revision,
-                        call,
-                        streaming,
-                    }),
-                })
-            }
-            Next::Finished(outcome) => {
-                let running = self.running.take().expect("checked above");
-                self.finish(live, running, outcome).await
+                }) => {
+                    let record = self
+                        .records
+                        .get_mut(&running.request_id)
+                        .expect("a running attempt has a record");
+                    let intent_call = (call.subrole == InferenceSubrole::Intent)
+                        .then(|| intent_fingerprint(&call));
+                    // An intent call this request already had answered is
+                    // answered again from the journal, not by System 1.
+                    if let Some(settled) = record
+                        .settled_intent_reply
+                        .as_ref()
+                        .filter(|settled| intent_call.as_ref() == Some(&settled.call))
+                    {
+                        let _ = reply.send(InferenceOutcome::Completed {
+                            text: settled.text.clone(),
+                            report: CallReport::default(),
+                        });
+                        continue;
+                    }
+                    let id = record.next_call()?;
+                    let base_revision = record
+                        .current_attempt()
+                        .expect("a running request has an attempt")
+                        .base_revision;
+                    running.awaiting = Some(AwaitedCall {
+                        id: id.clone(),
+                        subrole: call.subrole,
+                        intent_call,
+                        reply,
+                    });
+                    return Ok(TurnStep {
+                        request_id: Some(running.request_id.clone()),
+                        attempt_id: Some(running.attempt_id.clone()),
+                        events: Vec::new(),
+                        emissions: Vec::new(),
+                        status: TurnStatus::AwaitingInference(PendingInference {
+                            id,
+                            request_id: running.request_id.clone(),
+                            attempt_id: running.attempt_id.clone(),
+                            base_revision,
+                            call,
+                            streaming,
+                        }),
+                    });
+                }
+                Next::Finished(outcome) => {
+                    let running = self.running.take().expect("checked above");
+                    return self.finish(live, running, outcome).await;
+                }
             }
         }
     }
@@ -1200,6 +1276,15 @@ impl TurnEngine {
                 return Err(TurnError::Candidate(message));
             }
         };
+
+        if let Some(line) = outcome.unsent {
+            // A reused answer no longer holds: the candidate is discarded.
+            drop(finished);
+            let record = self.records[&request_id].clone();
+            return self
+                .end_unsent(live, record, attempt_id, builder, Vec::new(), line)
+                .await;
+        }
 
         if let Some(clarification) = outcome.clarification {
             // The candidate is discarded: asking commits nothing.
@@ -1296,6 +1381,73 @@ impl TurnEngine {
         })
     }
 
+    /// Ends the request without sending its line (design §3.4, §7): nothing
+    /// changes, `line` (if any) says why, and the terminal event hands the
+    /// original text back to the composer (`composerText`), so the player can
+    /// send it again without retyping.
+    async fn end_unsent(
+        &mut self,
+        live: &GameLoopContext<'_>,
+        mut record: RequestRecord,
+        attempt_id: ExecutionAttemptId,
+        mut builder: EventBuilder,
+        mut events: Vec<PendingEvent>,
+        line: Option<String>,
+    ) -> Result<TurnStep, TurnError> {
+        let request = record.id.clone();
+        let executing = record.clone();
+        if let Some(line) = &line {
+            let mut notice = builder.event(TranscriptEventKind::Narration);
+            notice.content = Some(line.clone());
+            events.push(notice);
+        }
+        record.complete(self.revision)?;
+        let mut terminal =
+            builder.response_completed(TerminalOutcome::Succeeded, Some(self.revision));
+        terminal
+            .metadata
+            .insert(COMPOSER_TEXT_KEY.to_string(), record.original_text.clone());
+        events.push(terminal);
+        let commit = TurnCommit {
+            record: record.clone(),
+            events,
+            task_mutations: Vec::new(),
+            state: None,
+        };
+        let events = match self.journal.commit(commit).await {
+            Ok(events) => events,
+            Err(error) => {
+                // Nothing was written: the request ends `Failed` (retryable)
+                // instead of staying open, as a failed commit does in
+                // `finish`.
+                self.records.insert(request.clone(), executing);
+                let _ = self
+                    .end_uncommitted(
+                        &request,
+                        &mut builder,
+                        TerminalOutcome::Failed,
+                        "journal",
+                        &error.to_string(),
+                    )
+                    .await;
+                return Err(error.into());
+            }
+        };
+        self.records.insert(request.clone(), record);
+        Ok(TurnStep {
+            request_id: Some(request),
+            attempt_id: Some(attempt_id),
+            events,
+            emissions: line
+                .map(|line| release_system_line(live, line))
+                .unwrap_or_default(),
+            status: TurnStatus::Completed {
+                outcome: TerminalOutcome::Succeeded,
+                revision: Some(self.revision),
+            },
+        })
+    }
+
     /// Parks the finished attempt on the pipeline's question: journals the
     /// prompt and the intent resolved so far, and shows the question.
     async fn park(
@@ -1306,9 +1458,13 @@ impl TurnEngine {
         mut builder: EventBuilder,
         clarification: AddresseeClarification,
     ) -> Result<TurnStep, TurnError> {
-        let AddresseeClarification { prompt, intent } = clarification;
+        let AddresseeClarification {
+            prompt,
+            intent,
+            decision,
+        } = clarification;
         let mut record = self.records[request_id].clone();
-        record.await_clarification(prompt.clone(), intent)?;
+        record.await_clarification(prompt.clone(), intent, decision)?;
         let mut question = builder.event(TranscriptEventKind::ClarificationRequired);
         question.content = Some(prompt.question.clone());
         question.clarification = Some(prompt.clone());

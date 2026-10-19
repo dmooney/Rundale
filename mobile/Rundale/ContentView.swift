@@ -1160,6 +1160,7 @@ private struct ClarificationStrip: View {
             .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(option.accessibilityLabel ?? option.label)
         .accessibilityIdentifier("clarification.option.\(option.id)")
     }
 }

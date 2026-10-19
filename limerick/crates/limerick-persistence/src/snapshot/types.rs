@@ -201,6 +201,10 @@ pub struct GameSnapshot {
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// The person the player is talking to (dynamic NPC context design §2,
+    /// §3.2). Older saves have none.
+    #[serde(default)]
+    pub conversation_partner: Option<NpcId>,
     /// Last canonical music session beat, if any.
     #[serde(default)]
     pub active_session: Option<limerick_world::session::ActiveSessionFact>,

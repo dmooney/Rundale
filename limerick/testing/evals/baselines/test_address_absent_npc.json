@@ -10,6 +10,16 @@
     "season": "Spring"
   },
   {
+    "command": "/stub Peig Hannigan: Aoife? I couldn't tell ye where she is this hour.",
+    "result": {
+      "result": "system_command",
+      "response": "Stubbed response for Peig Hannigan: \"Aoife? I couldn't tell ye where she is this hour.\""
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
     "command": "/stub Peig Hannigan: I do indeed, and a fine morning to ye.",
     "result": {
       "result": "system_command",
@@ -22,8 +32,9 @@
   {
     "command": "talk to Aoife Brennan about the school and the children",
     "result": {
-      "result": "system_command",
-      "response": "Aoife Brennan is not here."
+      "result": "npc_response",
+      "npc": "Peig Hannigan",
+      "dialogue": "Plainly, then—Aoife? I couldn't tell ye where she is this hour."
     },
     "location": "Kilteevan Village",
     "time": "Morning",

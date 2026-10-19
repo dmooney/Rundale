@@ -12,6 +12,28 @@ use crate::{Npc, NpcId, dialogue_self_identifies_speaker};
 use super::NpcManager;
 
 impl NpcManager {
+    // ── Conversation partner (dynamic NPC context design §2, §3.2) ──────────
+
+    /// The person the player is talking to, if any.
+    pub fn partner(&self) -> Option<NpcId> {
+        self.partner
+    }
+
+    /// Makes `id` the partner, or ends the partnership with `None`.
+    pub fn set_partner(&mut self, id: Option<NpcId>) {
+        self.partner = id;
+    }
+
+    /// Ends the partnership unless the partner is present at `location`:
+    /// the player moved, or the partner left.
+    pub fn end_partnership_unless_at(&mut self, location: limerick_types::LocationId) {
+        if let Some(id) = self.partner
+            && !self.npcs_at_ids(location).contains(&id)
+        {
+            self.partner = None;
+        }
+    }
+
     // ── Introduction / name tracking ─────────────────────────────────────────
 
     /// Marks an NPC as having introduced themselves to the player.

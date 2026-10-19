@@ -562,6 +562,40 @@ fn test_introduced_npcs_roundtrip() {
     assert!(new_npcs.is_introduced(NpcId(3)));
 }
 
+/// Design §3.2: the conversation partner is saved with the game, and a
+/// restored partner who is not with the player ends the partnership.
+#[test]
+fn the_conversation_partner_survives_save_and_load_while_present() {
+    let world = WorldState::new();
+    let here = world.player_location.0;
+    let mut npc_manager = NpcManager::new();
+    npc_manager.add_npc(make_test_npc(1, here));
+    npc_manager.add_npc(make_test_npc(2, here + 1));
+    npc_manager.set_partner(Some(NpcId(1)));
+
+    let json = serde_json::to_string(&GameSnapshot::capture(&world, &npc_manager)).unwrap();
+    let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.conversation_partner, Some(NpcId(1)));
+    let mut new_world = WorldState::new();
+    let mut new_npcs = NpcManager::new();
+    restored.restore(&mut new_world, &mut new_npcs);
+    assert_eq!(new_npcs.partner(), Some(NpcId(1)));
+
+    npc_manager.set_partner(Some(NpcId(2)));
+    let elsewhere = GameSnapshot::capture(&world, &npc_manager);
+    let mut new_npcs = NpcManager::new();
+    elsewhere.restore(&mut WorldState::new(), &mut new_npcs);
+    assert_eq!(new_npcs.partner(), None, "the partner is not here");
+
+    let mut legacy: serde_json::Value = serde_json::from_str(&json).unwrap();
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("conversation_partner");
+    let legacy: GameSnapshot = serde_json::from_value(legacy).unwrap();
+    assert_eq!(legacy.conversation_partner, None, "older saves have none");
+}
+
 /// Old saves predating the `introduced_npcs` field must deserialize
 /// cleanly with an empty set (serde `default`), so loading a legacy
 /// save doesn't produce a deserialization error.

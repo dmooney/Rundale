@@ -91,7 +91,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Multiline input and editable command recall                                      | Implemented | Implemented | Implemented | Not planned  | Not planned |
 | @mention NPC targeting                                                           | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Clarification of ambiguous addressees                                            | Implemented | Implemented | Implemented | Planned      | Implemented |
-| Ask who unnamed speech addresses in a crowd (#2143)                              | Planned     | Planned     | Planned     | Planned      | Planned     |
+| Ask who unnamed speech addresses in a crowd, with a partner (#2143, #2221)       | Implemented | Implemented | Implemented | Planned      | Implemented |
 | Short clarification-choice labels (#2128)                                        | Planned     | Planned     | Planned     | Planned      | Planned     |
 | Local look, people, exits and help commands                                      | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Wait, pause and resume commands                                                  | Implemented | Implemented | Implemented | Implemented  | Implemented |
@@ -176,6 +176,12 @@ Mobile details:
 - Irish-language player features on the phone are planned in
   [#2174](https://github.com/dmooney/Rundale/issues/2174); their scope is not yet
   specified.
+- A spoken line reaches the people present
+  ([#2221](https://github.com/dmooney/Rundale/issues/2221)): one person present
+  answers, a crowd with no conversation partner is asked "Who are you speaking
+  to?" (with All), and no line is answered with "not here". The iPhone reads who
+  a line is for with Jev; desktop, browser and the HTTP CLI have no decision
+  model, so there the player answers with an @tag or chip.
 - [#2147](https://github.com/dmooney/Rundale/issues/2147),
   [#2143](https://github.com/dmooney/Rundale/issues/2143) and
   [#2128](https://github.com/dmooney/Rundale/issues/2128) track travel and conversation improvements.

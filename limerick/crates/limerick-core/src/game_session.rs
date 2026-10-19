@@ -238,6 +238,8 @@ pub fn apply_movement(
             world.clock.advance(minutes as i64);
             world.player_location = destination;
             world.mark_visited(destination);
+            // Moving ends the conversation (dynamic NPC context design §2).
+            npc_manager.set_partner(None);
 
             // Publish PlayerMoved on the broadcast bus so the character-log
             // writer can record the journey in player.md. Fires here (not at

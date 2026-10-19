@@ -677,6 +677,7 @@ mod tests {
             player_name: None,
             player_progress: Default::default(),
             npcs_who_know_player_name: Default::default(),
+            conversation_partner: None,
             active_session: None,
             content: None,
         }

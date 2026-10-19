@@ -87,7 +87,7 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
     // ── 3. Co-locate both NPCs with the player and mark Nora as introduced. ──
     //
     // Both must be Present at the player location so:
-    //   (a) `handle_game_input` can resolve Nora as the target of "talk to Nora";
+    //   (a) `handle_game_input` can resolve Nora as the target of "@Nora Duffy good day";
     //   (b) the roster passed to the guard includes at least two members
     //       (Nora herself + Brendan), which is the precondition for the guard
     //       to fire (roster.len() < 2 → no-op).
@@ -104,7 +104,7 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
         brendan.set_location_and_state(player_loc, NpcState::Present);
     }
     // Mark Nora as introduced so the harness treats her as a named NPC
-    // (not an anonymous figure) and routes the "talk to Nora" input to her.
+    // (not an anonymous figure) and routes the "@Nora Duffy good day" input to her.
     h.app.npc_manager.mark_introduced(nora_id);
 
     // ── 4. Script the mock to return the wrong-identity line for Nora. ────────
@@ -116,7 +116,7 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
 
     // ── 5. Subscribe to the event bus and run the dialogue turn. ─────────────
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Nora about the harvest");
+    let _ = h.execute_via_real_loop("@Nora Duffy what of the harvest?");
 
     // ── 6. Drain events and find the DialogueOccurred published for Nora. ─────
     let events = drain_events(&mut rx);
@@ -207,7 +207,7 @@ fn wrong_speaker_guard_passes_legitimate_dialogue_through_real_loop() {
     h.mock().push_for("Nora", clean_reply);
 
     let mut rx = h.app.world.event_bus.subscribe();
-    let _ = h.execute_via_real_loop("talk to Nora about the harvest");
+    let _ = h.execute_via_real_loop("@Nora Duffy what of the harvest?");
 
     let events = drain_events(&mut rx);
     let dialogue_texts: Vec<Option<String>> = events

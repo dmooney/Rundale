@@ -68,7 +68,7 @@ fn real_loop_prompt_grounds_known_npc_pronouns() {
     // text, so a canned reply proves the grounding shipped.
     h.mock().push_for("xe/xem", "Aye, a grand day to ye.");
     let mut rx = h.app.world.event_bus.subscribe();
-    h.execute_via_real_loop(&format!("talk to {speaker_name}"));
+    h.execute_via_real_loop(&format!("@{speaker_name} Good day to you."));
 
     let said: Vec<String> = drain(&mut rx)
         .iter()

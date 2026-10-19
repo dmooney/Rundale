@@ -483,6 +483,7 @@ fn sample_prompt() -> ClarificationPrompt {
             id: "choose-1".to_string(),
             label: "Mícheál Connolly".to_string(),
             entity_id: Some("7".to_string()),
+            accessibility_label: None,
         }],
         reference: Some("Mícheál".to_string()),
     }

@@ -60,6 +60,11 @@ is set (recording only).
   `rundale-intent` v1 does not stream, so post it to the JSON route. The engine
   absorbs an intent failure as unclassified input, so a wrong route looks like a
   flaky model; check the `com.rundale.mobile:endpoint` log.
+- **One Endpoint call, one attempt id.** The server keys a stream by request id
+  and `X-Attempt-Id`. A line that calls several speakers makes several dialogue
+  calls in one engine attempt, so `endpointAttemptID(callID:)` sends each call's
+  own id. Reusing the attempt id makes the second stream fail with HTTP 500 and
+  no invocation row. A mock-only run cannot show it; the live suite does.
 - **The Endpoints database keeps no request or response bodies.** Its
   `invocations` rows hold status, sizes, tokens, and error codes only, so
   `limerick-prod.sh sql` cannot show what `rundale-intent` returned. To see a
