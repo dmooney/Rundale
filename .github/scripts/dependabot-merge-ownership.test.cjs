@@ -38,12 +38,12 @@ function findPermissionEscalations(source) {
 		.map(([, description]) => description);
 }
 
-test('Dependabot workflow leaves every merge decision to the coordinator', () => {
+test('Dependabot workflow leaves every merge decision to the gatekeeper', () => {
 	const workflow = fs.readFileSync(workflowPath, 'utf8');
 
 	assert.deepEqual(findMergeMutations(workflow), []);
 	assert.deepEqual(findPermissionEscalations(workflow), []);
-	assert.match(workflow, /merge remains coordinator-owned/i);
+	assert.match(workflow, /merge remains gatekeeper-owned/i);
 	assert.match(workflow, /contents:\s*read/i);
 	assert.doesNotMatch(workflow, /contents:\s*write/i);
 });

@@ -14,6 +14,12 @@ struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     var isInterrupted: Bool {
         state == .interrupted || state == .cancelled || state == .failed
     }
+
+    /// Shown under a reply the game did not apply (stopped, interrupted or
+    /// failed), so it is not mistaken for a reply the game applied.
+    var unappliedReplyNote: String? {
+        kind == .npcDialogue && isInterrupted ? "Not applied" : nil
+    }
 }
 
 struct PresentedHeader: Equatable, Sendable {

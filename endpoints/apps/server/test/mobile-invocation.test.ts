@@ -391,7 +391,18 @@ describe("mobile invocation authentication", () => {
     ) as Record<string, unknown>;
     const validate = compileSchema(definition.inputSchema);
     expect(validate(input)).toBe(true);
-    input.knownPeople = Array.from({ length: 33 }, () => structuredClone(input.speaker));
+    const knownPeople = input.knownPeople as Record<string, unknown>[];
+    expect(
+      validate({
+        ...input,
+        knownPeople: [
+          { ...knownPeople[0], currentLocationId: 2, currentLocationName: "Letter Office" },
+        ],
+      }),
+    ).toBe(false);
+    expect(validate({ ...input, festival: "Bealtaine" })).toBe(true);
+    expect(validate({ ...input, addressing: "overheard" })).toBe(false);
+    input.knownPeople = Array.from({ length: 33 }, () => structuredClone(knownPeople[0]));
     expect(validate(input)).toBe(false);
   });
 
@@ -412,21 +423,25 @@ describe("mobile invocation authentication", () => {
     expect(validateInput(input)).toBe(true);
     expect(validateInput({ ...input, speaker: "Peig" })).toBe(false);
     const validateOutput = compileSchema(definition.outputSchema);
-    expect(
-      validateOutput({
-        intent: "move",
-        target: "the Letter Office",
-        dialogue: null,
-        atmosphere: null,
-      }),
-    ).toBe(true);
-    // Every field is required (nullable): with optional fields, constrained
-    // decoding on gemini-3.5-flash-lite runs on inside `target` (#2105).
-    expect(validateOutput({ intent: "move", target: "the Letter Office", dialogue: null })).toBe(
-      false,
-    );
-    expect(validateOutput({ intent: "fly", target: null })).toBe(false);
-    expect(validateOutput({ intent: "talk", extra: true })).toBe(false);
+    const choice = (option: string) => ({
+      choice: option,
+      confidence: 0.9,
+      probabilities: { [option]: 0.9 },
+    });
+    const answer = {
+      action: choice("move"),
+      destination: choice("l2"),
+      target: choice("none"),
+      recipient: choice("no_one"),
+      mentioned: { p1: 0.1 },
+      atmosphere: choice("none"),
+    };
+    expect(validateOutput(answer)).toBe(true);
+    const { recipient: _recipient, ...withoutRecipient } = answer;
+    void _recipient;
+    expect(validateOutput(withoutRecipient)).toBe(false);
+    expect(validateOutput({ ...answer, action: { choice: "move" } })).toBe(false);
+    expect(validateOutput({ ...answer, extra: true })).toBe(false);
   });
 
   it("emits exactly one terminal error and records provider failure", async () => {

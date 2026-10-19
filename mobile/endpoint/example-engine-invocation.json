@@ -1,4 +1,5 @@
 {
+  "addressing": "spoken_to",
   "attemptID": "fixture-attempt",
   "authoredFacts": [
     {
@@ -25,25 +26,20 @@
     "id": "place-2",
     "playable": true
   },
+  "festival": null,
   "idempotencyKey": "fixture-logical-request:fixture-attempt",
   "knownPeople": [
     {
-      "currentLocationId": 2,
-      "currentLocationName": "Letter Office",
       "displayName": "Peig Hannigan",
       "id": "npc-1",
       "role": "Letter-office keeper"
     },
     {
-      "currentLocationId": 3,
-      "currentLocationName": "Connolly Cottage",
       "displayName": "Mícheál Connolly",
       "id": "npc-2",
       "role": "Smallholder and cattle drover"
     },
     {
-      "currentLocationId": 3,
-      "currentLocationName": "Connolly Cottage",
       "displayName": "Róisín Connolly",
       "id": "npc-3",
       "role": "Spinner and household bookkeeper"
@@ -72,7 +68,12 @@
   "logicalRequestID": "fixture-logical-request",
   "maxOutputChars": 8192,
   "maxStreamBytes": 16384,
+  "player": {
+    "knowsName": false,
+    "name": null
+  },
   "playerInput": "ask Peig about the old church",
+  "present": [],
   "recentConversation": [
     {
       "location": 2,
@@ -90,6 +91,13 @@
     "currentLocationName": "Letter Office",
     "displayName": "Peig Hannigan",
     "id": "npc-1",
+    "mood": "alert",
     "role": "Letter-office keeper"
-  }
+  },
+  "time": {
+    "clockTime": "07:00",
+    "date": "1820-03-20",
+    "partOfDay": "Morning"
+  },
+  "weather": "Clear"
 }

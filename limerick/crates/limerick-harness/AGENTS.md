@@ -43,6 +43,8 @@ cargo run -p limerick-harness -- compare --a 1 --b 2 --db /tmp/harness.db
 - **A gated `run` exits nonzero after persisting its summary.** Do not turn a deterministic crash/parser/timeout/empty-turn gate back into process success; scheduled automation relies on the CLI exit status.
 - **`--player` sets both roles for back-compat; `--judge` overrides independently.** Passing only `--player api` also sets the judge to `api`. Passing `--judge api` separately keeps the roles independent (#1363).
 - **No dependents.** No other crate in the workspace depends on `limerick-harness` at runtime; `limerick-server` appears only as a dev-dependency for the wire-parity test.
+- **Harness cost must be summed from every raw inference session log.** Per-turn dialogue files omit billable intent, reaction, and background simulation, while aggregate JSONL files may duplicate sessions. Persist `cost-summary.json` and reconcile its exact total with the dashboard row after ingest.
+- **Harness persistence does not imply per-run dashboard observability.** Keep list, detail, and A/B run summaries on one SQL row mapper that carries cost, token counts, response timing, and the recorded provider/model/actor/flag configuration; the global cost footer alone cannot answer what one playtest consumed.
 
 ## Module map
 

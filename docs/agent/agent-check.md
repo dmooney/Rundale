@@ -104,9 +104,11 @@ What it does (`limerick/scripts/proof/prove_diff.py`):
 1. Builds `limerick-server` and `limerick-engine` from the merge-base with
    `origin/main` (a detached worktree under
    `~/.cache/limerick/prove-diff/<repo>/base-tree`) and from your working tree,
-   uncommitted changes included. Changed files are touched before each build so
-   the shared cargo target cannot reuse the other tree's fingerprint, and each
-   side's binaries are copied out before the next build.
+   uncommitted changes included. Each tree builds into its own Cargo target
+   unless `CARGO_TARGET_DIR` or a base older than #1708 shares one, so changed
+   files are still touched before each build to keep one tree from reusing the
+   other's fingerprint, and each side's binaries are copied out before the next
+   build.
 2. On each side, twice (`--runs`, default 2):
    - drives the live scenario (`limerick/scripts/proof/scenarios/<name>.txt`,
      one player line per line) through `limerick-server` over

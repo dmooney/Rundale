@@ -117,8 +117,8 @@ Protocol per bug:
 
 ## Optional enhancements
 
-- Use `mcp__limerick__limerick_submit_input` to nudge the player toward a specific location and probe uncovered NPCs (Aoife Brennan, Sean Ruadh Kelly, Brigid Ni Fhatharta, etc).
-- Compare reply quality across NPCs (Padraig Darcy >> Duffy family observed); audit `npcs.json` for what makes Padraig good.
+- Use `mcp__limerick__limerick_submit_input` to nudge the player toward a specific location and probe uncovered NPCs in the canonical world (Peig Hannigan, Mícheál Connolly, Róisín Connolly; `mods/rundale/npcs.json`).
+- Compare reply quality across NPCs; audit `mods/rundale/npcs.json` for what makes the strongest NPC good.
 - Read `limerick/crates/limerick-input/src/parser.rs` to enumerate the movement-verb grammar — fixes the silent-rejection bug list.
 
 ## Invocation Notes

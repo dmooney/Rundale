@@ -18,8 +18,8 @@ CAP1="$(mktemp -t rb_cap1.XXXXXX.jsonl)"
 CAP2="$(mktemp -t rb_cap2.XXXXXX.jsonl)"
 SAVES="$(mktemp -d -t rb_cap_saves.XXXXXX)"
 WORKTREE_KEY="$(printf '%s' "$ROOT" | shasum -a 256 | cut -c1-16)"
-# Cargo's normal shared target can be replaced by another worktree between
-# build and launch. Prompt capture must execute the binary built from this
+# A shared Cargo target (a CARGO_TARGET_DIR override, or a checkout older
+# than #1708) can be replaced by another worktree between build and launch. Prompt capture must execute the binary built from this
 # source tree, so key a reusable target directory by the canonical worktree.
 CAPTURE_TARGET_DIR="${LIMERICK_CAPTURE_TARGET_DIR:-${TMPDIR:-/tmp}/rundale-prompt-capture-target-${WORKTREE_KEY}}"
 

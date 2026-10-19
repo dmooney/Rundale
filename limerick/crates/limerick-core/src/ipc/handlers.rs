@@ -2749,6 +2749,7 @@ mod tests {
             // Contact follows the person across locations. This deliberately
             // differs from the player's current location (#1786).
             location: LocationId(999),
+            witnesses: Default::default(),
         });
         let follow_up = prepare_npc_conversation_turn(
             &world,

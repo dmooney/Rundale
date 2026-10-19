@@ -222,6 +222,7 @@ fn test_full_world_state_roundtrip() {
         player_input: "a word, friend?".to_string(),
         npc_dialogue: "Aye, what is it?".to_string(),
         location: LocationId(1),
+        witnesses: Default::default(),
     });
     let expected_conversation = h.app.world.conversation_log.clone();
 

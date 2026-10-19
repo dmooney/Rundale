@@ -31,6 +31,7 @@ They do not establish live Firebase, App Attest, or cellular network behavior.
 | P4-12 | Touch/bounce at the tail, append and grow rows, resize the keyboard                                | Automatic following remains active; deliberate history reading remains anchored                           |
 | P4-13 | Tap People and Commands using the alphabetic keyboard, including large text                        | Browsing retains the draft; selection is editable before Send; controls remain accessible                 |
 | P4-14 | Start, stop and complete a response, including Reduce Motion                                       | Native Celtic knot indicates activity; stationary with Reduce Motion; no stale activity after termination |
+| P4-15 | Turn the phone both ways with a draft and the keyboard up, then send                               | Portrait only: layout, draft and composer controls unchanged; the command runs once                       |
 
 ### Follow recovery during conversation
 

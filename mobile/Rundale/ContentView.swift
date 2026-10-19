@@ -979,8 +979,15 @@ private struct TranscriptEntry: View {
             Text("“\(item.text)”")
                 .font(.system(.body, design: .serif))
                 .italic()
+                .foregroundStyle(item.unappliedReplyNote == nil ? RundaleTheme.ink : RundaleTheme.secondaryInk)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
+            if let note = item.unappliedReplyNote {
+                Label(note, systemImage: "arrow.uturn.backward")
+                    .font(.caption)
+                    .foregroundStyle(RundaleTheme.secondaryInk)
+                    .accessibilityHidden(true)
+            }
         }
     }
 

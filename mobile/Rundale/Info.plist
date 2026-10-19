@@ -32,5 +32,9 @@
 	<string>$(RUNDALE_ENDPOINT_ORGANIZATION)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>

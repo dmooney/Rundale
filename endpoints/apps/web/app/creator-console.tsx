@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { getFirebaseAuth } from "./firebase";
 
 type Endpoint = { id: string; name: string; slug: string; description: string; status: string };
-type Provider = "fake" | "openai" | "google";
+type Provider = "fake" | "openai" | "google" | "openrouter" | "typesafe";
 type ModelOption = { provider: Provider; model: string };
 type Definition = {
   inputSchema: Record<string, unknown>;

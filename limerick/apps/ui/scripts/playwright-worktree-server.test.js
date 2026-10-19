@@ -283,10 +283,10 @@ test('direct, package, baseline, and screenshot runs share the managed launcher 
 		normalizedJustfile.replace(/\n/g, '\r\n'),
 	]) {
 		const updateRecipe = justfile.match(
-			/^ui-e2e-update:\r?\n(?: {4}.*\r?\n)+/m,
+			/^ui-e2e-update:[^\r\n]*\r?\n(?: {4}.*\r?\n)+/m,
 		)?.[0];
 		const screenshotsRecipe = justfile.match(
-			/^screenshots:\r?\n(?: {4}.*\r?\n)+/m,
+			/^screenshots:[^\r\n]*\r?\n(?: {4}.*\r?\n)+/m,
 		)?.[0];
 		assert.match(updateRecipe ?? '', /npx playwright test --update-snapshots/);
 		assert.match(

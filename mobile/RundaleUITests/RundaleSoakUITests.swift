@@ -29,10 +29,9 @@ final class RundaleSoakUITests: XCTestCase {
         launch(reset: true)
         XCTAssertTrue(header(contains: "Kilteevan Village").waitForExistence(timeout: 8))
 
-        submit("go west")
+        submit("go to Connolly Cottage")
         XCTAssertTrue(header(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        submit("go east")
-        submit("go east")
+        submit("go to the Letter Office")
         XCTAssertTrue(header(contains: "Letter Office").waitForExistence(timeout: 8))
 
         let started = Date()
@@ -41,22 +40,21 @@ final class RundaleSoakUITests: XCTestCase {
         var backgroundCount = 0
         var cycle = 0
         while Date().timeIntervalSince(started) < duration {
-            submit("go west")
+            submit("go to Kilteevan Village")
             XCTAssertTrue(header(contains: "Kilteevan Village").waitForExistence(timeout: 8))
-            submit("go east")
+            submit("go to the Letter Office")
             XCTAssertTrue(header(contains: "Letter Office").waitForExistence(timeout: 8))
             travelCount += 1
-            submit("ask Peig about the church slowly")
-            let provisional = rows(containing: "In progress").matching(NSPredicate(
-                format: "label CONTAINS 'Dialogue'"
-            )).firstMatch
-            XCTAssertTrue(provisional.waitForExistence(timeout: 12))
-            let replyID = provisional.identifier
+            let replyRow = askPeigOnceSheIsAtTheCounter()
+            XCTAssertTrue(app.waitForTranscriptRow(timeout: 25) {
+                $0.row == replyRow && $0.state == "committed"
+            }, "This cycle's provisional row must become a committed reply")
+            // Until she introduces herself, Peig is named by her description.
             let final = app.descendants(matching: .any).matching(NSPredicate(
-                format: "identifier == %@ AND label CONTAINS 'Dialogue' AND label CONTAINS 'Peig Hannigan' AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'not applied'",
-                replyID
+                format: "identifier == %@ AND label CONTAINS 'Dialogue' AND (label CONTAINS 'Peig Hannigan' OR label CONTAINS 'satchel of letters') AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'not applied'",
+                "transcript.item.\(replyRow)"
             )).firstMatch
-            XCTAssertTrue(final.waitForExistence(timeout: 25), "This cycle's provisional row must become a committed reply")
+            XCTAssertTrue(final.waitForExistence(timeout: 5), "The committed reply must be on screen")
             XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 5))
             XCTAssertFalse(app.buttons["composer.retry"].exists)
             streamCount += 1
@@ -69,11 +67,13 @@ final class RundaleSoakUITests: XCTestCase {
                 let historical = visibleRows(in: transcript)
                 XCTAssertFalse(historical.isEmpty)
                 XCTAssertNotEqual(before, historical, "Scrolling must expose different historical rows")
+                hold(3)
                 let jump = app.buttons["transcript.new-text"]
                 if jump.exists { jump.tap() } else { transcript.swipeUp() }
                 let newest = app.descendants(matching: .any).matching(identifier: newestIdentifier).firstMatch
                 XCTAssertTrue(newest.waitForExistence(timeout: 5))
                 XCTAssertTrue(newest.isHittable, "Returning to newest must reveal this cycle's reply")
+                hold(3)
                 XCUIDevice.shared.press(.home)
                 XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
                 app.activate()
@@ -96,6 +96,32 @@ final class RundaleSoakUITests: XCTestCase {
             "stream_cycles": streamCount,
             "background_recoveries": backgroundCount
         ])
+    }
+
+    /// Peig waits on the village road from 07:00 to 08:59, so a long run's
+    /// game clock reaches a morning when she is away from the Letter Office.
+    /// The engine then answers "Peig is not here." without a model call;
+    /// waiting at the counter (`/wait`, the local command) until she returns
+    /// keeps every cycle a dialogue.
+    /// Returns the transcript row of Peig's reply.
+    private func askPeigOnceSheIsAtTheCounter() -> String {
+        for _ in 0 ..< 12 {
+            let earlier = Set(app.transcriptRows().map(\.row))
+            submit("ask Peig about the church slowly")
+            var answer: TranscriptTraceEntry?
+            XCTAssertTrue(app.waitForTranscriptRow(timeout: 12) { entry in
+                guard !earlier.contains(entry.row),
+                      entry.kind == "npc_dialogue" || entry.text.contains("Peig is not here")
+                else { return false }
+                answer = entry
+                return true
+            }, "Asking Peig must produce her reply or say she is away")
+            guard let answer else { break }
+            if answer.kind == "npc_dialogue" { return answer.row }
+            submit("/wait 30")
+        }
+        XCTFail("Peig never returned to the Letter Office")
+        return ""
     }
 
     private func visibleRows(in transcript: XCUIElement) -> Set<String> {

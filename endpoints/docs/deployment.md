@@ -62,6 +62,43 @@ command above; `limerick-prod.sh sql < query.sql` runs an operator query; and
 `limerick-prod.sh appcheck-token <create|delete> <name>` manages the App Check
 debug token the live Endpoint suite needs.
 
+## Deploying limerick-prod from GitHub
+
+Every merge to `main` that changes `endpoints/` or `mods/rundale/endpoints/`
+runs `.github/workflows/deploy-limerick-prod.yml`; **Run workflow** starts it by
+hand. When server code changed, `limerick-prod.sh deploy <commit>` builds the
+image in Cloud Build as `limerick-build`, runs `limerick-endpoints-migrate` from
+it, deploys `limerick-endpoints` by digest with the provider settings in
+`endpoints/deploy/limerick-prod-providers.json` without traffic, and moves
+traffic to the new revision once its own URL answers `/health/ready`. It
+then runs `definitions replace` and `definitions verify`. `.gcloudignore` limits
+the uploaded source to `endpoints/`, without local `.env` files.
+
+The workflow signs in through Workload Identity Federation as
+`limerick-deployer`. Google Cloud accepts its token only from this workflow,
+run on `dmooney/Rundale`'s `main` (a merge or **Run workflow**) in the
+`limerick-prod` environment, so no key is stored in GitHub and no other workflow
+can deploy. A project owner creates that once with
+`endpoints/deploy/setup-github-deploy.sh`, which also sets the repository
+variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`.
+
+## Enabling a decision provider
+
+A decision Endpoint ([ADR 014](adr/014-decision-endpoints.md)) runs on
+OpenRouter or TypeSafe. Enabling either on a deployment takes five steps:
+
+1. Set its allowlist on the Cloud Run service: `OPENROUTER_ALLOWED_MODELS`
+   (for example `typesafe/jev-1.13`) or `TYPESAFE_ALLOWED_MODELS`.
+2. Forward that allowlist to the definitions command. For `limerick-prod`,
+   `limerick-prod.sh` already reads both from the service.
+3. Price every allowed model in `MODEL_PRICES_JSON`, keyed
+   `openrouter/<vendor>/<model>` or `typesafe/<model>`, with the vendor's
+   per-million input and output token prices. Startup fails without them.
+4. Put the key in Secret Manager (`OPENROUTER_API_KEY` or `TYPESAFE_API_KEY`)
+   and mount it on the service as that environment variable.
+5. Grant the service's runtime identity `roles/secretmanager.secretAccessor` on
+   that secret only.
+
 ## Release verification
 
 1. Confirm `GET /health/live` and `GET /health/ready` return 200 on the generated server hostname.

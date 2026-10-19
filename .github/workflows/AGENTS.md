@@ -5,7 +5,7 @@ CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/har
 ## Scoped commands
 
 ```sh
-just check          # docs format + markdownlint, OSV scan of changed lockfiles, then fmt + clippy + tests (mirrors the docs, OSV scan-pr, and Rust gates)
+just check          # docs format + markdownlint, OSV scan of changed lockfiles, complete Python quality job, then fmt + clippy + tests
 just agent-check    # evidence-link gate, local mode (agent-check job reads the PR body)
 just verify         # check + harness walkthrough
 
@@ -24,6 +24,7 @@ just act-pr         # simulate the pull_request fast lane
 ## Local gotchas
 
 - **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. A separate `nondoc` filter (`predicate-quantifier: every`, excluding `**/*.md` and `docs/**`) forces `runtime`, `differential`, and `promptfoo` to false for documentation-only PRs, including Markdown inside crates, mods, and scripts. Its docs-consistency job also enforces the tracked-artifact size/path/orphan policy. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
+- **`paths-filter` exclusions need `some-with-excludes`.** Its default `some` quantifier ORs every pattern, so a final `!**/AGENTS.md` still matches paths caught by an earlier broad positive such as `mobile/**`. Use `predicate-quantifier: some-with-excludes` when a filter mixes positive patterns and exclusions; see the [action's predicate quantifier docs](https://github.com/dorny/paths-filter#predicate-quantifier).
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
@@ -39,13 +40,21 @@ just act-pr         # simulate the pull_request fast lane
 - **Secrets:** `GITHUB_TOKEN` (all), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). The disabled Gemini sources retain references to `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` for a future re-enable. Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
 - **`concurrency: pages`** in `publish-bench-site.yml` — do not rename without checking the `deploy-pages` action's concurrency expectations.
 - **`act` does not reproduce GitHub-side concerns** — concurrency groups, branch protections, required-check status, and `permissions:` are server-side only. See `docs/agent/act-local.md` for caveats.
+- **CI jobs default to `working-directory: limerick` (`.github/workflows/ci.yml` `defaults.run`).** Any `run:` step that invokes a repo script must use a path relative to `limerick/` (e.g. `bash scripts/foo.sh`), NOT `bash limerick/scripts/foo.sh` — the latter resolves to `limerick/limerick/scripts/...` and dies with `No such file or directory` (exit 127). `actions/*` step inputs like `upload-artifact` `path:` are the exception: they're relative to the repo root (`GITHUB_WORKSPACE`), so `limerick/target/...` is correct there. Mismatch between the two bit the `harness-shadow` job (#1159).
+- **Gemini review CI must set `GEMINI_CLI_TRUST_WORKSPACE=true`** before installing extensions. Gemini CLI 0.46.0 otherwise prompts to trust the workspace during `gemini extensions install`, ignores the action's piped `Y`, and the 7-minute review job times out as cancelled.
+- **`ci.yml` is sub-minute only for non-UI pull requests.** Shipped UI changes run the complete Playwright suite and feed its exact result into the required `CI gate`; `full-ci.yml` still owns Rust/coverage/harness and post-merge integration checks.
+- **Dependabot automation classifies but never lands PRs.** A fresh gatekeeper owns every merge. The weekly upkeep routine on the owner's Mac ([`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py), [dependency updates](../../docs/agent/git-workflow.md#dependency-updates)) keeps each PR current, records mobile-verify passes for app-input bumps, waits for the required checks, and runs the gatekeeper; it never merges itself. `.github/scripts/dependabot-merge-ownership.test.cjs` rejects workflow-level merge mechanisms, and `scripts/test_dependabot_upkeep.py` rejects merge calls in the routine.
+- **Actions bumps to workflows that never run on pull requests** (`release.yml`, `testflight.yml`, deploys, schedules, `pull_request_target` workflows, which run the base copy) are checked statically by `workflow-quality`: actionlint, then [`scripts/check_action_refs.py`](../../scripts/check_action_refs.py), which reads each remote action's `action.yml` at its pinned ref and fails on a missing ref, an undeclared or missing required input, or an unsupported runtime. The upkeep routine also dry-runs a changed `release.yml` on the PR branch.
+- **A conditional reusable workflow needs an explicit fail-closed result in the required gate.** Letting a generic aggregate accept `skipped` is not enough: the gate must separately require `success` when the path detector says the full runtime suite is required, and require `skipped` otherwise.
+- **GitHub Models is retired (2026-07-30).** `eval-inference` and `ai-issue-triage` are `.yml.disabled`; do not re-enable against `models.github.ai`. The 410 “retirement brownout” message is permanent, not transient.
+- **OSV-Scanner v2.6 dropped `--skip-git`.** Passing it fails the action with `flag provided but not defined`; use `scan-args: -r ./` only.
 
 ## Workflow index
 
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, workflow-quality (actionlint + remote action inputs), Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Swift contract:** `swift-quality` runs `python3 mobile/scripts/verify.py --fast` (pinned SwiftLint/SwiftFormat, the three Swift packages, coverage floors) on hosted `macos-26` with Xcode 26.6 when `changes.swift` is true (`mobile/**`). It is skipped otherwise, which `ci-gate.sh` accepts. The Xcode app and simulator suites are local-only ([Swift quality gates](../../docs/agent/swift-quality-gates.md)).
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`, which requires the evidence-page link in the PR body for runtime-shipping diffs. Skipped for dependabot.
@@ -102,12 +111,32 @@ just act-pr         # simulate the pull_request fast lane
 - The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Installs `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), runs `pnpm check` before `pnpm build`, then deploys `dist/` to GitHub Pages via `actions/deploy-pages@v5`. Uses `pnpm/action-setup@v6`. (Retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
+### `deploy-limerick-prod.yml` — Deploy Limerick Endpoints to limerick-prod
+
+- **Triggers:** `push` to `main` changing `endpoints/**`, `mods/rundale/endpoints/**`, `.gcloudignore` or the workflow; `workflow_dispatch` (on `main` only).
+- Runs `endpoints/deploy/limerick-prod.sh deploy <sha>` when server code changed, then `definitions replace` and `definitions verify`.
+- **Auth:** Workload Identity Federation as `limerick-deployer`; the provider accepts only this workflow's `job_workflow_ref` on `main` in the `limerick-prod` environment. Renaming the file or the environment needs `endpoints/deploy/setup-github-deploy.sh` re-run. Signs in after `pnpm install`.
+- **Concurrency:** `deploy-limerick-prod`, cancel-in-progress: **false**.
+
+### `testflight.yml` — Internal TestFlight upload
+
+- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `AGENTS.md` files are excluded; `workflow_dispatch`.
+- Runs `python3 mobile/scripts/release.py testflight` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. It passes `--verify none` when `verify_record.py check --commit` finds a recorded `mobile-verify` pass for the commit's input tree, and `--verify all` (the full gate here) otherwise. The build number is App Store Connect's highest upload plus one, fetched with the API key; full history is checked out for the commit-count fallback.
+- **Auth:** an App Store Connect API key (`ASC_API_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`) and the private Firebase plist (`FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64`), secrets of the `testflight` environment ([runbook](../../mobile/testflight.md#uploading-from-github)).
+- **Concurrency:** `testflight`, cancel-in-progress: **false**.
+
 ### `release.yml` — Tag-driven release pipeline
 
 - **Triggers:** `push` tags matching `v[0-9]+.[0-9]+.[0-9]+*`; `workflow_dispatch` with `dry_run: true` (default).
 - Validates tag matches `limerick-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
 - **Permissions:** `contents: write`.
 - **Concurrency:** `release-${{ github.ref }}`, cancel-in-progress: **false**.
+
+### `dependabot-review.yml` — Dependabot classification
+
+- **Trigger:** `pull_request_target` (opened, reopened, synchronize), Dependabot-authored PRs only.
+- Reads `dependabot/fetch-metadata` and comments on major bumps so the gatekeeper reads the release notes. It never enables or performs a merge; the weekly upkeep routine hands each green PR to a gatekeeper ([dependency updates](../../docs/agent/git-workflow.md#dependency-updates)).
+- **Permissions:** `contents: read`, `pull-requests: write`.
 
 ### `stale.yml` — Stale issue/PR management
 

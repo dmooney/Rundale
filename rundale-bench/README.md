@@ -199,7 +199,7 @@ just -f rundale-bench/justfile local-summary
 a `[[candidate]]` block to add new models. The runner enforces a 4 GB
 headroom check and skips any candidate whose `peak_ram_gb_est` exceeds
 available unified memory. The empirical 4-bit RAM rule is
-`peak_ram_gb_est >= params_b × 0.55 + 4` (see `../LEARNINGS.md`).
+`peak_ram_gb_est >= params_b × 0.55 + 4` (see [`AGENTS.md`](AGENTS.md)).
 
 Outputs land in `rundale-bench/artifacts/run_<target>_<slice>_<UTC>.json`
 (per-slice grader output) and `rundale-bench/artifacts/local_<UTC>.json`
