@@ -266,11 +266,44 @@ private final class Game {
     }
 
     /// Answers intent calls as speech until the turn waits on something else.
+    /// The app is an Endpoint host, so each answer is a `rundale-intent`
+    /// decision for the call's own options (design §4.6).
     func answerIntents() async throws {
         while let pending = try await runtime.pendingInvocation(), pending.role == "intent" {
-            let output = Data(#"{"intent":"talk","target":null,"dialogue":null,"atmosphere":null}"#.utf8)
-            try apply(await runtime.resolve(pending, output: output))
+            try apply(await runtime.resolve(pending, output: Self.decision(for: pending.input)))
         }
+    }
+
+    /// A confident speech decision: spoken to the first reference option
+    /// ("Drover" with two drovers present), else to the person whose first
+    /// name opens the line, else to no one in particular, else to the only
+    /// person present.
+    static func decision(for input: Data) -> Data {
+        let object = (try? JSONSerialization.jsonObject(with: input)) as? [String: Any] ?? [:]
+        func ids(_ field: String) -> [[String: Any]] { object[field] as? [[String: Any]] ?? [] }
+        func fold(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        }
+        let line = object["line"] as? String ?? ""
+        let opening = fold(line.split(whereSeparator: { !$0.isLetter }).first.map(String.init) ?? "")
+        let named = ids("present").first { person in
+            let first = (person["name"] as? String)?.split(separator: " ").first.map(String.init) ?? ""
+            return !opening.isEmpty && fold(first) == opening
+        }
+        let recipient = (ids("references").first ?? named ?? ids("noOne").first ?? ids("present").first)?["optionId"]
+            as? String ?? "no_one"
+        func choice(_ option: String, _ p: Double) -> [String: Any] {
+            ["choice": option, "confidence": p, "probabilities": [option: p]]
+        }
+        let output: [String: Any] = [
+            "action": choice("talk", 0.99),
+            "destination": choice("none", 0.9),
+            "target": choice("none", 0.9),
+            "recipient": choice(recipient, 0.95),
+            "mentioned": [String: Any](),
+            "atmosphere": choice("none", 0.99),
+        ]
+        return (try? JSONSerialization.data(withJSONObject: output)) ?? Data()
     }
 
     func untilDialogue() async throws -> LimerickPendingInvocation {
