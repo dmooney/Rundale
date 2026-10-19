@@ -49,6 +49,55 @@ Until then, protect `main` with the closest available gate:
 `full-ci.yml` retains its `merge_group` trigger so the stronger queue gate is
 ready if repository ownership changes.
 
+## Dependency updates
+
+Dependabot opens its weekly pull requests on Monday at 06:17 UTC
+([`.github/dependabot.yml`](../../.github/dependabot.yml)). No workflow merges
+them. A LaunchAgent on the owner's Mac runs
+[`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py) every
+Monday at about 09:00 UTC (issue #2098). For each open Dependabot pull request
+it:
+
+1. skips drafts, `--exclude`d pull requests, and pull requests labelled
+   `needs-owner`, and asks Dependabot to rebase or recreate one that conflicts
+   with `main`;
+2. brings it up to date with `main` using the owner's `gh` token, so CI runs.
+   A pull request that changes app inputs (`verify_record.py check`, the same
+   test CI's "Recorded mobile-verify pass" job applies) is merged with `main`
+   in a clean checkout, passes `just mobile-verify --phase all`, is pushed, and
+   gets `just mobile-verify-record` (a recorded pass is reused when the merge
+   changed no app input). One mobile-verify runs at a time: `verify.py` holds
+   a lock every worktree on the Mac shares (`RUNDALE_MOBILE_VERIFY_LOCK`), and
+   the routine also waits while `pgrep` finds a run from an older checkout;
+3. waits for the required checks. A red pull request gets one bounded
+   `claude -p` fix; if that makes no commit or the checks stay red, the pull
+   request stays open and is reported. A red pull request is never handed on
+   for merge;
+4. dry-runs `release.yml` on the branch when an Actions bump changes it
+   (`release.yml` never runs on pull requests; CI's `workflow-quality` job
+   checks every workflow's action inputs statically);
+5. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
+   merges it, sends it back, or hands it to the owner. Dependabot's commits
+   carry no model trailer, so the gatekeeper is Claude; once the routine has
+   added a Claude-written fix, it is Codex.
+
+It then comments a summary (merged, needs attention, other) on the pinned
+"Dependabot upkeep reports" issue, creating and pinning the issue on its first
+run. Logs are under `~/Library/Application Support/rundale-dependabot-upkeep/logs/`.
+
+```sh
+just dependabot-upkeep run --dry-run      # plan only: no pushes, runs, or comments
+just dependabot-upkeep run --pr 2234      # one real pass over one pull request
+just dependabot-upkeep install            # LaunchAgent + the routine's own checkouts
+just dependabot-upkeep uninstall
+```
+
+The routine runs from its own worktrees (`review/`, kept at `origin/main`,
+where the gatekeeper runs, and `work/`, where mobile-verify and fixes run),
+never from the owner's checkout. A launchd calendar job runs on wake when the
+Mac slept through Monday morning, which cron would skip; `caffeinate -i` keeps
+the Mac awake for the run.
+
 ## CI cost controls
 
 The fast `ci.yml` workflow uses path filtering so a doc/chore/CI-agent-only PR

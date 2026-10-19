@@ -1,0 +1,131 @@
+{
+  "testNodes": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "duration": "0.03s",
+                  "durationInSeconds": 0.029566049575805664,
+                  "name": "testAnEmptySaveFileLeftByAnInterruptedNewGameOpensANewGame()",
+                  "nodeIdentifier": "RundalePhase4HistoryTests/testAnEmptySaveFileLeftByAnInterruptedNewGameOpensANewGame()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/RundalePhase4HistoryTests/testAnEmptySaveFileLeftByAnInterruptedNewGameOpensANewGame",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "0.025s",
+                  "durationInSeconds": 0.02548694610595703,
+                  "name": "testASaveWithoutItsOpeningSceneResumesWithIt()",
+                  "nodeIdentifier": "RundalePhase4HistoryTests/testASaveWithoutItsOpeningSceneResumesWithIt()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/RundalePhase4HistoryTests/testASaveWithoutItsOpeningSceneResumesWithIt",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                }
+              ],
+              "name": "RundalePhase4HistoryTests",
+              "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/RundalePhase4HistoryTests",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            },
+            {
+              "children": [
+                {
+                  "duration": "0.16s",
+                  "durationInSeconds": 0.1554570198059082,
+                  "name": "testFixtureHistoryPagesPastFiveHundredRowsAcrossRelaunchAndReturnsToLiveTail()",
+                  "nodeIdentifier": "Phase1AuditVolumeTests/testFixtureHistoryPagesPastFiveHundredRowsAcrossRelaunchAndReturnsToLiveTail()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/Phase1AuditVolumeTests/testFixtureHistoryPagesPastFiveHundredRowsAcrossRelaunchAndReturnsToLiveTail",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "0.12s",
+                  "durationInSeconds": 0.11606597900390625,
+                  "name": "testHistoricalPageRelaunchInterruptsActiveStreamWithoutLosingItsArchiveTail()",
+                  "nodeIdentifier": "Phase1AuditVolumeTests/testHistoricalPageRelaunchInterruptsActiveStreamWithoutLosingItsArchiveTail()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/Phase1AuditVolumeTests/testHistoricalPageRelaunchInterruptsActiveStreamWithoutLosingItsArchiveTail",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                }
+              ],
+              "name": "Phase1AuditVolumeTests",
+              "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests/Phase1AuditVolumeTests",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            }
+          ],
+          "name": "RundaleTests",
+          "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleTests",
+          "nodeType": "Unit test bundle",
+          "result": "Passed"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "duration": "9s",
+                  "durationInSeconds": 9.306573987007141,
+                  "name": "testAcceptedCommandRowIsExactAndImmediatelyVisible()",
+                  "nodeIdentifier": "RundalePhase1AuditUITests/testAcceptedCommandRowIsExactAndImmediatelyVisible()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundalePhase1AuditUITests/testAcceptedCommandRowIsExactAndImmediatelyVisible",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "18s",
+                  "durationInSeconds": 18.213970065116882,
+                  "name": "testAccessibilitySizeKeepsCompletionAndClarificationControlsAboveKeyboard()",
+                  "nodeIdentifier": "RundalePhase1AuditUITests/testAccessibilitySizeKeepsCompletionAndClarificationControlsAboveKeyboard()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundalePhase1AuditUITests/testAccessibilitySizeKeepsCompletionAndClarificationControlsAboveKeyboard",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                }
+              ],
+              "name": "RundalePhase1AuditUITests",
+              "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundalePhase1AuditUITests",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            },
+            {
+              "children": [
+                {
+                  "duration": "23s",
+                  "durationInSeconds": 23.397462964057922,
+                  "name": "testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading()",
+                  "nodeIdentifier": "RundaleUITests/testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundaleUITests/testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "24s",
+                  "durationInSeconds": 24.51027202606201,
+                  "name": "testAcceptedStreamIsInterruptedOnRelaunchAndRetryKeepsCommand()",
+                  "nodeIdentifier": "RundaleUITests/testAcceptedStreamIsInterruptedOnRelaunchAndRetryKeepsCommand()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundaleUITests/testAcceptedStreamIsInterruptedOnRelaunchAndRetryKeepsCommand",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                }
+              ],
+              "name": "RundaleUITests",
+              "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/RundaleUITests",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            }
+          ],
+          "name": "RundaleUITests",
+          "nodeIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests",
+          "nodeType": "UI test bundle",
+          "result": "Passed"
+        }
+      ],
+      "name": "Rundale",
+      "nodeType": "Test Plan",
+      "result": "Passed"
+    }
+  ]
+}

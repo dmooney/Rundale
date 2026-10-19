@@ -8,8 +8,8 @@ This is the contract #2143 requires before implementation. It covers who a
 player's line is for, what an NPC is told about the present moment when it
 answers, and how both stay correct while the world changes. The owner's
 decisions from the reviews of 2026-10-09 and 2026-10-10 are recorded in §10.
-The proposals in §11 were approved by the owner on 2026-10-10. Nothing here is
-implemented yet.
+The proposals in §11 were approved by the owner on 2026-10-10. The dialogue
+snapshot (§6) is implemented by #2222; the rest is not implemented yet.
 
 The recipient rules govern the shared engine (`limerick-core`), so every client
 resolves recipients the same way. The dialogue snapshot (§6) governs the
@@ -177,10 +177,10 @@ The line itself is untrusted input.
 
 ### 4.2 When it runs
 
-On every line routed to dialogue, except explicit selections and the
-nobody-present case in §3.1. It runs after the existing intent stage, which
-still decides between move, look, examine, interact and talk. Each line gets one
-call. The answer is journaled with the request, as `SettledInput.intent` is
+On every line the local parser does not settle as a command, except explicit
+selections. Since the owner's decision of 2026-10-10 (§4.6) this call is the
+`rundale-intent` Endpoint: Jev decides between move, look, examine, interact
+and talk as well as whom a line is for. Each line gets one call. The answer is journaled with the request, as `SettledInput.intent` is
 today, so a retry or a clarification answer reuses it.
 
 It replaces the rule-based address detection in §1.1 for recipients:
@@ -188,9 +188,8 @@ It replaces the rule-based address detection in §1.1 for recipients:
 about Y" clause (`explicit_talk_recipient_clause`). "talk to Mícheál about
 Róisín" is a line spoken to Mícheál, so Róisín does not join.
 
-The intent model's `target` no longer picks recipients; System 1's answer is
-the only one used, so the two cannot disagree. `target` still names where to
-move and what to examine.
+There is no separate intent model whose `target` could disagree with the
+recipient answer: one call answers both (§4.6).
 
 ### 4.3 Input and questions
 
@@ -221,9 +220,15 @@ Questions:
 
 Option ids are assigned per call in roster order, so ordering is stable.
 
-Starting thresholds, to be fixed by the comparison in §5: 0.80 for question
-1 and 0.70 for question 2. Below the threshold, the answer is uncertain
-(§3.1, step 4).
+Thresholds, fixed by the comparison in §5 (2026-10-10,
+[results](../test-plans/results/2026-10-10-addressee-comparison.md)): 0.70
+for question 1 and 0.70 for question 2, down from starting values of 0.80
+and 0.70. Below the threshold, the answer is uncertain (§3.1, step 4). The
+results propose a narrower uncertain rule that would widen the safe range;
+it awaits an owner decision. For the `rundale-intent` call (§4.6) the
+thresholds are provisional: it meets the win rule only with that rule, under
+which its results are flat from 0.60 to 0.80
+([input comparison](../test-plans/results/2026-10-10-input-comparison.md)).
 
 ### 4.4 Failure
 
@@ -233,10 +238,10 @@ timeout after 2 s, or an answer that is not an offered option) is uncertain.
 
 ### 4.5 Endpoint integration
 
-- A new Endpoint role, `rundale-addressee`, defined as game
-  data in `mods/rundale/endpoints/rundale-addressee.v1.json` and published to
-  Limerick Endpoints in `limerick-prod` as v1, following the pre-release rule in
-  Endpoints ADR 013.
+- The intent role's Endpoint, `rundale-intent` (§4.6), defined as game data
+  in `mods/rundale/endpoints/rundale-intent.v1.json` and replaced in place in
+  `limerick-prod` as v1, following the pre-release rule in Endpoints ADR 013.
+  No other Endpoint is added.
 - It uses the same envelope as the other roles: session, logical request,
   attempt, base revision and idempotency key.
 - Limerick Endpoints is the `endpoints/` workspace in this repository. Today a
@@ -280,6 +285,52 @@ timeout after 2 s, or an answer that is not an offered option) is uncertain.
 
 - Scripted transport doubles answer the decision role in tests.
 
+### 4.6 Intent in the same call
+
+The owner decided on 2026-10-10 that `rundale-intent` uses System 1 (Jev) to
+read everything about the player's line, including whom it is for. The
+Endpoint stays `rundale-intent` v1
+(`mods/rundale/endpoints/rundale-intent.v1.json`), now a decision Endpoint; the
+Gemini definition it replaced is kept with the
+[comparison's results](../test-plans/results/2026-10-10-input-comparison/rundale-intent-gemini.v1.json).
+The engine reads its answers in `limerick_core::intent_decision`.
+
+A decision model chooses among options; it does not write text. Every answer
+the engine needs is therefore a choice among options the engine supplies, or a
+yes/no:
+
+| Question      | Kind              | Options                                                                                            | Used when the action is                       |
+| ------------- | ----------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `action`      | Choice            | move, talk, look, examine, interact, none (gibberish or nothing the game can do)                   | always                                        |
+| `destination` | Choice            | each place the player knows (name, aliases, short description), a place not listed, no destination | move                                          |
+| `target`      | Choice            | each candidate phrase the engine cuts from the line (below), none                                  | examine, interact, move to a place not listed |
+| `recipient`   | Choice            | as §4.3 question 1                                                                                 | talk                                          |
+| `mentioned`   | Yes/no per person | as §4.3 question 2                                                                                 | talk                                          |
+| `atmosphere`  | Choice            | listen, omen, folklore, none                                                                       | talk                                          |
+
+All questions go in one request and are answered in parallel; the engine uses
+only the answers for the action chosen. Look, examine and interact only
+narrate and change nothing, so the most likely of them is taken. Travel changes
+the world and none drops the line, so a move or none must clear the threshold;
+below it the line is treated as speech, where recipient resolution still asks
+when it is unsure. Today's free-text fields map as follows: `target` becomes
+`destination` for movement and a selected phrase for examine and interact;
+`dialogue` has no consumer in the engine and is dropped; `atmosphere` was
+already a fixed choice.
+
+**Candidate phrases** (select, don't generate). The engine cuts the line into
+spans the model can choose from: each run of words starting at a determiner or
+possessive ("the", "a", "an", "my", "his", "her", "their", "your", a name with
+"'s") and ending before punctuation or a following preposition, each run of
+capitalised words, and each of those runs shortened from the end. The chosen
+span is echoed exactly as the player typed it ("You look more closely at the
+milk pail."; "You don't know the way to the fairy fort."). Untrusted text
+reaches the model only as state, never in a question.
+
+The local parser still settles plain commands first ("go to the Letter
+Office", "look"), with no call. A line it classifies as talk, or does not
+recognise, gets the one call.
+
 ## 5. Vendor comparison
 
 **Candidates:** three decision models, all called through OpenRouter's
@@ -300,6 +351,12 @@ OpenRouter's extra hop, it is measured again on its vendor's own API, and
 production uses that route: the OpenAI adapter for GPT-6 Luna Decisions, a
 TypeSafe adapter for Jev, or a Microsoft Foundry adapter for
 Microsoft-Decision-1 (§4.5).
+
+On 2026-10-16, after the comparison chose Jev, the owner settled the route:
+production calls TypeSafe's own API (`POST https://api.typesafe.ai/v1/systemone`)
+with the versioned model id `jev-1.13.0`, and OpenRouter is not used. The
+comparison's latency was measured through OpenRouter, so it is measured again
+on TypeSafe's API before #2221 ships.
 
 **Baseline:** today's path in §1.1 (local rules, the `rundale-intent` Endpoint on
 Gemini Flash Lite, and the rule-based address detection). It is measured but
@@ -336,6 +393,13 @@ ships with the baseline answering the questions in §4.3, and #2143 stays open
 for System 1.
 
 Results are recorded in a results document under `docs/test-plans/results/`.
+
+**Combined comparison (§4.6).** After Jev won, the owner chose one Jev call for
+intent and recipient. It is compared with today's whole path (local parser,
+`rundale-intent` on Gemini Flash Lite, and the rule-based addressing) on
+Appendices A and B, under the same win rule. A line the local parser settles
+as a command makes no call in either path. An unwanted trip counts as a
+confident wrong route.
 
 ## 6. Dialogue snapshot
 
@@ -545,7 +609,11 @@ Implementation PRs that change shipped behaviour also run
   result, including Microsoft-Decision-1 with Microsoft Foundry as its direct
   route (§5).
 - OpenRouter's alpha Decisions API is accepted for production without a
-  separate data-retention review.
+  separate data-retention review. Superseded on 2026-10-16: production uses
+  TypeSafe's own API, and OpenRouter is not used (§5).
+- `rundale-intent` uses System 1 and settles the recipient in the same
+  call (2026-10-10, after the recipient comparison chose Jev). The model only
+  selects among options the engine supplies (§4.6).
 
 ## 11. Approved proposals (2026-10-10)
 
@@ -561,7 +629,7 @@ numbers stay subject to the comparison, as §4.3 and §5 say.
   (§3.1).
 - A `festival` field in the dialogue snapshot (§6).
 - One person present and an uncertain answer: that person answers (§3.1).
-- Thresholds of 0.80 and 0.70, fixed by the comparison (§4.3).
+- Thresholds of 0.70 and 0.70, fixed by the comparison (§4.3).
 - A 2 s System 1 timeout (§4.4).
 - Latency budget: p95 no worse than the baseline and at most 800 ms; tie-break
   order (§5).
@@ -617,3 +685,33 @@ the player has been introduced to. "Ask" means the game asks who is meant.
 
 Cases with an @tag or chip (matrix rows 6 and 18) skip System 1 and are covered
 by engine tests, not the comparison.
+
+## Appendix B. Labelled intent cases
+
+Added with §4.6. Canonical world; unless stated the player is in Kilteevan
+Village with Peig, introduced, and knows all three places. "Move → X" is
+travel to X; "Not listed" is the reply for an unknown place, echoing the
+phrase given. Talk cases follow Appendix A's notation.
+
+| Id  | Place   | Present | Line                                                | Expected                      |
+| --- | ------- | ------- | --------------------------------------------------- | ----------------------------- |
+| B1  | Village | P       | go to the Letter Office                             | Move → Letter Office          |
+| B2  | Village | P       | I'll head over to the Connollys' place              | Move → Connolly Cottage       |
+| B3  | Office  | P       | take me back to the village                         | Move → Kilteevan Village      |
+| B4  | Village | P       | make for the post office                            | Move → Letter Office          |
+| B5  | Village | P       | I should go and see how the Connollys are keeping   | Move → Connolly Cottage       |
+| B6  | Village | P       | go to the fairy fort                                | Not listed, "the fairy fort"  |
+| B7  | Village | P       | I walked here from the cottage this morning         | Talk → P                      |
+| B8  | Village | P       | My mother always said the road to Tulsk was haunted | Talk → P                      |
+| B9  | Village | P       | Peig, I'm off to the Letter Office later            | Talk → P                      |
+| B10 | Village | P       | look around                                         | Look                          |
+| B11 | Village | P       | turn round and have a proper look                   | Look                          |
+| B12 | Village | P       | examine Peig's satchel                              | Examine, "Peig's satchel"     |
+| B13 | Office  | P       | inspect the pigeonholes                             | Examine, "the pigeonholes"    |
+| B14 | Village | P       | pick up the stone                                   | Interact, "the stone"         |
+| B15 | Village | P       | latch the gate behind me                            | Interact, "the gate"          |
+| B16 | Village | P       | asdf qwerty                                         | None                          |
+| B17 | Village | P       | Tell me the old stories of the fairies, Peig        | Talk → P, atmosphere folklore |
+| B18 | Cottage | M, R    | go to the village                                   | Move → Kilteevan Village      |
+| B19 | Cottage | M, R    | Róisín, will you show me the spinning wheel?        | Talk → R                      |
+| B20 | Cottage | M, R    | examine the spinning wheel                          | Examine, "the spinning wheel" |

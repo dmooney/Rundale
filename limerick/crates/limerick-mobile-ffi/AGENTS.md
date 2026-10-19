@@ -31,10 +31,6 @@ just ios-sim-save-lock                                             # save-lock t
   `default-features = false, features = ["mobile"]`, which compiles out setup,
   the Ollama/vLLM client, the editor, chronicle, and diagnostics. Do not add a
   dependency that pulls desktop features back in.
-- **Iterate `HashMap`s in sorted order before they reach prompts, journals, or
-  expected strings.** `WorldGraph::location_ids()` and `NpcManager::npcs_at`
-  order changes per process; unsorted output made request-body differentials
-  and transcript tests flaky (#2041).
 - **Endpoint definitions are mod files.** `pending_endpoint` reports the slug,
   version, and `stream` flag from `mods/rundale/endpoints/`; see
   [mods/rundale/AGENTS.md](../../../mods/rundale/AGENTS.md) before changing one.
@@ -43,3 +39,8 @@ just ios-sim-save-lock                                             # save-lock t
   call, attempt, or revision): the engine still waits on the same call.
   Clearing it made `pending_endpoint` answer `null` while the engine waited,
   and dropped the real answer from the bug report's exchange log (#2022).
+- **A new `#[ignore]` test blocks TestFlight.** `mobile/scripts/verify.py`
+  counts an ignored test in this crate as a skipped gate unless the
+  `limerick-mobile-ffi-tests` gate lists it in `expected_ignored`, and
+  `just testflight-update` uploads only when every gate passes. List an
+  opt-in harness there, as `tests::addressee_baseline` is.

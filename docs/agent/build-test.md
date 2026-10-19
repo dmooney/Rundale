@@ -13,8 +13,10 @@ vision requires ("Phase N" is spec Milestone N). It runs on macOS with Xcode;
 and exits nonzero on a blocking gate. Suites that passed with identical inputs are
 reused; `--no-cache` reruns them. Options, the gates in each phase, and UI
 recording are in the [mobile scripts README](../../mobile/scripts/README.md).
-Simulator suites run with Xcode parallel testing (4 cloned-simulator workers by
-default; `--parallel-workers 1` is serial). While iterating, do not run the full
+Simulator suites run with Xcode parallel testing (6 cloned-simulator workers by
+default; `--parallel-workers 1` is serial). A full or Phase 4 run puts every
+simulator suite that has no cached pass into one `xcodebuild`; a cold full run
+takes about 10 minutes on an M5 Pro. While iterating, do not run the full
 gate: build once, then run only the affected class with
 `xcodebuild test-without-building -only-testing:RundaleUITests/<Class>` (or
 `record-ui-test.py`). Run the full `just mobile-verify` once per simulator at the
@@ -44,6 +46,30 @@ Select checks for the changed surface; do not treat web viewport tests as native
 iPhone validation. For documentation changes, use the repository documentation
 path checker and the configured Prettier/Markdown lint tools on changed files.
 
+## Gate dependencies
+
+Gates install their own language-managed dependencies, so a fresh clone or
+worktree needs no manual install step. `limerick/scripts/ensure-deps.sh` runs
+before each gate that needs one:
+
+- Root docs tooling (`just docs-check`, `fmt-docs`, `fmt-docs-check`,
+  `lint-docs`, and the pre-push hook) and the UI's `node_modules` (`ui-*`,
+  `run`, `demo`) get a frozen `npm ci --prefer-offline`.
+- `just lint-py`, `test-py`, and `fmt-py` create or refresh `.venv-dev` from
+  `requirements-dev.txt` and always run its pinned tools, never PATH copies.
+- `just ui-e2e`, `ui-e2e-update`, and `screenshots` install Playwright's
+  Chromium when the installed Playwright version lacks it.
+
+Each install writes a stamp hashing its inputs (lockfile and manifest, or
+requirements file, plus the Node module ABI or Python version). A rerun with
+unchanged inputs does no install work; changing any input reinstalls on the next
+run. Timestamps are not used, because checkouts reset them.
+
+Tools that are not language-managed (shellcheck, shfmt, taplo, osv-scanner, and
+Node or Python themselves) are not installed by gates. A gate that needs one
+fails with the command that installs it; none passes or skips silently. `just
+setup` installs the system-level pieces once.
+
 ## Cargo
 
 Most engine commands should be run from the `limerick/` directory:
@@ -61,6 +87,33 @@ Most engine commands should be run from the `limerick/` directory:
   (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes)
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
+
+### Build outputs per worktree
+
+Each checkout and Git worktree builds into its own `limerick/target/`. The
+repository's `.cargo/config.toml` sets `build.target-dir` relative to the
+repository root, and that project config overrides a `target-dir` in
+`~/.cargo/config.toml`, so a host-wide shared target no longer applies inside
+this repository (#1708). Do not point worktrees at one shared target: Cargo's
+lock serializes writes but gives no worktree ownership of first-party binaries
+and test executables, so one worktree can run another's build.
+
+Host setup: keep `build.rustc-wrapper = "sccache"` (or `RUSTC_WRAPPER=sccache`)
+in the user config. sccache is a compiler cache, not an output directory, so
+worktrees still reuse compiled dependencies while keeping separate outputs. A
+host-level `target-dir` may stay for other projects; to remove it everywhere,
+delete it from `~/.cargo/config.toml`. An explicit `CARGO_TARGET_DIR` still
+wins; CI and the mobile build scripts use it to pin per-run outputs.
+
+Scripts resolve built artifacts through
+`cargo metadata --format-version 1 --no-deps` (`target_directory`), never a
+fixed path from another checkout. `limerick-mcp-launch.sh`, `prove_diff.py`, and
+the Playwright worktree server already do.
+
+Storage and pruning: `git worktree remove` deletes that worktree's
+`limerick/target/` with it. To reclaim space in a worktree you keep, run
+`cargo clean` from its `limerick/` directory; it only touches that worktree.
+Do not delete another active worktree's target while it builds or runs.
 
 ## Game harness
 
@@ -127,8 +180,7 @@ must be referenced from tracked source or documentation.
 entry point through the current Node runtime without a shell. A deliberate
 direct `node scripts/playwright-worktree-server.js` launch must instead set
 `LIMERICK_PLAYWRIGHT_NPM_EXEC_PATH` to an absolute npm `.js`, `.cjs`, or `.mjs`
-entry point. The helper then uses the normal shared Cargo target for dependency
-reuse, snapshots the invoking worktree's fresh UI `dist`, embeds a
+entry point. The helper then builds in the worktree's own Cargo target, snapshots the invoking worktree's fresh UI `dist`, embeds a
 worktree/snapshot build identity, and publishes a content-addressed server copy
 only after validating that identity and its CSP hashes. The server then echoes
 the identity through a per-run readiness URL before Playwright proceeds.
@@ -198,7 +250,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 
 ## Quality gates
 
-- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which needs `npm ci` at the repo root; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which installs the root tooling itself; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; `just endpoints-changed`, which runs CI's Endpoints job (`pnpm check` in `endpoints/`) when the branch changes an input CI runs that job for (`scripts/endpoints_changed.py` mirrors its path filter); the complete Python quality job using pinned `.venv-dev` tools, including repository-wide `mypy .` and pytest; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run

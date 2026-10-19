@@ -60,17 +60,11 @@ is set (recording only).
   `rundale-intent` v1 does not stream, so post it to the JSON route. The engine
   absorbs an intent failure as unclassified input, so a wrong route looks like a
   flaky model; check the `com.rundale.mobile:endpoint` log.
-- **`rundale-intent` v1 can hit its 256-token cap** on vocative speech
-  ("Mícheál, how are the cattle?"). The turn still works through dialogue, at
-  the cost of a call.
 - **The Endpoints database keeps no request or response bodies.** Its
   `invocations` rows hold status, sizes, tokens, and error codes only, so
   `limerick-prod.sh sql` cannot show what `rundale-intent` returned. To see a
   live intent output, log the JSON-route body in `RundaleEngineController` in a
-  local build and read it with `xcrun simctl spawn <sim> log show`. The intent
-  target is unreliable (seen: `"Connolly.mdl"`, 502 `MODEL_ERROR`, 502
-  `OUTPUT_VALIDATION_FAILED` for one input), so the engine reads an addressee
-  the player states plainly ("ask X about ...") itself.
+  local build and read it with `xcrun simctl spawn <sim> log show`.
 - **Location description templates are the dialogue Endpoint's only time and
   weather cue.** Do not delete "It is {time}." from `world.json` templates to
   tidy the scene card; the phone drops those sentences at render time
@@ -82,6 +76,11 @@ is set (recording only).
 - **XCUITest cannot see rows scrolled out of the lazy transcript.** Assert on
   what a command produced, not on a command row a long narration pushed
   off-screen.
+- **One non-fast mobile-verify runs per machine.** `verify.py` holds a host-wide
+  lock (`~/Library/Caches/rundale/mobile-verify.lock`, or
+  `RUNDALE_MOBILE_VERIFY_LOCK`) across worktrees and entry points, since runs
+  share the simulator and the Cargo target; a second run waits up to six hours,
+  then exits 2. `--fast` does not take it. Tests point the variable at a temp file.
 - **Stop stalled mobile verification at the parent process.** Killing only its
   `xcodebuild` child can leave `verify.py` running and starting later suites on
   the same simulator.
@@ -89,3 +88,5 @@ is set (recording only).
   and Endpoints identifiers use `Limerick*`, `limerick_mobile_*`, and
   `@limerick/*` (#2007). Leave Irish geography, ADR text, and historical
   revision URLs alone.
+- **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
+- **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's own Rust and Xcode builds go to `mobile/.verification/` without sccache, so its first run recompiles the engine from scratch.

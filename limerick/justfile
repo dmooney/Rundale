@@ -45,18 +45,22 @@ setup:
         echo "Rust already installed: $(rustc --version)"
     fi
 
-    # Install Node.js via fnm if missing
-    if ! command -v node &>/dev/null; then
+    # Install the Node version .nvmrc names, via fnm (installing fnm when
+    # there is no Node at all). Gates fail on any other major version.
+    want_node="$(tr -d '[:space:]' <../.nvmrc)"
+    if ! command -v fnm &>/dev/null && ! command -v node &>/dev/null; then
         echo "Installing fnm (Fast Node Manager)..."
         curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
         export PATH="$HOME/.local/share/fnm:$PATH"
+    fi
+    if command -v fnm &>/dev/null; then
         eval "$(fnm env)"
-        echo "Installing Node.js LTS..."
-        fnm install --lts
-        fnm use lts-latest
+        echo "Installing Node.js $want_node..."
+        fnm install "$want_node"
+        fnm use "$want_node"
         echo "Node $(node --version) installed."
     else
-        echo "Node.js already installed: $(node --version)"
+        echo "Node.js already installed: $(node --version) (gates need Node $want_node)"
     fi
 
     # Install Tauri CLI
@@ -69,15 +73,20 @@ setup:
     cargo install cargo-outdated --locked
     cargo install cargo-tarpaulin --locked
 
-    # Install frontend dependencies
+    # Install frontend dependencies (frozen, from package-lock.json)
     echo "Installing frontend dependencies..."
-    cd apps/ui && npm install
+    bash scripts/ensure-deps.sh js limerick/apps/ui
 
     echo "Setup complete."
 
-# Install frontend dependencies only
+# Install frontend dependencies when package-lock.json changed (frozen npm ci);
+# a no-op when current. Every ui-* gate runs this first.
 ui-install:
-    eval "$(fnm env)" && cd apps/ui && npm install
+    @bash scripts/ensure-deps.sh js limerick/apps/ui
+
+# Install Playwright's Chromium for the UI when it is missing
+_playwright-browsers: ui-install
+    @bash scripts/ensure-deps.sh playwright limerick/apps/ui
 
 # Install the language servers Claude Code uses for symbol navigation in the
 # Svelte/TypeScript UI. Idempotent; safe to re-run. Restart the editor/agent
@@ -103,11 +112,10 @@ clean:
 
 # Run the game (Tauri desktop GUI) — syncs frontend deps with package-lock.json first.
 # Auto-detects a free dev port so multiple instances can run simultaneously.
-run:
+run: ui-install
     #!/usr/bin/env bash
     set -euo pipefail
-    eval "$(fnm env)"
-    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --loglevel error)
+    . scripts/use-node.sh
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -126,11 +134,10 @@ run:
 # Optional args: PAUSE=seconds between turns (default 2), MAX_TURNS=limit (default unlimited).
 # Uses mods/rundale/demo-prompt.txt as the extra prompt.
 # MCP bridge listens on $LIMERICK_MCP_PORT (default 3030) so `mcp__limerick__*` tools work during the demo.
-demo PAUSE="2" MAX_TURNS="":
+demo PAUSE="2" MAX_TURNS="": ui-install
     #!/usr/bin/env bash
     set -euo pipefail
-    eval "$(fnm env)"
-    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --loglevel error)
+    . scripts/use-node.sh
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -177,52 +184,52 @@ tauri-dev:
 
 # Build the Tauri desktop app for production
 tauri-build:
-    eval "$(fnm env)" && cargo tauri build
+    . scripts/use-node.sh; cargo tauri build
 
 # Run the Svelte frontend dev server standalone (no Tauri backend)
-ui-dev:
-    eval "$(fnm env)" && cd apps/ui && npm run dev
+ui-dev: ui-install
+    . scripts/use-node.sh; cd apps/ui && npm run dev
 
 # Build the Svelte frontend for production
 #
 # Clears `.svelte-kit/` and `dist/` before building so Vite can't serve
 # stale compiled output after git operations (rebase/checkout/merge) that
 # shuffle file mtimes in ways that confuse Vite's cache invalidation.
-ui-build:
-    eval "$(fnm env)" && cd apps/ui && rm -rf .svelte-kit dist && npm run build
+ui-build: ui-install
+    . scripts/use-node.sh; cd apps/ui && rm -rf .svelte-kit dist && npm run build
 
 # Run svelte-check (TypeScript + Svelte validation)
-ui-check:
-    eval "$(fnm env)" && cd apps/ui && npm run check
+ui-check: ui-install
+    . scripts/use-node.sh; cd apps/ui && npm run check
 
 # Lint the frontend (ESLint: typescript-eslint + eslint-plugin-svelte)
-ui-lint:
-    eval "$(fnm env)" && cd apps/ui && npm run lint
+ui-lint: ui-install
+    . scripts/use-node.sh; cd apps/ui && npm run lint
 
 # Auto-format the frontend (Prettier, writes in place)
-ui-format:
-    eval "$(fnm env)" && cd apps/ui && npm run format
+ui-format: ui-install
+    . scripts/use-node.sh; cd apps/ui && npm run format
 
 # Check frontend formatting without writing (CI gate)
-ui-format-check:
-    eval "$(fnm env)" && cd apps/ui && npm run format:check
+ui-format-check: ui-install
+    . scripts/use-node.sh; cd apps/ui && npm run format:check
 
 # Run frontend component tests (vitest)
-ui-test:
-    eval "$(fnm env)" && cd apps/ui && npx vitest run
+ui-test: ui-install
+    . scripts/use-node.sh; cd apps/ui && npx vitest run
 
 # Run Playwright UI-contract tests plus the real browser/limerick-server lane.
 # Keep the early ui-build feedback; the config-managed launcher rebuilds again
 # immediately before capture so every Playwright entry point is safe (#1717).
-ui-e2e: ui-build
-    eval "$(fnm env)" && cd apps/ui && npx playwright test
+ui-e2e: _playwright-browsers ui-build
+    . scripts/use-node.sh; cd apps/ui && npx playwright test
 
 # Update Playwright visual regression baselines
-ui-e2e-update:
+ui-e2e-update: _playwright-browsers
     cd apps/ui && npx playwright test --update-snapshots
 
 # Regenerate GUI screenshots via Playwright (outputs to docs/screenshots/)
-screenshots:
+screenshots: _playwright-browsers
     cd apps/ui && npx playwright test e2e/screenshots.spec.ts
 
 # ─── Inference benchmark ────────────────────────────────────────────────────

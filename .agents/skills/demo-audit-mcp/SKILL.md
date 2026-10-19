@@ -141,7 +141,7 @@ grep -c '<name>' mods/rundale/npcs.json
 grep -c '<name>' mods/rundale/world.json
 ```
 
-Many "wrong" names are in-canon (Concannon, Niamh Darcy, Curraghboy, sídhe).
+The canonical world is small (three locations, three NPCs), so check names against it before calling them in-canon. Names such as Concannon, Niamh Darcy, and Curraghboy belong only to the legacy fixture world (`limerick/testing/fixtures/mods/rundale-legacy/`); in a canonical-world session they are hallucinations. Folklore terms such as sídhe are in the prompts.
 
 ## 6. File confirmed bugs via the `limerick_file_bug` MCP
 

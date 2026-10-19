@@ -981,7 +981,7 @@ final class FirebaseEndpointCredentialAdapter: LimerickEndpointKit.EndpointCrede
     }
 }
 
-private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable {
+final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable {
     /// Fault-injection state is transport-owned rather than request-owned so a
     /// retry of the same logical request can recover deterministically. Each
     /// mode is consumed once per logical request and a new attempt therefore
@@ -1016,14 +1016,13 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
                     if identities.role == "player_intent" {
-                        // The intent Endpoint does not stream: its JSON route
-                        // returns the output object. Free-form input the local
-                        // parser did not recognise is treated as speech to
-                        // whoever is present.
+                        // The intent Endpoint is a decision and does not stream:
+                        // its JSON route returns the output object. Free-form
+                        // input the local parser did not recognise is speech
+                        // to no one in particular, so the engine's own
+                        // addressing rules pick who answers.
                         continuation.yield(.response(statusCode: 200, headers: ["content-type": "application/json"]))
-                        continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: [
-                            "intent": "talk", "target": NSNull(), "dialogue": NSNull(), "atmosphere": NSNull()
-                        ])))
+                        continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: Self.talkDecision())))
                         continuation.finish()
                         return
                     }
@@ -1104,7 +1103,8 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let requestID = input["logicalRequestID"] as? String,
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
-              let playerInput = input["playerInput"] as? String else {
+              // The intent input carries the line as `line`; dialogue as `playerInput`.
+              let playerInput = input[role == "player_intent" ? "line" : "playerInput"] as? String else {
             throw LimerickEndpointError.malformedEvent("mock request input is invalid")
         }
         let speakerName = (input["speaker"] as? [String: Any])?["displayName"] as? String
@@ -1120,6 +1120,21 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             speakerName: speakerName ?? "",
             endpointVersion: Self.endpointVersion(from: url)
         )
+    }
+
+    /// A `rundale-intent` decision: speech, spoken to no one in particular.
+    static func talkDecision() -> [String: Any] {
+        func choice(_ option: String) -> [String: Any] {
+            ["choice": option, "confidence": 0.99, "probabilities": [option: 0.99]]
+        }
+        return [
+            "action": choice("talk"),
+            "destination": choice("none"),
+            "target": choice("none"),
+            "recipient": choice("no_one"),
+            "mentioned": [String: Any](),
+            "atmosphere": choice("none"),
+        ]
     }
 
     private static func endpointVersion(from url: URL) -> Int {

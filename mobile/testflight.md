@@ -11,12 +11,18 @@ just testflight-update
 and builds an unsigned Release iPhone app. `testflight-update` first runs
 `just mobile-verify --phase all`, which reuses suites already passed with identical
 inputs, then builds, signs, inspects, and uploads an internal-only archive. The
-archive requests HEAD's commit count (`git rev-list --count HEAD`) as its build
-number, passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so an upload edits no
-file and leaves nothing to commit; the value in `mobile/project.yml` is only for
-local builds. Xcode still manages the uploaded build number and may renumber it
-to follow App Store Connect's existing builds. Check the actual uploaded number
-before reporting it to the user. Applicable feature-specific
+archive's build number is passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so
+an upload edits no file and leaves nothing to commit; the value in
+`mobile/project.yml` is only for local builds. With an App Store Connect API key
+(`ASC_KEY_PATH`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, as the GitHub workflow has), the
+number is one above the highest build App Store Connect already holds, so the
+logged number is the one TestFlight shows, whichever branch or machine uploads.
+Xcode is told not to renumber it, so if another upload takes that number first the
+upload fails rather than landing under a different one. `--dry-run` skips the
+lookup.
+Without a key it falls back to HEAD's commit count (`git rev-list --count HEAD`),
+and Xcode may renumber the upload to follow App Store Connect's existing builds;
+check the actual uploaded number before reporting it to the user. Applicable feature-specific
 checks and save compatibility checks still apply.
 
 Before the upload, `testflight-update` also exports the archive locally as a
@@ -38,6 +44,36 @@ An upload is not yet an installable update: Apple must finish processing it, and
 export compliance prompts may require completion in App Store Connect. The
 command reports that distinction; the releasing agent must finish the portal
 steps below and confirm **Testing** in **Internal Beta** before declaring delivery.
+
+## Uploading from GitHub
+
+`.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
+merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
+toolchain, and on **Run workflow**. It first looks for a recorded `mobile-verify`
+pass for the commit's input tree (`verify_record.py check --commit`; see the
+[mobile scripts README](scripts/README.md#recorded-passes)). With one, it runs
+`release.py testflight --verify none` and goes straight to the Rust build,
+archive, distribution export check and upload, about 15 minutes. Without one,
+for example when `main` moved under the PR before the squash merge, it runs
+`--verify all` and the full gate first. The Rust target directory is
+cached between runs. `just testflight-update` keeps the full gate by default.
+`release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
+`ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
+otherwise.
+
+The workflow reads these secrets from its `testflight` environment:
+
+| Secret                                   | Value                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| `ASC_API_KEY_P8`                         | The contents of the App Store Connect API key's `.p8` file               |
+| `ASC_KEY_ID`                             | That key's ID                                                            |
+| `ASC_ISSUER_ID`                          | The team's issuer ID (App Store Connect, Users and Access, Integrations) |
+| `FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64` | `base64 -i mobile/Rundale/Resources/GoogleService-Info.plist`            |
+
+Create the key with the **Admin** role: automatic signing on a fresh runner
+creates and fetches the distribution certificate itself. As with a local upload,
+the run ends at "upload requested"; Apple's processing and the Internal Beta
+**Testing** status are confirmed in App Store Connect.
 
 ## Reporting bugs from a beta build
 
@@ -66,8 +102,8 @@ identifier is `com.rundale.mobile`, and the App Store Connect app is `6811694290
 Reuse that record and its **Internal Beta** group with automatic distribution.
 
 Pass a build number higher than App Store Connect's highest upload as
-`CURRENT_PROJECT_VERSION=<n>` on the archive command (the commit count, as
-`testflight-update` does, qualifies); do not edit `mobile/project.yml` for it.
+`CURRENT_PROJECT_VERSION=<n>` on the archive command (`testflight-update` takes
+App Store Connect's highest plus one when it has an API key); do not edit `mobile/project.yml` for it.
 Run the applicable checks and verify save compatibility for persistence changes.
 Rebuild the Rust framework when Rust or its build inputs have changed; reuse a
 verified current framework otherwise. Archive with the recorded deployment identity:

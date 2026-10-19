@@ -1,0 +1,13 @@
+{
+  "env": {
+    "GOOGLE_ALLOWED_MODELS": "gemini-3.5-flash-lite",
+    "TYPESAFE_ALLOWED_MODELS": "jev-1.13.0",
+    "MODEL_PRICES_JSON": {
+      "google/gemini-3.5-flash-lite": { "inputPerMillionUsd": 0.3, "outputPerMillionUsd": 2.5 },
+      "typesafe/jev-1.13.0": { "inputPerMillionUsd": 0.042, "outputPerMillionUsd": 0 }
+    }
+  },
+  "secrets": {
+    "TYPESAFE_API_KEY": "TYPESAFE_API_KEY:latest"
+  }
+}

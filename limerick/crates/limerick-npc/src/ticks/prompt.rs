@@ -1051,6 +1051,7 @@ mod tests {
             player_input: "hello".to_string(),
             npc_dialogue: "Ye've come to the right place for a spot of gossip.".to_string(),
             location: loc,
+            witnesses: Default::default(),
         });
 
         let block = cross_npc_phrases_block(&world, &npc)
@@ -1084,6 +1085,7 @@ mod tests {
             player_input: "hello".to_string(),
             npc_dialogue: "Only my own line here.".to_string(),
             location: loc,
+            witnesses: Default::default(),
         });
         assert!(
             cross_npc_phrases_block(&world, &npc).is_none(),
@@ -1853,6 +1855,7 @@ mod tests {
             player_input: "Good morning".to_string(),
             npc_dialogue: prior_line.to_string(),
             location: world.player_location,
+            witnesses: Default::default(),
         });
         world
     }
@@ -1971,6 +1974,7 @@ mod tests {
                 player_input: "What do you do?".to_string(),
                 npc_dialogue: "I run the pub.".to_string(),
                 location: world.player_location,
+                witnesses: Default::default(),
             });
         }
         let block = continuity_block(&world, &npc, None, true, true);
@@ -2008,6 +2012,7 @@ mod tests {
                 player_input: "What do you do?".to_string(),
                 npc_dialogue: "I run the pub.".to_string(),
                 location: world.player_location,
+                witnesses: Default::default(),
             });
         }
         let block = continuity_block(&world, &npc, None, false, true);
@@ -2040,6 +2045,7 @@ mod tests {
                 player_input: "Hello again".to_string(),
                 npc_dialogue: "Welcome back.".to_string(),
                 location: world.player_location,
+                witnesses: Default::default(),
             });
         }
         let config = NpcConfig {
@@ -2172,6 +2178,7 @@ mod tests {
             player_input: "hello".to_string(),
             npc_dialogue: "Fine day, so it is.".to_string(),
             location: loc,
+            witnesses: Default::default(),
         });
 
         let block = conversation_block(&world, &npc, None)

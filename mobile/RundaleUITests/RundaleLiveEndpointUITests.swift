@@ -143,6 +143,44 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         hold(5)
     }
 
+    /// Dynamic NPC context §8 row 25, the #1901 probe: asked where they are,
+    /// the speaker answers from the snapshot's current location. Mícheál is
+    /// at home in the cottage, so his accepted reply places him there and
+    /// never at another place in the world.
+    func test05LiveDialogueAgreesWithTheCurrentLocation() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+        _ = submit("Mícheál, where are we standing just now?")
+
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 45) {
+                $0.kind == "npc_dialogue" && $0.state == "committed"
+            },
+            "Expected an accepted live reply"
+        )
+        let reply = try XCTUnwrap(app.committedDialogueRows().last).text
+        let attachment = XCTAttachment(string: reply)
+        attachment.name = "rundale-live-location-probe-reply.txt"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        // Fail on any other place in the world, and require words that put
+        // him in the cottage: "here" alone would accept "here in the village".
+        let lowered = reply.lowercased()
+        for elsewhere in ["letter office", "post office", "kilteevan village",
+                          "in the village", "at the village", "on the road", "in the lane"] {
+            XCTAssertFalse(lowered.contains(elsewhere),
+                           "Mícheál is in the cottage, not \(elsewhere): \(reply)")
+        }
+        XCTAssertTrue(
+            ["cottage", "home", "house", "hearth", "kitchen"].contains { lowered.contains($0) },
+            "The reply places Mícheál in the cottage: \(reply)"
+        )
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        hold(4)
+    }
+
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]

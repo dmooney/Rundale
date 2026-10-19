@@ -53,6 +53,8 @@ jobs:
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      # Only pull requests are checked; other events report 'false'.
+      mobile_app: ${{ github.event_name == 'pull_request' && steps.filter.outputs.mobile_app == 'true' && steps.nondoc.outputs.nondoc == 'true' && 'true' || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -61,6 +63,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@v4
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             runtime:
               - 'limerick/crates/**'
@@ -99,14 +102,31 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
+            # A recorded mobile-verify pass's inputs
+            # (mobile/scripts/verify.py ATTESTATION_PATHSPECS).
+            mobile_app:
+              - 'mobile/**'
+              - 'mods/**'
+              - 'limerick/crates/**'
+              - 'limerick/testing/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'limerick/config/**'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - 'bug-report/test/fixtures/**'
+              - '!**/AGENTS.md'
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'
-            # The workspace tests also read the Rundale definition files and
-            # the mobile invocation examples and fixtures.
+            # The workspace tests also read the Rundale definition files, the
+            # canonical NPCs and places (rundale-intent-comparison), and the
+            # mobile invocation examples and fixtures.
             endpoints:
               - 'endpoints/**'
               - 'mods/rundale/endpoints/**'
+              - 'mods/rundale/npcs.json'
+              - 'mods/rundale/world.json'
               - 'mobile/endpoint/**'
               - '.github/workflows/ci.yml'
       # Documentation-only pull requests never need the runtime lanes, even when
@@ -415,6 +435,42 @@ jobs:
             bash "$t"
           done
 
+  # Actions bumps to workflows that never run on pull requests (release,
+  # TestFlight, deploys, schedules, pull_request_target) are only checkable
+  # statically: actionlint, then every remote action's inputs at its pinned ref.
+  workflow-quality:
+    name: Workflow quality (actionlint + action inputs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install actionlint
+        run: |
+          curl -fsSL -o /tmp/actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /usr/local/bin actionlint
+
+      - name: actionlint
+        run: actionlint -color
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Remote action references and inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pip install -r requirements-dev.txt
+          python3 scripts/check_action_refs.py
+
   toml-quality:
     name: TOML quality (taplo fmt + lint)
     runs-on: ubuntu-latest
@@ -587,6 +643,43 @@ jobs:
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
   # the conditional complete correctness suite for runtime changes.
+  # The full simulator gate runs once on the author's Mac
+  # (`just mobile-verify --phase all`, then `just mobile-verify-record`); this
+  # job checks that a pass is recorded for the PR's input tree.
+  mobile-verify-recorded:
+    name: Recorded mobile-verify pass
+    needs: changes
+    if: needs.changes.outputs.mobile_app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: read
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      # The PR head's own code computes its input tree, as the author's run
+      # did; the merge checkout's could list different paths after main
+      # changes ATTESTATION_PATHSPECS.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Find a recorded pass for this input tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        # The record is usually posted right after the push, so keep looking
+        # for a few minutes before failing.
+        # Exit 3: the PR leaves every app input unchanged, so no pass is needed.
+        run: |
+          status=0
+          python3 mobile/scripts/verify_record.py check --pr "$PR_NUMBER" --wait 300 || status=$?
+          [ "$status" -eq 0 ] || [ "$status" -eq 3 ]
+
   ci-gate:
     name: CI gate
     needs:
@@ -604,8 +697,10 @@ jobs:
         shell-quality,
         swift-quality,
         toml-quality,
+        workflow-quality,
         runtime-suite,
         differential-proof,
+        mobile-verify-recorded,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -625,4 +720,6 @@ jobs:
           RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
           DIFFERENTIAL_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.differential == 'true' }}
           DIFFERENTIAL_RESULT: ${{ needs.differential-proof.result }}
+          MOBILE_VERIFY_REQUIRED: ${{ needs.changes.outputs.mobile_app }}
+          MOBILE_VERIFY_RESULT: ${{ needs.mobile-verify-recorded.result }}
         run: bash .github/scripts/ci-gate.sh

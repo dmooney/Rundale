@@ -1,4 +1,10 @@
-import type { EndpointVersionSnapshot, JsonSchema, ProviderId } from "@limerick/domain";
+import type {
+  DecisionSpec,
+  DecisionText,
+  EndpointVersionSnapshot,
+  JsonSchema,
+  ProviderId,
+} from "@limerick/domain";
 import { compileSchema, formatValidationErrors, type SchemaIssue } from "@limerick/schemas";
 
 export type NormalizedErrorCode =
@@ -91,9 +97,47 @@ export interface ProviderStreamCompleted {
 
 export type ProviderStreamEvent = ProviderStreamDelta | ProviderStreamCompleted;
 
+/** A question as a decision model receives it, after option expansion. */
+export interface DecisionQuestionPayload {
+  type: "choice" | "noul";
+  instructions: DecisionText;
+  criteria: Record<string, DecisionText>;
+}
+
+export interface DecisionInvocation {
+  model: string;
+  state: Record<string, unknown>;
+  questions: Record<string, DecisionQuestionPayload>;
+}
+
+/**
+ * OpenRouter's schema requires only `type` and `choice` on a choice answer, so
+ * `confidence` and `probabilities` may be missing; a decision Endpoint needs
+ * them and fails the attempt without them (`decisionOutput`).
+ */
+export type DecisionAnswer =
+  | {
+      type: "choice";
+      choice: string;
+      confidence?: number;
+      probabilities?: Record<string, number>;
+    }
+  | { type: "noul"; noul: number };
+
+export interface DecisionResult {
+  answers: Record<string, DecisionAnswer>;
+  usage: NormalizedUsage;
+  providerRequestId?: string;
+}
+
 export interface ModelProvider {
   readonly id: ProviderId;
   readonly supportsStreaming?: boolean;
+  /** Answers decision questions with probabilities (ADR 014). */
+  decide?(
+    invocation: DecisionInvocation,
+    context: ProviderExecutionContext,
+  ): Promise<DecisionResult>;
   execute(
     invocation: ProviderInvocation,
     context: ProviderExecutionContext,
@@ -188,6 +232,7 @@ export class DeterministicRuntime implements SemanticRuntime {
   ) {}
 
   supportsStreaming(version: EndpointVersionSnapshot): boolean {
+    if (version.inferenceConfig.decision !== undefined) return false;
     const projection = version.inferenceConfig.streaming;
     if (projection?.version !== 1 || projection.textField.length === 0) return false;
     try {
@@ -242,6 +287,14 @@ export class DeterministicRuntime implements SemanticRuntime {
         maxOutputTokens: version.inferenceConfig.maxOutputTokens,
       },
     };
+    const decision = version.inferenceConfig.decision;
+    const decisionRequest =
+      decision === undefined
+        ? undefined
+        : {
+            spec: decision,
+            built: buildDecisionRequest(decision, model, input.values, version.instructions),
+          };
     const attempts: RuntimeAttempt[] = [];
     const maximumAttempts = version.inferenceConfig.retryCount + 1;
     let latestError: RuntimeError | undefined;
@@ -249,7 +302,10 @@ export class DeterministicRuntime implements SemanticRuntime {
     for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
       const started = performance.now();
       try {
-        const result = await provider.execute(invocation, context);
+        const result =
+          decisionRequest === undefined
+            ? await provider.execute(invocation, context)
+            : await executeDecision(provider, decisionRequest, context);
         const validateOutput = compileSchema(version.outputSchema);
         if (!validateOutput(result.output)) {
           throw new RuntimeError(
@@ -314,7 +370,12 @@ export class DeterministicRuntime implements SemanticRuntime {
     context: InvocationContext,
   ): AsyncIterable<InvocationStreamEventOrResult> {
     const projection = version.inferenceConfig.streaming;
-    if (projection === undefined || projection.version !== 1 || projection.textField.length === 0) {
+    if (
+      projection === undefined ||
+      projection.version !== 1 ||
+      projection.textField.length === 0 ||
+      version.inferenceConfig.decision !== undefined
+    ) {
       throw new RuntimeError("MODEL_ERROR", "Streaming is not configured for this endpoint.");
     }
     const inputValidation = compileSchema(version.inputSchema);
@@ -442,6 +503,282 @@ export class DeterministicRuntime implements SemanticRuntime {
     };
     yield { type: "completed", result };
   }
+}
+
+/** The most options one choice question may offer. */
+export const maxDecisionOptions = 255;
+/**
+ * The most questions one call may expand into. Shared instructions repeat in
+ * every question, so input tokens grow with `forEach` arrays; input schemas
+ * should bound those arrays well below this.
+ */
+export const maxDecisionQuestions = 64;
+const decisionIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
+
+export interface DecisionRequest {
+  invocation: DecisionInvocation;
+  /** Vendor question id to output location: a choice, or one noul of a forEach set. */
+  routes: Record<string, { question: string; id?: string }>;
+  offered: Record<string, ReadonlySet<string>>;
+  /** One-option choices, answered without the model. */
+  settled: Record<string, string>;
+}
+
+function decisionElements(
+  values: Record<string, unknown>,
+  field: string,
+  idField: string,
+): { id: string; element: Record<string, unknown> }[] {
+  const elements = values[field];
+  if (elements === undefined) return [];
+  if (!Array.isArray(elements)) {
+    throw new RuntimeError("INVALID_INPUT", `Decision input '${field}' must be an array.`);
+  }
+  return elements.map((raw) => {
+    const element =
+      raw !== null && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : undefined;
+    const id = element?.[idField];
+    if (element === undefined || typeof id !== "string" || !decisionIdPattern.test(id)) {
+      throw new RuntimeError(
+        "INVALID_INPUT",
+        `Each element of '${field}' needs a '${idField}' of 1 to 64 letters, digits, '_' or '-'.`,
+      );
+    }
+    return { id, element };
+  });
+}
+
+/** Replaces `{id}` in every string of a text or JSON instruction. */
+function withId(text: DecisionText, id: string): DecisionText {
+  if (typeof text === "string") return text.replaceAll("{id}", id);
+  if (Array.isArray(text)) return text.map((item) => withId(item, id));
+  if (text !== null && typeof text === "object") {
+    return Object.fromEntries(Object.entries(text).map(([key, value]) => [key, withId(value, id)]));
+  }
+  return text;
+}
+
+function picked(element: Record<string, unknown>, fields: readonly string[]): DecisionText {
+  return Object.fromEntries(
+    fields
+      .filter((field) => element[field] !== undefined)
+      .map((field) => [field, element[field] as DecisionText]),
+  );
+}
+
+/** An option's criterion: the template, merged with the element's own fields. */
+function optionCriterion(
+  criterion: DecisionText | undefined,
+  include: readonly string[] | undefined,
+  id: string,
+  element: Record<string, unknown>,
+): DecisionText {
+  const base = criterion === undefined ? undefined : withId(criterion, id);
+  if (include === undefined || include.length === 0) return base ?? null;
+  const own = picked(element, include) as Record<string, DecisionText>;
+  if (Object.keys(own).length === 0) {
+    throw new RuntimeError(
+      "INVALID_INPUT",
+      `Decision option '${id}' has none of the included fields ${include.join(", ")}.`,
+    );
+  }
+  if (base === undefined) return own;
+  if (base !== null && typeof base === "object" && !Array.isArray(base)) return { ...base, ...own };
+  return { what: base, ...own };
+}
+
+/**
+ * Expands a decision spec over one input: options from input arrays, then
+ * fixed options, and one noul per element for `forEach` questions. Option ids
+ * come from the input and are substituted into creator text only as ids, so
+ * untrusted input text never enters the questions.
+ */
+export function buildDecisionRequest(
+  spec: DecisionSpec,
+  model: string,
+  values: Record<string, unknown>,
+  instructions = "",
+): DecisionRequest {
+  const state: Record<string, unknown> = {};
+  for (const field of spec.stateFields) {
+    if (values[field] !== undefined) state[field] = values[field];
+  }
+  // Shared rules travel beside each question so the question stays short.
+  const background = instructions.trim();
+  const ask = (text: DecisionText, about?: DecisionText): DecisionText =>
+    background.length === 0 && about === undefined
+      ? text
+      : {
+          question: text,
+          ...(about === undefined ? {} : { about }),
+          ...(background.length === 0 ? {} : { background }),
+        };
+  const questions: Record<string, DecisionQuestionPayload> = {};
+  const routes: DecisionRequest["routes"] = {};
+  const offered: DecisionRequest["offered"] = {};
+  const settled: Record<string, string> = {};
+  // Expanded `forEach` keys (`name__id`) must never replace another question.
+  const claim = (key: string) => {
+    if (Object.hasOwn(questions, key)) {
+      throw new RuntimeError("INVALID_INPUT", `Decision question '${key}' is asked twice.`);
+    }
+  };
+  for (const [name, question] of Object.entries(spec.questions)) {
+    if (question.type === "choice") {
+      const criteria: Record<string, DecisionText> = {};
+      const add = (id: string, criterion: DecisionText) => {
+        if (Object.hasOwn(criteria, id)) {
+          throw new RuntimeError("INVALID_INPUT", `Decision option '${id}' is offered twice.`);
+        }
+        criteria[id] = criterion;
+      };
+      for (const source of question.criteriaFrom ?? []) {
+        for (const { id, element } of decisionElements(values, source.field, spec.idField)) {
+          add(id, optionCriterion(source.criterion, source.include, id, element));
+        }
+      }
+      for (const [id, criterion] of Object.entries(question.criteria ?? {})) add(id, criterion);
+      const count = Object.keys(criteria).length;
+      if (count === 0 || count > maxDecisionOptions) {
+        throw new RuntimeError(
+          "INVALID_INPUT",
+          `Decision question '${name}' needs 1 to ${maxDecisionOptions} options.`,
+        );
+      }
+      claim(name);
+      if (count === 1) {
+        // Code knows the answer to a one-option choice; the model is not asked.
+        settled[name] = Object.keys(criteria)[0]!;
+        offered[name] = new Set(Object.keys(criteria));
+        continue;
+      }
+      questions[name] = { type: "choice", instructions: ask(question.instructions), criteria };
+      routes[name] = { question: name };
+      offered[name] = new Set(Object.keys(criteria));
+    } else if (question.forEach === undefined) {
+      claim(name);
+      questions[name] = {
+        type: "noul",
+        instructions: ask(question.instructions),
+        criteria: { ...question.criteria },
+      };
+      routes[name] = { question: name };
+    } else {
+      for (const { id, element } of decisionElements(values, question.forEach, spec.idField)) {
+        const key = `${name}__${id}`;
+        claim(key);
+        questions[key] = {
+          type: "noul",
+          instructions: ask(
+            withId(question.instructions, id),
+            question.include === undefined ? undefined : picked(element, question.include),
+          ),
+          criteria: { ...question.criteria },
+        };
+        routes[key] = { question: name, id };
+      }
+    }
+  }
+  const count = Object.keys(questions).length;
+  if ((count === 0 && Object.keys(settled).length === 0) || count > maxDecisionQuestions) {
+    throw new RuntimeError(
+      "INVALID_INPUT",
+      `A decision call asks 1 to ${maxDecisionQuestions} questions; this input expands to ${count}.`,
+    );
+  }
+  return { invocation: { model, state, questions }, routes, offered, settled };
+}
+
+function probability(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+/**
+ * Turns a provider's answers into Endpoint output: `{ <choice>: { choice,
+ * confidence, probabilities }, <noul>: p, <forEach noul>: { <id>: p } }`.
+ * An answer that is missing, malformed, or not an offered option fails the
+ * attempt, so callers never see an option they did not offer.
+ */
+export function decisionOutput(
+  request: DecisionRequest,
+  spec: DecisionSpec,
+  result: DecisionResult,
+): Record<string, unknown> {
+  const invalid = () =>
+    new RuntimeError(
+      "OUTPUT_VALIDATION_FAILED",
+      "The Endpoint could not produce output matching its contract.",
+      // A decision model answers the same input the same way, so a retry
+      // would only bill again.
+      false,
+      undefined,
+      {
+        usage: result.usage,
+        ...(result.providerRequestId === undefined
+          ? {}
+          : { providerRequestId: result.providerRequestId }),
+      },
+    );
+  const output: Record<string, unknown> = {};
+  for (const [name, choice] of Object.entries(request.settled)) {
+    output[name] = { choice, confidence: 1, probabilities: { [choice]: 1 } };
+  }
+  for (const [name, question] of Object.entries(spec.questions)) {
+    if (question.type === "noul" && question.forEach !== undefined) output[name] = {};
+  }
+  for (const [key, route] of Object.entries(request.routes)) {
+    const answer = result.answers[key];
+    if (answer === undefined) throw invalid();
+    const offered = request.offered[key];
+    if (offered !== undefined) {
+      if (
+        answer.type !== "choice" ||
+        !offered.has(answer.choice) ||
+        !probability(answer.confidence) ||
+        answer.probabilities === undefined
+      )
+        throw invalid();
+      // Vendors may leave out options they give no probability; those are 0.
+      const probabilities: Record<string, number> = {};
+      for (const id of offered) {
+        const value = answer.probabilities[id] ?? 0;
+        if (!probability(value)) throw invalid();
+        probabilities[id] = value;
+      }
+      if (Object.keys(answer.probabilities).some((id) => !offered.has(id))) throw invalid();
+      output[key] = { choice: answer.choice, confidence: answer.confidence, probabilities };
+    } else {
+      if (answer.type !== "noul" || !probability(answer.noul)) throw invalid();
+      if (route.id === undefined) output[route.question] = answer.noul;
+      else (output[route.question] as Record<string, number>)[route.id] = answer.noul;
+    }
+  }
+  return output;
+}
+
+async function executeDecision(
+  provider: ModelProvider,
+  request: { spec: DecisionSpec; built: DecisionRequest },
+  context: ProviderExecutionContext,
+): Promise<ProviderResult> {
+  if (provider.decide === undefined) {
+    throw new RuntimeError("PROVIDER_UNAVAILABLE", "The configured provider cannot decide.");
+  }
+  // Nothing left for the model when code settled every question.
+  const result =
+    Object.keys(request.built.invocation.questions).length === 0
+      ? { answers: {}, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }
+      : await provider.decide(request.built.invocation, context);
+  return {
+    output: decisionOutput(request.built, request.spec, result),
+    usage: result.usage,
+    ...(result.providerRequestId === undefined
+      ? {}
+      : { providerRequestId: result.providerRequestId }),
+    finishReason: "completed",
+  };
 }
 
 /** Incrementally decodes exactly one top-level JSON string property. */

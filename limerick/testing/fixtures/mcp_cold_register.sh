@@ -3,7 +3,7 @@
 #
 # Drives the REAL JSON-RPC handshake through limerick-mcp-launch.sh and asserts the
 # acceptance criteria. Cold scenarios force the no-binary path with an empty
-# CARGO_TARGET_DIR; the warm scenario uses the real (shared) target dir.
+# CARGO_TARGET_DIR; the warm scenario uses the worktree's real target dir.
 #
 #   bash limerick/testing/fixtures/mcp_cold_register.sh
 #
@@ -77,7 +77,7 @@ if [ "$B_OK" = "yes" ]; then ok "AC#2 cold tools/call -> isError:true 'still bui
 rm -rf "$COLD"
 
 echo "=== AC#3: warm fast path execs the real binary ==="
-# No CARGO_TARGET_DIR override -> launcher resolves the real shared target dir.
+# No CARGO_TARGET_DIR override -> launcher resolves the worktree's real target dir.
 drive /tmp/cr_c.out /tmp/cr_c.err 2 "$REQ_INIT" "$REQ_INITED" "$REQ_LIST"
 C_NAMES="$(python3 -c 'import json;[print(",".join(t["name"] for t in json.loads(l)["result"]["tools"])) for l in open("/tmp/cr_c.out") if json.loads(l).get("id")==2]' 2>/dev/null)"
 if [ "$C_NAMES" = "$MANIFEST_NAMES" ] && ! grep -q "cold shim" /tmp/cr_c.err; then

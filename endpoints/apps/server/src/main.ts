@@ -16,6 +16,7 @@ import { PostgresCreatorIdentityRepository } from "./infrastructure/postgres-ide
 import { PostgresInvocationRepository } from "./infrastructure/postgres-invocation-repository.js";
 import {
   FakeProvider,
+  DecisionsProvider,
   FixedPriceCostCalculator,
   GoogleProvider,
   OpenAIProvider,
@@ -62,6 +63,12 @@ const providers: ModelProvider[] =
   config.providerMode === "live"
     ? [
         ...(config.openaiApiKey ? [OpenAIProvider.fromApiKey(config.openaiApiKey)] : []),
+        ...(config.openrouterApiKey
+          ? [new DecisionsProvider("openrouter", config.openrouterApiKey)]
+          : []),
+        ...(config.typesafeApiKey
+          ? [new DecisionsProvider("typesafe", config.typesafeApiKey)]
+          : []),
         config.googleProviderAuth === "vertex-ai"
           ? GoogleProvider.fromVertexAI(config.googleCloudProject!, config.googleCloudLocation!)
           : GoogleProvider.fromApiKey(config.googleApiKey!),

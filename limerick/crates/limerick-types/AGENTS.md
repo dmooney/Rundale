@@ -17,6 +17,7 @@ cargo doc  -p limerick-types --no-deps --open       # type docs
 - **`GameTime` is the canonical in-game clock.** Used across game loop, NPC schedules, events, and persistence. Do not introduce alternative in-game time types.
 - **`AnachronismEntry` lives directly in `lib.rs` (not a module) — load-bearing.** Shared between `limerick-npc` (detection) and `limerick-core` (mod loading); changes must update both consumers.
 - **No runtime-specific code (enforced).** Must never depend on `tauri`, `axum`, `tower*`, `wry`, or `tao`.
+- **`DayType` has three variants** (`Weekday`, `Sunday`, `MarketDay`). No `Holiday`. See `limerick-types/src/time.rs`.
 
 ## Module map
 

@@ -7,9 +7,88 @@
     "major": 1,
     "minor": 0
   },
+  "elsewhere": [],
   "idempotencyKey": "fixture-logical-request:fixture-attempt",
+  "line": "Let's make for the Letter Office",
   "logicalRequestID": "fixture-logical-request",
-  "playerInput": "Let's make for the Letter Office",
+  "phrases": [
+    {
+      "optionId": "s1",
+      "text": "Let's make"
+    },
+    {
+      "optionId": "s2",
+      "text": "Let's"
+    },
+    {
+      "optionId": "s3",
+      "text": "the Letter Office"
+    },
+    {
+      "optionId": "s4",
+      "text": "the Letter"
+    },
+    {
+      "optionId": "s5",
+      "text": "Letter Office"
+    },
+    {
+      "optionId": "s6",
+      "text": "Letter"
+    },
+    {
+      "optionId": "s7",
+      "text": "Office"
+    }
+  ],
+  "places": [
+    {
+      "aliases": [
+        "village",
+        "kilteevan",
+        "the village",
+        "village road",
+        "road"
+      ],
+      "description": "A muddy road runs between low stone walls and a handful of whitewashed cottages.",
+      "name": "Kilteevan Village",
+      "optionId": "l1",
+      "residents": []
+    },
+    {
+      "aliases": ["office", "post office", "letters", "the letter office"],
+      "description": "A narrow counter, pigeonholes of folded paper, and a small turf fire.",
+      "name": "Letter Office",
+      "optionId": "l2",
+      "residents": ["a sharp-eyed woman with a satchel of letters"]
+    },
+    {
+      "aliases": [
+        "cottage",
+        "connollys",
+        "the connollys",
+        "connolly house",
+        "connolly's"
+      ],
+      "description": "A peat fire warms the single room.",
+      "name": "Connolly Cottage",
+      "optionId": "l3",
+      "residents": [
+        "a weathered man in a mud-spattered frieze coat",
+        "a young woman with yarn wound about her wrist"
+      ]
+    }
+  ],
+  "present": [
+    {
+      "description": "a sharp-eyed woman with a satchel of letters",
+      "introduced": false,
+      "name": "Peig Hannigan",
+      "occupation": "Letter-office keeper",
+      "optionId": "p1"
+    }
+  ],
+  "references": [],
   "role": "player_intent",
   "sessionID": "fixture-session"
 }

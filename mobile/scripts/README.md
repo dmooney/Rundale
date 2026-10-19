@@ -93,13 +93,50 @@ The runner accepts these options:
 ```
 
 Simulator suites run with Xcode parallel testing: `xcodebuild` clones the
-selected simulator into `N` workers (default 4, `RUNDALE_PARALLEL_WORKERS` or
+selected simulator into `N` workers (default 6, `RUNDALE_PARALLEL_WORKERS` or
 `--parallel-workers N`). `--parallel-workers 1` restores the serial run. The UI
 tests share no state: each launches the app with its own launch arguments and a
-fresh app container. Xcode distributes whole test classes across workers, so a
-suite that is a single class (Phases 2, 3, and 4 each run one UI class) runs on
-one worker and gains nothing; split a slow class to speed it up. Physical-device
-runs are never parallel.
+fresh app container. Xcode distributes whole test classes across workers, so one
+slow class sets a floor; split it to speed the run up. Physical-device runs are
+never parallel.
+
+A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
+simulator suite separately. It queues every suite without a cached pass and runs
+them in one `xcodebuild` (`ios-simulator-combined-run`), so their classes share
+one set of simulator clones and keep every worker busy. Each suite and its
+`*-results` gate still pass or fail on their own test cases, read from the
+combined result bundle, and each suite caches its own pass. A combined run that
+exits nonzero fails every suite whose cases passed. Measured cold on an M5 Pro:
+the five suites took 13.8 minutes run separately with 4 workers and 8 minutes
+combined with 6, and the full gate 15.7 and 10.1 minutes.
+
+### Recorded passes
+
+A full run (`--phase all`) that passes saves
+`mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
+tested inputs, limited to what a full run builds or reads
+(`ATTESTATION_PATHSPECS`: `mobile/`, `mods/`, `limerick/crates`,
+`limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
+`.cargo/` and `bug-report/test/fixtures`), with
+`ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
+coverage baseline, which a recorded pass is never re-checked against, plus the
+verification tools (`verify.py`, `verify_record.py`, `record-ui-test.py`), which
+their unit tests cover. `release.py` stays in, since it writes Info.plist
+settings into the app. The recorded-pass input tree excludes `AGENTS.md` files
+at any depth. A merge
+elsewhere in the repository therefore keeps a pass valid, and a squash merge
+onto a `main` that moved still matches the PR's recorded pass. After pushing,
+`just mobile-verify-record` (`verify_record.py record`) posts that tree as a
+`mobile-verify` commit status on HEAD, and refuses if no pass matches HEAD's
+tree, for example when the run included uncommitted or untracked inputs. CI's
+"Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
+matching status on any commit of the PR, waiting up to five minutes, so the
+suites run once per change instead of again in CI. When the PR's input tree
+equals its base's, so the PR changes no app input (verification tools, CI, docs),
+`check` exits 3 and the job passes with no pass recorded; on a push to `main`
+the TestFlight workflow skips the upload the same way. The status is the author's
+attestation that the full gate passed on that tree; it is not an independent
+run.
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
 an explicit `--simulator` takes precedence. `--live-endpoint`, `--soak`, and
@@ -110,7 +147,19 @@ simulators.
 The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
-directory is `mobile/.verification/`.
+directory is `mobile/.verification/`. Each run starts by deleting the Xcode
+DerivedData, result bundles, Swift scratch directories and device inventories
+earlier runs left there (each run writes its own under a timestamp, and nothing
+reads an earlier run's); the reuse cache, recorded passes and logs stay. An
+earlier run whose timestamp appears in a running process's command line is
+kept: a run killed outright (SIGKILL) can leave its `xcodebuild` or `swift`
+build running, and those commands name their run's output paths. A run holds
+`.run.lock` in the report directory until its report is written, so a second
+run sharing that directory exits with status 2 instead of deleting the first
+run's build; use `--report-dir` to run two at once. Ctrl+C, SIGTERM and command
+timeouts stop the command's whole process group, including descendants whose
+parent already exited, with SIGKILL for any member that ignores SIGTERM, before
+the lock is released.
 
 ## Reusing passes
 
@@ -129,7 +178,9 @@ each have a key built from:
 Documentation that no gate reads is left out of the tree hash: `docs/`,
 Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
 `LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
-it is compiled with `include_str!`. `mobile/coverage-baseline.json` is left out
+it is compiled with `include_str!`. So are this directory's own tests
+(`test_*.py`, `fixtures/`), which CI's pytest runs and no gate reads.
+`mobile/coverage-baseline.json` is left out
 too: the coverage gate rechecks a reused package pass against the current
 baseline.
 

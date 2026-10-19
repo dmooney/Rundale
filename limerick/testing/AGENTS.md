@@ -19,6 +19,7 @@ just agent-check     # proof-evidence gate
 - **`proofs/` scripts are evidence, not tests.** They use legacy harness syntax (one command per line, `#` comments) and are never swept as regressions merely because they exist.
 - **`rundale-bench/` (repo root) corpus is append-only** so scores stay comparable: never edit existing prompts. The formal v1 freeze is still pending (see [`rundale-bench/AGENTS.md`](../../rundale-bench/AGENTS.md)). Use `/rundale-bench eval-dialogue` to compare new candidates.
 - **`evals/` rubrics gate gameplay PRs.** Touching a rubric retroactively invalidates baselines — bump the version + note in PR.
+- **`GameTestHarness::new()` and the `test_*.txt` fixtures play the large 1820 world in `limerick/testing/fixtures/mods/rundale-legacy/`, not `mods/rundale` (#2040).** Run those fixtures with `--game-mod testing/fixtures/mods/rundale-legacy`; tests of the shipped world use `GameTestHarness::new_with_mod_dir`.
 
 ## Layout
 

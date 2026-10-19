@@ -50,6 +50,7 @@ pub mod game_session;
 pub mod identity;
 pub mod inference_guard;
 pub mod inference_runtime_v2;
+pub mod intent_decision;
 pub mod ipc;
 pub mod loading;
 pub mod mod_source;

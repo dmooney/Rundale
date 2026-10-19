@@ -132,6 +132,22 @@ importers:
         specifier: 4.23.12
         version: 4.23.12
 
+  examples/rundale-intent-comparison:
+    dependencies:
+      "@limerick/domain":
+        specifier: workspace:*
+        version: link:../../packages/domain
+      "@limerick/providers":
+        specifier: workspace:*
+        version: link:../../packages/providers
+      "@limerick/runtime":
+        specifier: workspace:*
+        version: link:../../packages/runtime
+    devDependencies:
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
+
   packages/auth: {}
 
   packages/database:

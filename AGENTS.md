@@ -121,6 +121,14 @@ For gameplay changes, use `/limerick-engine prove <feature>` on the affected pro
 path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements.
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
+CI does not run the simulator suites. For a PR that changes what the app ships
+(`mobile/`, `mods/`, `limerick/crates`, `limerick/testing`, the Cargo files,
+`limerick/config`, `rust-toolchain.toml`, `.cargo/`, `bug-report/test/fixtures`), run
+`just mobile-verify --phase all` on a clean checkout of the commit, push, then
+`just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
+pass is recorded for the PR's input tree. Run the gate once, after review rounds,
+not after each fix. A PR that changes no app input (the verification
+tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
 commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
@@ -150,14 +158,45 @@ where applicable. Run `just notices` when dependencies change.
 ### Gatekeeper review
 
 Every PR an agent opens is reviewed by a gatekeeper before it merges. Do not merge
-your own PR. Once its required checks pass, spawn a fresh-context subagent (never a
-fork of your session) and give it only the PR number and the instruction to run the
-[`gatekeeper`](.agents/skills/gatekeeper/SKILL.md) skill on that PR. The gatekeeper
-squash-merges it, sends it back with review comments, or hands it to the owner.
-Address its comments with new commits, wait for checks, and spawn a new gatekeeper
-for the next round. A hand-off waits for the owner: report it, and move on to work
-that does not depend on it. The one exception is the owner asking to land a PR
-directly, which the [`land`](.agents/skills/land/SKILL.md) skill does.
+your own PR. The gatekeeper runs the [`gatekeeper`](.agents/skills/gatekeeper/SKILL.md)
+skill in a fresh context (never a fork of your session), given only the checkout
+path or the PR number.
+
+- **Before the PR:** run it on your checkout while the work is uncommitted or
+  unpushed. It reviews locally and reports straight back, with nothing posted to
+  GitHub. Fix what it finds and run it again until its verdict is `approve` or
+  `handoff`, then push and open the PR.
+- **On the PR:** once the required checks pass, run it with the PR number. It
+  squash-merges the PR, sends it back with review comments, or hands it to the
+  owner. Address comments with new commits, wait for checks, and run a new
+  gatekeeper for the next round.
+
+A hand-off waits for the owner: report it, and move on to work that does not
+depend on it. The one exception is the owner asking to land a PR directly, which
+the [`land`](.agents/skills/land/SKILL.md) skill does.
+
+The gatekeeper is a different model from the author. A change whose commits carry
+a `Co-Authored-By: Claude …` trailer is reviewed by GPT through Codex, which reads
+the same skill (`.codex/skills` links to `.agents/skills`); read its report from
+the `-o` file:
+
+```sh
+codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
+  -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+```
+
+Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
+for input forever. Run a local review in its own worktree so branch switches in
+the main checkout cannot change what it reads, and check its output within a few
+minutes of starting it.
+
+Every other change is reviewed by Claude, run from the checkout:
+
+```sh
+claude -p --model claude-opus-5-5 "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+```
+
+Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
 ### Keep the iPhone beta current
 
@@ -168,8 +207,12 @@ to build, sign, upload, and distribute to the existing Internal Beta group; do
 not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
-Use `just testflight-update` and its [runbook](mobile/testflight.md); it runs
-`just mobile-verify --phase all` before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
+The TestFlight workflow (`.github/workflows/testflight.yml`) uploads a build on
+every merge to `main` that changes the app. It skips `mobile-verify` when the
+merge commit's input tree has a recorded pass (see the commands section above)
+and runs the full gate itself otherwise. For a build outside that workflow, use
+`just testflight-update` and its [runbook](mobile/testflight.md); it runs the
+full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
 received, what to try, checks run, and any remaining device gates. If signing,
 Apple processing, or another blocker prevents delivery, report it explicitly.

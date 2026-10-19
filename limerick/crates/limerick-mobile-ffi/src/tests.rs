@@ -807,7 +807,25 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
 /// How the intent Endpoint answered "ask Connolly about the household".
 enum IntentAnswer {
     Target(&'static str),
+    /// Jev's decision choosing the "Connolly" reference with this
+    /// probability: confident, or just under the engine's threshold, as
+    /// the comparison saw it answer (0.69 to 0.73).
+    Reference(f64),
     Failed,
+}
+
+/// A `rundale-intent` decision: speech, spoken to `recipient` with
+/// probability `p`.
+fn talk_decision(recipient: &str, p: f64) -> Value {
+    let choice = |option: &str, p: f64| json!({"choice": option, "confidence": p, "probabilities": {option: p}});
+    json!({
+        "action": choice("talk", 0.99),
+        "destination": choice("none", 0.9),
+        "target": choice("none", 0.9),
+        "recipient": choice(recipient, p),
+        "mentioned": {},
+        "atmosphere": choice("none", 0.99),
+    })
 }
 
 /// Product spec §5.3: "ask Connolly" at the cottage names both Connollys,
@@ -821,6 +839,8 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
     for answer in [
         IntentAnswer::Target("Connolly"),
         IntentAnswer::Target("Connolly.mdl"),
+        IntentAnswer::Reference(0.9),
+        IntentAnswer::Reference(0.65),
         IntentAnswer::Failed,
     ] {
         let (game, _) = Game::new();
@@ -837,6 +857,13 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
                     &pending,
                     json!({"intent": "talk", "target": target, "dialogue": null, "atmosphere": null}),
                 ),
+                IntentAnswer::Reference(p) => {
+                    let references = pending["input"]["references"].as_array().unwrap();
+                    assert_eq!(references.len(), 1, "one reference, Connolly: {pending}");
+                    assert_eq!(references[0]["phrase"], "Connolly");
+                    let option = references[0]["optionId"].as_str().unwrap();
+                    game.resolve(&pending, talk_decision(option, p))
+                }
                 IntentAnswer::Failed => game.op(json!({
                     "op": "fail",
                     "call_id": pending["callID"],
@@ -863,6 +890,117 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
         entities.sort();
         assert_eq!(entities, ["2", "3"], "Mícheál and Róisín: {prompt}");
     }
+}
+
+/// Submits `text` at Connolly Cottage with both Connollys present (and the
+/// player introduced to `introduced`) and answers the intent call with a
+/// confident Jev decision naming `recipient`: an option id picked from the
+/// call's own input.
+fn decide_at_the_cottage(
+    text: &str,
+    introduced: &[u32],
+    recipient: impl Fn(&Value) -> String,
+) -> (Game, Value) {
+    let (game, _) = Game::new();
+    game.arrange(3, &[2, 3], introduced);
+    game.submit(text);
+    let pending = game.pending();
+    assert_eq!(pending["endpoint"]["role"], "intent", "{pending}");
+    let option = recipient(&pending["input"]);
+    let result = game.resolve(&pending, talk_decision(&option, 0.95));
+    (game, result)
+}
+
+/// The option id of the person named `name` in `list` of an intent input.
+fn option_named(input: &Value, list: &str, name: &str) -> String {
+    input[list]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|option| option["name"] == name)
+        .unwrap_or_else(|| panic!("{name} not offered in {list}: {input}"))["optionId"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+/// A confident decision for someone present routes the line to them, even
+/// when the words name no one: "Good morning to you" reaches Róisín, the
+/// second Connolly listed.
+#[test]
+fn a_confident_decision_routes_to_the_person_present_it_names() {
+    let (game, _) = decide_at_the_cottage("Good morning to you", &[], |input| {
+        option_named(input, "present", "Róisín Connolly")
+    });
+    let dialogue = game.pending();
+    assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
+    assert_eq!(
+        dialogue["input"]["speaker"]["displayName"],
+        "Róisín Connolly"
+    );
+}
+
+/// A confident decision for an introduced person elsewhere says they are
+/// not here and makes no dialogue call.
+#[test]
+fn a_confident_decision_for_someone_elsewhere_says_they_are_not_here() {
+    let (game, result) = decide_at_the_cottage("any letters for me today?", &[1], |input| {
+        option_named(input, "elsewhere", "Peig Hannigan")
+    });
+    assert!(game.pending().is_null(), "{}", game.pending());
+    assert!(
+        events_of_kind(&result, "npc_dialogue").is_empty(),
+        "{result}"
+    );
+    assert!(
+        narration(&result)
+            .iter()
+            .any(|line| line.contains("Peig") && line.ends_with("is not here.")),
+        "{result}"
+    );
+}
+
+/// A confident "all" sends the line to everyone present, one dialogue call
+/// each.
+#[test]
+fn a_confident_decision_for_everyone_reaches_each_person_present() {
+    let (game, _) = decide_at_the_cottage("Lovely weather today", &[], |_| "all".to_string());
+    let mut speakers = Vec::new();
+    for _ in 0..2 {
+        let dialogue = game.pending();
+        assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
+        speakers.push(
+            dialogue["input"]["speaker"]["displayName"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+        game.resolve(&dialogue, json!({"dialogue": "It is, thank God."}));
+    }
+    speakers.sort();
+    assert_eq!(speakers, ["Mícheál Connolly", "Róisín Connolly"]);
+}
+
+/// A confident "not listed" answers with the neutral reply, which reveals
+/// nothing about who exists, and makes no dialogue call.
+#[test]
+fn a_confident_decision_for_no_one_listed_gives_the_neutral_reply() {
+    let (game, result) =
+        decide_at_the_cottage("Seamus, are you about?", &[], |_| "not_listed".to_string());
+    assert!(game.pending().is_null(), "{}", game.pending());
+    assert!(
+        events_of_kind(&result, "npc_dialogue").is_empty(),
+        "{result}"
+    );
+    assert!(
+        events_of_kind(&result, "narration")
+            .iter()
+            .chain(events_of_kind(&result, "system").iter())
+            .any(|event| event
+                .to_string()
+                .contains("No one here answers to that name just now.")),
+        "{result}"
+    );
 }
 
 /// Submits `text` and answers any intent call (naming `target`) until the
@@ -1624,4 +1762,165 @@ fn a_bug_report_after_relaunch_keeps_the_transcript_but_no_calls() {
         text.ends_with("\nEndpoint calls since launch: none\n"),
         "calls are kept in memory only: {text}"
     );
+}
+
+impl Game {
+    /// A game on a copy of the canonical world with a fourth person, Mary
+    /// Brennan, who keeps Peig's hours at the Letter Office.
+    fn with_mary_elsewhere() -> (Self, Value) {
+        let dir = tempfile::tempdir().unwrap();
+        let world = dir.path().join("mod");
+        copy_world(&repo_root().join("mods/rundale"), &world);
+        let path = world.join("npcs.json");
+        let mut npcs: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let list = npcs["npcs"].as_array_mut().unwrap();
+        let mut mary = list.iter().find(|npc| npc["id"] == 1).unwrap().clone();
+        mary["id"] = json!(4);
+        mary["name"] = json!("Mary Brennan");
+        mary["brief_description"] = json!("a stout woman with a basket of eggs");
+        mary["occupation"] = json!("Egg-seller");
+        list.push(mary);
+        std::fs::write(&path, serde_json::to_string_pretty(&npcs).unwrap()).unwrap();
+        Self::open_in(dir)
+    }
+
+    /// Places the player and every person directly, and records who the
+    /// player has been introduced to, for a fixture the schedule does not give.
+    /// Schedules are cleared so the per-turn pump does not move anyone back.
+    fn arrange(&self, place: u32, present: &[u32], introduced: &[u32]) {
+        let registry = sessions().lock().unwrap();
+        let session = registry.get(&self.handle).unwrap().clone();
+        drop(registry);
+        let session = session.lock().unwrap();
+        session.with_engine(|world, npcs| {
+            use limerick_core::npc::types::NpcState;
+            use limerick_core::world::LocationId;
+            world.player_location = LocationId(place);
+            use limerick_core::npc::NpcId;
+            let ids: Vec<NpcId> = npcs.npcs().keys().copied().collect();
+            for id in ids {
+                let location = if present.contains(&id.0) {
+                    LocationId(place)
+                } else {
+                    // Anywhere the player is not.
+                    LocationId(if place == 2 { 3 } else { 2 })
+                };
+                let npc = npcs.get_mut(id).unwrap();
+                npc.set_schedule(None);
+                npc.set_location_and_state(location, NpcState::Present);
+            }
+            for id in introduced {
+                npcs.mark_introduced(NpcId(*id));
+            }
+        });
+    }
+}
+
+/// The recipient baseline for the System 1 comparison (#2220): today's
+/// engine path on each labelled case of the dynamic NPC context design,
+/// Appendix A, with `rundale-intent` answered by recorded replies.
+///
+/// Opt-in: `ADDRESSEE_BASELINE_IN=<cases with recorded intents>
+/// ADDRESSEE_BASELINE_OUT=<observations> cargo test -p limerick-mobile-ffi
+/// addressee_baseline -- --ignored`. The comparison runner in
+/// `endpoints/examples/rundale-intent-comparison` writes the input and
+/// scores the output.
+#[test]
+#[ignore = "opt-in comparison harness; needs ADDRESSEE_BASELINE_IN"]
+fn addressee_baseline() {
+    let input: Value = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("ADDRESSEE_BASELINE_IN").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let mut observations = Vec::new();
+    for case in input["cases"].as_array().unwrap() {
+        let ids = |field: &str| -> Vec<u32> {
+            case[field]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| id.as_u64().unwrap() as u32)
+                .collect()
+        };
+        let (present, introduced) = (ids("present"), ids("introduced"));
+        let place = case["place"].as_u64().unwrap() as u32;
+        let line = case["line"].as_str().unwrap();
+        for (run, intent) in case["intents"].as_array().unwrap().iter().enumerate() {
+            let (game, _) = match case["fixture"].as_str() {
+                Some("two_drovers") => Game::with_two_drovers(),
+                Some("mary_elsewhere") => Game::with_mary_elsewhere(),
+                _ => Game::new(),
+            };
+            game.arrange(place, &present, &introduced);
+            let mut result = game.submit(line);
+            let mut narration_lines: Vec<String> = Vec::new();
+            let mut events: Vec<Value> = Vec::new();
+            let mut recipients: Vec<String> = Vec::new();
+            let mut choices: Vec<String> = Vec::new();
+            let mut intent_calls = 0;
+            let mut unexpected = None;
+            for _ in 0..12 {
+                narration_lines.extend(narration(&result).iter().map(|line| line.to_string()));
+                events.extend(
+                    result["events"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|event| json!({"kind": event["kind"], "content": event["content"]})),
+                );
+                if result["status"] == "awaiting_clarification" {
+                    let question = events_of_kind(&result, "clarification_required");
+                    choices = question[0]["clarification"]["choices"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|choice| choice["entityID"].as_str().unwrap_or("").to_string())
+                        .collect();
+                    break;
+                }
+                let pending = game.pending();
+                if pending.is_null() {
+                    break;
+                }
+                result = match pending["endpoint"]["role"].as_str() {
+                    Some("intent") => {
+                        intent_calls += 1;
+                        game.resolve(&pending, intent.clone())
+                    }
+                    Some("dialogue") => {
+                        recipients.push(
+                            pending["input"]["speaker"]["displayName"]
+                                .as_str()
+                                .unwrap()
+                                .to_string(),
+                        );
+                        game.resolve(&pending, json!({"dialogue": "Aye."}))
+                    }
+                    other => {
+                        unexpected = Some(format!("{other:?}"));
+                        break;
+                    }
+                };
+            }
+            observations.push(json!({
+                "id": case["id"],
+                "run": run,
+                "recipients": recipients,
+                "asked": !choices.is_empty(),
+                "choices": choices,
+                "narration": narration_lines,
+                "intentCalls": intent_calls,
+                "presentAfter": people(&game.snapshot()),
+                "sceneAfter": game.snapshot()["readModel"]["scene"]["name"],
+                "events": events,
+                "unexpectedRole": unexpected,
+            }));
+        }
+    }
+    std::fs::write(
+        std::env::var("ADDRESSEE_BASELINE_OUT").unwrap(),
+        serde_json::to_string_pretty(&json!({"observations": observations})).unwrap(),
+    )
+    .unwrap();
 }

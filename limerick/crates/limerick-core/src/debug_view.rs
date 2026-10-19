@@ -647,7 +647,7 @@ fn find_npc_by_name<'a>(mgr: &'a NpcManager, name: &str) -> Option<&'a crate::np
 
 /// `text` lowercased with the accents taken off Latin letters (the Irish
 /// fada and its neighbours), for matching typed names.
-fn fold(text: &str) -> String {
+pub(crate) fn fold(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .map(|c| match c {

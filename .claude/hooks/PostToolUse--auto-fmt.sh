@@ -10,8 +10,11 @@ INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""')
 [[ -z "$FILE_PATH" || ! -f "$FILE_PATH" ]] && exit 0
 
-# Make node-based tools (prettier) resolvable if fnm is set up.
-command -v fnm >/dev/null 2>&1 && eval "$(fnm env 2>/dev/null)" 2>/dev/null || true
+# Make node-based tools (prettier) resolvable on the .nvmrc Node if fnm is
+# set up; bare `fnm env` would select fnm's default Node instead.
+use_node="$(git rev-parse --show-toplevel 2>/dev/null)/limerick/scripts/use-node.sh"
+# shellcheck source=/dev/null
+[ -f "$use_node" ] && . "$use_node" 2>/dev/null || true
 
 dir=$(dirname "$FILE_PATH")
 

@@ -756,7 +756,7 @@ impl Session {
                 "{} at {}: {}",
                 input.speaker.display_name, input.current_location.display_name, input.player_input
             ),
-            EndpointInput::Intent(input) => input.player_input.clone(),
+            EndpointInput::Intent(input) => input.line.clone(),
         };
         let record = ExchangeRecord {
             endpoint: format!(
@@ -1210,5 +1210,21 @@ fn failure_kind_key(kind: InferenceFailureKind) -> &'static str {
         InferenceFailureKind::Protocol => "protocol",
         InferenceFailureKind::TimedOut => "timed_out",
         InferenceFailureKind::Interrupted => "interrupted",
+    }
+}
+
+#[cfg(test)]
+impl Session {
+    /// Test-only access to the live world and NPCs, for setting up fixtures
+    /// the canonical schedule does not produce.
+    pub(crate) fn with_engine<R>(
+        &self,
+        f: impl FnOnce(&mut WorldState, &mut NpcManager) -> R,
+    ) -> R {
+        self.runtime.block_on(async {
+            let mut world = self.live.world.lock().await;
+            let mut npcs = self.live.npc_manager.lock().await;
+            f(&mut world, &mut npcs)
+        })
     }
 }

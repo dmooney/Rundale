@@ -2,7 +2,19 @@ import { createHash } from "node:crypto";
 
 export type Id = string;
 export type JsonSchema = Record<string, unknown>;
-export type ProviderId = "fake" | "openai" | "google";
+export type ProviderId = "fake" | "openai" | "google" | "openrouter" | "typesafe";
+
+export const providerIds: readonly ProviderId[] = [
+  "fake",
+  "openai",
+  "google",
+  "openrouter",
+  "typesafe",
+];
+
+export function isProviderId(value: string): value is ProviderId {
+  return (providerIds as readonly string[]).includes(value);
+}
 export type OrganizationStatus = "active" | "suspended";
 export type EndpointStatus = "active" | "disabled";
 export type ApiKeyStatus = "active" | "revoked";
@@ -39,6 +51,60 @@ export interface InferenceConfig {
     version: 1;
     textField: string;
   };
+  /**
+   * Makes the Endpoint a decision Endpoint: the model answers these questions
+   * with probabilities instead of generating text (ADR 014).
+   */
+  decision?: DecisionSpec;
+}
+
+/** Instructions and criteria may be text or JSON structure (TypeSafe "advanced structure"). */
+export type DecisionText =
+  string | number | boolean | null | DecisionText[] | { [key: string]: DecisionText };
+
+/**
+ * Options taken from an input array: each element's `idField` value is an
+ * option id. Its criterion is `criterion` with `{id}` replaced by that id,
+ * and, with `include`, the element's own fields named there, so the model
+ * reads what the option is rather than an id it must look up in state.
+ */
+export interface DecisionOptionSource {
+  field: string;
+  criterion?: DecisionText;
+  include?: string[];
+}
+
+export interface DecisionChoiceQuestion {
+  type: "choice";
+  instructions: DecisionText;
+  /** Options from the input, in source order, before the fixed options. */
+  criteriaFrom?: DecisionOptionSource[];
+  /** Fixed options, offered on every call. */
+  criteria?: Record<string, DecisionText>;
+}
+
+export interface DecisionNoulQuestion {
+  type: "noul";
+  instructions: DecisionText;
+  criteria: { true: DecisionText; false: DecisionText };
+  /**
+   * Asks the question once per element of this input array, with `{id}` in
+   * the instructions replaced by the element's id and, with `include`, the
+   * element's named fields given as `about`.
+   */
+  forEach?: string;
+  include?: string[];
+}
+
+export type DecisionQuestion = DecisionChoiceQuestion | DecisionNoulQuestion;
+
+export interface DecisionSpec {
+  version: 1;
+  /** The input fields sent to the model as state; envelope fields stay behind. */
+  stateFields: string[];
+  /** The element field that holds an option id in `criteriaFrom` and `forEach` arrays. */
+  idField: string;
+  questions: Record<string, DecisionQuestion>;
 }
 
 export interface EndpointDefinition {
