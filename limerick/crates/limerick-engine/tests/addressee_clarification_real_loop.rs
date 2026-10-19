@@ -1,7 +1,7 @@
-//! Real-loop coverage for addressee clarification (#2034): an explicit
-//! addressee that matches several people present is asked about instead of
-//! being reported absent, and a leading vocative addresses that person
-//! instead of whoever is first.
+//! Real-loop coverage for recipient resolution on the desktop's in-process
+//! path (design `docs/design/dynamic-npc-context.md` §3, #2221): with no
+//! System 1 answer, unaddressed speech goes to the partner or asks who it is
+//! for, an @tag picks the recipient, and no line names anyone absent.
 
 use limerick_core::game_loop::ADDRESSEE_CLARIFICATION_FLAG;
 use limerick_core::npc::NpcId;
@@ -92,75 +92,74 @@ fn speakers(events: &[GameEvent]) -> Vec<NpcId> {
         .collect()
 }
 
+/// Design §3.1 and §3.3 on the desktop's in-process path, which has no
+/// System 1 answer: unaddressed speech with two people present and no
+/// partner asks who it is for, an @tag picks one person, who becomes the
+/// partner, and the next unaddressed line goes to the partner.
 #[test]
-fn an_ambiguous_explicit_addressee_is_asked_about_not_reported_absent() {
+fn unaddressed_speech_asks_and_a_tagged_person_becomes_the_partner() {
     let (mut harness, _, duffy) = harness_with_two_micheals();
     let mut receiver = harness.app.world.event_bus.subscribe();
 
-    let emitted = harness.execute_via_real_loop("talk to Mícheál about the harvest");
+    let emitted = harness.execute_via_real_loop("What news of the harvest?");
     let events = drain(&mut receiver);
 
     let lines = system_lines(&emitted);
     assert!(
-        lines
-            .contains(&"Which Mícheál do you mean: Mícheál Connolly or Mícheál Duffy?".to_string()),
+        lines.contains(
+            &"Who are you speaking to: Mícheál Connolly, Mícheál Duffy or All?".to_string()
+        ),
         "the question and its choices are shown; emitted={emitted:?}"
     );
     assert!(
         !lines.iter().any(|line| line.contains("not here")),
-        "an ambiguous addressee is not reported absent; lines={lines:?}"
+        "lines={lines:?}"
     );
     assert!(speakers(&events).is_empty(), "no one speaks: {events:?}");
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(event, GameEvent::AddressedAbsentNpc { .. }))
-    );
 
     // Asking does not leave the conversation claimed (#1379): the next,
-    // unambiguous address is answered.
+    // explicit address is answered.
     harness
         .mock()
         .push_for("Mícheál Duffy", "The harvest is middling.".to_string());
-    let emitted = harness.execute_via_real_loop("talk to Mícheál Duffy about the harvest");
+    let emitted = harness.execute_via_real_loop("@Mícheál Duffy what of the harvest?");
     let events = drain(&mut receiver);
     assert_eq!(speakers(&events), vec![duffy], "emitted={emitted:?}");
-}
+    assert_eq!(harness.app.npc_manager.partner(), Some(duffy));
 
-#[test]
-fn a_leading_role_vocative_addresses_that_person_not_whoever_is_first() {
-    let (mut harness, ids) = harness_with(&["Padraig Darcy", "Peig Hannigan"]);
-    let (padraig, peig) = (ids[0], ids[1]);
     harness
         .mock()
-        .push_for("Peig Hannigan", "Divil a bit of news, a stór.".to_string());
-    harness
-        .mock()
-        .push_for("Padraig Darcy", "Ask the widow, not me.".to_string());
-    let mut receiver = harness.app.world.event_bus.subscribe();
-
-    let emitted = harness.execute_via_real_loop("Widow, any news?");
+        .push_for("Mícheál Duffy", "Middling, as I said.".to_string());
+    let emitted = harness.execute_via_real_loop("And the oats?");
     let events = drain(&mut receiver);
-
     assert_eq!(
         speakers(&events),
-        vec![peig],
-        "the widow answers; emitted={emitted:?}"
+        vec![duffy],
+        "the partner answers an unaddressed line; emitted={emitted:?}"
     );
-    assert!(!speakers(&events).contains(&padraig));
 }
 
 #[test]
-fn with_the_flag_off_the_previous_behaviour_is_kept() {
-    let (mut harness, _, _) = harness_with_two_micheals();
+fn with_the_flag_off_a_line_that_would_ask_reaches_everyone_present() {
+    let (mut harness, connolly, duffy) = harness_with_two_micheals();
     harness.app.flags.disable(ADDRESSEE_CLARIFICATION_FLAG);
+    harness
+        .mock()
+        .push_for("Mícheál Connolly", "Fair enough.".to_string());
+    harness
+        .mock()
+        .push_for("Mícheál Duffy", "Middling.".to_string());
+    let mut receiver = harness.app.world.event_bus.subscribe();
 
-    let emitted = harness.execute_via_real_loop("talk to Mícheál about the harvest");
+    let emitted = harness.execute_via_real_loop("What news of the harvest?");
+    let events = drain(&mut receiver);
 
     let lines = system_lines(&emitted);
     assert!(
-        lines.contains(&"Mícheál is not here.".to_string()),
+        !lines
+            .iter()
+            .any(|line| line.contains("not here") || line.starts_with("Who ")),
         "lines={lines:?}"
     );
-    assert!(!lines.iter().any(|line| line.starts_with("Which ")));
+    assert_eq!(speakers(&events), vec![connolly, duffy]);
 }

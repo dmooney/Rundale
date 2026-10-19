@@ -61,6 +61,9 @@ pub struct NpcManager {
     introduced_npcs: HashSet<NpcId>,
     /// Set of NPC ids that know the player's name.
     npcs_who_know_player_name: HashSet<NpcId>,
+    /// The person the player is talking to: later unaddressed lines go to
+    /// them (dynamic NPC context design §2, §3.2). Saved with the game.
+    partner: Option<NpcId>,
     /// Ring buffer of the last 5 Tier 4 life-event descriptions (newest last).
     recent_tier4_events: VecDeque<String>,
     /// Rolling window of the most recent NPC-reaction emoji (newest last),
@@ -105,6 +108,7 @@ impl NpcManager {
             tier4_state: TierTickState::default(),
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
+            partner: None,
             recent_tier4_events: VecDeque::with_capacity(crate::tier4::RING_BUFFER_CAPACITY),
             reaction_emoji_buffer: VecDeque::with_capacity(REACTION_EMOJI_BUFFER_CAPACITY),
             reaction_monoculture_active: false,

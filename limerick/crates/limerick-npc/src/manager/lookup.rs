@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::data::load_npcs_from_file;
 use crate::types::NpcState;
-use crate::{Npc, NpcId, RelationshipToneHint};
+use crate::{Npc, NpcId, RelationshipToneHint, fold_name};
 use limerick_types::{LimerickError, LocationId};
 
 use super::{NpcManager, NpcReference, match_all, role_alias};
@@ -130,16 +130,17 @@ impl NpcManager {
     ///
     /// Exact display/canonical matches win; only when there are none are
     /// introduced first names tried, then family names. Several matches in a
-    /// tier are ambiguous and do not fall through to the next tier.
+    /// tier are ambiguous and do not fall through to the next tier. Both
+    /// sides are folded ([`fold_name`]), so "Roisin" matches "Róisín".
     pub fn resolve_name_at(&self, name: &str, location: LocationId) -> NpcReference {
-        let lower = name.trim().to_lowercase();
-        if lower.is_empty() {
+        let wanted = fold_name(name.trim());
+        if wanted.is_empty() {
             return NpcReference::NotFound;
         }
         let npcs = self.npcs_at(location);
 
         let exact = match_all(&npcs, |npc| {
-            self.display_name(npc).to_lowercase() == lower || npc.name.to_lowercase() == lower
+            fold_name(self.display_name(npc)) == wanted || fold_name(&npc.name) == wanted
         });
         if !matches!(exact, NpcReference::NotFound) {
             return exact;
@@ -147,12 +148,10 @@ impl NpcManager {
 
         let by_first_name = match_all(&npcs, |npc| {
             self.is_introduced(npc.id)
-                && npc
-                    .name
-                    .to_lowercase()
+                && fold_name(&npc.name)
                     .split_whitespace()
                     .next()
-                    .is_some_and(|first| first == lower)
+                    .is_some_and(|first| first == wanted)
         });
         if !matches!(by_first_name, NpcReference::NotFound) {
             return by_first_name;
@@ -162,35 +161,10 @@ impl NpcManager {
         // "ask Connolly"), so it resolves without an introduction; two people
         // sharing it are ambiguous.
         match_all(&npcs, |npc| {
-            let name = npc.name.to_lowercase();
+            let name = fold_name(&npc.name);
             let mut words = name.split_whitespace();
-            words.next().is_some() && words.next_back().is_some_and(|last| last == lower)
+            words.next().is_some() && words.next_back().is_some_and(|last| last == wanted)
         })
-    }
-
-    /// Whether `reference` names someone who is not at `location` and no one
-    /// who is: a full, display, first, or family name. A player who addresses
-    /// someone by name who is elsewhere is told they are not here instead of
-    /// being answered by whoever is present. A name that also fits someone
-    /// present (even one not yet introduced) is never reported absent.
-    pub fn names_someone_elsewhere(&self, reference: &str, location: LocationId) -> bool {
-        let lower = reference.trim().to_lowercase();
-        if lower.is_empty() {
-            return false;
-        }
-        let named = |npc: &Npc| {
-            let name = npc.name.to_lowercase();
-            let mut words = name.split_whitespace();
-            name == lower
-                || self.display_name(npc).to_lowercase() == lower
-                || words.next().is_some_and(|first| first == lower)
-                || words.next_back().is_some_and(|last| last == lower)
-        };
-        let (here, elsewhere): (Vec<&Npc>, Vec<&Npc>) = self
-            .npcs
-            .values()
-            .partition(|npc| matches!(npc.state, NpcState::Present) && npc.location == location);
-        !here.into_iter().any(named) && elsewhere.into_iter().any(named)
     }
 
     /// Finds an NPC at a location by occupation/role (case-insensitive).
@@ -222,21 +196,21 @@ impl NpcManager {
             return NpcReference::NotFound;
         }
         let npcs = self.npcs_at(location);
-        let needle_lower = needle.to_ascii_lowercase();
+        let needle_lower = fold_name(needle);
         let alias = role_alias(&needle_lower);
 
         let tiers = [
-            match_all(&npcs, |npc| npc.occupation.eq_ignore_ascii_case(needle)),
+            match_all(&npcs, |npc| fold_name(&npc.occupation) == needle_lower),
             match_all(&npcs, |npc| {
-                npc.occupation
+                fold_name(&npc.occupation)
                     .split_whitespace()
-                    .any(|tok| tok.eq_ignore_ascii_case(&needle_lower))
+                    .any(|tok| tok == needle_lower)
             }),
             match alias {
                 Some(canonical) => match_all(&npcs, |npc| {
-                    npc.occupation
+                    fold_name(&npc.occupation)
                         .split_whitespace()
-                        .any(|tok| tok.eq_ignore_ascii_case(canonical))
+                        .any(|tok| tok == canonical)
                 }),
                 None => NpcReference::NotFound,
             },
