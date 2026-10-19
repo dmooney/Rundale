@@ -2,10 +2,10 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
-	import type { TextLogEntry } from '$lib/types';
-	import { REACTION_PALETTE } from '$lib/reactions';
-	import { reactToMessage } from '$lib/ipc';
-	import { segmentText } from '$lib/rich-text';
+	import type { TextLogEntry } from '#lib/types.ts';
+	import { REACTION_PALETTE } from '#lib/reactions.ts';
+	import { reactToMessage } from '#lib/ipc.ts';
+	import { segmentText } from '#lib/rich-text.ts';
 
 	let logEl: HTMLDivElement;
 	let hoveredMessageId: string | null = $state(null);

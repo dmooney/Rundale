@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DebugSnapshot, NpcDebug } from '$lib/types';
+	import type { DebugSnapshot, NpcDebug } from '#lib/types.ts';
 
 	let { snap, npcId, onSelectNpc, onDeselectNpc }: {
 		snap: DebugSnapshot;

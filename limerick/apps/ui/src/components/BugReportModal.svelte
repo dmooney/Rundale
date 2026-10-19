@@ -5,8 +5,8 @@
 		bugReportScreenshot,
 		closeBugReport
 	} from '../stores/bugReport';
-	import { submitBugReport, openUrl } from '$lib/ipc';
-	import type { BugReportResult } from '$lib/types';
+	import { submitBugReport, openUrl } from '#lib/ipc.ts';
+	import type { BugReportResult } from '#lib/types.ts';
 
 	let title = $state('');
 	let description = $state('');

@@ -39,6 +39,9 @@ npm --prefix limerick/apps/ui run check  # svelte-check + tsc
   semantic error.** The final fetch can straddle the shared deadline and abort;
   do not replace an ownership or identity diagnosis with that timer artifact.
 
+- **SvelteKit 3 config lives in `vite.config.ts`, and `$lib` is now `#lib`.** `svelte.config.js` is rejected; pass options (adapter included) to `sveltekit({...})`. `#lib/*` resolves through the `package.json` `imports` field and needs explicit file extensions (`'#lib/ipc.ts'`). `tsconfig.json` extends `$app/tsconfig` and declares its own `include`.
+- **The composer keeps its autofocus after load (SvelteKit 3).** Kit 2's router reset focus to `<body>` after hydration, silently undoing `InputField`'s `autoFocus`; Kit 3 does not. E2E specs that press bare-key shortcuts (`m`, `?`) right after load must blur the composer first, or `isTypingContext()` swallows the key.
+
 ## Layout
 
 `src/lib/` shared, `src/routes/` SvelteKit pages, `e2e/` Playwright, `static/` assets, `__mocks__/` vitest stubs.

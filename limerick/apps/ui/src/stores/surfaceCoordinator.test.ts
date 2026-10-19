@@ -22,11 +22,11 @@ const { captureScreen } = vi.hoisted(() => ({
 	captureScreen: vi.fn(async () => 'data:image/png;base64,fresh'),
 }));
 
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	getDebugSnapshot: vi.fn(async () => ({ request_id: 'debug-test' })),
 }));
 
-vi.mock('$lib/screenshot', () => ({
+vi.mock('#lib/screenshot.ts', () => ({
 	captureScreen,
 }));
 

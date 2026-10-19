@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { editorListMods } from '$lib/editor-ipc';
+	import { editorListMods } from '#lib/editor-ipc.ts';
 	import {
 		editorMods,
 		editorSnapshot,
@@ -11,7 +11,7 @@
 		editorSelectedNpcId,
 		editorSelectedLocationId
 	} from '../../stores/editor';
-	import type { EditorTab } from '$lib/editor-types';
+	import type { EditorTab } from '#lib/editor-types.ts';
 
 	import ModBrowser from '../../components/editor/ModBrowser.svelte';
 	import NpcList from '../../components/editor/NpcList.svelte';

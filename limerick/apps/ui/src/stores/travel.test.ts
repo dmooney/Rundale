@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 import { travelState, startTravel, cancelTravel } from './travel';
-import type { TravelStartPayload, TravelWaypoint } from '$lib/types';
+import type { TravelStartPayload, TravelWaypoint } from '#lib/types.ts';
 
 const waypoints: TravelWaypoint[] = [
 	{ id: 'loc1', lat: 53.35, lon: -6.26 },

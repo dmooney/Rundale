@@ -7,7 +7,7 @@ import type {
 	EditorModSnapshot,
 	LocationData,
 	NpcFileEntry,
-} from '$lib/editor-types';
+} from '#lib/editor-types.ts';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

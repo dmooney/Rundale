@@ -7,8 +7,8 @@
 		editorDirty,
 		editorValidation
 	} from '../../stores/editor';
-	import { editorUpdateNpcs, editorSave } from '$lib/editor-ipc';
-	import type { NpcFileEntry, ScheduleVariantFileEntry } from '$lib/editor-types';
+	import { editorUpdateNpcs, editorSave } from '#lib/editor-ipc.ts';
+	import type { NpcFileEntry, ScheduleVariantFileEntry } from '#lib/editor-types.ts';
 
 	const npc = $derived($editorSelectedNpc);
 	const locations = $derived($editorLocations);

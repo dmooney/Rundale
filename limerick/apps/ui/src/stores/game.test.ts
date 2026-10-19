@@ -18,7 +18,7 @@ import {
 	resetExternalDrive,
 	EXTERNAL_DRIVE_IDLE_MS,
 } from './game';
-import type { LanguageHint, WorldSnapshot } from '$lib/types';
+import type { LanguageHint, WorldSnapshot } from '#lib/types.ts';
 
 const hint: LanguageHint[] = [
 	{ word: 'dia dhuit', pronunciation: 'jee-ah gwit', meaning: 'hello' },

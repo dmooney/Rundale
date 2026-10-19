@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { get } from 'svelte/store';
-import type { UiConfig, TileSource } from '$lib/types';
+import type { UiConfig, TileSource } from '#lib/types.ts';
 
 function osm(): TileSource {
 	return {

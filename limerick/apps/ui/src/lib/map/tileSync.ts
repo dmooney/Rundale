@@ -1,5 +1,5 @@
 import { tiles, currentTileSource } from '../../stores/tiles';
-import type { TileSource } from '$lib/types';
+import type { TileSource } from '#lib/types.ts';
 
 /**
  * Subscribes to the shared `tiles` store and pushes the active tile

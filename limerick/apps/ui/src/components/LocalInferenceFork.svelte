@@ -25,7 +25,7 @@
 		startLocalInferenceSetup,
 		type LocalSetupArgs,
 		type OnboardingChoice
-	} from '$lib/ipc';
+	} from '#lib/ipc.ts';
 
 	let {
 		onComplete,

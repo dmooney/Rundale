@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ModelSuggestion } from '$lib/model-catalog';
+	import type { ModelSuggestion } from '#lib/model-catalog.ts';
 
 	let { models, selectedIndex, onSelect, onHighlight }: {
 		models: ModelSuggestion[];

@@ -2,13 +2,13 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
 import ValidatorPanel from './ValidatorPanel.svelte';
 import { editorValidation } from '../../stores/editor';
-import type { ValidationReport } from '$lib/editor-types';
+import type { ValidationReport } from '#lib/editor-types.ts';
 
 const mocks = vi.hoisted(() => ({
 	editorValidate: vi.fn<() => Promise<ValidationReport>>(),
 }));
 
-vi.mock('$lib/editor-ipc', () => ({
+vi.mock('#lib/editor-ipc.ts', () => ({
 	editorValidate: mocks.editorValidate,
 }));
 

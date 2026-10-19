@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import ModelDropdown from './ModelDropdown.svelte';
-import type { ModelSuggestion } from '$lib/model-catalog';
+import type { ModelSuggestion } from '#lib/model-catalog.ts';
 
 const models: ModelSuggestion[] = [
 	{ name: 'claude-sonnet-4-6', provider: 'Anthropic' },

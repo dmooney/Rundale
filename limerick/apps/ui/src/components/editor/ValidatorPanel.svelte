@@ -5,8 +5,8 @@
 		editorSelectedNpcId,
 		editorSelectedLocationId
 	} from '../../stores/editor';
-	import { editorValidate } from '$lib/editor-ipc';
-	import type { ValidationIssue } from '$lib/editor-types';
+	import { editorValidate } from '#lib/editor-ipc.ts';
+	import type { ValidationIssue } from '#lib/editor-types.ts';
 
 	let running = $state(false);
 
