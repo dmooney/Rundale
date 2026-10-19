@@ -69,19 +69,10 @@ check: docs-check osv-changed endpoints-changed python-quality
     cd limerick && just check
 
 # CI's Endpoints job (format, lint, typecheck, tests, build: `pnpm check` in
-# endpoints/), run when this branch or the working tree changes endpoints/.
+# endpoints/), run when this branch changes any input CI runs it for (its
+# `endpoints` path filter, ignoring documentation-only changes).
 endpoints-changed:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    base=$(git merge-base HEAD origin/main 2>/dev/null || echo origin/main)
-    if git diff --quiet "$base" -- endpoints && git diff --quiet HEAD -- endpoints \
-        && [ -z "$(git ls-files --others --exclude-standard -- endpoints)" ]; then
-        echo "endpoints-changed: no endpoints/ changes; skipped."
-        exit 0
-    fi
-    cd endpoints
-    pnpm install --frozen-lockfile --silent
-    pnpm check
+    python3 scripts/endpoints_changed.py
 
 # Fail on known vulnerabilities that lockfiles changed against origin/main add,
 # as CI's OSV-Scanner scan-pr does. Needs osv-scanner (brew install osv-scanner).
