@@ -386,6 +386,14 @@ pub async fn handle_game_input_settled(
                                 decided = Some(decision.recipient);
                                 decision.intent
                             }
+                            // An in-process host answers the rendered prompt
+                            // with intent JSON, not a decision: there is no
+                            // System 1 answer, so the unaddressed-line rules
+                            // apply (the partner answers, else the game asks;
+                            // design §4.2).
+                            None if is_intent_json(&text) => local.unwrap_or_else(|| {
+                                crate::input::intent_from_reply_text(&text, &raw)
+                            }),
                             // Not an answer to the options offered: a
                             // failed call, which is unsure (§3.1, step 3).
                             None => {
@@ -591,6 +599,14 @@ pub async fn handle_game_input_settled(
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+/// Whether `text` is the intent JSON an in-process host answers with
+/// (`{"intent": …}`), rather than a System 1 decision.
+fn is_intent_json(text: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .is_some_and(|value| value.get("intent").is_some())
+}
 
 #[cfg(test)]
 mod tests {

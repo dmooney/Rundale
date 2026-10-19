@@ -1786,6 +1786,33 @@ async fn a_full_name_tag_selects_one_person_without_asking() {
 // `explicit_absent_addressee_does_not_fall_back_to_present_npc`: a line
 // addressed to someone absent reaches the people present, and no system
 // line names the absent person.
+// Gatekeeper finding on #2221: an @tag for a name in nobody's roster is
+// still an explicit selection; it reaches everyone present without System 1.
+#[tokio::test]
+async fn a_tag_for_a_name_no_one_has_reaches_everyone_present_without_a_call() {
+    let live = Live::rundale().with_decisions();
+    only_present(&live, &["Peig Hannigan", "Cormac Duffy"]).await;
+    let (mut engine, _) = engine(&live);
+    let (done, _, calls) =
+        submit_scripted(&mut engine, &live, said("@Seamus how is the road?")).await;
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert!(!calls.contains(&InferenceSubrole::Intent), "{calls:?}");
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| **call == InferenceSubrole::Dialogue)
+            .count(),
+        2,
+        "both people present hear it: {calls:?}"
+    );
+}
+
 #[tokio::test]
 async fn an_absent_explicit_addressee_reaches_the_people_present() {
     let live = Live::rundale();
@@ -1971,6 +1998,37 @@ async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
     assert_eq!(live.emitter.events(), done.emissions);
     assert!(journal.request(&request).unwrap().has_committed());
     assert_reducer_contract(&journal.events(), &request);
+}
+
+// Gatekeeper finding on #2221: with the canonical mod's Endpoints declared,
+// an in-process host still answers the intent call with intent JSON. That is
+// no System 1 answer, so a follow-up goes to the partner instead of asking.
+#[tokio::test]
+async fn an_in_process_intent_reply_lets_the_partner_answer_a_follow_up() {
+    let live = Live::rundale().with_decisions();
+    let ids = only_present(&live, &["Peig Hannigan", "Cormac Duffy"]).await;
+    live.npc_manager.lock().await.set_partner(Some(ids[0]));
+    let (mut engine, _journal) = engine(&live);
+    let step = engine
+        .submit(&live.ctx(), said("And how is the harvest?"))
+        .await
+        .unwrap();
+    let intent = awaiting(&step).clone();
+    assert_eq!(intent.call.subrole, InferenceSubrole::Intent);
+    let in_process = serde_json::json!({"intent": "talk", "target": null, "dialogue": "And how is the harvest?"});
+    let next = engine
+        .resume(
+            &live.ctx(),
+            resolution(&intent, completed(&in_process.to_string())),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting(&next).call.subrole,
+        InferenceSubrole::Dialogue,
+        "the partner answers: {:?}",
+        next.status
+    );
 }
 
 // Gatekeeper finding on #2221: a journal write that fails while the intent

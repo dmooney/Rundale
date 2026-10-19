@@ -730,7 +730,35 @@ pub fn extract_npc_tags(raw: &str, world: &WorldState, npc_manager: &NpcManager)
             remaining: raw.trim().to_string(),
         };
     }
-    extract_mentions(raw, world, npc_manager, false)
+    let mut tags = extract_mentions(raw, world, npc_manager, false);
+    // An @tag that names no one in the roster (or names several) is still
+    // an explicit selection (design §3.1, step 1): it is kept as written, so
+    // the recipient rules treat it like a line to someone elsewhere, or ask
+    // which person, and System 1 is not called.
+    let mut kept = Vec::new();
+    for word in tags.remaining.split(' ') {
+        match word.strip_prefix('@').map(unmatched_tag_name) {
+            Some((name, rest)) if !name.is_empty() => {
+                tags.names.push(name.to_string());
+                if !rest.is_empty() {
+                    kept.push(rest);
+                }
+            }
+            _ => kept.push(word),
+        }
+    }
+    tags.remaining = canonicalize_whitespace(&kept.join(" "));
+    tags
+}
+
+/// Splits the name an unmatched @tag gives (letters, fadas and apostrophes)
+/// from any punctuation that follows it.
+fn unmatched_tag_name(tagged: &str) -> (&str, &str) {
+    let end = tagged
+        .char_indices()
+        .find(|(_, c)| !(c.is_alphabetic() || *c == '\'' || ('\u{0300}'..='\u{036F}').contains(c)))
+        .map_or(tagged.len(), |(index, _)| index);
+    tagged.split_at(end)
 }
 
 fn extract_mentions(
@@ -1870,13 +1898,33 @@ mod tests {
             npc_mgr.mark_introduced(NpcId(id));
         }
 
-        for raw in [
-            "@Micheal could I ask ye something?",
-            "@Mícheál could I ask ye something?",
+        // Neither full name is chosen: the tag is kept as written, and the
+        // recipient rules ask which Mícheál.
+        for (raw, tag) in [
+            ("@Micheal could I ask ye something?", "Micheal"),
+            ("@Mícheál could I ask ye something?", "Mícheál"),
         ] {
             let extracted = extract_npc_tags(raw, &world, &npc_mgr);
-            assert!(extracted.names.is_empty(), "{raw:?}: {:?}", extracted.names);
+            assert_eq!(extracted.names, [tag], "{raw:?}");
+            assert_eq!(extracted.remaining, "could I ask ye something?");
         }
+    }
+
+    #[test]
+    fn a_tag_for_someone_not_in_the_roster_is_kept_as_an_explicit_name() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Róisín Connolly".to_string();
+        npc.set_location(world.player_location);
+        npc_mgr.add_npc(npc);
+
+        let extracted = extract_npc_tags("@Seán, how is the road?", &world, &npc_mgr);
+        assert_eq!(extracted.names, ["Seán"]);
+        assert_eq!(extracted.remaining, ", how is the road?");
+        let plain = extract_npc_tags("mail me at a@b please", &world, &npc_mgr);
+        assert!(plain.names.is_empty(), "{:?}", plain.names);
     }
 
     #[test]
