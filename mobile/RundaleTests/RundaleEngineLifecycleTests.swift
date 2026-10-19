@@ -292,8 +292,8 @@ private final class Game {
         }
         let recipient = (ids("references").first ?? named ?? ids("noOne").first ?? ids("present").first)?["optionId"]
             as? String ?? "no_one"
-        func choice(_ option: String, _ p: Double) -> [String: Any] {
-            ["choice": option, "confidence": p, "probabilities": [option: p]]
+        func choice(_ option: String, _ probability: Double) -> [String: Any] {
+            ["choice": option, "confidence": probability, "probabilities": [option: probability]]
         }
         let output: [String: Any] = [
             "action": choice("talk", 0.99),
