@@ -133,6 +133,22 @@ pub fn resolve_recipients(
                 }
                 continue;
             }
+            // A single word (a first or family name, or an occupation) means
+            // every person present it fits, met or not: the same test as the
+            // reference options offered to System 1 (design §3.5).
+            match reference_candidates(name, &present, npc_manager).as_slice() {
+                [id] => {
+                    if !resolved.contains(id) {
+                        resolved.push(*id);
+                    }
+                    continue;
+                }
+                several @ [_, _, ..] if clarify => {
+                    return Resolution::Ask(which_prompt(npc_manager, name, several));
+                }
+                [_, _, ..] => continue,
+                [] => {}
+            }
             match npc_manager.resolve_reference_at(name, here) {
                 NpcReference::Unique(id) => {
                     if !resolved.contains(&id) {

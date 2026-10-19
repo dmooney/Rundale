@@ -1786,6 +1786,42 @@ async fn a_full_name_tag_selects_one_person_without_asking() {
 // `explicit_absent_addressee_does_not_fall_back_to_present_npc`: a line
 // addressed to someone absent reaches the people present, and no system
 // line names the absent person.
+// PR gatekeeper finding on #2263: an @tag for a first name two people
+// present share asks which, whoever the player has been introduced to, with
+// or without fadas, and makes no System 1 call.
+#[tokio::test]
+async fn a_shared_first_name_tag_asks_which_whoever_has_been_introduced() {
+    for introduced in [0usize, 1, 2] {
+        for tag in ["@Micheal", "@Mícheál"] {
+            let live = Live::rundale().with_decisions();
+            let ids = only_present(&live, &["Roisin Connolly", "Cormac Duffy"]).await;
+            {
+                let mut npcs = live.npc_manager.lock().await;
+                npcs.get_mut(ids[0]).unwrap().name = "Mícheál Connolly".to_string();
+                npcs.get_mut(ids[1]).unwrap().name = "Mícheál Duffy".to_string();
+                for id in &ids[..introduced] {
+                    npcs.mark_introduced(*id);
+                }
+            }
+            let (mut engine, _) = engine(&live);
+            let (asked, _, calls) =
+                submit_scripted(&mut engine, &live, said(&format!("{tag} how is the road?"))).await;
+            assert!(!calls.contains(&InferenceSubrole::Intent), "{calls:?}");
+            let prompt = asking(&asked);
+            let chosen: Vec<_> = prompt
+                .choices
+                .iter()
+                .filter_map(|choice| choice.entity_id.clone())
+                .collect();
+            assert_eq!(
+                chosen,
+                [ids[0].0.to_string(), ids[1].0.to_string()],
+                "{tag} with {introduced} introduced"
+            );
+        }
+    }
+}
+
 // Gatekeeper finding on #2221: an @tag for a name in nobody's roster is
 // still an explicit selection; it reaches everyone present without System 1.
 #[tokio::test]
