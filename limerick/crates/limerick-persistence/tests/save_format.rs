@@ -7,8 +7,13 @@
 //! - `turn_journal_v2_save.db`: format 2, a real `limerick-server` save
 //!   written by #2037 (2cb2682d9) after the `talk-and-task` proof scenario:
 //!   six snapshots, five committed requests and their 24 transcript events.
+//! - `format_3_save.db`: format 3, a real `limerick-mobile-ffi` save written
+//!   by `main` 5c14ea236 after a walk to Connolly Cottage and one talk turn
+//!   with Róisín: three snapshots, two committed requests and eight
+//!   transcript events.
 //! - `future_format_unknown_event_save.db`: the format 2 save as a newer
-//!   build would leave it: stamped format 4, an extra `harvest_festivals`
+//!   build would leave it: stamped format 5 (4 before format 4 shipped), an
+//!   extra `harvest_festivals`
 //!   table, a latest snapshot with a field this build does not know
 //!   (`harvest_moon`) and a content identity (`rundale` 1.1.0), and a
 //!   transcript event of a kind this build does not know
@@ -70,6 +75,32 @@ fn every_prior_format_opens_and_migrates_to_the_current_one() {
     }
 }
 
+/// A format 3 save opens, keeps its journal, restores with no conversation
+/// partner (format 4 added it), and is stamped with the current format.
+#[test]
+fn the_format_3_save_opens_without_a_partner_and_is_restamped() {
+    let (_dir, path) = copy_of("format_3_save.db");
+    let inspection = inspect_save(&path).unwrap();
+    assert_eq!(inspection.format_version, 3);
+    assert_eq!(inspection.stamped_version, 3);
+    assert!(inspection.needs_migration());
+
+    let db = Database::open(&path).unwrap();
+    let branch = db.list_branches().unwrap().remove(0);
+    let recovery = db
+        .load_recovery_data(branch.id)
+        .unwrap()
+        .expect("a snapshot");
+    assert_eq!(recovery.snapshot.conversation_partner, None);
+    assert!(
+        recovery.snapshot.content.is_some(),
+        "format 3 records content"
+    );
+    assert_eq!(db.turn_requests(branch.id).unwrap().len(), 2);
+    drop(db);
+    assert_eq!(user_version(&path), SAVE_FORMAT_VERSION);
+}
+
 #[test]
 fn the_format_2_save_keeps_its_turn_journal() {
     let (_dir, path) = copy_of("turn_journal_v2_save.db");
@@ -91,7 +122,7 @@ fn the_format_2_save_keeps_its_turn_journal() {
 fn a_newer_format_opens_unchanged_when_its_state_reads() {
     let (_dir, path) = copy_of("future_format_unknown_event_save.db");
     let inspection = inspect_save(&path).unwrap();
-    assert_eq!(inspection.format_version, 4);
+    assert_eq!(inspection.format_version, 5);
     assert!(!inspection.needs_migration());
     assert_eq!(
         inspection.branches[0]
@@ -112,7 +143,7 @@ fn a_newer_format_opens_unchanged_when_its_state_reads() {
         .collect();
     assert_eq!(unknown.len(), 1, "the unknown event is kept");
     drop(db);
-    assert_eq!(user_version(&path), 4, "a newer stamp is never lowered");
+    assert_eq!(user_version(&path), 5, "a newer stamp is never lowered");
     let conn = Connection::open(&path).unwrap();
     let festivals: i64 = conn
         .query_row("SELECT COUNT(*) FROM harvest_festivals", [], |row| {

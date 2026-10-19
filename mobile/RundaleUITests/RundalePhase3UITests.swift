@@ -66,6 +66,22 @@ class RundalePhase3UITestCase: XCTestCase {
         add(attachment)
     }
 
+    /// Waits until exactly `count` committed replies contain `text`, read from
+    /// the app's transcript trace so rows scrolled out of the lazy transcript
+    /// still count.
+    func waitForReplies(containing text: String, count: Int, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var seen = 0
+        repeat {
+            seen = app.transcriptRows().filter {
+                $0.kind == "npc_dialogue" && $0.state == "committed" && $0.text.contains(text)
+            }.count
+            if seen >= count { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return seen == count
+    }
+
     func waitForText(_ text: String, timeout: TimeInterval) -> Bool {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", text)
@@ -239,28 +255,64 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
         XCTAssertTrue(waitForText("household work allows", timeout: 15))
     }
 
-    /// Spec Milestone 3: asking for someone who is elsewhere is answered
-    /// "not here", never by whoever is present (#2047).
-    func testAskingForSomeoneElsewhereSaysTheyAreNotHere() {
+    /// Design §8 rows 1 to 3: "Hello" with both Connollys and no partner asks
+    /// who it is for, listing each person and All (read as "Everyone here");
+    /// choosing Róisín sends the line to her without retyping, and she
+    /// becomes the partner, so the next unaddressed line goes to her.
+    func testUnaddressedSpeechAsksWhoAndTheChoiceBecomesThePartner() {
+        launch(reset: true)
+        submit("go to Connolly Cottage")
+        hold(2)
+        submit("Hello")
+
+        XCTAssertTrue(app.otherElements["clarification"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForText("Who are you speaking to?", timeout: 3))
+        XCTAssertTrue(app.buttons["clarification.option.choose-npc-2"].exists)
+        let all = app.buttons["clarification.option.choose-all"]
+        XCTAssertTrue(all.exists)
+        XCTAssertEqual(all.label, "Everyone here")
+        XCTAssertFalse(app.buttons["composer.stop"].exists, "nothing is sent until the player answers")
+        attach("Who are you speaking to?")
+        hold(3)
+        app.buttons["clarification.option.choose-npc-3"].tap()
+
+        XCTAssertFalse(app.otherElements["clarification"].waitForExistence(timeout: 1))
+        XCTAssertTrue(waitForText("household work allows", timeout: 15))
+        hold(2)
+        submit("And how's the harvest?")
+        XCTAssertTrue(waitForReplies(containing: "household work allows", count: 2, timeout: 15),
+                      "the partner answers")
+        XCTAssertFalse(app.otherElements["clarification"].exists)
+        hold(3)
+    }
+
+    /// Design §8 rows 5, 11 and 18 (owner, 2026-10-17; replaces #2047's
+    /// "not here"): with Peig alone on the village road, "Hello" reaches her
+    /// directly, asking for Mícheál, who is at home, reaches her too, and a
+    /// tagged line naming Róisín gets no system line. Nothing says anyone is
+    /// not here.
+    func testNamingSomeoneElsewhereReachesThePersonPresent() {
         launch(reset: true)
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
         // 08:00: Peig waits on the village road; the Connollys are at home.
         submit("/wait 60")
         submit("/people")
         XCTAssertTrue(waitForText("Letter-office keeper", timeout: 8))
-        hold(3)
-
-        submit("ask Mícheál about the cattle")
-        XCTAssertTrue(waitForText("Mícheál is not here.", timeout: 8))
         hold(2)
-        submit("Mícheál, how are the cattle?")
-        XCTAssertEqual(rows(containing: "Mícheál is not here.").count, 2)
-        let dialogue = app.descendants(matching: .any).matching(NSPredicate(
-            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue'"
-        ))
-        XCTAssertEqual(dialogue.count, 0, "Peig does not answer for Mícheál")
-        XCTAssertFalse(app.buttons["composer.retry"].exists)
-        attach("Asking for Mícheál in the village")
+
+        submit("Hello")
+        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 1, timeout: 15))
+        XCTAssertFalse(app.otherElements["clarification"].exists)
+        hold(2)
+        submit("ask Mícheál about the cattle")
+        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 2, timeout: 15),
+                      "Peig answers for herself")
+        XCTAssertFalse(app.otherElements["clarification"].exists)
+        hold(2)
+        submit("@Peig Hannigan The ribbon was woven by Róisín.")
+        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 3, timeout: 15))
+        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
+        attach("Naming someone elsewhere in the village")
         hold(5)
     }
 

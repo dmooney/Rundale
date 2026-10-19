@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import importlib
 import io
 import json
@@ -146,6 +147,75 @@ class VerifyRecordTests(unittest.TestCase):
             commit(self.root, path)
             self.assertNotEqual(record_module.input_tree(), before, path)
             before = record_module.input_tree()
+
+    def test_nested_agent_instructions_are_excluded_but_other_app_inputs_are_not(self):
+        before = record_module.input_tree()
+        instructions = self.root / "limerick" / "testing" / "AGENTS.md"
+        instructions.parent.mkdir(parents=True)
+        instructions.write_text("local guidance\n", encoding="utf-8")
+        commit(self.root, "nested instructions")
+        self.assertEqual(record_module.input_tree(), before)
+
+        fixture = self.root / "limerick" / "testing" / "fixtures" / "scenario.json"
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text("{}\n", encoding="utf-8")
+        commit(self.root, "runtime fixture")
+        self.assertNotEqual(record_module.input_tree(), before)
+
+        before = record_module.input_tree()
+        prompt = self.root / "mods" / "rundale" / "prompts" / "dialogue.md"
+        prompt.parent.mkdir(parents=True, exist_ok=True)
+        prompt.write_text("Speak in character.\n", encoding="utf-8")
+        commit(self.root, "runtime prompt")
+        self.assertNotEqual(record_module.input_tree(), before)
+
+    def test_mobile_workflow_path_filters_exclude_agent_instruction_files(self):
+        repository = Path(__file__).resolve().parents[2]
+        ci = (repository / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        testflight = (repository / ".github" / "workflows" / "testflight.yml").read_text(
+            encoding="utf-8"
+        )
+        mobile_filter = ci.split("            mobile_app:\n", 1)[1].split(
+            "\n            bug_report:", 1
+        )[0]
+        testflight_paths = testflight.split("    paths:\n", 1)[1].split(
+            "\n  workflow_dispatch:", 1
+        )[0]
+        self.assertIn("predicate-quantifier: some-with-excludes", ci)
+        self.assertIn("- '!**/AGENTS.md'", mobile_filter)
+        self.assertIn('- "!**/AGENTS.md"', testflight_paths)
+
+        patterns = [
+            line.strip()[2:].strip("'\"")
+            for line in mobile_filter.splitlines()
+            if line.strip().startswith("- ")
+        ]
+
+        def matches_mobile_app(path: str) -> bool:
+            included = any(
+                fnmatch.fnmatchcase(path, pattern)
+                for pattern in patterns
+                if not pattern.startswith("!")
+            )
+            excluded = any(
+                fnmatch.fnmatchcase(path, pattern[1:])
+                for pattern in patterns
+                if pattern.startswith("!")
+            )
+            return included and not excluded
+
+        self.assertTrue(matches_mobile_app("mobile/Rundale/file.swift"))
+        self.assertTrue(matches_mobile_app("mods/rundale/world.json"))
+        self.assertFalse(matches_mobile_app("limerick/testing/AGENTS.md"))
+        self.assertFalse(matches_mobile_app("mobile/AGENTS.md"))
+        self.assertFalse(matches_mobile_app("limerick/apps/ui/src/main.ts"))
+        self.assertFalse(matches_mobile_app("docs/notes.md"))
+        self.assertTrue(
+            any(
+                matches_mobile_app(path)
+                for path in ("limerick/testing/AGENTS.md", "mobile/Rundale/file.swift")
+            )
+        )
 
     def test_coverage_baseline_changes_the_input_tree(self):
         before = record_module.input_tree()

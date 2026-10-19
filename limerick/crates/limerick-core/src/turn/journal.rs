@@ -112,6 +112,7 @@ struct MemoryState {
     task_batches: Vec<Vec<PlayerTask>>,
     committed_states: usize,
     fail_next_writes: usize,
+    fail_next_commits: usize,
 }
 
 /// The journal contract in memory, with fault injection for tests.
@@ -147,6 +148,12 @@ impl MemoryTurnJournal {
     /// without writing anything.
     pub fn fail_next_writes(&self, count: usize) {
         self.state.lock().expect("journal lock").fail_next_writes = count;
+    }
+
+    /// Makes the next `count` commits (not accepts or updates) fail with
+    /// [`JournalError::Storage`] without writing anything.
+    pub fn fail_next_commits(&self, count: usize) {
+        self.state.lock().expect("journal lock").fail_next_commits = count;
     }
 
     /// Every journaled event, in sequence order.
@@ -200,6 +207,7 @@ impl MemoryTurnJournal {
         {
             let mut state = self.state.lock().expect("journal lock");
             Self::inject_failure(&mut state)?;
+            Self::inject_commit_failure(&mut state)?;
             Self::validate(&state, false, &commit.record, &commit.events)?;
         }
         durable(commit.task_mutations.clone()).await?;
@@ -211,6 +219,14 @@ impl MemoryTurnJournal {
             Some(commit.record),
             commit.events,
         ))
+    }
+
+    fn inject_commit_failure(state: &mut MemoryState) -> Result<(), JournalError> {
+        if state.fail_next_commits > 0 {
+            state.fail_next_commits -= 1;
+            return Err(JournalError::Storage("injected commit failure".to_string()));
+        }
+        Ok(())
     }
 
     fn inject_failure(state: &mut MemoryState) -> Result<(), JournalError> {
@@ -296,6 +312,9 @@ impl MemoryTurnJournal {
     ) -> Result<Vec<TranscriptEvent>, JournalError> {
         let mut state = self.state.lock().expect("journal lock");
         Self::inject_failure(&mut state)?;
+        if matches!(kind, WriteKind::Commit { .. }) {
+            Self::inject_commit_failure(&mut state)?;
+        }
         Self::validate(&state, matches!(kind, WriteKind::Accept), &record, &events)?;
         let tasks = match kind {
             WriteKind::Commit {

@@ -167,8 +167,15 @@ export interface AddresseeInput {
     occupation: string;
     introduced: boolean;
   }[];
-  elsewhere: { optionId: string; name: string }[];
   references: { optionId: string; phrase: string; people: string[] }[];
+  /** "all", offered only with two or more present. */
+  everyone: { optionId: string }[];
+  /** "someone_else", offered only with two or more present. */
+  someoneElse: { optionId: string }[];
+  /** "no_one", offered unless exactly one person is present. */
+  noOne: { optionId: string }[];
+  /** The people present again, with two or more present: mention subjects. */
+  mentionable: { optionId: string; name: string; description: string }[];
   places: {
     optionId: string;
     name: string;
@@ -181,7 +188,7 @@ export interface AddresseeInput {
 
 export interface BuiltInput {
   values: AddresseeInput;
-  /** Option id to person id, for present and elsewhere options. */
+  /** Option id to person id, for the people present. */
   people: Map<string, number>;
   /** Reference option id to the person ids it fits. */
   references: Map<string, number[]>;
@@ -192,10 +199,12 @@ export interface BuiltInput {
 }
 
 /**
- * The engine's input for one line (design §4.3): people present and the
- * introduced people elsewhere in roster (id) order, and one reference per word
- * of the line that is a first name, family name or occupation word of several
- * people present.
+ * The engine's input for one line (design §4.3), as
+ * `limerick_core::intent_decision::intent_input` builds it: people present in
+ * roster (id) order, one reference per word of the line that is a first name,
+ * family name or occupation word of several people present, and the group
+ * options and mention subjects only when they mean something. Nobody
+ * elsewhere is offered.
  */
 export function buildInput(
   item: LabelledCase,
@@ -204,7 +213,6 @@ export function buildInput(
 ): BuiltInput {
   const ids = [...people.keys()].sort((a, b) => a - b);
   const present = ids.filter((id) => item.present.includes(id));
-  const elsewhere = ids.filter((id) => !item.present.includes(id) && item.introduced.includes(id));
   const optionPeople = new Map<string, number>();
   const presentOptions = present.map((id, index) => {
     const person = people.get(id)!;
@@ -218,11 +226,8 @@ export function buildInput(
       introduced: item.introduced.includes(id),
     };
   });
-  const elsewhereOptions = elsewhere.map((id, index) => {
-    const optionId = `e${index + 1}`;
-    optionPeople.set(optionId, id);
-    return { optionId, name: people.get(id)!.name };
-  });
+  const several = present.length >= 2;
+  const group = (optionId: string) => (several ? [{ optionId }] : []);
   const references = new Map<string, number[]>();
   const referenceOptions: AddresseeInput["references"] = [];
   const seen = new Set<string>();
@@ -270,8 +275,17 @@ export function buildInput(
       role: "player_intent",
       line: item.line,
       present: presentOptions,
-      elsewhere: elsewhereOptions,
       references: referenceOptions,
+      everyone: group("all"),
+      someoneElse: group("someone_else"),
+      noOne: present.length === 1 ? [] : [{ optionId: "no_one" }],
+      mentionable: several
+        ? presentOptions.map(({ optionId, name, description }) => ({
+            optionId,
+            name,
+            description,
+          }))
+        : [],
       places: placeOptions,
       phrases: phraseOptions,
     },

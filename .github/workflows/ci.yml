@@ -63,6 +63,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@v4
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             runtime:
               - 'limerick/crates/**'
@@ -114,6 +115,7 @@ jobs:
               - 'rust-toolchain.toml'
               - '.cargo/**'
               - 'bug-report/test/fixtures/**'
+              - '!**/AGENTS.md'
             bug_report:
               - 'bug-report/**'
               - '.github/workflows/ci.yml'

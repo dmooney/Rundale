@@ -31,6 +31,10 @@ use std::sync::atomic::Ordering;
 
 use tokio_util::sync::CancellationToken;
 
+use crate::endpoint_input::Addressing;
+use crate::game_loop::recipients::{
+    AddressRequest, Answers, PartnerChange, Resolution, resolve_recipients,
+};
 use crate::game_loop::{AddresseeClarification, GameInputOutcome, GameLoopContext};
 use crate::ipc::{
     ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
@@ -96,13 +100,12 @@ pub const NPC_ACTION_NARRATION_FLAG: &str = "npc-action-narration";
 /// Kill-switch: disable via `flags.is_disabled(POST_GUARD_UI_REPLACE_FLAG)`.
 pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 
-/// Feature-flag name (default **on**) for addressee clarification. An
-/// explicit addressee (a chip, the `X` of "talk to X", or a leading vocative
-/// such as "Widow, any news?") that matches several people present makes the
-/// turn ask which one the player meant instead of reporting "X is not here."
-/// A leading name or role vocative in free text is also passed to the shared
-/// resolver, rather than the message going to whoever is first. Kill-switch:
-/// disable via `flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG)`.
+/// Feature-flag name (default **on**) for addressee clarification: the game
+/// asks "Who are you speaking to?" about unaddressed speech with no partner,
+/// and "Which Connolly do you mean?" about a reference that fits several
+/// people present (design §3.3). Disabled, it never asks, and such a line
+/// reaches everyone present instead. Kill-switch: disable via
+/// `flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG)`.
 pub const ADDRESSEE_CLARIFICATION_FLAG: &str = "addressee-clarification";
 
 /// Token cap for Tier 1 dialogue generation.
@@ -153,13 +156,37 @@ pub struct TurnOutcome {
 ///   autonomous bystander or idle-banter turns.
 /// - `spawn_loading`: closure that starts a loading animation and returns an
 ///   optional [`CancellationToken`].  Pass `|| None` to skip.
-#[allow(clippy::too_many_arguments)]
 pub async fn run_npc_turn(
     ctx: &GameLoopContext<'_>,
     speaker_id: NpcId,
     prompt_input: &str,
     transcript: &[ConversationLine],
     player_initiated: bool,
+    spawn_loading: impl FnOnce() -> Option<CancellationToken>,
+) -> Option<TurnOutcome> {
+    run_npc_turn_addressed(
+        ctx,
+        speaker_id,
+        prompt_input,
+        transcript,
+        player_initiated,
+        Addressing::SpokenTo,
+        spawn_loading,
+    )
+    .await
+}
+
+/// [`run_npc_turn`] for a speaker who came to answer as `addressing` says
+/// (spoken to, part of everyone present, or joining as someone mentioned;
+/// design §3.1 and §6), which the dialogue Endpoint input carries.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_npc_turn_addressed(
+    ctx: &GameLoopContext<'_>,
+    speaker_id: NpcId,
+    prompt_input: &str,
+    transcript: &[ConversationLine],
+    player_initiated: bool,
+    addressing: Addressing,
     spawn_loading: impl FnOnce() -> Option<CancellationToken>,
 ) -> Option<TurnOutcome> {
     let (
@@ -242,15 +269,14 @@ pub async fn run_npc_turn(
             &npc_cfg,
         );
         // Built from the same locked state as the prompt, so both describe
-        // one world snapshot. Until recipient resolution records how each
-        // speaker came to answer (#2221), every speaker is spoken to.
+        // one world snapshot.
         let endpoint = crate::endpoint_input::dialogue_endpoint(
             ctx.endpoints,
             &world,
             &npc_manager,
             speaker_id,
             prompt_input,
-            crate::endpoint_input::Addressing::SpokenTo,
+            addressing,
         );
         (
             setup,
@@ -621,8 +647,8 @@ async fn run_autonomous_chain(
     }
 }
 
-/// Routes input to one or more NPCs at the player's location, or shows an idle
-/// message when no NPCs are present.
+/// Routes input to the people at the player's location who should hear it,
+/// or shows an idle message when nobody is present.
 ///
 /// Emits `"stream-end"` with combined language hints after the full
 /// conversation chain (all addressed NPCs + autonomous follow-up turns).
@@ -632,7 +658,8 @@ async fn run_autonomous_chain(
 /// - `ctx`: shared game-loop context.
 /// - `raw`: raw player input string.
 /// - `target_names`: display names of explicitly addressed NPCs (from chip
-///   selection or `@mention` parsing). Empty → fall back to first NPC.
+///   selection or `@mention` parsing). Empty → the unaddressed rules of
+///   design §3.1: the one person present, the partner, or a question.
 /// - `spawn_loading`: closure that starts a loading animation; called once per
 ///   player-initiated NPC turn.
 pub async fn handle_npc_conversation(
@@ -641,22 +668,29 @@ pub async fn handle_npc_conversation(
     target_names: Vec<String>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) -> GameInputOutcome {
-    handle_npc_conversation_settled(ctx, raw, target_names, &[], spawn_loading).await
+    let request = AddressRequest {
+        explicit: target_names,
+        decision: None,
+    };
+    handle_npc_conversation_settled(ctx, raw, request, Answers::default(), spawn_loading).await
 }
 
-/// [`handle_npc_conversation`] with the player's answers to earlier
-/// clarifications of the same request: a target name equal to an answered
-/// reference addresses the chosen NPC.
+/// [`handle_npc_conversation`] for a line whose recipients the recipient
+/// policy settles (design §3.1): `request` holds the explicit selection or
+/// the System 1 answer, and `answers` the player's answers to questions this
+/// request already asked.
 ///
-/// When an explicit target matches several people present (and
-/// [`ADDRESSEE_CLARIFICATION_FLAG`] is on), the turn asks which one the
-/// player meant: it emits the question as a system line and returns it in
-/// [`GameInputOutcome::clarification`] without running any dialogue.
+/// When the policy has to ask (unaddressed speech with no partner, or a
+/// reference that fits several people present), the turn emits the question
+/// as a system line and returns it in [`GameInputOutcome::clarification`]
+/// without running any dialogue. No line is answered with a system line
+/// about someone who is not here; only a person chosen earlier who has since
+/// left gets "{label} is no longer here."
 pub async fn handle_npc_conversation_settled(
     ctx: &GameLoopContext<'_>,
     raw: String,
-    target_names: Vec<String>,
-    answered: &[(String, NpcId)],
+    request: AddressRequest,
+    answers: Answers<'_>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) -> GameInputOutcome {
     let trimmed = raw.trim().to_string();
@@ -695,56 +729,16 @@ pub async fn handle_npc_conversation_settled(
         return GameInputOutcome::default();
     }
 
-    let (
-        npc_present,
-        player_location,
-        max_follow_up_turns,
-        autonomous_chain_enabled,
-        targets,
-        absent,
-        clarification,
-    ) = {
+    let (player_location, max_follow_up_turns, autonomous_chain_enabled, resolution) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
-        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
-        // When the player explicitly addresses someone (chip selection, @mention,
-        // or "talk to X"), use the absent-aware resolver so we can tell the
-        // player "{name} is not here." instead of letting a different
-        // co-located NPC speak for them (#985). For ambient input with no
-        // named target, fall back to the first co-located NPC as before.
-        let (targets, absent, ambiguous) = if target_names.is_empty() {
-            (
-                crate::ipc::resolve_npc_targets(&world, &npc_manager, &target_names),
-                Vec::new(),
-                Vec::new(),
-            )
-        } else if config.flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG) {
-            let resolved =
-                crate::ipc::resolve_addressed_targets(&world, &npc_manager, &target_names);
-            (resolved.resolved, resolved.absent, Vec::new())
-        } else {
-            let resolved = crate::ipc::resolve_clarifiable_targets(
-                &world,
-                &npc_manager,
-                &target_names,
-                answered,
-            );
-            (resolved.resolved, resolved.absent, resolved.ambiguous)
-        };
-        // Ask about the first ambiguous reference; any other is asked about
-        // when the answer's run reaches it.
-        let clarification = ambiguous
-            .first()
-            .map(|ambiguous| addressee_prompt(&npc_manager, ambiguous));
+        let clarify = !config.flags.is_disabled(ADDRESSEE_CLARIFICATION_FLAG);
         (
-            npc_present,
             world.player_location,
             config.max_follow_up_turns,
             config.flags.is_enabled(AUTONOMOUS_NPC_CHAIN_FLAG),
-            targets,
-            absent,
-            clarification,
+            resolve_recipients(&world, &npc_manager, &request, answers, clarify),
         )
     };
 
@@ -757,39 +751,65 @@ pub async fn handle_npc_conversation_settled(
         }
     };
 
-    // An addressee that matches several people present is never guessed:
-    // ask which one the player meant before anyone speaks.
-    if let Some(prompt) = clarification {
-        release_claim().await;
-        ctx.emitter.emit_event(
-            "text-log",
-            serde_json::to_value(text_log("system", prompt.as_line()))
-                .unwrap_or(serde_json::Value::Null),
-        );
-        return GameInputOutcome {
-            clarification: Some(AddresseeClarification {
-                prompt,
-                intent: None,
-            }),
-            ..GameInputOutcome::default()
-        };
-    }
-
-    if !npc_present && absent.is_empty() {
-        release_claim().await;
-        let msg = if ctx.idle_messages.is_empty() {
-            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
-            IDLE_MESSAGES[idx].to_string()
-        } else {
-            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % ctx.idle_messages.len();
-            ctx.idle_messages[idx].clone()
-        };
-        ctx.emitter.emit_event(
-            "text-log",
-            serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
-        );
-        return GameInputOutcome::default();
-    }
+    let speakers = match resolution {
+        // Nothing is sent until the player answers.
+        Resolution::Ask(prompt) => {
+            release_claim().await;
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log("system", prompt.as_line()))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+            return GameInputOutcome {
+                clarification: Some(AddresseeClarification {
+                    prompt,
+                    intent: None,
+                    decision: None,
+                }),
+                ..GameInputOutcome::default()
+            };
+        }
+        Resolution::Nobody if answers.everyone || !answers.chosen.is_empty() => {
+            release_claim().await;
+            return GameInputOutcome {
+                unsent: Some(None),
+                ..GameInputOutcome::default()
+            };
+        }
+        Resolution::Nobody => {
+            release_claim().await;
+            let msg = if ctx.idle_messages.is_empty() {
+                let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
+                IDLE_MESSAGES[idx].to_string()
+            } else {
+                let idx =
+                    REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % ctx.idle_messages.len();
+                ctx.idle_messages[idx].clone()
+            };
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
+            );
+            return GameInputOutcome::default();
+        }
+        Resolution::Gone(label) => {
+            release_claim().await;
+            return GameInputOutcome {
+                unsent: Some(Some(format!("{label} is no longer here."))),
+                ..GameInputOutcome::default()
+            };
+        }
+        Resolution::Speak { speakers, partner } => {
+            // Set on the attempt's state, so it commits only with the turn.
+            let mut npc_manager = ctx.npc_manager.lock().await;
+            match partner {
+                PartnerChange::Keep => {}
+                PartnerChange::Set(id) => npc_manager.set_partner(Some(id)),
+                PartnerChange::End => npc_manager.set_partner(None),
+            }
+            speakers
+        }
+    };
 
     if trimmed.is_empty() {
         release_claim().await;
@@ -801,62 +821,6 @@ pub async fn handle_npc_conversation_settled(
             ))
             .unwrap_or(serde_json::Value::Null),
         );
-        return GameInputOutcome::default();
-    }
-
-    // If the player named one or more absent NPCs, tell them so by name —
-    // never let an unrelated co-located NPC speak in the absent NPC's place
-    // (#985). Emit one "{name} is not here." line per absent target. This
-    // must fire before the LLM-not-configured short-circuit so the player
-    // gets useful feedback even when no inference provider is set.
-    //
-    // Also publish a `GameEvent::AddressedAbsentNpc` so character + location
-    // log writers capture the missed introduction in the persisted
-    // markdown — the UI text-log emission alone is ephemeral (#1135 / F9).
-    if !absent.is_empty() {
-        let world = ctx.world.lock().await;
-        let now = world.clock.now();
-        for name in &absent {
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", format!("{name} is not here.")))
-                    .unwrap_or(serde_json::Value::Null),
-            );
-            world
-                .event_bus
-                .publish(limerick_types::GameEvent::AddressedAbsentNpc {
-                    name: name.clone(),
-                    location: player_location,
-                    timestamp: now,
-                });
-        }
-    }
-
-    if targets.is_empty() {
-        release_claim().await;
-        // Either the input had no named targets and the location is empty
-        // (handled above by `npc_present`), or every named target was absent
-        // (already reported via the loop above). Nothing more to say.
-        if absent.is_empty() {
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", super::input::NO_ONE_ANSWERS))
-                    .unwrap_or(serde_json::Value::Null),
-            );
-        } else {
-            // #1493: all named targets are absent. The player may have typed a
-            // farewell ("Goodbye, Mary") to someone who has already departed.
-            // Emit the player's own line so it appears in the log; the
-            // "{name} is not here." lines above already answer it. No "they've
-            // gone" line: the person named may never have been here.
-            if !trimmed.is_empty() {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log_typed("You", &trimmed, "dialogue"))
-                        .unwrap_or(serde_json::Value::Null),
-                );
-            }
-        }
         return GameInputOutcome::default();
     }
 
@@ -902,22 +866,25 @@ pub async fn handle_npc_conversation_settled(
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
     let mut dialogue_failure = None;
+    let targets: Vec<NpcId> = speakers.iter().map(|(id, _)| *id).collect();
 
-    // Phase 1: each addressed NPC takes one turn in the order named.
-    // Cross-NPC opener de-duplication (#1422, #1492) is now applied inside
-    // `run_npc_turn` (before `apply_npc_dialogue_turn` publishes the
-    // `DialogueOccurred` event), so the event and conversation log carry the
-    // already-deduped text. The session-level `seen_openers_this_location` set
-    // in `ctx.conversation` accumulates across both turns within this call and
-    // across successive calls (when the callers share the same `conversation`
-    // Mutex — e.g. the real-loop test harness).
-    for speaker_id in &targets {
-        let Some(outcome) = run_npc_turn(
+    // Phase 1: each recipient takes one turn in roster order, then each
+    // person mentioned who joins. Cross-NPC opener de-duplication (#1422,
+    // #1492) is applied inside `run_npc_turn` (before
+    // `apply_npc_dialogue_turn` publishes the `DialogueOccurred` event), so
+    // the event and conversation log carry the already-deduped text. The
+    // session-level `seen_openers_this_location` set in `ctx.conversation`
+    // accumulates across both turns within this call and across successive
+    // calls (when the callers share the same `conversation` Mutex — e.g. the
+    // real-loop test harness).
+    for (speaker_id, addressing) in &speakers {
+        let Some(outcome) = run_npc_turn_addressed(
             ctx,
             *speaker_id,
             trimmed.as_str(),
             &transcript,
             true,
+            *addressing,
             &spawn_loading,
         )
         .await
@@ -941,7 +908,7 @@ pub async fn handle_npc_conversation_settled(
     // Phase 2: autonomous chain via bystander-aware heuristic.
     // Gated by the `autonomous-npc-chain` feature flag (off by default) so
     // operators can opt into bystander follow-ups. With the flag off, only the
-    // explicitly addressed NPC(s) in Phase 1 reply.
+    // recipients and joining people of Phase 1 reply.
     let chain_cap = if autonomous_chain_enabled {
         max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS)
     } else {
@@ -983,29 +950,7 @@ pub async fn handle_npc_conversation_settled(
         task_mutations: assigned_tasks,
         dialogue_failure,
         clarification: None,
-    }
-}
-
-/// The question put to the player when `ambiguous` matches several people:
-/// one choice per person, labelled with the name the player knows them by.
-fn addressee_prompt(
-    npc_manager: &crate::npc::manager::NpcManager,
-    ambiguous: &crate::ipc::AmbiguousAddressee,
-) -> crate::turn::ClarificationPrompt {
-    let choices = ambiguous
-        .candidates
-        .iter()
-        .filter_map(|id| npc_manager.get(*id))
-        .map(|npc| crate::turn::ClarificationChoice {
-            id: format!("choose-npc-{}", npc.id.0),
-            label: npc_manager.display_name(npc).to_string(),
-            entity_id: Some(npc.id.0.to_string()),
-        })
-        .collect();
-    crate::turn::ClarificationPrompt {
-        question: format!("Which {} do you mean?", ambiguous.reference.trim()),
-        choices,
-        reference: Some(ambiguous.reference.clone()),
+        unsent: None,
     }
 }
 
@@ -1347,13 +1292,11 @@ pub mod tests {
         );
     }
 
-    /// Regression test for #985: when the player explicitly addresses an NPC
-    /// who is not at the player's location, a system "{name} is not here."
-    /// message must be emitted and no NPC inference may be triggered —
-    /// crucially, the shared dispatcher must NOT fall back to letting a
-    /// different co-located NPC speak as if they were the addressee.
+    /// Design §3.1 (owner, 2026-10-17; supersedes #985): a line addressed to
+    /// someone not present reaches the people who are. With Peig alone, a
+    /// chip for Aoife Brennan goes to Peig, and no system line names Aoife.
     #[tokio::test]
-    async fn addressed_absent_npc_emits_system_message_and_no_npc_reply() {
+    async fn a_chip_for_someone_absent_reaches_the_one_person_present() {
         use crate::npc::Npc;
         let emitter = Arc::new(CapturingEmitter::new());
 
@@ -1405,55 +1348,29 @@ pub mod tests {
         .await;
 
         let events = emitter.events.lock().unwrap();
-
-        // The "Aoife Brennan is not here." system message must be emitted.
+        let lines: Vec<&str> = events
+            .iter()
+            .filter(|(name, _)| name == "text-log")
+            .filter_map(|(_, payload)| payload.get("content").and_then(|v| v.as_str()))
+            .collect();
         assert!(
-            events.iter().any(|(name, payload)| {
-                name == "text-log"
-                    && payload
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s.contains("Aoife Brennan is not here."))
-                    && payload
-                        .get("source")
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s == "system")
-            }),
-            "expected `Aoife Brennan is not here.` system message; got events: {:#?}",
-            events.iter().collect::<Vec<_>>(),
+            !lines.iter().any(|line| line.contains("not here")),
+            "no line answers a name with a system line: {lines:?}"
         );
-
-        // No NPC turn was started: the shared dispatcher must NOT emit a
-        // `stream-token` or open a `stream-turn-end` for a co-located NPC.
+        // The line went on to Peig, the one person present; this test has
+        // no model, so the turn stops at the missing provider.
         assert!(
-            !events.iter().any(|(name, _)| name == "stream-token"),
-            "expected no stream-token events when addressed NPC is absent"
-        );
-        assert!(
-            !events.iter().any(|(name, _)| name == "stream-turn-end"),
-            "expected no stream-turn-end events when addressed NPC is absent"
-        );
-
-        // The generic "No one here answers to that name just now." message
-        // must NOT be used here — we want the more specific "{name} is not
-        // here." form whenever the player named a target.
-        assert!(
-            !events.iter().any(|(name, payload)| {
-                name == "text-log"
-                    && payload
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s.contains("No one here answers to that name"))
-            }),
-            "should emit the targeted absence message, not the generic fallback"
+            lines
+                .iter()
+                .any(|line| line.contains("LLM is not configured")),
+            "{lines:?}"
         );
     }
 
-    /// Regression for #1532: the named-absent feedback must win even when the
-    /// player's current location has no co-located NPCs. The generic no-NPC
-    /// idle branch used to run first, hiding the more specific target result.
+    /// Design §3.1 (owner, 2026-10-17; supersedes #1532): with nobody
+    /// present, naming someone gets the idle message only.
     #[tokio::test]
-    async fn addressed_absent_npc_emits_system_message_when_location_empty() {
+    async fn naming_someone_absent_with_nobody_present_gets_the_idle_message() {
         use crate::npc::Npc;
         let emitter = Arc::new(CapturingEmitter::new());
 
@@ -1503,21 +1420,13 @@ pub mod tests {
         .await;
 
         let events = emitter.events.lock().unwrap();
-        assert!(
-            events.iter().any(|(name, payload)| {
-                name == "text-log"
-                    && payload
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s.contains("Fr. Declan Tierney is not here."))
-                    && payload
-                        .get("source")
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s == "system")
-            }),
-            "expected targeted absence message in an empty location; got events: {:#?}",
-            events.iter().collect::<Vec<_>>(),
-        );
+        let lines: Vec<&str> = events
+            .iter()
+            .filter(|(name, _)| name == "text-log")
+            .filter_map(|(_, payload)| payload.get("content").and_then(|v| v.as_str()))
+            .collect();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(crate::ipc::IDLE_MESSAGES.contains(&lines[0]), "{lines:?}");
         assert!(
             !events.iter().any(|(name, _)| name == "stream-token"),
             "expected no NPC stream when the only addressed target is absent"

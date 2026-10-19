@@ -32,11 +32,15 @@ public struct ClarificationChoice: Codable, Equatable, Hashable, Identifiable, S
     public let id: String
     public let label: String
     public let entityID: String?
+    /// What VoiceOver reads when it differs from the label ("Everyone here"
+    /// for All).
+    public let accessibilityLabel: String?
 
-    public init(id: String, label: String, entityID: String? = nil) {
+    public init(id: String, label: String, entityID: String? = nil, accessibilityLabel: String? = nil) {
         self.id = id
         self.label = label
         self.entityID = entityID
+        self.accessibilityLabel = accessibilityLabel
     }
 }
 

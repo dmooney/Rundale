@@ -645,23 +645,10 @@ fn find_npc_by_name<'a>(mgr: &'a NpcManager, name: &str) -> Option<&'a crate::np
     mgr.all_npcs().find(|n| fold(&n.name).contains(&wanted))
 }
 
-/// `text` lowercased with the accents taken off Latin letters (the Irish
-/// fada and its neighbours), for matching typed names.
+/// `text` folded for matching typed names: the engine's one name fold
+/// ([`crate::npc::fold_name`]), shared with every name matcher.
 pub(crate) fn fold(text: &str) -> String {
-    text.chars()
-        .flat_map(char::to_lowercase)
-        .map(|c| match c {
-            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' => 'a',
-            'é' | 'è' | 'ê' | 'ë' | 'ē' => 'e',
-            'í' | 'ì' | 'î' | 'ï' | 'ī' => 'i',
-            'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ō' => 'o',
-            'ú' | 'ù' | 'û' | 'ü' | 'ū' => 'u',
-            'ý' | 'ÿ' => 'y',
-            'ç' => 'c',
-            'ñ' => 'n',
-            other => other,
-        })
-        .collect()
+    crate::npc::fold_name(text)
 }
 
 /// Renders a visual strength bar: `[##########]` for 1.0 to `[..........]` for -1.0.

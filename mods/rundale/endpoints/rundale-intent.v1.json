@@ -3,7 +3,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "rundale-intent-input-v1",
     "title": "Rundale intent invocation v1",
-    "description": "The camelCase JSON form of the engine's input decision: the host's invocation envelope, the player's line, and the people, places and phrases it could be about (dynamic NPC context design §4.3 and §4.6).",
+    "description": "The camelCase JSON form of the engine's input decision: the host's invocation envelope, the player's line, and the people, places and phrases it could be about (dynamic NPC context design §4.3 and §4.6). Nobody elsewhere is offered.",
     "type": "object",
     "additionalProperties": false,
     "properties": {
@@ -113,29 +113,6 @@
         },
         "description": "Each person in the room, in roster order."
       },
-      "elsewhere": {
-        "type": "array",
-        "maxItems": 64,
-        "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "optionId": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 16,
-              "description": "Opaque option id the engine assigns per call, in roster order."
-            },
-            "name": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            }
-          },
-          "required": ["optionId", "name"]
-        },
-        "description": "Each person elsewhere whom the player has been introduced to."
-      },
       "references": {
         "type": "array",
         "maxItems": 16,
@@ -168,6 +145,81 @@
           "required": ["optionId", "phrase", "people"]
         },
         "description": "Each word in the line that fits several people present."
+      },
+      "everyone": {
+        "type": "array",
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optionId": {
+              "type": "string",
+              "enum": ["all"]
+            }
+          },
+          "required": ["optionId"]
+        },
+        "description": "The option 'spoken to everyone present', sent only when two or more people are present."
+      },
+      "someoneElse": {
+        "type": "array",
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optionId": {
+              "type": "string",
+              "enum": ["someone_else"]
+            }
+          },
+          "required": ["optionId"]
+        },
+        "description": "The option 'spoken to someone not present', sent only when two or more people are present."
+      },
+      "noOne": {
+        "type": "array",
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optionId": {
+              "type": "string",
+              "enum": ["no_one"]
+            }
+          },
+          "required": ["optionId"]
+        },
+        "description": "The option 'spoken to no one in particular', sent unless exactly one person is present."
+      },
+      "mentionable": {
+        "type": "array",
+        "maxItems": 32,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "The person's optionId in `present`."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 240
+            }
+          },
+          "required": ["optionId", "name", "description"]
+        },
+        "description": "The people present, again, when two or more are: the subjects of the mention question."
       },
       "places": {
         "type": "array",
@@ -253,8 +305,11 @@
       "role",
       "line",
       "present",
-      "elsewhere",
       "references",
+      "everyone",
+      "someoneElse",
+      "noOne",
+      "mentionable",
       "places",
       "phrases"
     ]
@@ -515,50 +570,79 @@
         },
         "recipient": {
           "type": "choice",
-          "instructions": "Who is `line` spoken to: who is the player addressing and expecting an answer from?",
+          "instructions": "Who is `line` spoken to: whom does the player address and expect an answer from?",
           "criteriaFrom": [
             {
               "field": "present",
               "criterion": {
-                "what": "Spoken to this person: the line names them, or addresses or describes them in a way that fits only them.",
-                "not_for": ["a line only talking about them"]
+                "what": "Spoken to this person: the line calls them by their own name (accents and capitals may be left out), uses their occupation as a title ('Drover, …'), or describes them in a way that fits only them ('you with the yarn').",
+                "not_for": [
+                  "a line that names them in the third person, talking or asking about them",
+                  "a question on a subject they know about, when the line does not call them",
+                  "a line that calls out a name that is not their own name"
+                ]
               },
               "include": ["name", "description", "occupation"]
             },
             {
-              "field": "elsewhere",
-              "criterion": {
-                "what": "Spoken to this person, who is not in the room."
-              },
-              "include": ["name"]
-            },
-            {
               "field": "references",
               "criterion": {
-                "what": "Spoken to whoever this word refers to; it fits several people present."
+                "what": "Spoken to whoever this word means: the line calls out to someone by this word ('Brennan, …') or puts a question to them by it ('ask Brennan …'). It fits several of the people present, so the game will ask which one.",
+                "not_for": ["a line that only talks about them"]
               },
               "include": ["phrase", "people"]
-            }
-          ],
-          "criteria": {
-            "all": {
-              "what": "Spoken to every person present together, and the line says so.",
-              "not_for": ["a line naming only some of the people present"],
-              "examples": ["Good day, everyone", "Evening to you all"]
             },
-            "not_listed": {
-              "what": "Spoken to someone by a name that belongs to none of the other options."
+            {
+              "field": "everyone",
+              "criterion": {
+                "what": "Spoken to every person present together, and the line says so with a word for all of them, such as 'all', 'everyone', 'ye all' or 'the both of you'.",
+                "not_for": [
+                  "a greeting or remark with no word for all of them",
+                  "a line that calls some of the people present by name"
+                ],
+                "examples": [
+                  "Good day, everyone",
+                  "Evening to you all",
+                  "Hello to the both of you"
+                ]
+              }
             },
-            "no_one": {
-              "what": "Not spoken to anyone in particular: a greeting, remark or question that does not name, describe or single out who it is for.",
-              "not_for": ["a name or form of address that fits one option"],
-              "examples": [
-                "Grand weather",
-                "Holy Saint Patrick, what a day",
-                "Is Seamus home yet?"
-              ]
+            {
+              "field": "someoneElse",
+              "criterion": {
+                "what": "Spoken to someone who is not in the room: the line calls out to, or asks something of, a person by a name or title that none of the people in `present` has.",
+                "not_for": [
+                  "an exclamation or oath calling on God, Mary, Jesus or a saint",
+                  "a line that only talks or asks about someone",
+                  "a request to answer as, play or pretend to be someone"
+                ],
+                "examples": [
+                  "Seamus, are you about?",
+                  "Brigid, are you in there?",
+                  "ask Brigid about the fair",
+                  "Father, will you bless the house?"
+                ]
+              }
+            },
+            {
+              "field": "noOne",
+              "criterion": {
+                "what": "Not spoken to anyone in particular: a greeting, remark, exclamation, follow-up or question that does not call anyone by name, title or description.",
+                "not_for": [
+                  "a line that calls someone by name, title or description"
+                ],
+                "examples": [
+                  "Hello",
+                  "Grand weather",
+                  "And what about the turf?",
+                  "Mary, mother of God, what a day!",
+                  "Is Seamus home yet?",
+                  "Does Brigid still keep hens?",
+                  "ask around about the fair"
+                ]
+              }
             }
-          }
+          ]
         },
         "mentioned": {
           "type": "noul",
@@ -572,7 +656,7 @@
               "what": "The line does not mention this person, or it is spoken to them."
             }
           },
-          "forEach": "present",
+          "forEach": "mentionable",
           "include": ["name", "description"]
         },
         "atmosphere": {

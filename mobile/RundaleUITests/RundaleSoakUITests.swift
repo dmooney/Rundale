@@ -100,9 +100,10 @@ final class RundaleSoakUITests: XCTestCase {
 
     /// Peig waits on the village road from 07:00 to 08:59, so a long run's
     /// game clock reaches a morning when she is away from the Letter Office.
-    /// The engine then answers "Peig is not here." without a model call;
-    /// waiting at the counter (`/wait`, the local command) until she returns
-    /// keeps every cycle a dialogue.
+    /// With nobody at the counter the line gets the idle message, a
+    /// narration row, and no dialogue call (design §3.1); waiting at the
+    /// counter (`/wait`, the local command) until she returns keeps every
+    /// cycle a dialogue.
     /// Returns the transcript row of Peig's reply.
     private func askPeigOnceSheIsAtTheCounter() -> String {
         for _ in 0 ..< 12 {
@@ -111,7 +112,7 @@ final class RundaleSoakUITests: XCTestCase {
             var answer: TranscriptTraceEntry?
             XCTAssertTrue(app.waitForTranscriptRow(timeout: 12) { entry in
                 guard !earlier.contains(entry.row),
-                      entry.kind == "npc_dialogue" || entry.text.contains("Peig is not here")
+                      entry.kind == "npc_dialogue" || entry.kind == "narration"
                 else { return false }
                 answer = entry
                 return true

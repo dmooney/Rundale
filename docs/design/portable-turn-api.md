@@ -666,7 +666,7 @@ format (`limerick-persistence/tests/fixtures/save_format_vN.shape`). Changing
 what a save stores fails it until the version is bumped, a fixture of the
 previous format is checked in, and the new shape is recorded. Fixtures:
 `pre_turn_journal_save.db` (format 1), `turn_journal_v2_save.db` (format 2),
-`future_format_unknown_event_save.db` (a newer format with an unknown event
+`format_3_save.db` (format 3), `future_format_unknown_event_save.db` (a newer format with an unknown event
 kind), and `unreadable_state_save.db`.
 
 ## 7. Desktop invariance
