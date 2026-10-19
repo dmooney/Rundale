@@ -1395,6 +1395,7 @@ impl TurnEngine {
         line: Option<String>,
     ) -> Result<TurnStep, TurnError> {
         let request = record.id.clone();
+        let executing = record.clone();
         if let Some(line) = &line {
             let mut notice = builder.event(TranscriptEventKind::Narration);
             notice.content = Some(line.clone());
@@ -1407,15 +1408,31 @@ impl TurnEngine {
             .metadata
             .insert(COMPOSER_TEXT_KEY.to_string(), record.original_text.clone());
         events.push(terminal);
-        let events = self
-            .journal
-            .commit(TurnCommit {
-                record: record.clone(),
-                events,
-                task_mutations: Vec::new(),
-                state: None,
-            })
-            .await?;
+        let commit = TurnCommit {
+            record: record.clone(),
+            events,
+            task_mutations: Vec::new(),
+            state: None,
+        };
+        let events = match self.journal.commit(commit).await {
+            Ok(events) => events,
+            Err(error) => {
+                // Nothing was written: the request ends `Failed` (retryable)
+                // instead of staying open, as a failed commit does in
+                // `finish`.
+                self.records.insert(request.clone(), executing);
+                let _ = self
+                    .end_uncommitted(
+                        &request,
+                        &mut builder,
+                        TerminalOutcome::Failed,
+                        "journal",
+                        &error.to_string(),
+                    )
+                    .await;
+                return Err(error.into());
+            }
+        };
         self.records.insert(request.clone(), record);
         Ok(TurnStep {
             request_id: Some(request),

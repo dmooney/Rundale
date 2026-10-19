@@ -2000,6 +2000,65 @@ async fn choosing_someone_who_has_left_says_so_and_changes_nothing_else() {
     assert_reducer_contract(&journal.events(), &request);
 }
 
+// Gatekeeper finding on #2221: a failed commit while ending a retry whose
+// chosen person left ends the request `Failed` (retryable), not stranded.
+#[tokio::test]
+async fn a_failed_unsent_commit_leaves_the_request_retryable() {
+    let live = Live::rundale().with_decisions();
+    let (_, duffy) = two_micheals(&live).await;
+    let (mut engine, journal) = engine(&live);
+    let line = "talk to Mícheál about the household";
+    let (asked, _, _) = submit_scripted(&mut engine, &live, said(line)).await;
+    let request = asked.request_id.clone().unwrap();
+    let step = engine
+        .answer_clarification(&live.ctx(), &request, &format!("choose-npc-{}", duffy.0))
+        .await
+        .unwrap();
+    let dialogue = awaiting(&step).clone();
+    engine
+        .resume(
+            &live.ctx(),
+            resolution(&dialogue, failed(InferenceFailureKind::Transport)),
+        )
+        .await
+        .unwrap();
+    {
+        let here = live.world.lock().await.player_location;
+        let away = if here == LocationId(1) {
+            LocationId(2)
+        } else {
+            LocationId(1)
+        };
+        live.npc_manager
+            .lock()
+            .await
+            .get_mut(duffy)
+            .unwrap()
+            .set_location(away);
+    }
+
+    journal.fail_next_commits(1);
+    let error = engine.retry(&live.ctx(), &request).await.unwrap_err();
+    assert!(matches!(error, TurnError::Journal(_)), "{error}");
+    assert_eq!(
+        engine.request(&request).unwrap().phase,
+        RequestPhase::Failed
+    );
+
+    let done = engine.retry(&live.ctx(), &request).await.unwrap();
+    assert_eq!(
+        done.events
+            .last()
+            .unwrap()
+            .event
+            .metadata
+            .get(limerick_core::turn::COMPOSER_TEXT_KEY)
+            .map(String::as_str),
+        Some(line)
+    );
+    assert_reducer_contract(&journal.events(), &request);
+}
+
 // Gatekeeper finding on #2221: with the canonical mod's Endpoints declared,
 // an in-process host still answers the intent call with intent JSON. That is
 // no System 1 answer, so a follow-up goes to the partner instead of asking.
