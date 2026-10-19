@@ -13,7 +13,7 @@
     "test:keyless": "python3 scripts/test_keyless_e2e.py"
   },
   "devDependencies": {
-    "promptfoo": "^0.123.1"
+    "promptfoo": "^0.124.1"
   },
   "overrides": {
     "@opentelemetry/core": "2.11.0",

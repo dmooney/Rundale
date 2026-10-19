@@ -53,6 +53,7 @@ pub fn clarification(prompt: &ClarificationPrompt) -> Value {
             "id": choice.id,
             "label": choice.label,
             "entityID": choice.entity_id,
+            "accessibilityLabel": choice.accessibility_label,
         })).collect::<Vec<_>>(),
     })
 }

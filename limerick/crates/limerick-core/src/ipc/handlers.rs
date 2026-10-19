@@ -416,6 +416,28 @@ fn mention_boundary(ch: Option<char>) -> bool {
     }
 }
 
+/// Byte length of the longest prefix of `rest` that spells `wanted` once
+/// both are folded with the engine's name fold, ending at a mention
+/// boundary. Fadas may be typed, left out, or typed as combining marks.
+fn folded_prefix_len(rest: &str, wanted: &str) -> Option<usize> {
+    let wanted = crate::npc::fold_name(wanted);
+    if wanted.is_empty() {
+        return None;
+    }
+    let mut best = None;
+    for (index, ch) in rest.char_indices() {
+        let end = index + ch.len_utf8();
+        let folded = crate::npc::fold_name(&rest[..end]);
+        if !wanted.starts_with(folded.as_str()) {
+            break;
+        }
+        if folded == wanted && mention_boundary(rest[end..].chars().next()) {
+            best = Some(end);
+        }
+    }
+    best
+}
+
 #[derive(Debug, Clone)]
 struct NpcMentionCandidate {
     text: String,
@@ -434,18 +456,20 @@ fn add_npc_mention_candidate(candidates: &mut Vec<(String, String)>, text: &str,
 fn unambiguous_npc_mention_candidates(
     candidates: Vec<(String, String)>,
 ) -> Vec<NpcMentionCandidate> {
+    // Folded as the tag matcher folds (design §3.5), so "Micheal" and
+    // "Mícheál" count as the same text and are ambiguous between two people.
     let mut targets_by_text: HashMap<String, HashSet<String>> = HashMap::new();
     for (text, target) in &candidates {
         targets_by_text
-            .entry(text.to_lowercase())
+            .entry(crate::npc::fold_name(text))
             .or_default()
-            .insert(target.to_lowercase());
+            .insert(crate::npc::fold_name(target));
     }
 
     let mut seen = HashSet::new();
     let mut filtered = Vec::new();
     for (text, target) in candidates {
-        let key = text.to_lowercase();
+        let key = crate::npc::fold_name(&text);
         if targets_by_text
             .get(&key)
             .is_some_and(|targets| targets.len() == 1)
@@ -692,6 +716,57 @@ pub fn extract_npc_mentions(
     world: &WorldState,
     npc_manager: &NpcManager,
 ) -> MentionedNpcs {
+    extract_mentions(raw, world, npc_manager, true)
+}
+
+/// Extracts only the explicit `@tags` of a line: the people the player
+/// selected by typing `@` and a name, which pick the recipients without a
+/// System 1 call (dynamic NPC context design §3.1, step 1). Names merely
+/// mentioned in the line are not tags. `remaining` is the line without them.
+pub fn extract_npc_tags(raw: &str, world: &WorldState, npc_manager: &NpcManager) -> MentionedNpcs {
+    if !raw.contains('@') {
+        return MentionedNpcs {
+            names: vec![],
+            remaining: raw.trim().to_string(),
+        };
+    }
+    let mut tags = extract_mentions(raw, world, npc_manager, false);
+    // An @tag that names no one in the roster (or names several) is still
+    // an explicit selection (design §3.1, step 1): it is kept as written, so
+    // the recipient rules treat it like a line to someone elsewhere, or ask
+    // which person, and System 1 is not called.
+    let mut kept = Vec::new();
+    for word in tags.remaining.split(' ') {
+        match word.strip_prefix('@').map(unmatched_tag_name) {
+            Some((name, rest)) if !name.is_empty() => {
+                tags.names.push(name.to_string());
+                if !rest.is_empty() {
+                    kept.push(rest);
+                }
+            }
+            _ => kept.push(word),
+        }
+    }
+    tags.remaining = canonicalize_whitespace(&kept.join(" "));
+    tags
+}
+
+/// Splits the name an unmatched @tag gives (letters, fadas and apostrophes)
+/// from any punctuation that follows it.
+fn unmatched_tag_name(tagged: &str) -> (&str, &str) {
+    let end = tagged
+        .char_indices()
+        .find(|(_, c)| !(c.is_alphabetic() || *c == '\'' || ('\u{0300}'..='\u{036F}').contains(c)))
+        .map_or(tagged.len(), |(index, _)| index);
+    tagged.split_at(end)
+}
+
+fn extract_mentions(
+    raw: &str,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    natural: bool,
+) -> MentionedNpcs {
     let candidates = npc_mention_candidates(raw, world, npc_manager);
 
     if candidates.is_empty() {
@@ -718,22 +793,13 @@ pub fn extract_npc_mentions(
         let rest = &raw[at + 1..];
         let mut matched: Option<(usize, String)> = None;
         for candidate in &candidates {
-            if rest.len() < candidate.text.len() {
-                continue;
-            }
-            let candidate_len = candidate.text.len();
-            let Some(text) = rest.get(..candidate_len) else {
+            // Folded on both sides (design §3.5): "@Roisin" tags Róisín.
+            let Some(candidate_len) = folded_prefix_len(rest, &candidate.text) else {
                 continue;
             };
-            let Some(after) = rest.get(candidate_len..) else {
-                continue;
-            };
-            if text.eq_ignore_ascii_case(&candidate.text) && mention_boundary(after.chars().next())
-            {
-                match &matched {
-                    Some((len, _)) if *len >= candidate_len => {}
-                    _ => matched = Some((candidate_len, candidate.target.clone())),
-                }
+            match &matched {
+                Some((len, _)) if *len >= candidate_len => {}
+                _ => matched = Some((candidate_len, candidate.target.clone())),
             }
         }
 
@@ -745,7 +811,11 @@ pub fn extract_npc_mentions(
         }
     }
 
-    let natural_spans = find_natural_npc_mentions(raw, &candidates, &spans);
+    let natural_spans = if natural {
+        find_natural_npc_mentions(raw, &candidates, &spans)
+    } else {
+        Vec::new()
+    };
 
     if spans.is_empty() {
         if natural_spans.is_empty() {
@@ -1766,6 +1836,28 @@ mod tests {
         assert_eq!(extracted.remaining, "what have you heard?");
     }
 
+    /// Design §3.5: an @tag typed as text folds like every name matcher, so
+    /// fadas may be left out or typed as combining marks.
+    #[test]
+    fn an_at_tag_typed_without_fadas_or_with_combining_marks_tags_the_person() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.set_location(world.player_location);
+        npc.name = "Róisín Connolly".to_string();
+        npc_mgr.add_npc(npc);
+
+        for raw in [
+            "@Roisin Connolly any news?",
+            "@roisin connolly any news?",
+            "@Ro\u{301}isi\u{301}n Connolly any news?",
+        ] {
+            let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+            assert_eq!(extracted.names, ["Róisín Connolly"], "{raw:?}");
+            assert_eq!(extracted.remaining, "any news?", "{raw:?}");
+        }
+    }
+
     #[test]
     fn extract_npc_mentions_ignores_ambiguous_first_names() {
         let world = WorldState::new();
@@ -1791,6 +1883,48 @@ mod tests {
 
         assert!(extracted.names.is_empty());
         assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn a_tag_that_folds_to_two_first_names_tags_no_one() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        for (id, name) in [(1, "Mícheál Connolly"), (2, "Micheal Brennan")] {
+            let mut npc = Npc::new_test_npc();
+            npc.id = NpcId(id);
+            npc.name = name.to_string();
+            npc.set_location(world.player_location);
+            npc_mgr.add_npc(npc);
+            npc_mgr.mark_introduced(NpcId(id));
+        }
+
+        // Neither full name is chosen: the tag is kept as written, and the
+        // recipient rules ask which Mícheál.
+        for (raw, tag) in [
+            ("@Micheal could I ask ye something?", "Micheal"),
+            ("@Mícheál could I ask ye something?", "Mícheál"),
+        ] {
+            let extracted = extract_npc_tags(raw, &world, &npc_mgr);
+            assert_eq!(extracted.names, [tag], "{raw:?}");
+            assert_eq!(extracted.remaining, "could I ask ye something?");
+        }
+    }
+
+    #[test]
+    fn a_tag_for_someone_not_in_the_roster_is_kept_as_an_explicit_name() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Róisín Connolly".to_string();
+        npc.set_location(world.player_location);
+        npc_mgr.add_npc(npc);
+
+        let extracted = extract_npc_tags("@Seán, how is the road?", &world, &npc_mgr);
+        assert_eq!(extracted.names, ["Seán"]);
+        assert_eq!(extracted.remaining, ", how is the road?");
+        let plain = extract_npc_tags("mail me at a@b please", &world, &npc_mgr);
+        assert!(plain.names.is_empty(), "{:?}", plain.names);
     }
 
     #[test]

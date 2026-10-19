@@ -21,6 +21,7 @@ use super::ids::{
     ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision, TranscriptItemId,
 };
 use crate::input::PlayerIntent;
+use crate::intent_decision::RecipientDecision;
 
 /// Where a request or attempt is in its lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,6 +93,10 @@ pub struct ClarificationChoice {
     /// The entity the choice selects (an NPC id), when there is one.
     #[serde(default)]
     pub entity_id: Option<String>,
+    /// What a screen reader says for the choice, when it differs from the
+    /// label ("Everyone here" for **All**).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accessibility_label: Option<String>,
 }
 
 /// A finite question put to the player.
@@ -195,6 +200,27 @@ pub struct RequestRecord {
     /// calling the intent model again.
     #[serde(default)]
     pub resolved_intent: Option<PlayerIntent>,
+    /// The System 1 answer about who the line is for, settled with the
+    /// intent before the first clarification and reused like it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_recipient: Option<RecipientDecision>,
+    /// The System 1 intent reply this request already received, with the
+    /// call it answered. A later attempt whose intent call is the same (same
+    /// line, same room) reuses the reply instead of calling System 1 again,
+    /// so a retry, or a run after a restart, cannot change the action or the
+    /// recipients. A call against a changed room is made afresh.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settled_intent_reply: Option<SettledIntentReply>,
+}
+
+/// A journaled System 1 intent reply (see
+/// [`RequestRecord::settled_intent_reply`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettledIntentReply {
+    /// Fingerprint of the call the reply answered.
+    pub call: String,
+    /// The reply text.
+    pub text: String,
 }
 
 /// A transition that the current state does not allow.
@@ -256,6 +282,8 @@ impl RequestRecord {
             pending_clarification: None,
             selected_addressees: Vec::new(),
             resolved_intent: None,
+            resolved_recipient: None,
+            settled_intent_reply: None,
         }
     }
 
@@ -362,12 +390,14 @@ impl RequestRecord {
     }
 
     /// Parks the running attempt on a question for the player. The intent
-    /// the attempt resolved is kept for the answer's run, unless an earlier
-    /// clarification of the request already fixed it.
+    /// and recipient answer the attempt resolved are kept for the answer's
+    /// run, unless an earlier clarification of the request already fixed
+    /// them.
     pub fn await_clarification(
         &mut self,
         prompt: ClarificationPrompt,
         intent: Option<PlayerIntent>,
+        recipient: Option<RecipientDecision>,
     ) -> Result<(), LifecycleError> {
         let id = self.id.clone();
         let attempt = self
@@ -379,6 +409,7 @@ impl RequestRecord {
         self.pending_clarification = Some(prompt);
         if !self.is_clarified() {
             self.resolved_intent = intent;
+            self.resolved_recipient = recipient;
         }
         Ok(())
     }
@@ -517,11 +548,13 @@ mod tests {
                     id: "choose-1".to_string(),
                     label: "Mícheál Connolly".to_string(),
                     entity_id: Some("1".to_string()),
+                    accessibility_label: None,
                 },
                 ClarificationChoice {
                     id: "choose-2".to_string(),
                     label: "Róisín Connolly".to_string(),
                     entity_id: Some("2".to_string()),
+                    accessibility_label: None,
                 },
             ],
             reference: Some("Connolly".to_string()),
@@ -641,7 +674,7 @@ mod tests {
         );
 
         let (mut asking, _) = running();
-        asking.await_clarification(prompt(), None).unwrap();
+        asking.await_clarification(prompt(), None, None).unwrap();
         assert!(!asking.recover());
         assert_eq!(asking.phase, RequestPhase::AwaitingClarification);
 
@@ -657,7 +690,7 @@ mod tests {
         let first_call = record.next_call().unwrap();
         let intent = crate::input::unknown_intent("ask Peig about the wall");
         record
-            .await_clarification(prompt(), Some(intent.clone()))
+            .await_clarification(prompt(), Some(intent.clone()), None)
             .unwrap();
         let restored: RequestRecord =
             serde_json::from_str(&serde_json::to_string(&record).unwrap()).unwrap();
@@ -701,7 +734,7 @@ mod tests {
     #[test]
     fn a_superseded_clarification_is_cancelled_and_retryable() {
         let (mut record, _) = running();
-        record.await_clarification(prompt(), None).unwrap();
+        record.await_clarification(prompt(), None, None).unwrap();
         assert_eq!(
             record.begin_attempt(ExecutionAttemptId::new("a2"), StateRevision(0)),
             Err(LifecycleError::StillOpen(record.id.clone()))
@@ -725,6 +758,7 @@ mod tests {
             id: "choose-3".to_string(),
             label: "Peig Hannigan".to_string(),
             entity_id: None,
+            accessibility_label: None,
         });
         assert_eq!(
             three.as_line(),

@@ -5,7 +5,7 @@ CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/har
 ## Scoped commands
 
 ```sh
-just check          # docs format + markdownlint, OSV scan of changed lockfiles, then fmt + clippy + tests (mirrors the docs, OSV scan-pr, and Rust gates)
+just check          # docs format + markdownlint, OSV scan of changed lockfiles, complete Python quality job, then fmt + clippy + tests
 just agent-check    # evidence-link gate, local mode (agent-check job reads the PR body)
 just verify         # check + harness walkthrough
 
@@ -24,6 +24,7 @@ just act-pr         # simulate the pull_request fast lane
 ## Local gotchas
 
 - **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. A separate `nondoc` filter (`predicate-quantifier: every`, excluding `**/*.md` and `docs/**`) forces `runtime`, `differential`, and `promptfoo` to false for documentation-only PRs, including Markdown inside crates, mods, and scripts. Its docs-consistency job also enforces the tracked-artifact size/path/orphan policy. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
+- **`paths-filter` exclusions need `some-with-excludes`.** Its default `some` quantifier ORs every pattern, so a final `!**/AGENTS.md` still matches paths caught by an earlier broad positive such as `mobile/**`. Use `predicate-quantifier: some-with-excludes` when a filter mixes positive patterns and exclusions; see the [action's predicate quantifier docs](https://github.com/dorny/paths-filter#predicate-quantifier).
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt ([truthful test automation](../../docs/agent/test-tooling-rules.md#truthful-test-automation)).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
@@ -119,7 +120,7 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `testflight.yml` — Internal TestFlight upload
 
-- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `workflow_dispatch`.
+- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `AGENTS.md` files are excluded; `workflow_dispatch`.
 - Runs `python3 mobile/scripts/release.py testflight` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. It passes `--verify none` when `verify_record.py check --commit` finds a recorded `mobile-verify` pass for the commit's input tree, and `--verify all` (the full gate here) otherwise. The build number is App Store Connect's highest upload plus one, fetched with the API key; full history is checked out for the commit-count fallback.
 - **Auth:** an App Store Connect API key (`ASC_API_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`) and the private Firebase plist (`FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64`), secrets of the `testflight` environment ([runbook](../../mobile/testflight.md#uploading-from-github)).
 - **Concurrency:** `testflight`, cancel-in-progress: **false**.

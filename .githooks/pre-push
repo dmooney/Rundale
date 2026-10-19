@@ -26,9 +26,9 @@ bash limerick/scripts/ensure-deps.sh js . || {
 echo "pre-push: checking docs/data formatting (prettier + markdownlint)..."
 bash limerick/scripts/check-docs-format.sh
 
-# Python changes also get CI's ruff and mypy checks ("Python quality"), which
-# `just check` does not run: a branch-local `mypy` on single files once missed
-# a type error `mypy .` caught in CI.
+# Python changes get a fast repository-wide ruff and mypy pass here. This hook
+# intentionally skips yamllint and pytest; `just check` and `just verify` run the
+# full Python quality job, including both checks, before their Rust checks.
 base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
 if [[ -n "$base" ]] && git diff --name-only "$base" HEAD -- '*.py' | grep -q .; then
     bash limerick/scripts/ensure-deps.sh py || {

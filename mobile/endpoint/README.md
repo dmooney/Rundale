@@ -174,8 +174,13 @@ Attest remains unverified.
 Endpoints service: a dialogue turn (`rundale-intent` v1, then
 `rundale-dialogue` v1), Stop during a streamed reply, free-form movement
 classified by `rundale-intent` v1, and "ask Connolly about the household" at
-the cottage asking which Connolly before anyone answers, and the #1901 probe
-that an accepted reply agrees with the speaker's current location. It is opt-in and needs a Firebase App Check
+the cottage asking which Connolly before anyone answers, the #1901 probe
+that an accepted reply agrees with the speaker's current location, "Hello" at
+the cottage asking who it is for and the chosen Róisín answering, and
+"Róisín, what news…?" reaching Róisín before any introduction (dynamic NPC
+context §8 rows 2 and 7), and a paced run where a spoken line reaches the
+people present (one person present answers any line; two present ask on
+"Hello"; a line to someone elsewhere reaches both). It is opt-in and needs a Firebase App Check
 debug token registered for the Rundale iOS app. Against `limerick-prod`:
 
 ```sh
