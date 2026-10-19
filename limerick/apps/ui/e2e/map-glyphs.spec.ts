@@ -57,6 +57,9 @@ test('bundled glyphs stay same-origin across every MapLibre surface', async ({
 	await expect(page.getByTestId('map-panel').locator('canvas')).toBeVisible();
 	await assertHealthy('minimap');
 
+	// The composer autofocuses on load; the M shortcut only fires outside a
+	// typing context.
+	await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
 	await page.keyboard.press('m');
 	const fullMap = page.getByTestId('full-map');
 	await expect(fullMap.locator('canvas')).toBeVisible();
