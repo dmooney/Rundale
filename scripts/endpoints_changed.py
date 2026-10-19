@@ -68,15 +68,14 @@ def changed_paths(base: str, runner: Runner) -> list[str]:
         raise SystemExit(f"endpoints-changed: cannot find the merge base with {base}")
     # Without rename detection a move lists both its old and new paths, as
     # CI's path filter does, so moving a file out of a watched directory
-    # still runs the job.
+    # still runs the job. `-z` gives raw, NUL-separated paths: without it
+    # git quotes names with non-ASCII characters ("endpoints/caf\\303\\251.ts").
     outputs = (
-        git(["diff", "--name-only", "--no-renames", f"{merge_base}...HEAD"], runner),
-        git(["diff", "--name-only", "--no-renames", "HEAD"], runner),
-        git(["ls-files", "--others", "--exclude-standard"], runner),
+        git(["diff", "--name-only", "--no-renames", "-z", f"{merge_base}...HEAD"], runner),
+        git(["diff", "--name-only", "--no-renames", "-z", "HEAD"], runner),
+        git(["ls-files", "--others", "--exclude-standard", "-z"], runner),
     )
-    return sorted(
-        {line.strip() for output in outputs for line in output.splitlines() if line.strip()}
-    )
+    return sorted({path for output in outputs for path in output.split("\0") if path})
 
 
 def main(argv: Sequence[str] | None = None, runner: Runner = run) -> int:

@@ -23,10 +23,11 @@ class FakeRunner:
         untracked: Sequence[str] = (),
         failing: str | None = None,
     ) -> None:
+        # NUL-separated, as `git ... -z` prints them.
         self.git = {
-            "committed": "\n".join(committed),
-            "uncommitted": "\n".join(uncommitted),
-            "untracked": "\n".join(untracked),
+            "committed": "".join(f"{path}\0" for path in committed),
+            "uncommitted": "".join(f"{path}\0" for path in uncommitted),
+            "untracked": "".join(f"{path}\0" for path in untracked),
         }
         self.failing = failing
         self.pnpm: list[list[str]] = []
@@ -39,10 +40,11 @@ class FakeRunner:
             return subprocess.CompletedProcess(argv, 0, "abc123\n", "")
         if argv[:2] == ["git", "diff"]:
             # A rename-detecting diff would list only a move's new path.
-            assert "--no-renames" in argv, argv
+            assert "--no-renames" in argv and "-z" in argv, argv
             key = "committed" if argv[-1].endswith("...HEAD") else "uncommitted"
             return subprocess.CompletedProcess(argv, 0, self.git[key], "")
         if argv[:2] == ["git", "ls-files"]:
+            assert "-z" in argv, argv
             return subprocess.CompletedProcess(argv, 0, self.git["untracked"], "")
         assert argv[0] == "pnpm" and cwd == "endpoints", argv
         self.pnpm.append(argv)
@@ -101,6 +103,15 @@ def test_moving_a_file_out_of_a_watched_directory_runs_the_check(where: str) -> 
     # With --no-renames, git lists the move's old path as deleted.
     moved = ["endpoints/packages/runtime/src/old.ts", "limerick/new.ts"]
     runner = FakeRunner(committed=moved) if where == "committed" else FakeRunner(uncommitted=moved)
+    assert endpoints_changed.main([], runner) == 0
+    assert len(runner.pnpm) == 2
+
+
+@pytest.mark.parametrize("where", ["committed", "uncommitted", "untracked"])
+def test_a_non_ascii_filename_is_matched_unquoted(where: str) -> None:
+    changes: dict[str, list[str]] = {"committed": [], "uncommitted": [], "untracked": []}
+    changes[where] = ["endpoints/examples/café.ts"]
+    runner = FakeRunner(changes["committed"], changes["uncommitted"], changes["untracked"])
     assert endpoints_changed.main([], runner) == 0
     assert len(runner.pnpm) == 2
 
