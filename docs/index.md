@@ -31,8 +31,8 @@ for interaction and embedded-runtime verification; they do not record test resul
 | `agent/`         | Task routing, scoped invariants, build and proof procedures     | Engineering guidance                                    |
 | `design/`        | Durable subsystem reference — how a shipped/extant system works | Implemented · Partial                                   |
 | `design/ideas/`  | Brainstorms, RFCs, speculative proposals                        | Brainstorm · Proposed                                   |
-| `plans/`         | Active plans, history, and migration bridges                    | Complete · In progress · Planned · Proposed · Abandoned |
-| `plans/archive/` | Completed or historical plans (incl. linear phases)             | Complete                                                |
+| `plans/`         | Active implementation plans                                     | Complete · In progress · Planned · Proposed · Abandoned |
+| `plans/archive/` | Completed or historical plans (incl. linear phases)             | Complete · Abandoned                                    |
 | `adr/`           | Architecture Decision Records                                   | Accepted · Proposed                                     |
 
 Every design/plan doc carries a `> Status: …` header. See
@@ -113,22 +113,21 @@ Speculative and forward-looking — not (yet) committed work.
 
 ## Plans — active
 
-| Plan                                                                                                        | Status    |
-| ----------------------------------------------------------------------------------------------------------- | --------- |
-| [Mobile Engine Convergence](plans/mobile-engine-convergence.md)                                             | Accepted  |
-| [Interactive Limerick Diorama — Runtime Compositor Implementation](plans/rundale-diorama-implementation.md) | Proposed  |
-| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                                 | Retired   |
-| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                    | Closed    |
-| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                       | Planned   |
-| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                     | Planned   |
-| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                                  | Partial   |
-| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                          | Planned   |
-| [Rundale-Bench](plans/rundale-bench.md)                                                                     | Abandoned |
-| [Rundale Benchmark 3.0 migration bridge](plans/rundale-bench-3.0.md)                                        | Planned   |
-| [LLM Quality Evals](plans/llm-quality-evals.md)                                                             | Proposed  |
-| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                        | Proposed  |
-| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                   | Proposed  |
-| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                                 | Proposed  |
+| Plan                                                                                                        | Status   |
+| ----------------------------------------------------------------------------------------------------------- | -------- |
+| [Mobile Engine Convergence](plans/mobile-engine-convergence.md)                                             | Accepted |
+| [Interactive Limerick Diorama — Runtime Compositor Implementation](plans/rundale-diorama-implementation.md) | Proposed |
+| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                                 | Retired  |
+| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                    | Closed   |
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                       | Planned  |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                     | Planned  |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                                  | Partial  |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                          | Planned  |
+| [Rundale Benchmark 3.0 repository handoff](plans/rundale-bench-3.0.md)                                      | Planned  |
+| [LLM Quality Evals](plans/llm-quality-evals.md)                                                             | Proposed |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                        | Proposed |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                   | Proposed |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                                 | Proposed |
 
 ## Supporting implementation records
 
@@ -151,6 +150,7 @@ not the top-level product roadmap.
 
 | Plan                                                                                            |                |
 | ----------------------------------------------------------------------------------------------- | -------------- |
+| [Rundale-Bench (pre-3.0)](plans/archive/rundale-bench.md)                                       | Abandoned      |
 | [Phase 1 — Core Loop](plans/archive/phase-1-core-loop.md)                                       | Complete       |
 | [Phase 2 — World Graph](plans/archive/phase-2-world-graph.md)                                   | Complete       |
 | [Phase 3 — NPCs & Simulation](plans/archive/phase-3-npcs-simulation.md)                         | Complete       |

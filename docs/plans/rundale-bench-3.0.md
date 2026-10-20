@@ -1,8 +1,8 @@
 # Rundale Benchmark 3.0 — repository handoff and interview archive
 
 > Status: Planned · blocked pending verification of the full new-site launch
-> (current results, archived results, and evidence links). Benchmark repository
-> PRs 1 and 2 have merged; that foundation and provisional judging do not satisfy
+> (current results, archived results, and evidence links). The repository
+> foundation and provisional judging have merged; they do not satisfy
 > the launch evidence requirement. Updated: 2026-10-18 · [Docs Index](../index.md)
 
 This file preserves the October 11, 2026 owner interview and subsequent scope
@@ -41,7 +41,9 @@ Cost and performance remain separate measurements, not overall-score components.
 Intent inference now uses Jev in the game. Intent, reaction, Tier 2/3 simulation,
 and full-session evals are deferred from the initial benchmark. No LLM player or
 20-turn session is required for this initial scope. The $5 total budget still
-covers candidate inference and judging. Irish judging remains mandatory.
+covers candidate inference and judging. Reference-backed objective Gaeilge
+checks are mandatory; fluent Irish naturalness and style remain unqualified
+and do not contribute to the score.
 
 This update takes precedence over the broader original design below. Its
 full-session/world/player requirements and acceptance criteria apply only if
