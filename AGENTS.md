@@ -176,9 +176,9 @@ depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
 The gatekeeper is a different model from the author. A change whose commits carry
-a `Co-Authored-By: Claude …` trailer is reviewed by GPT through Codex, which reads
-the same skill (`.codex/skills` links to `.agents/skills`); read its report from
-the `-o` file:
+a `Co-Authored-By: Claude …` or `Co-Authored-By: Gemini …` trailer is reviewed by
+GPT through Codex, which reads the same skill (`.codex/skills` links to
+`.agents/skills`); read its report from the `-o` file:
 
 ```sh
 codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
@@ -190,11 +190,19 @@ for input forever. Run a local review in its own worktree so branch switches in
 the main checkout cannot change what it reads, and check its output within a few
 minutes of starting it.
 
-Every other change is reviewed by Claude, run from the checkout:
+Codex-authored changes are cross-reviewed by Gemini through **agy using the
+owner's Google subscription**, run from the review checkout:
 
 ```sh
-claude -p --model claude-opus-5-5 "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
+  agy --model gemini-3.8-flash-high --output-format text \
+  -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
+
+Use agy's personal Google-account sign-in, without an API-key provider override.
+Do not use Gemini CLI (`gemini`) or paid APIs for cross-reviews. If subscription
+authentication or quota fails, report the blocker; a paid API fallback requires
+explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
 
 Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
