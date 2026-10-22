@@ -60,6 +60,11 @@ from grade import (  # noqa: E402
 from schemas import SummarySchema  # noqa: E402
 
 _ARTIFACTS_DIR = _BENCH_DIR / "artifacts"
+_LEGACY_JUDGING_GUIDE = (
+    "https://github.com/dmooney/Rundale/blob/"
+    "3bf68689ea7f6e6717c8aec2f3a6869231742cf5/"
+    ".agents/skills/rundale-bench/SKILL.md"
+)
 
 INTENT_SYS = (
     "You are a text adventure input parser. Given the player's natural language input, "
@@ -518,8 +523,8 @@ def run_reaction_bundled(
 ) -> dict:
     """Subagent-judged variant of `run_reaction`. Mirrors dialogue's
     bundled pattern: generate replies, write one bundle to the queue,
-    let `ingest --finalize` fold scores back after `/rundale-bench
-    drain-queue` runs."""
+    let `ingest --finalize` fold scores back after the archived pre-3.0
+    queue-drain procedure runs."""
     verify_judge_rubric(judge)
     candidate = _bundled_candidate(target, args)
 
@@ -802,8 +807,8 @@ def run_gaeilge_bundled(
 ) -> dict:
     """Subagent-judged variant of `run_gaeilge`. Mirrors dialogue's
     bundled pattern: generate candidate Irish replies, write one bundle
-    to the queue, defer all axis scoring to `/rundale-bench
-    drain-queue` + `ingest --finalize`."""
+    to the queue, defer all axis scoring to the archived pre-3.0
+    queue-drain procedure and `ingest --finalize`."""
     verify_judge_rubric(judge)
     candidate = _bundled_candidate(target, args)
 
@@ -1412,7 +1417,8 @@ def cmd_run(argv: list[str]) -> None:
     for model in models:
         _run_one_model(model, model.cheapest_provider(), args)
     print(
-        f"[run] done. Next: /rundale-bench drain-queue, then 'ingest --finalize', "
+        f"[run] done. Follow the pre-3.0 judging guide: {_LEGACY_JUDGING_GUIDE}. "
+        f"Then 'ingest --finalize', "
         f"then 'promote --from {args.tier}'."
     )
 
@@ -1547,7 +1553,9 @@ def cmd_rejudge(argv: list[str]) -> None:
         )
         jb.write_pending(bundle)
         print(f"[rejudge] queued {len(items)} item(s) for {mid}")
-    print("[rejudge] run /rundale-bench drain-queue, then 'ingest --finalize'.")
+    print(
+        f"[rejudge] follow the pre-3.0 judging guide: {_LEGACY_JUDGING_GUIDE}, then 'ingest --finalize'."
+    )
 
 
 def _load_perf_prompts(slice_name: str, suite: str) -> tuple[str, list[str]]:
