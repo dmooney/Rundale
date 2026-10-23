@@ -1588,6 +1588,13 @@ class XcresultTreeTests(unittest.TestCase):
                 {"nodeType": "Attachment", "name": "Screenshot"},
             ],
         }
+        # An XCTExpectFailure case carries its messages, but is not a failure.
+        expected = {
+            "nodeType": "Test Case",
+            "name": "testKnownDefect()",
+            "result": "Expected Failure",
+            "children": [{"nodeType": "Failure Message", "name": "B.swift:5: known"}],
+        }
         tree = {
             "testNodes": [
                 {
@@ -1598,7 +1605,11 @@ class XcresultTreeTests(unittest.TestCase):
                             "nodeType": "UI test bundle",
                             "name": "RundaleUITests",
                             "children": [
-                                {"nodeType": "Test Suite", "name": "AUITests", "children": [case]},
+                                {
+                                    "nodeType": "Test Suite",
+                                    "name": "AUITests",
+                                    "children": [case, expected],
+                                },
                             ],
                         },
                     ],

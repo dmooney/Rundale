@@ -445,10 +445,12 @@ FAILURE_MESSAGE_CHARS = 400
 DEFERRED = "deferred"
 
 
-def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
-    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+def _xcresult_case_nodes(
+    tree: Mapping[str, Any],
+) -> list[tuple[str, str, str, Mapping[str, Any]]]:
+    """Return (bundle, class, test, node) for every test case node in an xcresult tree."""
 
-    cases: list[tuple[str, str, str, str]] = []
+    cases: list[tuple[str, str, str, Mapping[str, Any]]] = []
 
     def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
         kind = str(node.get("nodeType", ""))
@@ -458,7 +460,7 @@ def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
         elif kind == "Test Suite" and not suite:
             suite = name
         elif kind == "Test Case":
-            cases.append((bundle, suite, name, str(node.get("result", ""))))
+            cases.append((bundle, suite, name, node))
             return
         for child in node.get("children") or ():
             if isinstance(child, Mapping):
@@ -470,14 +472,22 @@ def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
     return cases
 
 
+def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+
+    return [
+        (bundle, suite, name, str(node.get("result", "")))
+        for bundle, suite, name, node in _xcresult_case_nodes(tree)
+    ]
+
+
 def _xcresult_failures(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
-    """Return (bundle, class, test, message) for every failure message in an xcresult tree.
+    """Return (bundle, class, test, message) for every failure message of a failed case.
 
     The messages carry the file, line and assertion text, so a CI log shows why a
-    test failed without the result bundle.
+    test failed without the result bundle. A case `_case_counts` does not count
+    as failed (passed, skipped, or an XCTExpectFailure) contributes none.
     """
-
-    failures: list[tuple[str, str, str, str]] = []
 
     def messages(node: Mapping[str, Any]) -> list[str]:
         found = [str(node.get("name", ""))] if node.get("nodeType") == "Failure Message" else []
@@ -486,24 +496,12 @@ def _xcresult_failures(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str
                 found += messages(child)
         return found
 
-    def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
-        kind = str(node.get("nodeType", ""))
-        name = str(node.get("name", ""))
-        if kind.endswith("test bundle"):
-            bundle, suite = name, ""
-        elif kind == "Test Suite" and not suite:
-            suite = name
-        elif kind == "Test Case":
-            failures.extend((bundle, suite, name, message) for message in messages(node))
-            return
-        for child in node.get("children") or ():
-            if isinstance(child, Mapping):
-                walk(child, bundle, suite)
-
-    for node in tree.get("testNodes") or ():
-        if isinstance(node, Mapping):
-            walk(node, "", "")
-    return failures
+    return [
+        (bundle, suite, name, message)
+        for bundle, suite, name, node in _xcresult_case_nodes(tree)
+        if _case_counts([str(node.get("result", ""))])["failedTests"]
+        for message in messages(node)
+    ]
 
 
 def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
