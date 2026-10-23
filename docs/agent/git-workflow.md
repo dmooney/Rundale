@@ -2,7 +2,7 @@
 
 ## Conventional commits
 
-Prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`. One logical change per commit. Imperative summaries. Reference issues with `resolve #135` when relevant.
+Prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`. One logical change per commit. Imperative summaries. No trailers (`Co-Authored-By`, session links, or other attribution). Reference issues with `resolve #135` when relevant.
 
 ## Pre-push
 
@@ -77,9 +77,9 @@ it:
    (`release.yml` never runs on pull requests; CI's `workflow-quality` job
    checks every workflow's action inputs statically);
 5. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
-   merges it, sends it back, or hands it to the owner. Dependabot's commits
-   carry no model trailer, so the gatekeeper is Claude; once the routine has
-   added a Claude-written fix, it is Codex.
+   merges it, sends it back, or hands it to the owner. The routine's fixer is
+   Claude, so the gatekeeper is Claude while every commit is Dependabot's and
+   Codex once any other author has committed.
 
 It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first
