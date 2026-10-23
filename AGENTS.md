@@ -206,6 +206,16 @@ explicit owner approval. See the [gatekeeper authentication policy](.agents/skil
 
 Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
+**Claude Code cloud sessions are exempt from the cross-model rule.** A cloud
+session cannot sign in to Codex or agy on the owner's subscriptions, and paid APIs
+are not allowed for reviews. Its commits carry a
+`Claude-Session: https://claude.ai/code/session_…` trailer beside the Claude
+co-author. When every Claude-authored commit in the change carries that trailer,
+the gatekeeper is a fresh Claude subagent: spawn a new general-purpose agent
+(never a fork), give it only the checkout path or PR number, and tell it to run
+the gatekeeper skill. Everything else in this section still applies. A Claude
+commit without the trailer still needs the Codex review above.
+
 ### Keep the iPhone beta current
 
 The owner wants to try new features and fixes on their iPhone. Whenever a change

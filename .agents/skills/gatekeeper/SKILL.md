@@ -27,6 +27,12 @@ use whatever equivalent GitHub tool your harness provides.
   it in a `Co-Authored-By` trailer (Claude, Codex for GPT, or Gemini). If they
   name yours, stop and report that a reviewer from a different family must run
   instead ([AGENTS.md, Gatekeeper review](../../../AGENTS.md#gatekeeper-review)).
+  One exception: a Claude reviewer may review Claude commits when every one of
+  them also carries a `Claude-Session: https://claude.ai/code/session_…`
+  trailer, which marks Claude Code cloud-session work. A Claude commit without
+  it still needs a reviewer from a different family. A fresh subagent spawned
+  by that cloud session with only the checkout path or PR number is not the
+  session that developed the PR; a fork of it is.
 - Never review a PR you helped develop in the same session. If your harness
   can spawn a fresh-context subagent, review each PR in its own subagent given
   only the PR number and this file.
