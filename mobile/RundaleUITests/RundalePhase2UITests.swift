@@ -192,7 +192,10 @@ final class RundalePhase2DialogueUITests: RundalePhase2UITestCase {
         waitForInitialScene()
         goToTheCottage()
 
-        submit("ask Mícheál about the cattle")
+        // "slowly" keeps the reply streaming for about 12 s, so the row is
+        // still provisional when it is read; a 4-second stream could finish
+        // first on a slow host (#2287).
+        submit("ask Mícheál about the cattle slowly")
 
         let provisional = dialogueRow(containing: "The wet ground")
         XCTAssertTrue(provisional.waitForExistence(timeout: 8))
