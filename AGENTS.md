@@ -190,6 +190,12 @@ for input forever. Run a local review in its own worktree so branch switches in
 the main checkout cannot change what it reads, and check its output within a few
 minutes of starting it.
 
+**Exemption: Claude Code in the cloud.** A Claude Code cloud session
+(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) has its own work reviewed by a
+regular Claude subagent instead of a cross-model reviewer. Spawn a fresh-context
+subagent (never a fork of your session) and give it only the checkout path or PR
+number and the instruction to run the gatekeeper skill.
+
 Codex-authored changes are cross-reviewed by Gemini through **agy using the
 owner's Google subscription**, run from the review checkout:
 
