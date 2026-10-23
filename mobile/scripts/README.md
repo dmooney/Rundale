@@ -131,12 +131,14 @@ onto a `main` that moved still matches the PR's recorded pass. After pushing,
 tree, for example when the run included uncommitted or untracked inputs. CI's
 "Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
 matching status on any commit of the PR, waiting up to five minutes, so the
-suites run once per change instead of again in CI. When the PR's input tree
+suites run once per change instead of again in CI. When none turns up, for
+example for a change made in a Linux cloud session, that job runs the full gate
+itself on a hosted macOS runner and records the pass. When the PR's input tree
 equals its base's, so the PR changes no app input (verification tools, CI, docs),
 `check` exits 3 and the job passes with no pass recorded; on a push to `main`
-the TestFlight workflow skips the upload the same way. The status is the author's
-attestation that the full gate passed on that tree; it is not an independent
-run.
+the TestFlight workflow skips the upload the same way. A status the author
+posts is their attestation that the full gate passed on that tree, not an
+independent run; one CI posts follows its own run.
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
 an explicit `--simulator` takes precedence. `--live-endpoint`, `--soak`, and

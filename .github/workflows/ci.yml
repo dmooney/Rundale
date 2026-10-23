@@ -643,19 +643,24 @@ jobs:
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
   # the conditional complete correctness suite for runtime changes.
-  # The full simulator gate runs once on the author's Mac
-  # (`just mobile-verify --phase all`, then `just mobile-verify-record`); this
-  # job checks that a pass is recorded for the PR's input tree.
+  # The full simulator gate usually runs once on the author's Mac
+  # (`just mobile-verify --phase all`, then `just mobile-verify-record`), and
+  # this job finds that recorded pass for the PR's input tree. When none is
+  # recorded, for example for a change made in a Linux cloud session, the job
+  # runs the full gate itself on the image and Xcode "Swift quality" uses, then
+  # records the pass so the TestFlight upload after merge reuses it.
   mobile-verify-recorded:
     name: Recorded mobile-verify pass
     needs: changes
     if: needs.changes.outputs.mobile_app == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: macos-26
+    # A recorded pass takes minutes; the fallback gate builds the Rust mobile
+    # libraries and runs every simulator suite (TestFlight allows 90 minutes).
+    timeout-minutes: 90
     permissions:
       contents: read
       pull-requests: read
-      statuses: read
+      statuses: write
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -669,16 +674,72 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Find a recorded pass for this input tree
+        id: recorded
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         # The record is usually posted right after the push, so keep looking
-        # for a few minutes before failing.
+        # for a few minutes before running the gate here.
         # Exit 3: the PR leaves every app input unchanged, so no pass is needed.
         run: |
           status=0
           python3 mobile/scripts/verify_record.py check --pr "$PR_NUMBER" --wait 300 || status=$?
-          [ "$status" -eq 0 ] || [ "$status" -eq 3 ]
+          if [ "$status" -eq 0 ] || [ "$status" -eq 3 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no recorded mobile-verify pass for this input tree; running the full gate here"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Select Xcode 26.6
+        if: steps.recorded.outputs.run == 'true'
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+
+      - name: Install the Rust toolchain and iOS targets
+        if: steps.recorded.outputs.run == 'true'
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Install XcodeGen
+        if: steps.recorded.outputs.run == 'true'
+        run: brew install xcodegen
+
+      # The mobile Rust build's target directory; only changed crates rebuild.
+      - uses: actions/cache@v6
+        if: steps.recorded.outputs.run == 'true'
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.event.pull_request.head.sha }}
+          restore-keys: |
+            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
+            rust-mobile-
+
+      - name: Run the full mobile-verify gate
+        if: steps.recorded.outputs.run == 'true'
+        run: python3 mobile/scripts/verify.py --phase all
+
+      # Recording only lets TestFlight skip a second run after merge; a token
+      # that cannot write statuses (Dependabot's) leaves the gate's result as is.
+      - name: Record the pass
+        if: steps.recorded.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 mobile/scripts/verify_record.py record
+
+      - name: Upload verification report
+        if: always() && steps.recorded.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-verify-report
+          path: |
+            mobile/.verification/verify.json
+            mobile/.verification/verify.junit.xml
+            mobile/.verification/summary.txt
+            mobile/.verification/logs/
+          if-no-files-found: warn
+          retention-days: 14
 
   ci-gate:
     name: CI gate
