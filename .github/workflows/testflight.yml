@@ -42,7 +42,7 @@ jobs:
     name: Build and upload
     runs-on: macos-26
     # About 15 minutes with a recorded pass; the fallback full gate takes longer.
-    timeout-minutes: 90
+    timeout-minutes: 150
     environment: testflight
     steps:
       # Full history: without App Store Connect builds to count from, the
@@ -112,6 +112,9 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           VERIFY: ${{ steps.recorded.outputs.verify }}
+          # Sized for the hosted runner, as in ci.yml's mobile-verify-recorded.
+          RUNDALE_PARALLEL_WORKERS: "2"
+          RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
 
       - name: Upload the release report
