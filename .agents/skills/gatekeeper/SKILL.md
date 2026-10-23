@@ -57,6 +57,10 @@ env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERT
   -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
+Codex reviews follow the same rule: run them only under the owner's ChatGPT
+sign-in, never with `OPENAI_API_KEY` or another API key from the environment.
+If Codex is not signed in, report the blocker.
+
 Keep normal tool permissions enabled. This authentication policy does not change
 review independence, review-only mode, hand-off triggers, or merge conditions.
 

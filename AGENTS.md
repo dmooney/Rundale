@@ -185,6 +185,10 @@ codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
   -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
+Run Codex reviews only under the owner's ChatGPT sign-in, never an API key: do not
+log Codex in with `OPENAI_API_KEY` or any other key found in the environment. If
+Codex is not signed in, report the blocker.
+
 Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
 for input forever. Run a local review in its own worktree so branch switches in
 the main checkout cannot change what it reads, and check its output within a few
