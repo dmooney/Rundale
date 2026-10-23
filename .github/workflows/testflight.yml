@@ -117,6 +117,12 @@ jobs:
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
 
+      # release.py sends the gate's output to release.log, so the job log would
+      # otherwise not say which suite or test failed; summary.txt does.
+      - name: Show the mobile-verify summary
+        if: always() && steps.recorded.outputs.verify == 'all'
+        run: cat mobile/.verification/summary.txt || echo "mobile-verify wrote no summary"
+
       - name: Upload the release report
         if: always()
         uses: actions/upload-artifact@v7
