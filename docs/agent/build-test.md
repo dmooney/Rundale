@@ -87,6 +87,13 @@ Cargo needs only crates.io. Do not add `[patch.crates-io]` git sources: every
 cargo command fetches them, including any submodules, and the proxy can block the
 submodule host (#2270).
 
+A session's disk allowance is fixed (about 40 GB), and Cargo's default debug
+builds fill it: `limerick/target` reached 21 GB in one session. Set
+`CARGO_PROFILE_DEV_DEBUG=0` and `CARGO_INCREMENTAL=0` in the environment's
+variables, as CI does; `just check` then leaves about 3 GB. When a session still
+runs low, delete rebuildable output: `cargo clean` in `limerick/` first, then
+`mobile/RundaleKit/.build` and the npm cache (`~/.npm/_cacache`).
+
 ## Cargo
 
 Most engine commands should be run from the `limerick/` directory:
