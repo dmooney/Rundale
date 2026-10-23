@@ -548,9 +548,11 @@ final class RundaleUITests: XCTestCase {
         return matching.waitForExistence(timeout: timeout)
     }
 
+    /// Each pass queries existence, hittability and two frames, which takes
+    /// seconds on a slow host such as the hosted macos-26 runner (#2287).
     private func waitForVisible(_ element: XCUIElement,
                                 in container: XCUIElement,
-                                timeout: TimeInterval = 3) -> Bool {
+                                timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
             if element.exists,

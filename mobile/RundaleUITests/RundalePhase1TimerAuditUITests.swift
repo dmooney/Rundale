@@ -26,7 +26,9 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         )).firstMatch
     }
 
-    private func wait(_ predicate: @escaping () -> Bool, timeout: TimeInterval = 6) -> Bool {
+    /// The predicates below make several accessibility queries per check,
+    /// each of which takes seconds on a slow host (#2287).
+    private func wait(_ predicate: @escaping () -> Bool, timeout: TimeInterval = 15) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in predicate() }, object: nil)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }

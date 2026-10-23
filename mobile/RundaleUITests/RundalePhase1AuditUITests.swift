@@ -190,7 +190,8 @@ final class RundalePhase1AuditUITests: XCTestCase {
     func testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply() {
         launchPagedHistory(reset: true)
         let newest = transcriptRow(exactLabel: "Narration. Historical fixture entry 540.")
-        XCTAssertTrue(newest.waitForExistence(timeout: 8))
+        // Launch builds the 540-row fixture; allow for a slow host (#2287).
+        XCTAssertTrue(newest.waitForExistence(timeout: 20))
 
         commandInput.tap()
         commandInput.typeText("long stream")
@@ -218,7 +219,7 @@ final class RundalePhase1AuditUITests: XCTestCase {
 
         app.terminate()
         launchPagedHistory(reset: false)
-        XCTAssertTrue(oldest.waitForExistence(timeout: 8))
+        XCTAssertTrue(oldest.waitForExistence(timeout: 20))
         XCTAssertTrue(oldest.isHittable)
         XCTAssertEqual(oldest.frame.minY, anchorY, accuracy: 8,
                        "Relaunch must restore the reader's older-history anchor")
