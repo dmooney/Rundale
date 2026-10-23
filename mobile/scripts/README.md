@@ -109,7 +109,7 @@ never parallel.
 Each build or test command stops after 30 minutes (`--command-timeout MINUTES`
 or `RUNDALE_COMMAND_TIMEOUT_MINUTES`), and its failure starts with "timed out
 after". GitHub's hosted macOS runner has far fewer cores than the Macs the
-defaults were measured on, so CI's smoke gate and TestFlight's runs use 2 workers
+defaults were measured on, so CI's hosted gate and TestFlight's nightly gate use 2 workers
 and a 100-minute limit.
 
 A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
