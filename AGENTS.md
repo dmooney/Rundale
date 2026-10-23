@@ -121,12 +121,13 @@ For gameplay changes, use `/limerick-engine prove <feature>` on the affected pro
 path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements.
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
-CI does not run the simulator suites. For a PR that changes what the app ships
-(`mobile/`, `mods/`, `limerick/crates`, `limerick/testing`, the Cargo files,
-`limerick/config`, `rust-toolchain.toml`, `.cargo/`, `bug-report/test/fixtures`), run
-`just mobile-verify --phase all` on a clean checkout of the commit, push, then
-`just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
-pass is recorded for the PR's input tree. Run the gate once, after review rounds,
+For a PR that changes what the app ships (`mobile/`, `mods/`, `limerick/crates`,
+`limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
+`.cargo/`, `bug-report/test/fixtures`), run `just mobile-verify --phase all` on a
+clean checkout of the commit on a Mac, push, then `just mobile-verify-record`.
+Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
+job finds no recorded pass for the PR's input tree, runs the full gate on a
+hosted macOS runner instead, and records it. Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
@@ -134,7 +135,8 @@ commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
 ## Changes and delivery
 
-Use conventional commits and one logical change per commit. PRs explain changed
+Use conventional commits and one logical change per commit. Commit messages carry
+no trailers: no `Co-Authored-By`, session links, or other attribution. PRs explain changed
 behavior, link requirements/issues, and state in ordinary prose the acceptance
 criteria, what shows each one, the verification actually run, and remaining gates.
 A PR touching runtime-shipping code (`mobile/**`, `mods/**`, engine runtime crates)
@@ -175,20 +177,30 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is a different model from the author. A change whose commits carry
-a `Co-Authored-By: Claude …` or `Co-Authored-By: Gemini …` trailer is reviewed by
-GPT through Codex, which reads the same skill (`.codex/skills` links to
-`.agents/skills`); read its report from the `-o` file:
+The gatekeeper is a different model from the author, and the agent that calls it
+chooses which, since commits do not record their author model. Claude- or
+Gemini-authored work is reviewed by GPT through Codex, which reads the same skill
+(`.codex/skills` links to `.agents/skills`); read its report from the `-o` file:
 
 ```sh
 codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
   -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
+Run Codex reviews only under the owner's ChatGPT sign-in, never an API key: do not
+log Codex in with `OPENAI_API_KEY` or any other key found in the environment. If
+Codex is not signed in, report the blocker.
+
 Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
 for input forever. Run a local review in its own worktree so branch switches in
 the main checkout cannot change what it reads, and check its output within a few
 minutes of starting it.
+
+**Exemption: Claude Code in the cloud.** A Claude Code cloud session
+(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) has its own work reviewed by a
+regular Claude subagent instead of a cross-model reviewer. Spawn a fresh-context
+subagent (never a fork of your session) and give it only the checkout path or PR
+number and the instruction to run the gatekeeper skill.
 
 Codex-authored changes are cross-reviewed by Gemini through **agy using the
 owner's Google subscription**, run from the review checkout:
@@ -203,8 +215,6 @@ Use agy's personal Google-account sign-in, without an API-key provider override.
 Do not use Gemini CLI (`gemini`) or paid APIs for cross-reviews. If subscription
 authentication or quota fails, report the blocker; a paid API fallback requires
 explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
-
-Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
 ### Keep the iPhone beta current
 
