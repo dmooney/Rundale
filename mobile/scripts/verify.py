@@ -299,13 +299,15 @@ def _command_text(command: Sequence[str]) -> str:
 
 
 def _failure_reason(result: CommandResult, fallback: str) -> str:
+    # A killed command's last output rarely says why it stopped; lead with that.
+    prefix = f"timed out after {result.duration_seconds:.0f}s: " if result.timed_out else ""
     source = result.stderr.strip() or result.stdout.strip()
     if not source:
-        return fallback
+        return prefix + fallback
     reason = " | ".join(line.strip() for line in source.splitlines() if line.strip())
     if len(reason) > 600:
         reason = "…" + reason[-597:]
-    return reason
+    return prefix + reason
 
 
 def _swift_errors(output: str, limit: int = 3) -> list[str]:
@@ -335,6 +337,16 @@ def _under_root(value: Path | None, default: Path, root: Path) -> Path:
 
 def _safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "command"
+
+
+def _timeout_minutes(value: str) -> float:
+    try:
+        minutes = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("timeout must be a number of minutes > 0") from exc
+    if not minutes > 0:
+        raise argparse.ArgumentTypeError("timeout must be a number of minutes > 0")
+    return minutes
 
 
 def _worker_count(value: str) -> int:
@@ -3106,6 +3118,16 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default {DEFAULT_PARALLEL_WORKERS}, or RUNDALE_PARALLEL_WORKERS)"
         ),
     )
+    parser.add_argument(
+        "--command-timeout",
+        type=_timeout_minutes,
+        default=os.environ.get("RUNDALE_COMMAND_TIMEOUT_MINUTES", "30"),
+        metavar="MINUTES",
+        help=(
+            "stop any single build or test command after this long "
+            "(default 30, or RUNDALE_COMMAND_TIMEOUT_MINUTES)"
+        ),
+    )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument(
@@ -3144,6 +3166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         configuration=args.configuration,
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
+        command_timeout_seconds=args.command_timeout * 60,
     )
     # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
     # group before the report-directory lock is released.
