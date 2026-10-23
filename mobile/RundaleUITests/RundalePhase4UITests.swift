@@ -251,21 +251,25 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         launch(reset: true)
         goToTheCottage()
         submit("ask Mícheál about the cattle slowly")
-        XCTAssertTrue(rows(containing: "The wet ground").firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(rows(containing: "The wet ground").firstMatch.waitForExistence(timeout: 10),
+                      "The slow reply's first chunk arrives")
         input.tap()
         input.typeText("My next question")
+        XCTAssertTrue(app.buttons["composer.stop"].exists,
+                      "The reply is still streaming when the app goes to the background")
         backgroundAndReturn()
 
-        XCTAssertTrue(rows(containing: "Interrupted; not applied").firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(rows(containing: "Interrupted; not applied").firstMatch.waitForExistence(timeout: 8),
+                      "Backgrounding interrupts the streaming reply")
         hold(5)
-        XCTAssertEqual(input.value as? String, "My next question")
-        XCTAssertFalse(app.buttons["composer.stop"].exists)
+        XCTAssertEqual(input.value as? String, "My next question", "The new draft survives the background")
+        XCTAssertFalse(app.buttons["composer.stop"].exists, "No stream is left running")
         let retry = app.buttons["composer.retry"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 5))
+        XCTAssertTrue(retry.waitForExistence(timeout: 5), "The interrupted reply offers Retry")
         retry.tap()
         waitForCompletedDialogue()
         hold(5)
-        XCTAssertEqual(input.value as? String, "My next question")
+        XCTAssertEqual(input.value as? String, "My next question", "Retry keeps the new draft")
         assertSingleCommand("ask Mícheál about the cattle slowly")
         XCTAssertFalse(retry.exists)
         attach("Background interruption recovered")
