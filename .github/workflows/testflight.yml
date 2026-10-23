@@ -1,13 +1,20 @@
 name: TestFlight
 
 # Uploads an internal TestFlight build on every merge to main that changes what
-# the iPhone app ships, so the owner can try it without a Mac session. The full
-# `mobile-verify` gate runs once per change on the author's Mac, which records
-# the pass on GitHub (verify_record.py). When a pass is recorded for this
-# commit's input tree the upload skips the gate (`--verify none`); otherwise it
-# runs the gate here first. `release.py` signs with an App Store Connect API key
-# instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
-# **Testing** status still follow the upload (mobile/testflight.md).
+# the iPhone app ships, so the owner can try it without a Mac session, and on
+# Run workflow. CI's required gate passed the PR first: a full `mobile-verify`
+# pass recorded from the author's Mac (verify_record.py), or the hosted smoke
+# gate (`verify.py --smoke`). CI tested the PR head's input tree, which the
+# squash merge matches unless main moved under it; the upload runs
+# `release.py testflight --verify none`. `release.py` signs with an App Store
+# Connect API key instead of an Xcode account. Apple's processing, export
+# compliance and the Internal Beta **Testing** status still follow the upload
+# (mobile/testflight.md).
+#
+# The nightly `gate` job checks what the smoke gate left out, after the build
+# shipped: when main's input tree has no recorded full pass, it runs the full
+# gate (over an hour on this runner), records the pass, and on failure opens or
+# updates a "Nightly mobile-verify failed" issue. It uploads nothing.
 
 on:
   push:
@@ -24,26 +31,27 @@ on:
       - ".cargo/**"
       - "!**/AGENTS.md"
       - ".github/workflows/testflight.yml"
+  # The nightly full gate for whatever main gained without a recorded pass.
+  schedule:
+    - cron: "41 7 * * *"
   workflow_dispatch:
-
-# One upload at a time, in merge order; a cancelled upload could leave App
-# Store Connect holding a half-processed build.
-concurrency:
-  group: testflight
-  cancel-in-progress: false
 
 permissions:
   contents: read
-  pull-requests: read
-  statuses: read
 
 jobs:
   upload:
     name: Build and upload
+    if: github.event_name != 'schedule'
     runs-on: macos-26
-    # About 15 minutes with a recorded pass; the fallback full gate takes longer.
-    timeout-minutes: 150
+    # About 15 minutes.
+    timeout-minutes: 60
     environment: testflight
+    # One upload at a time, in merge order; a cancelled upload could leave App
+    # Store Connect holding a half-processed build.
+    concurrency:
+      group: testflight
+      cancel-in-progress: false
     steps:
       # Full history: without App Store Connect builds to count from, the
       # build number falls back to HEAD's commit count.
@@ -51,19 +59,45 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A push that leaves every app input as it was builds the same app. It is
+      # compared with main before the push, so a push of several commits that
+      # changed the app before its last commit still uploads.
+      - name: Check that the push changed the app
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base="$GITHUB_SHA^"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
+            git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          fi
+          if [ "$GITHUB_EVENT_NAME" = push ] &&
+            [ "$(python3 mobile/scripts/verify_record.py tree "$GITHUB_SHA")" = \
+              "$(python3 mobile/scripts/verify_record.py tree "$base")" ]; then
+            echo "No app input changed in this push; nothing new to upload."
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "upload=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Select Xcode 26.6
+        if: steps.changed.outputs.upload == 'true'
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app
 
       - name: Install the Rust toolchain and iOS targets
+        if: steps.changed.outputs.upload == 'true'
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
       - name: Install XcodeGen
+        if: steps.changed.outputs.upload == 'true'
         run: brew install xcodegen
 
       # The mobile Rust build's target directory; only changed crates rebuild.
       - uses: actions/cache@v6
+        if: steps.changed.outputs.upload == 'true'
         with:
           path: mobile/.build/rust-mobile/cargo-target
           key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
@@ -72,6 +106,7 @@ jobs:
             rust-mobile-
 
       - name: Write the private Firebase file and API key
+        if: steps.changed.outputs.upload == 'true'
         env:
           FIREBASE_PLIST_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64 }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
@@ -82,60 +117,140 @@ jobs:
           chmod 600 "$key"
           echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
 
-      # A squash merge has the PR head's input tree, so the PR's recorded pass
-      # matches unless main moved under it.
-      - name: Find the recorded mobile-verify pass
-        id: recorded
-        env:
-          GH_TOKEN: ${{ github.token }}
-        # Exit 3 on a push: the merge left every app input as it was, so the
-        # app would be identical and the upload is skipped.
-        run: |
-          status=0
-          python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA" || status=$?
-          if [ "$status" -eq 0 ]; then
-            echo "verify=none" >> "$GITHUB_OUTPUT"
-          elif [ "$status" -eq 3 ] && [ "$GITHUB_EVENT_NAME" = push ]; then
-            echo "verify=skip" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::no recorded mobile-verify pass for this commit; running the full gate here"
-            echo "verify=all" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Skip the upload
-        if: steps.recorded.outputs.verify == 'skip'
-        run: echo "No app input changed in this merge; nothing new to upload."
-
-      - name: Verify, sign and upload
-        if: steps.recorded.outputs.verify != 'skip'
+      - name: Sign and upload
+        if: steps.changed.outputs.upload == 'true'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          VERIFY: ${{ steps.recorded.outputs.verify }}
-          # Sized for the hosted runner, as in ci.yml's mobile-verify-recorded.
-          RUNDALE_PARALLEL_WORKERS: "2"
-          RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
-        run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
-
-      # release.py sends the gate's output to release.log, so the job log would
-      # otherwise not say which suite or test failed; summary.txt does.
-      - name: Show the mobile-verify summary
-        if: always() && steps.recorded.outputs.verify == 'all'
-        run: cat mobile/.verification/summary.txt || echo "mobile-verify wrote no summary"
+        run: python3 mobile/scripts/release.py testflight --verify none
 
       - name: Upload the release report
-        if: always()
+        if: always() && steps.changed.outputs.upload == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: testflight-report
           path: |
             mobile/.build/release/receipt.json
             mobile/.build/release/release.log
-            mobile/.verification/verify.json
-            mobile/.verification/summary.txt
           if-no-files-found: warn
           retention-days: 14
 
       - name: Remove the API key
         if: always()
         run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+  gate:
+    name: Nightly full mobile-verify gate
+    if: github.event_name == 'schedule'
+    runs-on: macos-26
+    # The full gate took 75 minutes on this runner.
+    timeout-minutes: 150
+    # Its own group: a gate run never delays or replaces a merge's upload.
+    concurrency:
+      group: testflight-nightly-gate
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+      # Records the pass and reports a failure in an issue.
+      statuses: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A recorded pass anywhere on main's input tree, from a Mac or an
+      # earlier night, leaves nothing to check. Needs only git, gh and Python.
+      - name: Find a recorded full pass for main
+        id: recorded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python3 mobile/scripts/verify_record.py check --latest "$GITHUB_SHA"; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Select Xcode 26.6
+        if: steps.recorded.outputs.run == 'true'
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+
+      - name: Install the Rust toolchain and iOS targets
+        if: steps.recorded.outputs.run == 'true'
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Install XcodeGen
+        if: steps.recorded.outputs.run == 'true'
+        run: brew install xcodegen
+
+      - uses: actions/cache@v6
+        if: steps.recorded.outputs.run == 'true'
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
+            rust-mobile-
+
+      # Prints its summary, with each failed test's assertion, to the log.
+      - name: Run the full mobile-verify gate
+        id: gate
+        if: steps.recorded.outputs.run == 'true'
+        env:
+          # Sized for the hosted runner: six simulator clones outran the
+          # command limit there (#2276).
+          RUNDALE_PARALLEL_WORKERS: "2"
+          RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
+        run: python3 mobile/scripts/verify.py --phase all
+
+      # The next night then finds this tree verified.
+      - name: Record the pass
+        if: steps.recorded.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 mobile/scripts/verify_record.py record
+
+      - name: Report the failure in an issue
+        if: failure() && steps.recorded.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ steps.gate.outcome == 'failure' && 'The full mobile-verify gate failed' || steps.gate.outcome == 'success' && 'Recording the mobile-verify pass failed after the gate passed' || 'Setting up the full mobile-verify gate failed' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly mobile-verify failed"
+          summary="$(cat mobile/.verification/summary.txt 2>/dev/null || echo 'mobile-verify wrote no summary')"
+          body="$(
+            cat <<EOF
+          ${FAILED} on ${GITHUB_SHA}.
+
+          Run: ${RUN_URL}
+
+          \`\`\`text
+          ${summary}
+          \`\`\`
+          EOF
+          )"
+          number="$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+      - name: Upload the verification report
+        if: always() && steps.recorded.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-verify-nightly-report
+          path: |
+            mobile/.verification/verify.json
+            mobile/.verification/verify.junit.xml
+            mobile/.verification/summary.txt
+            mobile/.verification/logs/
+          if-no-files-found: warn
+          retention-days: 14

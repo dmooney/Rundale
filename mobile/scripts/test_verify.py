@@ -703,6 +703,110 @@ class VerificationRunnerTests(unittest.TestCase):
                 )
             )
 
+    def test_smoke_runs_unit_classes_and_core_ui_tests_and_records_no_full_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            with patch.object(VerificationRun, "_store_full_pass") as store:
+                report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            store.assert_not_called()
+            self.assertEqual(report["exit_code"], 0)
+            self.assertEqual(report["phase"], "smoke")
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            ]
+            self.assertEqual(len(builds), 1, "one combined simulator run")
+            selectors = [
+                a.removeprefix("-only-testing:")
+                for a in builds[0]
+                if a.startswith("-only-testing:")
+            ]
+            ui = [s for s in selectors if s.startswith("RundaleUITests")]
+            self.assertEqual(sorted(ui), sorted(verify_module.SMOKE_UI_TESTS))
+            self.assertIn("RundaleTests/LaunchConfigurationTests", selectors)
+            self.assertIn("RundaleTests", selectors)
+            # Unit classes still run under their suite; UI-only suites are
+            # left to the full run without blocking.
+            self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
+            self.assertIn("--smoke", by_id["ios-simulator-tests"]["name"])
+            for identifier in ("phase3-ios-simulator-tests", "phase4-ios-simulator-tests"):
+                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
+                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            self.assertEqual(by_id["phase4-ios-controller-tests"]["status"], "passed")
+            self.assertEqual(by_id["ios-simulator-smoke-tests"]["status"], "passed")
+            self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
+            # Rust gates and the device build still run.
+            for identifier in (
+                "limerick-core-mobile-tests",
+                "mobile-rust-packaging",
+                "ios-device-build",
+            ):
+                self.assertIn(identifier, by_id)
+
+    def test_smoke_fails_when_a_core_ui_test_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            selector = f"-only-testing:{verify_module.SMOKE_UI_TESTS[2]}"
+            fake.case_results[selector] = "Failed"
+            fake.case_failures[selector] = "RundalePhase2UITests.swift:9: XCTAssertTrue failed"
+            report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            smoke = by_id["ios-simulator-smoke-tests"]
+            self.assertEqual(smoke["status"], "failed")
+            self.assertTrue(smoke["blocking"])
+            self.assertIn("XCTAssertTrue failed", smoke["details"]["failures"][0])
+
+    def test_smoke_fails_when_a_named_core_ui_test_did_not_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            renamed = (*verify_module.SMOKE_UI_TESTS[:-1], "RundaleUITests/RundaleUITests/testGone")
+            fake = FakeRunner()
+            real_tree = fake.xcresult_tree
+
+            def without_gone(*args, **kwargs):
+                tree = real_tree(*args, **kwargs)
+                for plan in tree["testNodes"]:
+                    for bundle in plan["children"]:
+                        for suite in bundle["children"]:
+                            suite["children"] = [
+                                c for c in suite["children"] if c["name"] != "testGone"
+                            ]
+                return tree
+
+            fake.xcresult_tree = without_gone
+            with patch.object(verify_module, "SMOKE_UI_TESTS", renamed):
+                report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            smoke = by_id["ios-simulator-smoke-tests"]
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(smoke["status"], "failed")
+            self.assertIn("did not run: RundaleUITests/RundaleUITests/testGone", smoke["reason"])
+
+    def test_full_run_still_records_a_full_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            with patch.object(VerificationRun, "_store_full_pass") as store:
+                report = VerificationRun(root, command_runner=FakeRunner()).run()
+            self.assertEqual(report["exit_code"], 0)
+            store.assert_called_once()
+
+    def test_smoke_rejects_fast_phase_and_device(self):
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True).run(fast=True)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True).run(2)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True, device="device").run()
+
     def test_fast_lane_rejects_phase_and_device(self):
         with self.assertRaises(ValueError):
             VerificationRun(Path("/tmp/rundale-test")).run(2, fast=True)

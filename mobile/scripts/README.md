@@ -47,6 +47,11 @@ named GitHub milestones (Stability, Existing features usable, Full village, Rele
   report Phases 5–7 as non-blocking future work.
 - `just mobile-verify --phase 5`, `--phase 6`, and `--phase 7` report the selected phase as
   unavailable and exit nonzero until it is implemented.
+- `just mobile-verify --smoke` runs every gate of `--phase all` except the full UI
+  suites: their unit test classes still run, and `SMOKE_UI_TESTS` (launch, a
+  fixture stream and Stop, the engine booting the canonical world, travel by
+  place name, a save surviving termination) stand in for the UI classes. It is
+  CI's hosted pull-request gate. A smoke pass is never saved as a full pass.
 
 Phase 4 includes the earlier regression suites and native lifecycle/connectivity
 recovery tests. Its physical sessions, accessibility judgment, and performance
@@ -104,7 +109,7 @@ never parallel.
 Each build or test command stops after 30 minutes (`--command-timeout MINUTES`
 or `RUNDALE_COMMAND_TIMEOUT_MINUTES`), and its failure starts with "timed out
 after". GitHub's hosted macOS runner has far fewer cores than the Macs the
-defaults were measured on, so CI's fallback and TestFlight runs use 2 workers
+defaults were measured on, so CI's smoke gate and TestFlight's runs use 2 workers
 and a 100-minute limit.
 
 A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
@@ -137,10 +142,14 @@ onto a `main` that moved still matches the PR's recorded pass. After pushing,
 `mobile-verify` commit status on HEAD, and refuses if no pass matches HEAD's
 tree, for example when the run included uncommitted or untracked inputs. CI's
 "Recorded mobile-verify pass" job (`verify_record.py check --pr N`) looks for a
-matching status on any commit of the PR, waiting up to five minutes, so the
+matching status on any commit of the PR, waiting up to two minutes, so the
 suites run once per change instead of again in CI. When none turns up, for
-example for a change made in a Linux cloud session, that job runs the full gate
-itself on a hosted macOS runner and records the pass. When the PR's input tree
+example for a change made in a Linux cloud session, that job runs
+`verify.py --smoke` on a hosted macOS runner and records nothing: the full UI
+suites took most of an hour on that runner. The merge still uploads to
+TestFlight; the TestFlight workflow's nightly run then runs the full gate on
+`main` and records the pass (`verify_record.py check --latest` finds whether
+`main`'s input tree already has one). When the PR's input tree
 equals its base's, so the PR changes no app input (verification tools, CI, docs),
 `check` exits 3 and the job passes with no pass recorded; on a push to `main`
 the TestFlight workflow skips the upload the same way. A status the author

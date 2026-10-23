@@ -24,11 +24,15 @@ hosted `macos-26` runner with Xcode 26.6 for every pull request that changes
 `mobile/**`, on pushes to `main`, and on manual dispatch. It is part of the
 required `CI gate`. Hosted macOS minutes are free for this public repository.
 
-The Xcode app build and the simulator suites are not in CI. They need the Rust
-XCFramework (a full cross-compile of the engine for two iOS targets) and the
-private Firebase configuration, and the Phase 2 to 4 UI suites take tens of
-minutes on four cloned simulators. Run `just mobile-verify --phase N` locally on
-macOS before a mobile pull request merges, and report its `summary.txt`.
+The full simulator gate is not in the per-PR `Swift quality` job. It needs the
+Rust XCFramework (a full cross-compile of the engine for two iOS targets), and
+the Phase 2 to 4 UI suites take tens of minutes on cloned simulators. Run
+`just mobile-verify --phase all` on a Mac before a mobile pull request merges,
+record the pass, and report its `summary.txt`. Without a recorded pass, CI's
+"Recorded mobile-verify pass" job builds the app and runs `verify.py --smoke`
+(every gate but the full UI suites, plus a few core-loop UI tests), and the
+TestFlight workflow's nightly run runs the full gate on `main` after the merge
+has uploaded.
 
 The live Endpoint, soak, and performance suites need a physical iPhone, the
 private Firebase configuration, and an App Check debug token or App Attest.
