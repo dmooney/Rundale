@@ -121,12 +121,13 @@ For gameplay changes, use `/limerick-engine prove <feature>` on the affected pro
 path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements.
 `just mobile-verify` is the phase-selectable iPhone gate the technical vision
 requires; `just verify` is the engine's gate. Neither stands in for the other.
-CI does not run the simulator suites. For a PR that changes what the app ships
-(`mobile/`, `mods/`, `limerick/crates`, `limerick/testing`, the Cargo files,
-`limerick/config`, `rust-toolchain.toml`, `.cargo/`, `bug-report/test/fixtures`), run
-`just mobile-verify --phase all` on a clean checkout of the commit, push, then
-`just mobile-verify-record`; CI's "Recorded mobile-verify pass" job fails until a
-pass is recorded for the PR's input tree. Run the gate once, after review rounds,
+For a PR that changes what the app ships (`mobile/`, `mods/`, `limerick/crates`,
+`limerick/testing`, the Cargo files, `limerick/config`, `rust-toolchain.toml`,
+`.cargo/`, `bug-report/test/fixtures`), run `just mobile-verify --phase all` on a
+clean checkout of the commit on a Mac, push, then `just mobile-verify-record`.
+Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
+job finds no recorded pass for the PR's input tree, runs the full gate on a
+hosted macOS runner instead, and records it. Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
