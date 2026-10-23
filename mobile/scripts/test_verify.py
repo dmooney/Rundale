@@ -86,6 +86,8 @@ class FakeRunner:
         self.xcresult_output = XCRESULT_JSON
         # Per `-only-testing:` selector case results in a combined run's tree.
         self.case_results: dict[str, str] = {}
+        # Per selector failure message, as xcresulttool nests it under the case.
+        self.case_failures: dict[str, str] = {}
         # Called with each command first; a CommandResult it returns wins.
         self.intercept = None
         self.device_output = json.dumps(
@@ -162,6 +164,10 @@ class FakeRunner:
                     "nodeType": "Test Case",
                     "name": test or "testFixture()",
                     "result": self.case_results.get(arg, "Passed"),
+                    "children": [
+                        {"nodeType": "Failure Message", "name": message, "result": "Failed"}
+                        for message in filter(None, [self.case_failures.get(arg)])
+                    ],
                 }
             )
         return {
@@ -865,15 +871,44 @@ class VerificationRunnerTests(unittest.TestCase):
             root = Path(directory)
             create_phase2_fixture(root)
             fake = FakeRunner()
-            fake.case_results["-only-testing:RundaleUITests/RundalePhase3UITests"] = "Failed"
+            selector = "-only-testing:RundaleUITests/RundalePhase3UITests"
+            fake.case_results[selector] = "Failed"
+            fake.case_failures[selector] = "RundalePhase3UITests.swift:42: XCTAssertTrue failed"
             report = VerificationRun(root, command_runner=fake).run(4)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
             self.assertEqual(by_id["phase3-ios-simulator-tests"]["status"], "failed")
             self.assertIn("1 failed test", by_id["phase3-ios-simulator-tests"]["reason"])
+            # The assertion text reaches summary.txt, which CI prints to its log.
+            failure = "RundalePhase3UITests.testFixture(): RundalePhase3UITests.swift:42: XCTAssertTrue failed"
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["failures"], [failure])
+            self.assertNotIn("failures", by_id["phase2-ios-simulator-tests"]["details"])
+            summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
+            self.assertIn(f"\n    {failure}\n", summary)
             self.assertEqual(by_id["phase3-ios-simulator-test-results"]["status"], "failed")
             for identifier in ("ios-simulator-tests", "phase2-ios-simulator-tests"):
                 self.assertEqual(by_id[identifier]["status"], "passed", identifier)
+
+    def test_summary_prints_a_long_failure_message_as_one_marked_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            selector = "-only-testing:RundaleUITests/RundalePhase3UITests"
+            fake.case_results[selector] = "Failed"
+            message = "A.swift:1: XCTAssertEqual failed\n" + "x" * 500
+            fake.case_failures[selector] = message
+            report = VerificationRun(root, command_runner=fake).run(4)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            details = by_id["phase3-ios-simulator-tests"]["details"]
+            self.assertEqual(
+                details["failures"], [f"RundalePhase3UITests.testFixture(): {message}"]
+            )
+            summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
+            line = next(line for line in summary.splitlines() if "A.swift:1" in line)
+            self.assertIn("XCTAssertEqual failed xxx", line)
+            self.assertEqual(len(line), 4 + verify_module.FAILURE_MESSAGE_CHARS)
+            self.assertTrue(line.endswith("…"))
 
     def test_combined_run_that_exits_nonzero_fails_passing_suites(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1534,6 +1569,48 @@ class XcresultTreeTests(unittest.TestCase):
                 "skippedTests": 1,
                 "expectedFailures": 1,
             },
+        )
+
+    def test_failures_keep_every_message_under_their_case(self):
+        case = {
+            "nodeType": "Test Case",
+            "name": "testSlow()",
+            "result": "Failed",
+            "children": [
+                {
+                    "nodeType": "Device",
+                    "name": "iPhone 17",
+                    "children": [
+                        {"nodeType": "Failure Message", "name": "A.swift:3: first"},
+                        {"nodeType": "Failure Message", "name": "A.swift:9: second"},
+                    ],
+                },
+                {"nodeType": "Attachment", "name": "Screenshot"},
+            ],
+        }
+        tree = {
+            "testNodes": [
+                {
+                    "nodeType": "Test Plan",
+                    "name": "Rundale",
+                    "children": [
+                        {
+                            "nodeType": "UI test bundle",
+                            "name": "RundaleUITests",
+                            "children": [
+                                {"nodeType": "Test Suite", "name": "AUITests", "children": [case]},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        self.assertEqual(
+            verify_module._xcresult_failures(tree),
+            [
+                ("RundaleUITests", "AUITests", "testSlow()", "A.swift:3: first"),
+                ("RundaleUITests", "AUITests", "testSlow()", "A.swift:9: second"),
+            ],
         )
 
 

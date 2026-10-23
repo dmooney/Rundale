@@ -438,6 +438,9 @@ def _select_simulator(
 # Measured on an 18-core M5 Pro: one combined run of every simulator suite took
 # 448 s with 4 workers and 353 s with 6.
 DEFAULT_PARALLEL_WORKERS = 6
+# Longest "Suite.test: message" line summary.txt prints per failed test; CI
+# prints summary.txt to its log, and verify.json keeps the full message.
+FAILURE_MESSAGE_CHARS = 400
 # Returned for a simulator suite queued for the combined run; never recorded.
 DEFERRED = "deferred"
 
@@ -465,6 +468,42 @@ def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
         if isinstance(node, Mapping):
             walk(node, "", "")
     return cases
+
+
+def _xcresult_failures(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, message) for every failure message in an xcresult tree.
+
+    The messages carry the file, line and assertion text, so a CI log shows why a
+    test failed without the result bundle.
+    """
+
+    failures: list[tuple[str, str, str, str]] = []
+
+    def messages(node: Mapping[str, Any]) -> list[str]:
+        found = [str(node.get("name", ""))] if node.get("nodeType") == "Failure Message" else []
+        for child in node.get("children") or ():
+            if isinstance(child, Mapping):
+                found += messages(child)
+        return found
+
+    def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
+        kind = str(node.get("nodeType", ""))
+        name = str(node.get("name", ""))
+        if kind.endswith("test bundle"):
+            bundle, suite = name, ""
+        elif kind == "Test Suite" and not suite:
+            suite = name
+        elif kind == "Test Case":
+            failures.extend((bundle, suite, name, message) for message in messages(node))
+            return
+        for child in node.get("children") or ():
+            if isinstance(child, Mapping):
+                walk(child, bundle, suite)
+
+    for node in tree.get("testNodes") or ():
+        if isinstance(node, Mapping):
+            walk(node, "", "")
+    return failures
 
 
 def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
@@ -1649,6 +1688,7 @@ class VerificationRun:
             ["xcrun", "xcresulttool", "get", "test-results", "tests", "--path", bundle, "--compact"]
         )
         cases: list[tuple[str, str, str, str]] | None = None
+        failures: list[tuple[str, str, str, str]] = []
         unreadable = _failure_reason(tree, "xcresulttool could not read the combined result bundle")
         if tree.returncode == 0:
             try:
@@ -1658,6 +1698,7 @@ class VerificationRun:
             else:
                 if isinstance(parsed, Mapping):
                     cases = _xcresult_cases(parsed)
+                    failures = _xcresult_failures(parsed)
                 else:
                     unreadable = "xcresulttool returned a JSON value that is not an object"
         app_identity = (
@@ -1675,6 +1716,11 @@ class VerificationRun:
                 status, reason = _result_status(counts)
                 if status == PASSED and run["status"] != PASSED:
                     status, reason = FAILED, f"the combined run failed: {run.get('reason')}"
+            messages = [
+                f"{failure[1]}.{failure[2]}: {failure[3]}"
+                for failure in failures
+                if _selected(failure, spec["selectors"])
+            ]
             details: dict[str, Any] = {
                 "scheme": self.scheme,
                 "destination": spec["destination"],
@@ -1683,6 +1729,7 @@ class VerificationRun:
                 "result_bundle": bundle,
                 "combined_run": "ios-simulator-combined-run",
                 **(counts or {}),
+                **({"failures": messages} if messages else {}),
                 **({"cache_key": spec["key"]} if spec["key"] else {}),
                 **(app_identity if status == PASSED else {}),
             }
@@ -3044,12 +3091,19 @@ class VerificationRun:
                 f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
                 "(details.cache in the JSON report; --no-cache reruns them)"
             )
-        lines += [
-            f"- {r['status'].upper()}: {r['name']}"
-            + (f" — {r['reason']}" if r.get("reason") else "")
-            for r in self.records
-            if r["blocking"] or r["status"] == FAILED
-        ]
+        for r in self.records:
+            if not (r["blocking"] or r["status"] == FAILED):
+                continue
+            lines.append(
+                f"- {r['status'].upper()}: {r['name']}"
+                + (f" — {r['reason']}" if r.get("reason") else "")
+            )
+            for failure in r.get("details", {}).get("failures", ()):
+                # One log line each; verify.json keeps the full text.
+                line = " ".join(failure.split())
+                if len(line) > FAILURE_MESSAGE_CHARS:
+                    line = line[: FAILURE_MESSAGE_CHARS - 1] + "…"
+                lines.append(f"    {line}")
         lines += ["", f"JSON: {report['reports']['json']}", f"JUnit: {report['reports']['junit']}"]
         (self.report_dir / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
