@@ -326,7 +326,8 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         goToTheCottage()
         let command = "ask Mícheál about the cattle slowly"
         submit(command)
-        XCTAssertTrue(app.waitForTranscriptRow(timeout: 15) {
+        // As long as waitForCompletedDialogue: a slow reply takes about 12 s.
+        XCTAssertTrue(app.waitForTranscriptRow(timeout: 25) {
             $0.kind == "npc_dialogue" && $0.state == "committed"
         })
         app.terminate()

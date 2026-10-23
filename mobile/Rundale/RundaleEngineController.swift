@@ -1077,7 +1077,12 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
                                 throw URLError(.networkConnectionLost)
                             }
                             if index + 1 < chunks.count {
-                                try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
+                                // A "slow" request keeps its stream open while a UI
+                                // test types, backgrounds, stops or terminates the
+                                // app. Those steps take several seconds on a hosted
+                                // runner (#2287), so the window must outlast them;
+                                // completion still fits the tests' 25-second waits.
+                                try await Self.pause(nanoseconds: input.contains("slow") ? 6_000_000_000 : 2_000_000_000)
                             }
                         }
                         continuation.yield(.bytes(try Self.frame(

@@ -246,7 +246,7 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         XCTAssertTrue(retry.waitForExistence(timeout: 8))
         retry.tap()
 
-        XCTAssertTrue(waitForDialogue(containing: "The wet ground has made moving cattle", timeout: 12))
+        XCTAssertTrue(waitForDialogue(containing: "The wet ground has made moving cattle", timeout: 15))
         XCTAssertTrue(waitForDialogue(containing: "difficult this week", timeout: 20))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
