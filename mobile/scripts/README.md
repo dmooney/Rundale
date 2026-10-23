@@ -262,7 +262,9 @@ Each run emits:
 
 - `verify.json`, the complete machine-readable report;
 - `verify.junit.xml`, JUnit-compatible suite and case results;
-- `summary.txt`, a concise human-readable summary; and
+- `summary.txt`, a concise human-readable summary that lists each failed simulator
+  test's assertion message (file, line, and text) under its suite, so the CI log
+  shows why a test failed without the result bundle; and
 - `logs/<gate-id>.log`, preserving command output and gate reasons.
 
 The JSON report separates `passed`, `failed`, `skipped`, `unavailable`, and
