@@ -11,7 +11,7 @@ CI and the TestFlight workflow need neither Xcode nor a second run.
     verify_record.py tree [REV]            # print REV's input tree (default HEAD)
     verify_record.py record                # after pushing a verified HEAD
     verify_record.py check --pr N          # CI: a matching pass for PR N's head
-    verify_record.py check --commit SHA    # TestFlight: for a merge commit
+    verify_record.py check --commit SHA    # a merge commit's pass
     verify_record.py check --latest REV    # nightly: REV's tree, however it got there
 
 `check` exits 0 for a matching pass, 3 when the change leaves every app input as

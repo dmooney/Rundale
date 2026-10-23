@@ -650,7 +650,7 @@ jobs:
   # runs `verify.py --smoke` on the image and Xcode "Swift quality" uses: every
   # gate but the full UI suites, plus a few core-loop UI tests. The full UI
   # suites took most of an hour here, so they run on main instead, in
-  # testflight.yml's nightly full gate, before that change reaches TestFlight.
+  # testflight.yml's nightly full gate.
   mobile-verify-recorded:
     name: Recorded mobile-verify pass
     needs: changes

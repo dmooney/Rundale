@@ -227,11 +227,11 @@ not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
 The TestFlight workflow (`.github/workflows/testflight.yml`) uploads a build on
-every merge to `main` that changes the app and has a recorded `mobile-verify`
-pass for its input tree (see the commands section above). A merge without one,
-such as a cloud session's smoke-tested change, waits for the workflow's nightly
-run, which runs the full gate on `main`, uploads, and records the pass; a failed
-nightly gate opens or updates a "Nightly mobile-verify failed" issue. For a build outside that workflow, use
+every merge to `main` that changes the app; CI's required gate passed the PR
+first (a recorded `mobile-verify` pass, or the hosted smoke gate; see the
+commands section above). Its nightly `gate` job then runs the full gate on `main` when no full
+pass is recorded for it, records the pass, and on failure opens or updates a
+"Nightly mobile-verify failed" issue. For a build outside that workflow, use
 `just testflight-update` and its [runbook](mobile/testflight.md); it runs the
 full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
