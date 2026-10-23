@@ -71,8 +71,6 @@ CLAUDE_MODEL = "claude-opus-5-5"
 CODEX_MODEL = "gpt-6.1-sol"
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
 VERIFY_PROCESS = r"just mobile-verify( |$)|mobile/scripts/verify\.py"
-CLAUDE_TRAILER = re.compile(r"^co-authored-by:\s*claude\b", re.IGNORECASE | re.MULTILINE)
-CODEX_TRAILER = re.compile(r"^co-authored-by:\s*codex\b", re.IGNORECASE | re.MULTILINE)
 VERDICT = re.compile(r"<!--\s*gatekeeper:\s*sha=([0-9a-f]+)\s+verdict=([a-z-]+)")
 # Workflows that never run on pull requests but have a side-effect-free manual
 # run, dispatched on the PR branch when an Actions bump changes them.
@@ -310,14 +308,15 @@ class Outcome:
     notes: list[str] = field(default_factory=list)
 
 
-def gatekeeper_family(messages: Sequence[str], *, routine_fixed: bool) -> str | None:
-    """The reviewer family for a PR: never the family that wrote any of its commits."""
+def gatekeeper_family(authors: set[str], *, routine_fixed: bool) -> str:
+    """The reviewer family for a PR: never the family that wrote any of its commits.
 
-    claude = routine_fixed or any(CLAUDE_TRAILER.search(m) for m in messages)
-    codex = any(CODEX_TRAILER.search(m) for m in messages)
-    if claude and codex:
-        return None  # both families wrote commits: no independent reviewer
-    return "codex" if claude else "claude"
+    Only this routine adds commits to a Dependabot branch, and its fixer is Claude,
+    so any commit not from Dependabot means Claude wrote code and Codex reviews.
+    """
+
+    fixed = routine_fixed or bool(authors - {"dependabot[bot]"})
+    return "codex" if fixed else "claude"
 
 
 def latest_verdict(reviews: Sequence[dict[str, Any]]) -> tuple[str, str] | None:
@@ -464,12 +463,6 @@ class Upkeep:
     def behind_by(self, pr: PullRequest) -> int:
         data = self.gh("api", f"repos/{self.repo}/compare/{pr.base_ref}...{pr.head_sha}")
         return int(data["behind_by"])
-
-    def commit_messages(self, pr: PullRequest) -> list[str]:
-        pages = self.gh(
-            "api", "--paginate", "--slurp", f"repos/{self.repo}/pulls/{pr.number}/commits"
-        )
-        return [c["commit"]["message"] for page in pages or [] for c in page]
 
     def commit_authors(self, pr: PullRequest) -> set[str]:
         pages = self.gh(
@@ -744,8 +737,8 @@ class Upkeep:
             "repository to the dependency update so those checks pass. Follow AGENTS.md. "
             "Do not change the bumped versions, and do not weaken, skip, or delete tests, "
             "gates, lint rules, or coverage floors. Run the relevant local checks. Commit "
-            "each logical change with a conventional commit message that ends with the "
-            "trailer `Co-Authored-By: Claude <noreply@anthropic.com>`. Do not push, and do "
+            "each logical change with a conventional commit message and no trailers. Do "
+            "not push, and do "
             "not comment on or change the pull request. If it cannot be fixed within these "
             "rules, make no commit and say why."
         )
@@ -985,11 +978,7 @@ class Upkeep:
         if not self.probe_workflows(pr, outcome):
             outcome.status, outcome.detail = "red", "a workflow dry run failed"
             return outcome
-        family = gatekeeper_family(self.commit_messages(pr), routine_fixed=fixed)
-        if family is None:
-            outcome.status = "owner"
-            outcome.detail = "both Claude and Codex wrote commits; no independent gatekeeper"
-            return outcome
+        family = gatekeeper_family(self.commit_authors(pr), routine_fixed=fixed)
         ran = self.gatekeeper(pr, family)
         if ran.skipped:
             outcome.detail = f"would run the {family} gatekeeper"

@@ -30,7 +30,7 @@ else:
 
 Result = upkeep.Result
 REPO = "owner/repo"
-CLAUDE_FIX = "fix: adapt to the bump\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+CLAUDE_FIX = "fix: adapt to the bump"
 
 RELEASE = """
 on:
@@ -319,16 +319,11 @@ class UpkeepCase(unittest.TestCase):
 
 class PureLogicTests(unittest.TestCase):
     def test_gatekeeper_is_never_the_author_family(self) -> None:
-        bump = ["chore(deps): bump x"]
+        bump = {"dependabot[bot]"}
         self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=False), "claude")
         self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=True), "codex")
-        self.assertEqual(
-            upkeep.gatekeeper_family([*bump, CLAUDE_FIX], routine_fixed=False), "codex"
-        )
-        codex = "fix: y\n\nCo-Authored-By: Codex <noreply@openai.com>"
-        self.assertEqual(upkeep.gatekeeper_family([*bump, codex], routine_fixed=False), "claude")
-        self.assertIsNone(upkeep.gatekeeper_family([codex], routine_fixed=True))
-        self.assertIsNone(upkeep.gatekeeper_family([codex, CLAUDE_FIX], routine_fixed=False))
+        # A fix from an earlier run has a non-Dependabot author.
+        self.assertEqual(upkeep.gatekeeper_family({*bump, "dmooney"}, routine_fixed=False), "codex")
 
     def test_latest_verdict_takes_the_newest_marker(self) -> None:
         reviews = [

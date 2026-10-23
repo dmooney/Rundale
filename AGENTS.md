@@ -134,7 +134,8 @@ commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
 ## Changes and delivery
 
-Use conventional commits and one logical change per commit. PRs explain changed
+Use conventional commits and one logical change per commit. Commit messages carry
+no trailers: no `Co-Authored-By`, session links, or other attribution. PRs explain changed
 behavior, link requirements/issues, and state in ordinary prose the acceptance
 criteria, what shows each one, the verification actually run, and remaining gates.
 A PR touching runtime-shipping code (`mobile/**`, `mods/**`, engine runtime crates)
@@ -175,9 +176,9 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is a different model from the author. A change whose commits carry
-a `Co-Authored-By: Claude …` or `Co-Authored-By: Gemini …` trailer is reviewed by
-GPT through Codex, which reads the same skill (`.codex/skills` links to
+The gatekeeper is a different model from the author, and the agent that calls it
+chooses which, since commits do not record their author model. Claude- or
+Gemini-authored work is reviewed by GPT through Codex, which reads the same skill (`.codex/skills` links to
 `.agents/skills`); read its report from the `-o` file:
 
 ```sh
@@ -213,8 +214,6 @@ Use agy's personal Google-account sign-in, without an API-key provider override.
 Do not use Gemini CLI (`gemini`) or paid APIs for cross-reviews. If subscription
 authentication or quota fails, report the blocker; a paid API fallback requires
 explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
-
-Codex marks its commits `Co-Authored-By: Codex <noreply@openai.com>`.
 
 ### Keep the iPhone beta current
 
