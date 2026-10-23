@@ -42,7 +42,8 @@ permissions:
 jobs:
   upload:
     name: Build and upload
-    if: github.event_name != 'schedule'
+    # Only main's builds ship: a Run workflow from another branch uploads nothing.
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     runs-on: macos-26
     # About 15 minutes.
     timeout-minutes: 60
@@ -229,9 +230,9 @@ jobs:
 
           Run: ${RUN_URL}
 
-          \`\`\`text
+          \`\`\`\`text
           ${summary}
-          \`\`\`
+          \`\`\`\`
           EOF
           )"
           number="$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
@@ -241,6 +242,20 @@ jobs:
           else
             gh issue create --title "$title" --body "$body"
           fi
+
+      # A passing night closes the failure issue an earlier night opened.
+      - name: Close the failure issue
+        if: success() && steps.recorded.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly mobile-verify failed"
+          gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" |
+            while read -r number; do
+              gh issue close "$number" --comment "The full mobile-verify gate passed on ${GITHUB_SHA}: ${RUN_URL}"
+            done
 
       - name: Upload the verification report
         if: always() && steps.recorded.outputs.run == 'true'

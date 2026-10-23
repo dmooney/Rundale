@@ -109,7 +109,7 @@ never parallel.
 Each build or test command stops after 30 minutes (`--command-timeout MINUTES`
 or `RUNDALE_COMMAND_TIMEOUT_MINUTES`), and its failure starts with "timed out
 after". GitHub's hosted macOS runner has far fewer cores than the Macs the
-defaults were measured on, so CI's smoke gate and TestFlight's runs use 2 workers
+defaults were measured on, so CI's hosted gate and TestFlight's nightly gate use 2 workers
 and a 100-minute limit.
 
 A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
@@ -146,7 +146,9 @@ matching status on any commit of the PR, waiting up to two minutes, so the
 suites run once per change instead of again in CI. When none turns up, for
 example for a change made in a Linux cloud session, that job runs
 `verify.py --smoke` on a hosted macOS runner and records nothing: the full UI
-suites took most of an hour on that runner. The merge still uploads to
+suites took most of an hour on that runner. Label the PR `mobile-verify-full`
+before a push to have that job run the full gate and record its pass instead,
+for example to prove a fix to the UI suites before merge. The merge still uploads to
 TestFlight; the TestFlight workflow's nightly run then runs the full gate on
 `main` and records the pass (`verify_record.py check --latest` finds whether
 `main`'s input tree already has one). When the PR's input tree

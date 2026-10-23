@@ -128,7 +128,9 @@ clean checkout of the commit on a Mac, push, then `just mobile-verify-record`.
 Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
 job finds no recorded pass for the PR's input tree and runs `verify.py --smoke`
 on a hosted macOS runner: every gate but the full UI suites, plus a few core-loop
-UI tests. It records no full pass. Run the gate once, after review rounds,
+UI tests. It records no full pass. To prove a change to the UI suites before
+merge, label the PR `mobile-verify-full` and push: that job then runs and records
+the full gate (over an hour on that runner). Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI

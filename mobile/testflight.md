@@ -49,7 +49,7 @@ steps below and confirm **Testing** in **Internal Beta** before declaring delive
 
 `.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
 merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
-toolchain, and on **Run workflow**. CI's required gate passed the PR first,
+toolchain, and on **Run workflow** from `main`. CI's required gate passed the PR first,
 with a recorded `mobile-verify` pass or the hosted smoke gate (see the
 [mobile scripts README](scripts/README.md#recorded-passes)); it tested the PR
 head's input tree, which the squash merge matches unless `main` moved under it.
@@ -64,7 +64,7 @@ the smoke gate left out, after the build shipped: when `main`'s whole input tree
 has no recorded full pass (`check --latest`), it runs `verify.py --phase all`
 (over an hour on this runner) and records the pass, so the next night skips. A
 failed run opens or updates a "Nightly mobile-verify failed" issue with the
-summary. The Rust target directory is
+summary, and a passing run closes it. Run workflow uploads only from `main`. The Rust target directory is
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
