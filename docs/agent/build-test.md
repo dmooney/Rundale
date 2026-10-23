@@ -29,7 +29,8 @@ checks. Swift builds treat warnings as errors, and each Swift package must hold
 its line-coverage baseline. CI's `Swift quality` job runs those checks and the
 three package suites on hosted macOS (`just mobile-verify --fast`).
 The full simulator gate runs on a Mac; without a recorded pass, CI runs
-`--smoke` on a PR and the TestFlight workflow runs the full gate nightly. The
+`--smoke` on a PR (the full gate on one labelled `mobile-verify-full`) and the
+TestFlight workflow runs the full gate nightly. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
 

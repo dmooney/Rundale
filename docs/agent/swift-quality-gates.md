@@ -30,7 +30,8 @@ the Phase 2 to 4 UI suites take tens of minutes on cloned simulators. Run
 `just mobile-verify --phase all` on a Mac before a mobile pull request merges,
 record the pass, and report its `summary.txt`. Without a recorded pass, CI's
 "Recorded mobile-verify pass" job builds the app and runs `verify.py --smoke`
-(every gate but the full UI suites, plus a few core-loop UI tests), and the
+(every gate but the full UI suites, plus a few core-loop UI tests; the full
+gate on a PR labelled `mobile-verify-full`), and the
 TestFlight workflow's nightly run runs the full gate on `main` after the merge
 has uploaded.
 

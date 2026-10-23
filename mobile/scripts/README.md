@@ -146,7 +146,9 @@ matching status on any commit of the PR, waiting up to two minutes, so the
 suites run once per change instead of again in CI. When none turns up, for
 example for a change made in a Linux cloud session, that job runs
 `verify.py --smoke` on a hosted macOS runner and records nothing: the full UI
-suites took most of an hour on that runner. The merge still uploads to
+suites took most of an hour on that runner. Label the PR `mobile-verify-full`
+before a push to have that job run the full gate and record its pass instead,
+for example to prove a fix to the UI suites before merge. The merge still uploads to
 TestFlight; the TestFlight workflow's nightly run then runs the full gate on
 `main` and records the pass (`verify_record.py check --latest` finds whether
 `main`'s input tree already has one). When the PR's input tree
