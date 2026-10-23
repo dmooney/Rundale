@@ -90,6 +90,7 @@ The runner accepts these options:
 --report-dir PATH
 --no-cache
 --parallel-workers N
+--command-timeout MINUTES
 ```
 
 Simulator suites run with Xcode parallel testing: `xcodebuild` clones the
@@ -99,6 +100,12 @@ tests share no state: each launches the app with its own launch arguments and a
 fresh app container. Xcode distributes whole test classes across workers, so one
 slow class sets a floor; split it to speed the run up. Physical-device runs are
 never parallel.
+
+Each build or test command stops after 30 minutes (`--command-timeout MINUTES`
+or `RUNDALE_COMMAND_TIMEOUT_MINUTES`), and its failure starts with "timed out
+after". GitHub's hosted macOS runner has far fewer cores than the Macs the
+defaults were measured on, so CI's fallback and TestFlight runs use 2 workers
+and a 100-minute limit.
 
 A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
 simulator suite separately. It queues every suite without a cached pass and runs

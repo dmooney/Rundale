@@ -655,8 +655,9 @@ jobs:
     if: needs.changes.outputs.mobile_app == 'true'
     runs-on: macos-26
     # A recorded pass takes minutes; the fallback gate builds the Rust mobile
-    # libraries and runs every simulator suite (TestFlight allows 90 minutes).
-    timeout-minutes: 90
+    # libraries and runs every simulator suite on a much smaller machine than
+    # the Macs it is tuned for.
+    timeout-minutes: 150
     permissions:
       contents: read
       pull-requests: read
@@ -715,8 +716,14 @@ jobs:
             rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
             rust-mobile-
 
+      # The hosted runner has a few cores, not the 18 the default six
+      # simulator workers were measured on: six clones there outran the
+      # 30-minute command limit (#2276).
       - name: Run the full mobile-verify gate
         if: steps.recorded.outputs.run == 'true'
+        env:
+          RUNDALE_PARALLEL_WORKERS: "2"
+          RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         run: python3 mobile/scripts/verify.py --phase all
 
       # Recording only lets TestFlight skip a second run after merge; a token

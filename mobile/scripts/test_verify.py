@@ -450,6 +450,36 @@ class VerificationRunnerTests(unittest.TestCase):
                 parser.parse_args([])
             self.assertEqual(raised.exception.code, 2)
 
+    def test_command_timeout_option_reads_environment(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).command_timeout, 30)
+            args = verify_module.build_parser().parse_args(["--command-timeout", "75"])
+            self.assertEqual(args.command_timeout, 75)
+        with patch.dict(os.environ, {"RUNDALE_COMMAND_TIMEOUT_MINUTES": "80"}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).command_timeout, 80)
+        for bad in ("soon", "0", "-5"):
+            with patch.dict(os.environ, {"RUNDALE_COMMAND_TIMEOUT_MINUTES": bad}, clear=True):
+                parser = verify_module.build_parser()
+                with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
+                    parser.parse_args([])
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_failure_reason_names_a_timeout_before_the_last_output(self):
+        killed = CommandResult(
+            None, stderr="launching the app", duration_seconds=1800.4, timed_out=True
+        )
+        self.assertEqual(
+            verify_module._failure_reason(killed, "xcodebuild failed"),
+            "timed out after 1800s: launching the app",
+        )
+        silent = CommandResult(None, duration_seconds=60, timed_out=True)
+        self.assertEqual(
+            verify_module._failure_reason(silent, "xcodebuild failed"),
+            "timed out after 60s: xcodebuild failed",
+        )
+        failed = CommandResult(65, stderr="Testing failed")
+        self.assertEqual(verify_module._failure_reason(failed, "fallback"), "Testing failed")
+
     def test_device_is_opt_in_and_simulator_remains_default(self):
         with patch.dict(os.environ, {}, clear=True):
             args = verify_module.build_parser().parse_args([])
