@@ -70,6 +70,30 @@ Node or Python themselves) are not installed by gates. A gate that needs one
 fails with the command that installs it; none passes or skips silently. `just
 setup` installs the system-level pieces once.
 
+### Cloud sessions
+
+Claude Code cloud sessions (claude.ai/code) run on Linux behind a proxy that
+blocks some download hosts, including `download.swift.org`. The environment's
+setup script installs what the gates need there:
+
+- Swift for Linux, pinned to the Swift version of the Xcode that CI selects
+  (`.github/workflows/ci.yml`); currently 6.3.3. The proxy blocks
+  `download.swift.org`, so take the toolchain from the `swift:6.3.3-noble` image
+  on `mirror.gcr.io`. With it, `swift test` runs in `mobile/RundaleKit`.
+- Node at the latest `.nvmrc` major (some UI dependencies need a recent minor),
+  `just` new enough for the justfile (1.21 cannot parse it), and `osv-scanner`.
+
+Cargo needs only crates.io. Do not add `[patch.crates-io]` git sources: every
+cargo command fetches them, including any submodules, and the proxy can block the
+submodule host (#2270).
+
+A session's disk allowance is fixed (about 40 GB), and Cargo's default debug
+builds fill it: `limerick/target` reached 21 GB in one session. Set
+`CARGO_PROFILE_DEV_DEBUG=0` and `CARGO_INCREMENTAL=0` in the environment's
+variables, as CI does; `just check` then leaves about 3 GB. When a session still
+runs low, delete rebuildable output: `cargo clean` in `limerick/` first, then
+`mobile/RundaleKit/.build` and the npm cache (`~/.npm/_cacache`).
+
 ## Cargo
 
 Most engine commands should be run from the `limerick/` directory:

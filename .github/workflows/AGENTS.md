@@ -84,7 +84,7 @@ just act-pr         # simulate the pull_request fast lane
 
 - **Triggers:** `schedule` (daily 06:17 UTC), dependency-changing `pull_request`, `push` to `main` on Cargo manifest/lock changes, and `workflow_dispatch`.
 - Installs `cargo-audit` via `cargo install --locked`; caches binary with `Swatinem/rust-cache` (no target dir).
-- While the temporary xcb/wayland-scanner security pins remain, verifies they are unreachable on supported macOS, Linux, and Windows target triples.
+- Fails if `Cargo.lock` has git sources, and checks that each supported macOS, Linux, and Windows target resolves from crates.io (`--locked`).
 - **Concurrency:** `audit-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `osv-scanner.yml` — OSV vulnerability scanner
