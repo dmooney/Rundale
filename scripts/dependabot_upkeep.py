@@ -464,11 +464,18 @@ class Upkeep:
         data = self.gh("api", f"repos/{self.repo}/compare/{pr.base_ref}...{pr.head_sha}")
         return int(data["behind_by"])
 
-    def commit_authors(self, pr: PullRequest) -> set[str]:
+    def commit_authors(self, pr: PullRequest, *, merges: bool = True) -> set[str]:
+        """GitHub logins of the PR's commit authors ("" when unmatched)."""
+
         pages = self.gh(
             "api", "--paginate", "--slurp", f"repos/{self.repo}/pulls/{pr.number}/commits"
         )
-        return {(c.get("author") or {}).get("login", "") for page in pages or [] for c in page}
+        return {
+            (c.get("author") or {}).get("login", "")
+            for page in pages or []
+            for c in page
+            if merges or len(c.get("parents") or []) < 2
+        }
 
     def checks(self, pr: PullRequest) -> tuple[str, list[str]]:
         """The required checks' state; a failed or malformed read raises."""
@@ -978,7 +985,8 @@ class Upkeep:
         if not self.probe_workflows(pr, outcome):
             outcome.status, outcome.detail = "red", "a workflow dry run failed"
             return outcome
-        family = gatekeeper_family(self.commit_authors(pr), routine_fixed=fixed)
+        # A base merge (GitHub's update-branch) writes no code, so it does not count.
+        family = gatekeeper_family(self.commit_authors(pr, merges=False), routine_fixed=fixed)
         ran = self.gatekeeper(pr, family)
         if ran.skipped:
             outcome.detail = f"would run the {family} gatekeeper"

@@ -178,8 +178,8 @@ the [`land`](.agents/skills/land/SKILL.md) skill does.
 
 The gatekeeper is a different model from the author, and the agent that calls it
 chooses which, since commits do not record their author model. Claude- or
-Gemini-authored work is reviewed by GPT through Codex, which reads the same skill (`.codex/skills` links to
-`.agents/skills`); read its report from the `-o` file:
+Gemini-authored work is reviewed by GPT through Codex, which reads the same skill
+(`.codex/skills` links to `.agents/skills`); read its report from the `-o` file:
 
 ```sh
 codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
