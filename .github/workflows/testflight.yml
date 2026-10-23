@@ -1,11 +1,13 @@
 name: TestFlight
 
-# Uploads an internal TestFlight build on every merge to main that changes what
-# the iPhone app ships, so the owner can try it without a Mac session. The full
-# `mobile-verify` gate runs once per change on the author's Mac, which records
-# the pass on GitHub (verify_record.py). When a pass is recorded for this
-# commit's input tree the upload skips the gate (`--verify none`); otherwise it
-# runs the gate here first. `release.py` signs with an App Store Connect API key
+# Uploads an internal TestFlight build so the owner can try changes without a
+# Mac session. The full `mobile-verify` gate runs once per change on the
+# author's Mac, which records the pass on GitHub (verify_record.py); a merge to
+# main with a recorded pass for its input tree uploads at once (`--verify
+# none`). A merge without one, such as a Linux cloud session's change that CI
+# only smoke-tested, waits for the nightly run: it runs the full gate here on
+# main (`--verify all`, over an hour on this runner), uploads, and records the
+# pass; a failed nightly gate opens or updates an issue. `release.py` signs with an App Store Connect API key
 # instead of an Xcode account. Apple's processing, export compliance and the Internal Beta
 # **Testing** status still follow the upload (mobile/testflight.md).
 
@@ -24,6 +26,9 @@ on:
       - ".cargo/**"
       - "!**/AGENTS.md"
       - ".github/workflows/testflight.yml"
+  # Nightly full gate and upload for whatever main gained without a recorded pass.
+  schedule:
+    - cron: "41 7 * * *"
   workflow_dispatch:
 
 # One upload at a time, in merge order; a cancelled upload could leave App
@@ -35,13 +40,15 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
-  statuses: read
+  # The nightly run records its pass and reports a failure in an issue.
+  statuses: write
+  issues: write
 
 jobs:
   upload:
     name: Build and upload
     runs-on: macos-26
-    # About 15 minutes with a recorded pass; the fallback full gate takes longer.
+    # About 15 minutes with a recorded pass; the nightly full gate takes over an hour.
     timeout-minutes: 150
     environment: testflight
     steps:
@@ -51,19 +58,58 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A squash merge has the PR head's input tree, so the PR's recorded pass
+      # matches unless main moved under it. On a push, exit 3 means the merge
+      # left every app input as it was. The nightly run and Run workflow look
+      # for a pass on main's whole input tree (`--latest`): a recorded one was
+      # already uploaded at its merge or by an earlier night. It needs only
+      # git, gh and Python, so a skipped run sets nothing else up.
+      - name: Find the recorded mobile-verify pass
+        id: recorded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA" || status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "verify=none" >> "$GITHUB_OUTPUT"
+            elif [ "$status" -eq 3 ]; then
+              echo "verify=skip" >> "$GITHUB_OUTPUT"
+              echo "reason=No app input changed in this merge; nothing new to upload." >> "$GITHUB_OUTPUT"
+            else
+              echo "verify=skip" >> "$GITHUB_OUTPUT"
+              echo "reason=No mobile-verify pass is recorded for this merge; the nightly run verifies and uploads it." >> "$GITHUB_OUTPUT"
+            fi
+          else
+            python3 mobile/scripts/verify_record.py check --latest "$GITHUB_SHA" || status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "verify=all" >> "$GITHUB_OUTPUT"
+            elif [ "$GITHUB_EVENT_NAME" = schedule ]; then
+              echo "verify=skip" >> "$GITHUB_OUTPUT"
+              echo "reason=main's app inputs already have a recorded pass and an upload." >> "$GITHUB_OUTPUT"
+            else
+              echo "verify=none" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Select Xcode 26.6
+        if: steps.recorded.outputs.verify != 'skip'
         run: sudo xcode-select --switch /Applications/Xcode_26.6.app
 
       - name: Install the Rust toolchain and iOS targets
+        if: steps.recorded.outputs.verify != 'skip'
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
       - name: Install XcodeGen
+        if: steps.recorded.outputs.verify != 'skip'
         run: brew install xcodegen
 
       # The mobile Rust build's target directory; only changed crates rebuild.
       - uses: actions/cache@v6
+        if: steps.recorded.outputs.verify != 'skip'
         with:
           path: mobile/.build/rust-mobile/cargo-target
           key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
@@ -72,6 +118,7 @@ jobs:
             rust-mobile-
 
       - name: Write the private Firebase file and API key
+        if: steps.recorded.outputs.verify != 'skip'
         env:
           FIREBASE_PLIST_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64 }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
@@ -82,37 +129,21 @@ jobs:
           chmod 600 "$key"
           echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
 
-      # A squash merge has the PR head's input tree, so the PR's recorded pass
-      # matches unless main moved under it.
-      - name: Find the recorded mobile-verify pass
-        id: recorded
-        env:
-          GH_TOKEN: ${{ github.token }}
-        # Exit 3 on a push: the merge left every app input as it was, so the
-        # app would be identical and the upload is skipped.
-        run: |
-          status=0
-          python3 mobile/scripts/verify_record.py check --commit "$GITHUB_SHA" || status=$?
-          if [ "$status" -eq 0 ]; then
-            echo "verify=none" >> "$GITHUB_OUTPUT"
-          elif [ "$status" -eq 3 ] && [ "$GITHUB_EVENT_NAME" = push ]; then
-            echo "verify=skip" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::no recorded mobile-verify pass for this commit; running the full gate here"
-            echo "verify=all" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Skip the upload
         if: steps.recorded.outputs.verify == 'skip'
-        run: echo "No app input changed in this merge; nothing new to upload."
+        env:
+          REASON: ${{ steps.recorded.outputs.reason }}
+        run: echo "$REASON"
 
       - name: Verify, sign and upload
+        id: release
         if: steps.recorded.outputs.verify != 'skip'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           VERIFY: ${{ steps.recorded.outputs.verify }}
-          # Sized for the hosted runner, as in ci.yml's mobile-verify-recorded.
+          # Sized for the hosted runner: six simulator clones outran the
+          # command limit there (#2276).
           RUNDALE_PARALLEL_WORKERS: "2"
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         run: python3 mobile/scripts/release.py testflight --verify "$VERIFY"
@@ -123,8 +154,43 @@ jobs:
         if: always() && steps.recorded.outputs.verify == 'all'
         run: cat mobile/.verification/summary.txt || echo "mobile-verify wrote no summary"
 
+      # The next night then finds this tree verified and uploaded.
+      - name: Record the pass
+        if: steps.recorded.outputs.verify == 'all'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 mobile/scripts/verify_record.py record
+
+      - name: Report a failed nightly gate
+        if: failure() && steps.recorded.outputs.verify == 'all'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ steps.release.outcome == 'failure' && 'The full mobile-verify gate or the upload failed' || 'Recording the mobile-verify pass failed after a successful upload' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly mobile-verify failed"
+          summary="$(cat mobile/.verification/summary.txt 2>/dev/null || echo 'mobile-verify wrote no summary')"
+          body="$(
+            cat <<EOF
+          ${FAILED} on ${GITHUB_SHA}.
+
+          Run: ${RUN_URL}
+
+          \`\`\`text
+          ${summary}
+          \`\`\`
+          EOF
+          )"
+          number="$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
       - name: Upload the release report
-        if: always()
+        if: always() && steps.recorded.outputs.verify != 'skip'
         uses: actions/upload-artifact@v7
         with:
           name: testflight-report

@@ -28,7 +28,8 @@ Every `just mobile-verify` run starts with pinned SwiftLint and SwiftFormat
 checks. Swift builds treat warnings as errors, and each Swift package must hold
 its line-coverage baseline. CI's `Swift quality` job runs those checks and the
 three package suites on hosted macOS (`just mobile-verify --fast`).
-The Xcode app and simulator suites run only locally. The
+The full simulator gate runs on a Mac; without a recorded pass, CI runs
+`--smoke` on a PR and the TestFlight workflow runs the full gate nightly. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
 

@@ -49,13 +49,19 @@ steps below and confirm **Testing** in **Internal Beta** before declaring delive
 
 `.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
 merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
-toolchain, and on **Run workflow**. It first looks for a recorded `mobile-verify`
-pass for the commit's input tree (`verify_record.py check --commit`; see the
-[mobile scripts README](scripts/README.md#recorded-passes)). With one, it runs
-`release.py testflight --verify none` and goes straight to the Rust build,
-archive, distribution export check and upload, about 15 minutes. Without one,
-for example when `main` moved under the PR before the squash merge, it runs
-`--verify all` and the full gate first. The Rust target directory is
+toolchain, nightly, and on **Run workflow**. On a merge it looks for a recorded
+`mobile-verify` pass for the commit's input tree (`verify_record.py check
+--commit`; see the [mobile scripts README](scripts/README.md#recorded-passes)).
+With one, it runs `release.py testflight --verify none` and goes straight to the
+Rust build, archive, distribution export check and upload, about 15 minutes.
+Without one, for example for a cloud session's change that CI only smoke-tested,
+it uploads nothing and leaves the change to the nightly run. That run (07:41
+UTC) and **Run workflow** look for a pass on `main`'s whole input tree
+(`check --latest`). Without one they run `--verify all`, the full gate first
+(over an hour on this runner), upload, and record the pass, so the next night
+skips; a failed run opens or updates a "Nightly mobile-verify failed" issue.
+With one, the nightly run uploads nothing and **Run workflow** uploads without
+the gate. The Rust target directory is
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account

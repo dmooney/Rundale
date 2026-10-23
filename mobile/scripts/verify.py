@@ -49,6 +49,18 @@ PHASE4_UI_CLASSES = (
     "RundaleUITests/RundalePhase4NetworkUITests",
     "RundaleUITests/RundalePhase4AccessibilityUITests",
 )
+# The hosted pull-request gate (--smoke) runs these core-loop UI tests in place
+# of the full UI suites, which take most of an hour on a hosted runner and run
+# nightly instead (testflight.yml): launch, a fixture stream and Stop, the engine booting the
+# canonical world, travel by place name, and a save surviving termination.
+SMOKE_UI_TESTS = (
+    "RundaleUITests/RundaleUITests/testLaunchShowsOnlyPrimaryPlayRegions",
+    "RundaleUITests/RundaleUITests/testManualStreamCanBeStoppedWithPartialOutputRetained",
+    "RundaleUITests/RundalePhase2UITests/testPhase2FoundationBootsCanonicalWorldAndPeig",
+    "RundaleUITests/RundalePhase3UITests/testPlaceNameTravelWithoutEndpointInference",
+    "RundaleUITests/RundalePhase4UITests/testDraftAndCommittedTravelSurviveBackgroundAndTermination",
+)
+UI_TEST_BUNDLE = "RundaleUITests"
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 7
@@ -637,8 +649,11 @@ class VerificationRun:
         parallel_workers: int | None = None,
         host_lock: Path | None = None,
         host_lock_wait_seconds: float = HOST_LOCK_WAIT_SECONDS,
+        smoke: bool = False,
     ) -> None:
         self.root = repo_root.resolve()
+        # Every gate but the full UI suites, which SMOKE_UI_TESTS stand in for.
+        self.smoke = smoke
         # Every worktree's non-fast run (just mobile-verify, release.py, the
         # Dependabot upkeep routine) shares the simulator and the Cargo target.
         self.host_lock = host_lock if host_lock is not None else default_host_lock()
@@ -1501,8 +1516,23 @@ class VerificationRun:
         only_testing: str | Sequence[str] | None = None,
         skip_testing: Sequence[str] = (),
         summary_identifier: str | None = None,
+        smoke_ui: bool = False,
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
+        if self.smoke and destination is not None and not is_physical and not smoke_ui:
+            # --smoke keeps a suite's unit test classes and leaves its UI
+            # classes to the full run; SMOKE_UI_TESTS run as their own suite.
+            requested = [only_testing] if isinstance(only_testing, str) else only_testing or []
+            kept = [s for s in requested if s.split("/")[0] != UI_TEST_BUNDLE]
+            identifier = identifier or "ios-simulator-tests"
+            name = name or "iOS simulator XCTest/XCUITest suite"
+            if not kept:
+                return self._skip(
+                    identifier, name, phase, "--smoke leaves UI suites to the full run"
+                )
+            if len(kept) < len(requested):
+                name = f"{name} (unit test classes; --smoke)"
+            only_testing = kept
         target_kind = (
             "iphoneos" if destination is None else ("device" if is_physical else "simulator")
         )
@@ -1712,6 +1742,16 @@ class VerificationRun:
             else:
                 counts = _case_counts([c[3] for c in cases if _selected(c, spec["selectors"])])
                 status, reason = _result_status(counts)
+                # A selector naming one test (bundle/class/test) must match a
+                # case it ran: a renamed or deleted test would otherwise drop
+                # out of the suite silently.
+                missing = [
+                    selector
+                    for selector in spec["selectors"]
+                    if selector.count("/") == 2 and not any(_selected(c, [selector]) for c in cases)
+                ]
+                if status == PASSED and missing:
+                    status, reason = FAILED, f"selected test(s) did not run: {', '.join(missing)}"
                 if status == PASSED and run["status"] != PASSED:
                     status, reason = FAILED, f"the combined run failed: {run.get('reason')}"
             messages = [
@@ -2749,6 +2789,41 @@ class VerificationRun:
                 reason=reason,
             )
 
+    def _smoke_simulator_tests(self) -> None:
+        identifier, name = "ios-simulator-smoke-tests", "Core-loop UI smoke tests (--smoke)"
+        xcodegen_ok = any(
+            record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records
+        )
+        ready = self.simulator is not None and any(
+            (record["id"] == "simulator-bootstatus" and record["status"] == PASSED)
+            or (
+                record["id"] == "simulator-boot"
+                and record["status"] == SKIPPED
+                and record["kind"] == "infrastructure"
+            )
+            for record in self.records
+        )
+        if not xcodegen_ok or not ready or self.simulator is None:
+            self._skip(
+                identifier,
+                name,
+                1,
+                "blocked because the native project or simulator is not ready",
+                required=True,
+            )
+            return
+        record = self._xcodebuild(
+            "smoke-simulator",
+            f"platform=iOS Simulator,id={self.simulator['udid']}",
+            identifier=identifier,
+            name=name,
+            only_testing=SMOKE_UI_TESTS,
+            summary_identifier=f"{identifier}-results",
+            smoke_ui=True,
+        )
+        if record["status"] == PASSED:
+            self._validate_result(record, phase=1, summary_identifier=f"{identifier}-results")
+
     def _phase1(self) -> None:
         self._swift_tests()
         xcodegen_ok = self._xcodegen()
@@ -2847,6 +2922,8 @@ class VerificationRun:
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            if self.smoke:
+                self._smoke_simulator_tests()
             self._run_deferred_simulator_suites()
             self._optional_physical_suites()
             if phase is None:
@@ -2872,6 +2949,8 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        if self.smoke and (fast or phase is not None or self.physical_device is not None):
+            raise ValueError("--smoke runs every phase on the simulator, without --fast")
         self.report_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as held:
             if not fast:  # --fast runs no simulator suite and builds no Rust
@@ -2921,7 +3000,13 @@ class VerificationRun:
         report = {
             "schema_version": 1,
             "tool": "rundale-mobile-verify",
-            "phase": "fast" if fast else "all" if phase is None else str(phase),
+            "phase": "fast"
+            if fast
+            else "smoke"
+            if self.smoke
+            else "all"
+            if phase is None
+            else str(phase),
             "implemented_phases": list(IMPLEMENTED_PHASES),
             "started_at": self.started_at,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -2950,7 +3035,9 @@ class VerificationRun:
         }
         self._write_reports(report)
         self._store_cached_passes(self.report_dir / "verify.json")
-        if phase is None and not fast and report["status"] == PASSED:
+        # A smoke pass leaves the UI suites untested, so it never stands in
+        # for a full pass.
+        if phase is None and not fast and not self.smoke and report["status"] == PASSED:
             self._store_full_pass(report)
         return report
 
@@ -3123,6 +3210,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run only SwiftLint, SwiftFormat, and the Swift package tests (the PR CI lane)",
     )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help=(
+            "run every gate but the full UI suites, plus a few core-loop UI tests "
+            "(the hosted PR gate); never records a full pass"
+        ),
+    )
     parser.add_argument("--project-spec", type=Path)
     parser.add_argument("--project", type=Path)
     parser.add_argument("--scheme", default="Rundale")
@@ -3200,6 +3295,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("device opt-in suites require --phase 4 or all")
     if args.fast and (args.phase is not None or args.device):
         parser.error("--fast runs no phase or device suites")
+    if args.smoke and (args.fast or args.phase is not None or args.device):
+        parser.error("--smoke runs every phase on the simulator, without --fast")
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(
         root,
@@ -3219,6 +3316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
         command_timeout_seconds=args.command_timeout * 60,
+        smoke=args.smoke,
     )
     # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
     # group before the report-directory lock is released.

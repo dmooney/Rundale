@@ -647,21 +647,22 @@ jobs:
   # (`just mobile-verify --phase all`, then `just mobile-verify-record`), and
   # this job finds that recorded pass for the PR's input tree. When none is
   # recorded, for example for a change made in a Linux cloud session, the job
-  # runs the full gate itself on the image and Xcode "Swift quality" uses, then
-  # records the pass so the TestFlight upload after merge reuses it.
+  # runs `verify.py --smoke` on the image and Xcode "Swift quality" uses: every
+  # gate but the full UI suites, plus a few core-loop UI tests. The full UI
+  # suites took most of an hour here, so they run on main instead, in
+  # testflight.yml's nightly full gate, before that change reaches TestFlight.
   mobile-verify-recorded:
     name: Recorded mobile-verify pass
     needs: changes
     if: needs.changes.outputs.mobile_app == 'true'
     runs-on: macos-26
-    # A recorded pass takes minutes; the fallback gate builds the Rust mobile
-    # libraries and runs every simulator suite on a much smaller machine than
-    # the Macs it is tuned for.
+    # A recorded pass takes minutes; the smoke gate builds the Rust mobile
+    # libraries and the app, then runs the unit and smoke UI tests. The limits
+    # stay as the full gate's until hosted smoke runs measure their own.
     timeout-minutes: 150
     permissions:
       contents: read
       pull-requests: read
-      statuses: write
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -680,15 +681,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         # The record is usually posted right after the push, so keep looking
-        # for a few minutes before running the gate here.
+        # for a short while before running the gate here.
         # Exit 3: the PR leaves every app input unchanged, so no pass is needed.
         run: |
           status=0
-          python3 mobile/scripts/verify_record.py check --pr "$PR_NUMBER" --wait 300 || status=$?
+          python3 mobile/scripts/verify_record.py check --pr "$PR_NUMBER" --wait 120 || status=$?
           if [ "$status" -eq 0 ] || [ "$status" -eq 3 ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::no recorded mobile-verify pass for this input tree; running the full gate here"
+            echo "::notice::no recorded mobile-verify pass for this input tree; running the smoke gate here"
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -718,22 +719,14 @@ jobs:
 
       # The hosted runner has a few cores, not the 18 the default six
       # simulator workers were measured on: six clones there outran the
-      # 30-minute command limit (#2276).
-      - name: Run the full mobile-verify gate
+      # 30-minute command limit (#2276). A smoke pass is never recorded as a
+      # full pass, so testflight.yml's nightly full gate runs on what this merges.
+      - name: Run the mobile-verify smoke gate
         if: steps.recorded.outputs.run == 'true'
         env:
           RUNDALE_PARALLEL_WORKERS: "2"
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
-        run: python3 mobile/scripts/verify.py --phase all
-
-      # Recording only lets TestFlight skip a second run after merge; a token
-      # that cannot write statuses (Dependabot's) leaves the gate's result as is.
-      - name: Record the pass
-        if: steps.recorded.outputs.run == 'true'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 mobile/scripts/verify_record.py record
+        run: python3 mobile/scripts/verify.py --smoke
 
       - name: Upload verification report
         if: always() && steps.recorded.outputs.run == 'true'

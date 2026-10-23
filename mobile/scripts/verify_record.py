@@ -12,9 +12,10 @@ CI and the TestFlight workflow need neither Xcode nor a second run.
     verify_record.py record                # after pushing a verified HEAD
     verify_record.py check --pr N          # CI: a matching pass for PR N's head
     verify_record.py check --commit SHA    # TestFlight: for a merge commit
+    verify_record.py check --latest REV    # nightly: REV's tree, however it got there
 
 `check` exits 0 for a matching pass, 3 when the change leaves every app input as
-its base had it (nothing to test), and 1 otherwise.
+its base had it (nothing to test), and 1 otherwise. `--latest` never exits 3.
 
 The status is the author's attestation that `mobile-verify --phase all` passed
 on that tree with their toolchain; it is not an independent run.
@@ -156,6 +157,41 @@ def check(*, pr: int | None, commit: str | None, wait: int) -> int:
     return 1
 
 
+# How far back `latest` follows first parents that keep REV's input tree.
+LATEST_DEPTH = 500
+
+
+def latest(rev: str = "HEAD") -> int:
+    """Whether REV's input tree has a recorded pass, for the nightly full gate.
+
+    Follows first parents back to the commit that introduced REV's input tree
+    and looks for a status naming that tree on every commit since, and on the
+    pull request that introducing commit merged. Exits 0 for a pass, 1 if none.
+    """
+
+    repo = _repo()
+    sha = _git("rev-parse", rev)
+    tree = input_tree(sha)
+    commits = [sha]
+    for _ in range(LATEST_DEPTH):
+        try:
+            parent = _git("rev-parse", "--verify", "--quiet", f"{sha}^")
+        except subprocess.CalledProcessError:
+            break  # the root commit
+        if input_tree(parent) != tree:
+            break
+        sha = parent
+        commits.append(sha)
+    pulls = _gh("api", f"repos/{repo}/commits/{sha}/pulls") or []
+    commits += [c for p in pulls for c in _pull_commits(repo, p["number"])]
+    for candidate in commits:
+        if tree in _recorded_trees(repo, candidate):
+            print(f"{CONTEXT} passed on input tree {tree} (recorded on {candidate[:12]}).")
+            return 0
+    print(f"No {CONTEXT} pass is recorded for input tree {tree}.", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     target = check_parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--pr", type=int)
     target.add_argument("--commit")
+    target.add_argument("--latest", metavar="REV")
     check_parser.add_argument(
         "--wait", type=int, default=0, help="seconds to keep looking for a status"
     )
@@ -175,6 +212,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "record":
         return record()
+    if args.latest:
+        return latest(args.latest)
     return check(pr=args.pr, commit=args.commit, wait=args.wait)
 
 
