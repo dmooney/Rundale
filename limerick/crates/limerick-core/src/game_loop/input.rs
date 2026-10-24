@@ -328,10 +328,9 @@ pub async fn handle_game_input_settled(
     // Parse intent: local keywords settle plain commands; every other line
     // gets the Intent role. On an Endpoint host that is the `rundale-intent`
     // decision, which also says who the line is for (design §4.2, §4.6), so
-    // a line the local parser takes for talk still gets it. A failed or
-    // malformed Intent reply is `Unknown` (or the local reading), never an
-    // error, except a lost connection, which fails the request recoverably
-    // (§4.4).
+    // a line the local parser takes for talk still gets it. A call that gets
+    // no answer fails the request recoverably; a malformed reply, or a failure
+    // reported without a reason, is `Unknown` (or the local reading) (§4.4).
     let inference = ctx.inference();
     let intent_route = match settled {
         Some(_) => RouteStatus::Unavailable,

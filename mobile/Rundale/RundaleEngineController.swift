@@ -666,8 +666,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation else { return }
                 do {
                     let failure = Self.playerFacingFailure(error)
-                    // An intent failure is absorbed by the engine (the turn
-                    // continues as unclassified input), so record every
+                    // The engine absorbs only a garbled intent answer (the
+                    // turn continues as unclassified input), so record every
                     // Endpoint failure here for diagnosis. No credentials
                     // are part of these errors.
                     Self.log.error("""
