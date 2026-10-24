@@ -10,7 +10,10 @@ just testflight-update
 `mobile-build` builds the embedded Rust framework, generates the Xcode project,
 and builds an unsigned Release iPhone app. `testflight-update` first runs
 `just mobile-verify --phase all`, which reuses suites already passed with identical
-inputs, then builds, signs, inspects, and uploads an internal-only archive. The
+inputs (it leaves most Rust crate tests to Linux CI, so upload a merged
+commit, or first run `cargo test -p limerick-core --no-default-features --features mobile`,
+`cargo test -p limerick-mobile-ffi` and `cargo test -p limerick-engine --test world_sheet`
+from `limerick/`), then builds, signs, inspects, and uploads an internal-only archive. The
 archive's build number is passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so
 an upload edits no file and leaves nothing to commit; the value in
 `mobile/project.yml` is only for local builds. With an App Store Connect API key
