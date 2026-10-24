@@ -226,10 +226,10 @@ evidence page, as any change to shipped behaviour does.
 
 ## 9. Implementation issues (Milestone 5)
 
-1. **Per-NPC static context in `rundale-dialogue`.** §3, §4 and §5: engine
+1. **Per-NPC static context in `rundale-dialogue`** ([#2294](https://github.com/dmooney/Rundale/issues/2294)). §3, §4 and §5: engine
    input, definition schema and instructions, republish to `limerick-prod`,
    cases 1 to 5 and 7 to 12.
-2. **Remove the dialogue content guards.** §6 and case 6, on every path, with
+2. **Remove the dialogue content guards** ([#2295](https://github.com/dmooney/Rundale/issues/2295)). §6 and case 6, on every path, with
    the doc updates.
 
 They can land in either order. Neither adds gameplay.
