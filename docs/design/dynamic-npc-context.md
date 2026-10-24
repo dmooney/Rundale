@@ -272,9 +272,14 @@ Appendices A and B under these rules
 
 ### 4.4 Failure
 
-A failure caused by lost connectivity follows the request's existing recoverable
-failure path, the same as a failed dialogue call. Any other failure (an error, a
-timeout after 2 s, or an answer that is not an offered option) is uncertain.
+A call that never produced an answer (a lost connection, a rate limit, an
+outage, a timeout, a refusal, or a cancellation the player did not ask for)
+follows the request's existing recoverable failure path, the same as a failed
+dialogue call: the mod's line for the reason, and Retry. Guessing would let a
+move or an action silently become speech (owner decision 2026-10-24, issue
+1825; [inference errors and recovery](inference-errors-and-recovery.md)). Only
+an answer that is not an offered option, or a failure the host reports without
+a reason (the desktop's in-process model), is uncertain.
 
 ### 4.5 Endpoint integration
 
