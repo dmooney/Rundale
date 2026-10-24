@@ -106,13 +106,14 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         goToTheCottage()
 
         var attempts: [[String: Any]] = []
-        var stoppedWithoutCommit = 0
+        var stoppedCleanlyCount = 0
         let clock = ISO8601DateFormatter()
         clock.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         for step in 0..<4 {
             let delay = 0.2 + 0.15 * Double(step)
             let committedBefore = Set(app.committedDialogueRows().map(\.row))
             let interruptedBefore = interruptedRows.count
+            let rowsBefore = Set(app.transcriptRows().map(\.row))
             let sentAt = submit("Mícheál, how are the cattle this week?")
             Thread.sleep(forTimeInterval: delay)
             let stop = app.buttons["composer.stop"]
@@ -127,16 +128,29 @@ final class RundaleLiveEndpointUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(3))
             let interrupted = interruptedRows.count > interruptedBefore
             let committed = !Set(app.committedDialogueRows().map(\.row)).subtracting(committedBefore).isEmpty
+            let newRows = app.transcriptRows().filter { !rowsBefore.contains($0.row) }
+            let retryOffered = app.buttons["composer.retry"].exists
+            // A positive interruption: the app offers Retry for the stopped
+            // request, the readable trace shows this turn's accepted command
+            // and no failed row (a request failure also offers Retry), and no
+            // reply committed. A Stop that did nothing commits the reply; a
+            // failure leaves a failed row; an unreadable trace leaves no rows.
+            let stoppedCleanly = retryOffered && !committed
+                && newRows.contains { $0.kind == "player_command" }
+                && !newRows.contains { $0.state.contains("fail") }
             if interrupted {
                 XCTAssertFalse(committed, "A stopped turn must not commit a late reply")
             }
-            if !committed { stoppedWithoutCommit += 1 }
+            if stoppedCleanly { stoppedCleanlyCount += 1 }
             attempts.append([
                 "delay": delay,
                 "sent_at": clock.string(from: sentAt),
                 "stopped_at": clock.string(from: stoppedAt),
                 "interrupted_row_shown": interrupted,
-                "reply_committed": committed
+                "reply_committed": committed,
+                "retry_offered": retryOffered,
+                "new_rows": newRows.map { "\($0.kind)/\($0.state)" },
+                "stopped_cleanly": stoppedCleanly
             ])
         }
         let trace = try JSONSerialization.data(
@@ -146,12 +160,9 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         attachment.name = "rundale-live-stop-attempts.json"
         attachment.lifetime = .keepAlways
         add(attachment)
-        // A Stop that does nothing lets every reply commit. At least one turn
-        // must end stopped with no new committed dialogue row (compared by
-        // the trace's stable row id), or the sweep proved nothing.
         XCTAssertGreaterThan(
-            stoppedWithoutCommit, 0,
-            "No attempt was stopped before its reply committed: \(attempts)"
+            stoppedCleanlyCount, 0,
+            "No attempt was positively interrupted by Stop: \(attempts)"
         )
     }
 
