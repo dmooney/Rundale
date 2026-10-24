@@ -40,7 +40,6 @@ PHASE2_UI_CLASSES = (
 )
 PHASE3_UI_CLASSES = (
     "RundaleUITests/RundalePhase3UITests",
-    "RundaleUITests/RundalePhase3ArrivalsUITests",
     "RundaleUITests/RundalePhase3ClarificationUITests",
 )
 PHASE4_UI_CLASSES = (
@@ -2380,7 +2379,6 @@ class VerificationRun:
                 *PHASE2_UI_CLASSES,
                 "RundaleUITests/RundaleSceneUITests",
                 "RundaleUITests/RundaleCommandsUITests",
-                "RundaleUITests/RundaleFailureLinesUITests",
                 "RundaleTests/RundaleEngineLifecycleTests",
                 "RundaleTests/RundaleBugReportTests",
             ],

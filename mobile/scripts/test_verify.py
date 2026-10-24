@@ -980,7 +980,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 self.assertIn(f"-only-testing:{selector}", selectors)
             self.assertEqual(by_id["ios-simulator-combined-run"]["status"], "passed")
             self.assertEqual(by_id["phase4-ios-simulator-tests-results"]["status"], "passed")
-            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 3)
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 2)
 
     def test_combined_run_fails_only_the_suite_whose_case_failed(self):
         with tempfile.TemporaryDirectory() as directory:

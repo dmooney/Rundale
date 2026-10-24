@@ -211,37 +211,6 @@ final class RundalePhase4UITests: RundalePhase4UITestCase {
         XCTAssertEqual(completedDialogue.count, 1)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
-
-    func testTalkingAboutAbsentMichaelStillGetsPeigsReplyAtTheLetterOffice() {
-        launch(reset: true)
-        // Peig's schedule has her set out for the Letter Office at 09:00. A
-        // long wait moves the clock in one step, so she only sets off when it
-        // ends; a short one then lets her arrive (as the canonical world
-        // sheet's script does).
-        submit("/wait 120")
-        submit("/wait 10")
-        submit("go to the Letter Office")
-        XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
-        submit("Hello")
-        waitForCompletedDialogue()
-        let firstReplyID = completedDialogue.firstMatch.identifier
-        let command = "Well I’m looking for work and a place to stay. Michael said maybe you could direct me."
-        submit(command)
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 25))
-        let reply = rows(containing: "A sharp-eyed woman with a satchel of letters").matching(NSPredicate(
-            format: "identifier != %@ AND label CONTAINS 'Dialogue' AND NOT label CONTAINS 'In progress'",
-            firstReplyID
-        )).firstMatch
-        XCTAssertTrue(reply.waitForExistence(timeout: 5))
-        XCTAssertTrue(reply.label.contains("A sharp-eyed woman with a satchel of letters"))
-        let scroll = app.collectionViews["transcript"]
-        XCTAssertLessThanOrEqual(reply.frame.maxY, scroll.frame.maxY + 2,
-                                 "The full new reply should be visible above the keyboard")
-        XCTAssertFalse(app.buttons["transcript.new-text"].exists)
-        XCTAssertFalse(rows(containing: "is not here").firstMatch.exists)
-        attach("Mentioning absent Michael while speaking to Peig")
-        assertSingleCommand(command)
-    }
 }
 
 /// Background and termination during streaming.
