@@ -742,6 +742,22 @@ jobs:
           restore-keys: |
             rust-mobile-${{ runner.os }}-
 
+      # Xcode's DerivedData: the Swift package checkouts (Firebase and its
+      # dependencies, about 450 of the device build's 500 compile steps) and
+      # their builds. Keyed on the package pins; a checkout makes the app's own
+      # sources newer than their cached products, so those recompile.
+      - name: Restore the Xcode build
+        id: xcode-cache
+        if: steps.recorded.outputs.run == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            mobile/.verification/DerivedData
+            mobile/.verification/tool-cache
+          key: xcode-derived-${{ runner.os }}-26.6-${{ hashFiles('mobile/project.yml', 'mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            xcode-derived-${{ runner.os }}-26.6-
+
       # The hosted runner has a few cores, not the 18 the default six
       # simulator workers were measured on: six clones there outran the
       # 30-minute command limit (#2276). A smoke pass is never recorded as a
@@ -753,6 +769,7 @@ jobs:
         env:
           RUNDALE_PARALLEL_WORKERS: "2"
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
+          RUNDALE_STABLE_DERIVED_DATA: "1"
           GATE_ARGS: ${{ steps.recorded.outputs.args }}
         # GATE_ARGS is `--smoke` or `--phase all`.
         run: |
@@ -766,6 +783,16 @@ jobs:
         with:
           path: mobile/.build/rust-mobile/cargo-target
           key: ${{ steps.rust-cache.outputs.cache-primary-key }}
+
+      # Saved even when a test fails: the builds finished first.
+      - name: Save the Xcode build
+        if: ${{ !cancelled() && steps.recorded.outputs.run == 'true' && steps.xcode-cache.outcome == 'success' && steps.xcode-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            mobile/.verification/DerivedData
+            mobile/.verification/tool-cache
+          key: ${{ steps.xcode-cache.outputs.cache-primary-key }}
 
       # A labelled full pass counts as the author's recorded pass. A token that
       # cannot write statuses (Dependabot's) leaves the gate's result as is.

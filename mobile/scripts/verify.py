@@ -723,6 +723,10 @@ class VerificationRun:
         self.physical_device_ready = device is None
         self.started_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.run_stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        # CI restores Xcode's DerivedData (the Swift package checkouts and their
+        # builds) from a cache, so its runs build into one unstamped folder per
+        # target, which pruning leaves alone.
+        self.stable_derived_data = os.environ.get("RUNDALE_STABLE_DERIVED_DATA") == "1"
         self.use_cache = use_cache
         # Shared by every report directory so a custom --report-dir still
         # reuses and contributes passes.
@@ -1570,7 +1574,9 @@ class VerificationRun:
         project, derived, bundle = (
             _relative(self.project, self.root),
             _relative(
-                self.report_dir / "DerivedData" / f"{target_kind}-{self.run_stamp}",
+                self.report_dir
+                / "DerivedData"
+                / (target_kind if self.stable_derived_data else f"{target_kind}-{self.run_stamp}"),
                 self.root,
             ),
             self._bundle(kind),
