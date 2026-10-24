@@ -1,7 +1,7 @@
 # Design: dynamic NPC context and recipient resolution
 
 > Status: Accepted · Issue: [#2143](https://github.com/dmooney/Rundale/issues/2143) ·
-> Milestone: Existing features usable (spec Milestone 5) · Pairs with:
+> Milestone: NPC dialogue (spec Milestone 5) · Pairs with:
 > [#2024](https://github.com/dmooney/Rundale/issues/2024) (static context)
 
 This is the contract #2143 requires before implementation. It covers who a
