@@ -63,15 +63,20 @@ keyboard audit, automatic fixture streaming, and fixture history volume tests.
 Pin the small iPhone simulator for the accessibility regression; a large-screen
 pass alone does not cover the SE3 layout defect (carried to #2047).
 
-Phase 2 adds the shared engine: `limerick-core` in the portable `mobile`
-configuration the phone links (turn API, Endpoint calls, saves), the
-`limerick-persistence` save-format and kernel save-lock tests, the
-`limerick-mobile-ffi` tests, a check that the FFI's dependency graph has no
+Phase 2 adds the shared engine: the
+`limerick-persistence` save-format and kernel save-lock tests (their save paths
+and lock have Darwin-only code), a check that the FFI's dependency graph has no
 desktop crates or desktop features (`limerick-core`/`limerick-inference`
 `desktop`, `limerick-diagnostics` `github`), the device and simulator `LimerickMobileFFI.xcframework`, the
 `RundaleBridge` and `LimerickEndpointKit` packages, and the Phase 2 and scene UI
-suites with the engine lifecycle tests. Phase 3 adds the canonical tiny-world
-sheet test (`limerick-engine --test world_sheet`) and the Phase 3 UI suite.
+suites with the engine lifecycle tests. Phase 3 adds the Phase 3 UI suite.
+
+The other Rust crates' tests are not part of this gate: they build for the host,
+not iOS, so CI runs them on Linux (`full-ci.yml`). There, `rust-mobile-build`
+tests `limerick-core` in the portable `mobile` configuration the phone links and
+`limerick-mobile-ffi` built on its own, and fails when either ignores a test it
+does not name; the workspace nextest run covers the canonical tiny-world sheet
+test (`limerick-engine --test world_sheet`).
 
 ## Options
 

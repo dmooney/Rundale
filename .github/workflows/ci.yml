@@ -72,6 +72,11 @@ jobs:
               - 'limerick/Cargo.lock'
               - 'limerick/config/**'
               - 'rust-toolchain.toml'
+              - '.cargo/**'
+              # Read by limerick-core's endpoint_calls and limerick-mobile-ffi's
+              # header test, which run only here, not in the Mac mobile gate.
+              - 'mobile/endpoint/**'
+              - 'mobile/RundaleBridge/Sources/LimerickMobileFFI/include/**'
               - 'limerick/testing/**'
               - 'limerick/scripts/**'
               - 'limerick/justfile'

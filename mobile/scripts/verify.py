@@ -1310,14 +1310,10 @@ class VerificationRun:
             status, reason = PASSED, None
         self._change(test_record, status, reason, details)
 
-    def _validate_rust_result(
-        self, test_record: dict[str, Any], expected_ignored: Sequence[str] = ()
-    ) -> None:
+    def _validate_rust_result(self, test_record: dict[str, Any]) -> None:
         """Require cargo's test harness to report a non-empty test result.
 
-        An ignored test makes the suite a skip unless the gate names it in
-        `expected_ignored` (an opt-in measurement, say), so a newly ignored
-        test still blocks.
+        An ignored test makes the suite a skip, so a newly ignored test blocks.
         """
 
         output = self.results[test_record["id"]].output
@@ -1338,7 +1334,7 @@ class VerificationRun:
         failed = sum(int(match.group(2)) for match in matches)
         ignored = sum(int(match.group(3)) for match in matches)
         ignored_names = re.findall(r"^test (\S+) \.\.\. ignored", output, re.M)
-        unexpected = [name for name in ignored_names if name not in expected_ignored]
+        unexpected = list(ignored_names)
         if len(ignored_names) != ignored:
             unexpected.append(f"{ignored - len(ignored_names)} unnamed")
         executed = passed + failed
@@ -1347,7 +1343,6 @@ class VerificationRun:
             "passed_tests": passed,
             "failed_tests": failed,
             "ignored_tests": ignored,
-            "expected_ignored": [name for name in ignored_names if name in expected_ignored],
             "result_lines": len(matches),
             "toolchain": RUST_TOOLCHAIN,
         }
@@ -1372,7 +1367,6 @@ class VerificationRun:
         package: str,
         cargo_args: Sequence[str] = (),
         phase: int = 2,
-        expected_ignored: Sequence[str] = (),
     ) -> None:
         command = [
             "rustup",
@@ -1407,7 +1401,7 @@ class VerificationRun:
             },
         )
         if record["status"] == PASSED:
-            self._validate_rust_result(record, expected_ignored)
+            self._validate_rust_result(record)
 
     def _mobile_dependency_graph(self) -> None:
         command = [
@@ -2539,28 +2533,13 @@ class VerificationRun:
         reuse_phase1_native_setup: bool,
         rust_packaging_already_run: bool = False,
     ) -> None:
-        # The shared engine in the configuration the phone links: the turn
-        # API, intent and dialogue Endpoint calls, and save round trips.
-        self._cargo_test(
-            identifier="limerick-core-mobile-tests",
-            name="Limerick core portable (mobile feature) tests",
-            package="limerick-core",
-            # Unit and integration tests; the crate's doc examples are not
-            # tests of the portable engine.
-            cargo_args=("--no-default-features", "--features", "mobile", "--lib", "--tests"),
-            expected_ignored=("measure_candidate_capture_cost_on_rundale",),
-        )
+        # The other Rust crates' tests build for the host, not iOS, so CI runs
+        # them on Linux (full-ci.yml). limerick-persistence stays: its save
+        # paths and kernel save lock have Darwin-only code and semantics.
         self._cargo_test(
             identifier="limerick-persistence-tests",
             name="Limerick save format, journal, and kernel save-lock tests",
             package="limerick-persistence",
-        )
-        self._cargo_test(
-            identifier="limerick-mobile-ffi-tests",
-            name="Limerick mobile FFI tests",
-            package="limerick-mobile-ffi",
-            # The System 1 comparison's opt-in baseline harness (#2220).
-            expected_ignored=("tests::addressee_baseline",),
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:
@@ -2614,14 +2593,6 @@ class VerificationRun:
         self._phase2_physical()
 
     def _phase3(self, *, reuse_native_setup: bool) -> None:
-        # mods/rundale is the canonical tiny world (#2084); its world sheet
-        # is the oracle for places, people, and routes.
-        self._cargo_test(
-            identifier="limerick-world-sheet-tests",
-            name="Canonical tiny-world sheet tests",
-            package="limerick-engine",
-            cargo_args=("--test", "world_sheet"),
-        )
         if not reuse_native_setup:
             self._mobile_dependency_graph()
             self._mobile_rust_packaging()

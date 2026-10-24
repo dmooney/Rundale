@@ -109,8 +109,8 @@ Most engine commands should be run from the `limerick/` directory:
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
 - Lint: `cargo clippy --workspace -- -D warnings`
-- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings` and `cargo test -p limerick-core --no-default-features --features mobile`
-  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes)
+- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings`, `cargo test -p limerick-core --no-default-features --features mobile`, and `cargo test -p limerick-mobile-ffi`
+  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes). `just mobile-verify` does not rerun these on the Mac.
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 

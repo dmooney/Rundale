@@ -741,7 +741,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
             # Rust gates and the device build still run.
             for identifier in (
-                "limerick-core-mobile-tests",
+                "limerick-persistence-tests",
                 "mobile-rust-packaging",
                 "ios-device-build",
             ):
@@ -1084,9 +1084,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(report["exit_code"], 0)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             for identifier in (
-                "limerick-core-mobile-tests",
                 "limerick-persistence-tests",
-                "limerick-mobile-ffi-tests",
                 "mobile-dependency-graph",
                 "mobile-rust-packaging",
                 "swift-package-tests-phase2",
@@ -1106,16 +1104,12 @@ class VerificationRunnerTests(unittest.TestCase):
                 if call["argv"][:5]
                 == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test")
             ]
-            self.assertEqual(len(rust_test_calls), 3)
-            for call in rust_test_calls:
-                index = call["argv"].index("--manifest-path")
-                self.assertEqual(call["argv"][index + 1], "limerick/Cargo.toml")
-            core_call = next(c for c in rust_test_calls if "limerick-core" in c["argv"])
-            # The whole portable configuration, not a filtered subset: it
-            # includes the turn API and the Endpoint call tests.
+            # Only persistence: the other crates' tests run on Linux (full-ci.yml).
+            self.assertEqual(len(rust_test_calls), 1)
+            index = rust_test_calls[0]["argv"].index("--manifest-path")
             self.assertEqual(
-                core_call["argv"][-5:],
-                ("--no-default-features", "--features", "mobile", "--lib", "--tests"),
+                rust_test_calls[0]["argv"][index + 1 :],
+                ("limerick/Cargo.toml", "-p", "limerick-persistence"),
             )
             packaging_call = next(
                 call
@@ -1169,41 +1163,28 @@ class VerificationRunnerTests(unittest.TestCase):
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
-            self.assertEqual(by_id["limerick-core-mobile-tests"]["status"], "failed")
+            self.assertEqual(by_id["limerick-persistence-tests"]["status"], "failed")
             self.assertIn(
-                "did not report test-result counts", by_id["limerick-core-mobile-tests"]["reason"]
+                "did not report test-result counts", by_id["limerick-persistence-tests"]["reason"]
             )
 
-    def test_rust_gate_passes_named_ignored_test_and_skips_any_other(self):
-        measurement = (
-            "test measure_candidate_capture_cost_on_rundale ... ignored, measurement\n"
-            "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n"
-        )
-        for extra, expected in (
-            ("", "passed"),
-            ("test newly_ignored ... ignored\n", "skipped"),
-        ):
-            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                (root / "mobile").mkdir()
-                create_phase2_fixture(root)
-                fake = FakeRunner()
-                fake.rust_output = extra + measurement
-                if extra:
-                    fake.rust_output = fake.rust_output.replace("1 ignored", "2 ignored")
-                report = VerificationRun(root, command_runner=fake, use_cache=False).run(2)
+    def test_rust_gate_skips_on_any_ignored_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.rust_output = (
+                "test newly_ignored ... ignored\n"
+                "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n"
+            )
+            report = VerificationRun(root, command_runner=fake, use_cache=False).run(2)
 
-                by_id = {suite["id"]: suite for suite in report["suites"]}
-                core = by_id["limerick-core-mobile-tests"]
-                self.assertEqual(core["status"], expected)
-                self.assertEqual(
-                    core["details"]["expected_ignored"],
-                    ["measure_candidate_capture_cost_on_rundale"],
-                )
-                if extra:
-                    self.assertIn("newly_ignored", core["reason"])
-                # Gates that name no expected ignore treat any ignore as a skip.
-                self.assertEqual(by_id["limerick-mobile-ffi-tests"]["status"], "skipped")
+            persistence = {suite["id"]: suite for suite in report["suites"]}[
+                "limerick-persistence-tests"
+            ]
+            self.assertEqual(persistence["status"], "skipped")
+            self.assertIn("newly_ignored", persistence["reason"])
 
     def test_phase2_dependency_gate_rejects_forbidden_crate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1742,12 +1723,12 @@ class VerificationCacheTests(unittest.TestCase):
             first, first_report = self.run_phase(root)
             self.assertEqual(first_report["exit_code"], 0)
             self.assertEqual(first_report["summary"]["reused"], 0)
-            self.assertEqual(len(executed_suites(first)), 8)
+            self.assertEqual(len(executed_suites(first)), 6)
 
             second, report = self.run_phase(root)
             self.assertEqual(report["exit_code"], 0)
             self.assertEqual(executed_suites(second), [])
-            self.assertEqual(report["summary"]["reused"], 9)
+            self.assertEqual(report["summary"]["reused"], 7)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             reused = by_id["phase2-ios-simulator-tests"]["details"]["cache"]
             self.assertTrue(reused["reused"])
@@ -1755,7 +1736,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-test-results"]["status"], "passed")
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
-            self.assertIn("9 passed suite(s) reused", summary)
+            self.assertIn("7 passed suite(s) reused", summary)
 
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1836,11 +1817,11 @@ class VerificationCacheTests(unittest.TestCase):
             tracked = root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift"
             tracked.write_text("// changed\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8, "tracked edit reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 6, "tracked edit reruns every suite")
 
             (root / "mobile" / "Untracked.swift").write_text("// new\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8, "untracked source reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 6, "untracked source reruns every suite")
 
     def test_private_firebase_configuration_and_toolchain_are_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1851,12 +1832,12 @@ class VerificationCacheTests(unittest.TestCase):
             plist.parent.mkdir(parents=True)
             plist.write_bytes(b"private")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
 
             fake = GitBackedRunner()
             fake.results[("xcodebuild", "-version")] = CommandResult(0, stdout="Xcode 99.0\n")
             VerificationRun(root, command_runner=fake).run(2)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
 
     def test_failures_are_never_reused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1877,7 +1858,7 @@ class VerificationCacheTests(unittest.TestCase):
             create_cached_repository(root)
             self.run_phase(root)
             fake, report = self.run_phase(root, use_cache=False)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
             self.assertEqual(report["summary"]["reused"], 0)
             self.assertFalse(report["cache"]["enabled"])
 
