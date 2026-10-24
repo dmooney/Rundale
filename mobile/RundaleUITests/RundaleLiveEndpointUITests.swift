@@ -106,11 +106,12 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         goToTheCottage()
 
         var attempts: [[String: Any]] = []
+        var stoppedWithoutCommit = 0
         let clock = ISO8601DateFormatter()
         clock.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         for step in 0..<4 {
             let delay = 0.2 + 0.15 * Double(step)
-            let committedBefore = app.committedDialogueRows().count
+            let committedBefore = Set(app.committedDialogueRows().map(\.row))
             let interruptedBefore = interruptedRows.count
             let sentAt = submit("Mícheál, how are the cattle this week?")
             Thread.sleep(forTimeInterval: delay)
@@ -125,10 +126,11 @@ final class RundaleLiveEndpointUITests: XCTestCase {
             XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
             RunLoop.current.run(until: Date().addingTimeInterval(3))
             let interrupted = interruptedRows.count > interruptedBefore
-            let committed = app.committedDialogueRows().count > committedBefore
+            let committed = !Set(app.committedDialogueRows().map(\.row)).subtracting(committedBefore).isEmpty
             if interrupted {
                 XCTAssertFalse(committed, "A stopped turn must not commit a late reply")
             }
+            if !committed { stoppedWithoutCommit += 1 }
             attempts.append([
                 "delay": delay,
                 "sent_at": clock.string(from: sentAt),
@@ -144,7 +146,13 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         attachment.name = "rundale-live-stop-attempts.json"
         attachment.lifetime = .keepAlways
         add(attachment)
-        XCTAssertTrue(attempts.contains { $0["stopped_at"] != nil }, "Stop was never tapped: \(attempts)")
+        // A Stop that does nothing lets every reply commit. At least one turn
+        // must end stopped with no new committed dialogue row (compared by
+        // the trace's stable row id), or the sweep proved nothing.
+        XCTAssertGreaterThan(
+            stoppedWithoutCommit, 0,
+            "No attempt was stopped before its reply committed: \(attempts)"
+        )
     }
 
     /// Free-form movement the local parser does not recognise is classified
