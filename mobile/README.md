@@ -71,10 +71,11 @@ just testflight-update         # verify, sign, and upload an internal beta
 
 `just mobile-verify` writes its JSON, JUnit, and summary reports under
 `mobile/.verification/` and reuses suites that passed with identical inputs.
-Every run starts with pinned SwiftLint and SwiftFormat checks, and every Swift
-build treats warnings as errors. The package suites must hold their coverage
-baselines. The CI `Swift quality` job runs the lint, format, and package gates
-(`just mobile-verify --fast`) on each mobile pull request. The
+Every Swift build treats warnings as errors. `just mobile-verify --fast` runs
+pinned SwiftLint and SwiftFormat checks and the package suites, which must hold
+their coverage baselines; the CI `Swift quality` job runs it on Linux on each
+mobile pull request. The phase gates run the package suites on the Mac too, but
+not the style checks. The
 [Swift quality gates](../docs/agent/swift-quality-gates.md) set out the policy,
 the exclusions, and what runs where.
 The [scripts README](scripts/README.md) covers its gates and options, recording

@@ -360,6 +360,8 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertGreater(report["summary"]["not_automatable"], 0)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(by_id["swift-package-tests"]["status"], "passed")
+            # Style checks read source text only; --fast runs them on Linux.
+            self.assertNotIn("swiftlint", by_id)
             self.assertEqual(by_id["xcodegen"]["status"], "passed")
             self.assertEqual(by_id["ios-device-build"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
@@ -573,7 +575,7 @@ class VerificationRunnerTests(unittest.TestCase):
             fake = FakeRunner(
                 {lint: CommandResult(2, stdout="Foo.swift:1:1: error: Force Try Violation")}
             )
-            report = VerificationRun(root, command_runner=fake).run(1)
+            report = VerificationRun(root, command_runner=fake).run(fast=True)
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
@@ -600,7 +602,7 @@ class VerificationRunnerTests(unittest.TestCase):
             create_phase1_fixture(root)
             install = ("bash", "mobile/scripts/install-swift-tools.sh")
             fake = FakeRunner({install: CommandResult(1, stderr="digest mismatch")})
-            report = VerificationRun(root, command_runner=fake).run(1)
+            report = VerificationRun(root, command_runner=fake).run(fast=True)
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
@@ -739,6 +741,16 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["phase4-ios-controller-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
+            # CI's Linux lane runs the Swift packages and style checks.
+            self.assertFalse(any(call["argv"][:2] == ("swift", "test") for call in fake.calls))
+            for identifier in (
+                "swift-package-tests",
+                "swift-bridge-tests",
+                "swift-endpoint-kit-tests",
+            ):
+                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
+                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            self.assertNotIn("swiftlint", by_id)
             # Rust gates and the device build still run.
             for identifier in (
                 "limerick-persistence-tests",

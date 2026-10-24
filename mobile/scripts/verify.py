@@ -1080,6 +1080,11 @@ class VerificationRun:
         phase: int,
         required: bool = True,
     ) -> None:
+        if self.smoke:
+            # CI's Linux Swift lane (`--fast`) runs every package suite on each
+            # pull request; the full gate runs them against Apple's Foundation.
+            self._skip(identifier, name, phase, "--smoke leaves Swift packages to --fast")
+            return
         manifest, tests = package_path / "Package.swift", package_path / "Tests"
         if not manifest.is_file():
             self._missing(
@@ -2854,10 +2859,12 @@ class VerificationRun:
         }
 
     def _fast(self) -> None:
-        """The pull-request CI lane: Swift style and the three Swift packages.
+        """Swift style and the three Swift packages: CI's Linux Swift lane.
 
-        It needs no Xcode project, Rust build, or simulator, so a hosted macOS
-        runner can run it on every mobile change.
+        It needs no Xcode project, Rust build, or simulator, and runs on Linux
+        as on macOS. The phase gates leave out the style checks, and --smoke
+        the packages too; the full gate keeps the packages for Apple's
+        Foundation.
         """
 
         self._swift_style(phase=1)
@@ -2879,8 +2886,8 @@ class VerificationRun:
 
     def _phases(self, phase: int | None) -> None:
         self._device_preflight()
-        if phase is None or phase in IMPLEMENTED_PHASES:
-            self._swift_style(phase=1 if phase is None else phase)
+        # SwiftLint and SwiftFormat check source text, so they run only in
+        # --fast (CI's Linux Swift lane), not on a Mac.
         if phase is None or phase == 4:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
@@ -3185,8 +3192,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--smoke",
         action="store_true",
         help=(
-            "run every gate but the full UI suites, plus a few core-loop UI tests "
-            "(the hosted PR gate); never records a full pass"
+            "run every gate but the full UI suites and the Swift packages (--fast "
+            "runs those), plus a few core-loop UI tests (the hosted PR gate); "
+            "never records a full pass"
         ),
     )
     parser.add_argument("--project-spec", type=Path)
