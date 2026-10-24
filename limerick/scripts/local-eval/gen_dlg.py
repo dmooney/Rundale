@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate the canonical 5-prompt dialogue sample for one target.
 
-Used by the `/eval-dialogue` skill to score candidate models blind-judge.
+Historical pre-3.0 helper for explicitly requested legacy blind comparisons.
+Not part of the current Benchmark 3.0 procedure.
 Target is a `model@base_url[#env:VAR]` spec (see `eval_lib.parse_target`).
 
 Usage::

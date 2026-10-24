@@ -17,14 +17,14 @@ model@base_url#env:VAR                  # cloud, API key in $VAR
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `gen_samples.py` | Renders **2 examples per inference category** (Intent, Reaction, Tier 2 Sim, Tier 3 Sim, Dialogue) using the production prompt builders mirrored from [`limerick-inference/examples/inf_bench.rs`](../../crates/limerick-inference/examples/inf_bench.rs). Takes `--small` and `--large` target specs; defaults reproduce the two-slot vllm-mlx loadout. | `docs/proofs/local-perf/category_samples.md`    |
 | `flaw_scan.py`   | Runs **N dialogue prompts** through one target and flags responses containing non-Latin scripts (Cyrillic, Han, Hiragana, Katakana, Hangul, Arabic, Hebrew, Greek, Devanagari), empty output, or > 800 char output. `--prompts` / `--workers` configurable.                                                                                              | `docs/proofs/local-perf/dialogue_flaw_scan*.md` |
-| `gen_dlg.py`     | 5-prompt canonical dialogue sampler — paired with `/rundale-bench eval-dialogue` for blind A/B/N. Takes a single target spec + output path.                                                                                                                                                                                                              | path supplied on CLI                            |
+| `gen_dlg.py`     | Legacy 5-prompt dialogue sampler for explicit pre-3.0 historical comparisons. It is not the current Benchmark 3.0 procedure.                                                                                                                                                                                                                             | path supplied on CLI                            |
 | `eval_lib.py`    | Shared `Target`, `parse_target`, `call_chat`, `CostTracker`, and `COSTS` table.                                                                                                                                                                                                                                                                          | —                                               |
 
-For blind-judge quality scoring across two or more models, prefer the
-[`/rundale-bench eval-dialogue`](../../../.agents/skills/rundale-bench/SKILL.md)
-Claude slash command — it spawns the judge + candidates, runs the 5-axis rubric,
-and archives a scoring report under the ignored local archive at
-`docs/proofs/local-perf/` in one go.
+These scripts preserve the repository's pre-3.0 evaluation tooling. Use them
+only for an explicitly requested historical comparison. Current model
+evaluations route to [dmooney/rundale-bench](https://github.com/dmooney/rundale-bench).
+Read its current instructions and qualification evidence before running or
+publishing. Do not use these scripts as a fallback for a current evaluation.
 
 ## Prerequisites
 
@@ -67,7 +67,7 @@ python3 limerick/scripts/local-eval/flaw_scan.py \
     --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' \
     --prompts 25 --workers 2
 
-# Blind dialogue sample for one target (used by /eval-dialogue)
+# Historical pre-3.0 blind dialogue sample for one target
 python3 limerick/scripts/local-eval/gen_dlg.py \
     'mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1' \
     /tmp/dlg-qwen14.txt
