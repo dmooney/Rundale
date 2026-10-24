@@ -404,8 +404,15 @@ pub async fn handle_game_input_settled(
                             }
                         }
                     }
+                    // A call that never reached an answer (connection, busy,
+                    // unavailable, timed out, refused, cancelled) fails the
+                    // request recoverably rather than guessing what the
+                    // player meant (issue 1825). Only a malformed answer, or
+                    // a host that reports no reason, continues as unsure.
                     InferenceOutcome::Failed { report, .. }
-                        if report.reason == Some(FailureReason::Offline) =>
+                        if report
+                            .reason
+                            .is_some_and(|reason| reason != FailureReason::Garbled) =>
                     {
                         {
                             let mut world = ctx.world.lock().await;
