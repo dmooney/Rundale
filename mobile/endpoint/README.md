@@ -172,7 +172,10 @@ Attest remains unverified.
 
 `RundaleLiveEndpointUITests` plays the app against a deployed Limerick
 Endpoints service: a dialogue turn (`rundale-intent` v1, then
-`rundale-dialogue` v1), Stop during a streamed reply, free-form movement
+`rundale-dialogue` v1), Stop during a streamed reply (`test09` steps the tap
+delay across the dialogue call and attaches each attempt's times; match them to
+the `REQUEST_CANCELLED` rows in `invocations`, since a live reply streams for
+under a second), free-form movement
 classified by `rundale-intent` v1, and "ask Connolly about the household" at
 the cottage asking which Connolly before anyone answers, the #1901 probe
 that an accepted reply agrees with the speaker's current location, "Hello" at
