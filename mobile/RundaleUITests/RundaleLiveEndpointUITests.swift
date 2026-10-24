@@ -87,6 +87,85 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         )
     }
 
+    /// Stop while the dialogue call is open on the server (#2171). Gemini
+    /// Flash Lite answers in under a second, and the tap itself takes a second
+    /// to land, so one fixed delay would usually miss the dialogue call and
+    /// stop the intent call or a finished reply. Step the delay across the
+    /// window and record each attempt's wall-clock times: an attempt whose
+    /// `/cancel` reaches the running dialogue stream is recorded by
+    /// limerick-prod as a `rundale-dialogue` invocation with
+    /// `error_code = REQUEST_CANCELLED` and `cancellation_requested = true`
+    /// (request id `<request>:<attempt>.<call>`). Match the attached times to
+    /// `invocations.started_at` with `endpoints/deploy/limerick-prod.sh sql`.
+    /// `sent_at` precedes the Send tap's dispatch and `stopped_at` follows the
+    /// Stop tap's return, so each is off by up to the tap time (about a second).
+    /// The app never commits a reply for a turn it reports interrupted.
+    func test09LiveStopAroundTheDialogueCallCommitsNothingLate() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+
+        var attempts: [[String: Any]] = []
+        var stoppedCleanlyCount = 0
+        let clock = ISO8601DateFormatter()
+        clock.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for step in 0..<4 {
+            let delay = 0.2 + 0.15 * Double(step)
+            let committedBefore = Set(app.committedDialogueRows().map(\.row))
+            let interruptedBefore = interruptedRows.count
+            let rowsBefore = Set(app.transcriptRows().map(\.row))
+            let sentAt = submit("Mícheál, how are the cattle this week?")
+            Thread.sleep(forTimeInterval: delay)
+            let stop = app.buttons["composer.stop"]
+            guard stop.exists else {
+                attempts.append(["delay": delay, "outcome": "reply finished before Stop"])
+                XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 20))
+                continue
+            }
+            stop.tap()
+            let stoppedAt = Date()
+            XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+            RunLoop.current.run(until: Date().addingTimeInterval(3))
+            let interrupted = interruptedRows.count > interruptedBefore
+            let committed = !Set(app.committedDialogueRows().map(\.row)).subtracting(committedBefore).isEmpty
+            let newRows = app.transcriptRows().filter { !rowsBefore.contains($0.row) }
+            let retryOffered = app.buttons["composer.retry"].exists
+            // A positive interruption: the app offers Retry for the stopped
+            // request, the readable trace shows this turn's accepted command
+            // and no failed row (a request failure also offers Retry), and no
+            // reply committed. A Stop that did nothing commits the reply; a
+            // failure leaves a failed row; an unreadable trace leaves no rows.
+            let stoppedCleanly = retryOffered && !committed
+                && newRows.contains { $0.kind == "player_command" }
+                && !newRows.contains { $0.state.contains("fail") }
+            if interrupted {
+                XCTAssertFalse(committed, "A stopped turn must not commit a late reply")
+            }
+            if stoppedCleanly { stoppedCleanlyCount += 1 }
+            attempts.append([
+                "delay": delay,
+                "sent_at": clock.string(from: sentAt),
+                "stopped_at": clock.string(from: stoppedAt),
+                "interrupted_row_shown": interrupted,
+                "reply_committed": committed,
+                "retry_offered": retryOffered,
+                "new_rows": newRows.map { "\($0.kind)/\($0.state)" },
+                "stopped_cleanly": stoppedCleanly
+            ])
+        }
+        let trace = try JSONSerialization.data(
+            withJSONObject: attempts, options: [.prettyPrinted, .sortedKeys]
+        )
+        let attachment = XCTAttachment(data: trace, uniformTypeIdentifier: "public.json")
+        attachment.name = "rundale-live-stop-attempts.json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertGreaterThan(
+            stoppedCleanlyCount, 0,
+            "No attempt was positively interrupted by Stop: \(attempts)"
+        )
+    }
+
     /// Free-form movement the local parser does not recognise is classified
     /// by rundale-intent v1; the engine then moves the player, once, and the
     /// transcript shows the move rather than a fallback conversation (#2046,
@@ -344,6 +423,13 @@ final class RundaleLiveEndpointUITests: XCTestCase {
                 format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue' \(progressClause)"
             )
         ).firstMatch
+    }
+
+    /// Rows the app marked "Interrupted; not applied", across all turns.
+    private var interruptedRows: XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Interrupted; not applied'")
+        )
     }
 
     private func waitForTranscriptText(_ text: String, timeout: TimeInterval) -> Bool {
