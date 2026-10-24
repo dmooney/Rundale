@@ -312,12 +312,12 @@ notes go into another run.
 ## 7. Plan
 
 1. **This document** closes #2024 in Stability.
-2. **Prompt lab spike** (Existing features usable): build the lab, write the
+2. **Prompt lab spike** ([#2294](https://github.com/dmooney/Rundale/issues/2294), Existing features usable): build the lab, write the
    starting prompts, run the automated research, owner review, frozen prompt.
-3. **Prompt system** (Existing features usable): design and implement how the
+3. **Prompt system** ([#2299](https://github.com/dmooney/Rundale/issues/2299), Existing features usable): design and implement how the
    engine and Endpoint build the frozen prompt from game data, described
    below.
-4. **Guard removal** (Existing features usable): independent of 2 and 3; it
+4. **Guard removal** ([#2295](https://github.com/dmooney/Rundale/issues/2295), Existing features usable): independent of 2 and 3; it
    can land any time.
 
 - **Populating the prompt (step 3).** A design for how the engine and the
