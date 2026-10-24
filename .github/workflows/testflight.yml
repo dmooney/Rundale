@@ -96,15 +96,19 @@ jobs:
         if: steps.changed.outputs.upload == 'true'
         run: brew install xcodegen
 
-      # The mobile Rust build's target directory; only changed crates rebuild.
-      - uses: actions/cache@v6
+      # The iOS Rust libraries' target directory. The crates.io dependencies
+      # are reused; a checkout makes the workspace's own sources newer than
+      # their cached products, so those recompile.
+      # Saved on main, so pull requests' mobile-verify runs start from it.
+      - name: Restore the Rust mobile build
+        id: rust-cache
         if: steps.changed.outputs.upload == 'true'
+        uses: actions/cache/restore@v6
         with:
           path: mobile/.build/rust-mobile/cargo-target
-          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
+          key: rust-mobile-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '.cargo/**', 'limerick/Cargo.toml', 'limerick/Cargo.lock', 'limerick/crates/**') }}
           restore-keys: |
-            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
-            rust-mobile-
+            rust-mobile-${{ runner.os }}-
 
       - name: Write the private Firebase file and API key
         if: steps.changed.outputs.upload == 'true'
@@ -124,6 +128,14 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: python3 mobile/scripts/release.py testflight --verify none
+
+      # Saved even when signing or the upload fails after the Rust build.
+      - name: Save the Rust mobile build
+        if: ${{ !cancelled() && steps.changed.outputs.upload == 'true' && steps.rust-cache.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
 
       - name: Upload the release report
         if: always() && steps.changed.outputs.upload == 'true'
@@ -188,14 +200,16 @@ jobs:
         if: steps.recorded.outputs.run == 'true'
         run: brew install xcodegen
 
-      - uses: actions/cache@v6
+      # The same cache as the upload job's.
+      - name: Restore the Rust mobile build
+        id: rust-cache
         if: steps.recorded.outputs.run == 'true'
+        uses: actions/cache/restore@v6
         with:
           path: mobile/.build/rust-mobile/cargo-target
-          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.sha }}
+          key: rust-mobile-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '.cargo/**', 'limerick/Cargo.toml', 'limerick/Cargo.lock', 'limerick/crates/**') }}
           restore-keys: |
-            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
-            rust-mobile-
+            rust-mobile-${{ runner.os }}-
 
       # Prints its summary, with each failed test's assertion, to the log.
       - name: Run the full mobile-verify gate
@@ -207,6 +221,14 @@ jobs:
           RUNDALE_PARALLEL_WORKERS: "2"
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         run: python3 mobile/scripts/verify.py --phase all
+
+      # Saved even when a later test fails: the Rust build finished first.
+      - name: Save the Rust mobile build
+        if: ${{ !cancelled() && steps.recorded.outputs.run == 'true' && steps.rust-cache.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
 
       # The next night then finds this tree verified.
       - name: Record the pass
