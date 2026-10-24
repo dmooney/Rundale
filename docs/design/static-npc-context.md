@@ -148,8 +148,13 @@ live probes in §7 and records what changed and why.
 > move or do anything by saying it. Return only what the person says, as plain
 > spoken text, with no labels, stage directions or notes.
 
-Schema `description` strings are part of the prompt the model reads; each new
-field gets one written for the model, not for engineers.
+The model reads the instructions, the input values as JSON ("Endpoint input
+values:" followed by the object) and the output schema; it never sees the input
+schema or its `description` strings (`endpoints/packages/providers/src/google/adapter.ts`).
+So field names are plain words the model can read without a gloss, and the
+instructions name each field it should use (`speaker`, `relationships`,
+`village`, `neighbours`, `knownPlaces`, `festivals`, `authoredFacts`) in the
+character's terms. Input schema descriptions stay engineer documentation.
 
 ## 6. Guard removal
 
