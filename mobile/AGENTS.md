@@ -65,6 +65,14 @@ is set (recording only).
   calls in one engine attempt, so `endpointAttemptID(callID:)` sends each call's
   own id. Reusing the attempt id makes the second stream fail with HTTP 500 and
   no invocation row. A mock-only run cannot show it; the live suite does.
+- **Stop records a cancelled invocation only while the dialogue call is open.**
+  `rundale-intent` is non-streaming and finishes server-side, and a live
+  dialogue reply streams for under a second (the tap itself takes about a
+  second to land), so a single fixed Stop delay usually records nothing.
+  `test09` in `RundaleLiveEndpointUITests` steps the delay; the app's
+  "Interrupted; not applied" row is not a reliable signal that `/cancel` hit an
+  open stream. Check `invocations` for `error_code = REQUEST_CANCELLED` on the
+  `rundale-dialogue` request id `<request>:<attempt>.<call>` (#2171).
 - **The Endpoints database keeps no request or response bodies.** Its
   `invocations` rows hold status, sizes, tokens, and error codes only, so
   `limerick-prod.sh sql` cannot show what `rundale-intent` returned. To see a
