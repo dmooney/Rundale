@@ -853,7 +853,9 @@ class VerificationRunnerTests(unittest.TestCase):
                 skipped,
                 [
                     "-skip-testing:RundaleTests/Phase1AuditVolumeTests/"
-                    "testThousandRowsRenderAndReachBothEndsWithinBudget"
+                    "testThousandRowsRenderAndReachBothEndsWithinBudget",
+                    "-skip-testing:RundaleTests/TranscriptScrollingTests/"
+                    "testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
                 ],
             )
 

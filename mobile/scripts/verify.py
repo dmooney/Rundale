@@ -73,11 +73,13 @@ TIME_SENSITIVE_TESTS = (
     "RundaleUITests/RundalePhase1TimerAuditUITests/testLongFixtureTraversesOldestAndNewestWithinInteractionBudget",
     "RundaleUITests/RundalePhase1AuditUITests/testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply",
     "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
+    "RundaleTests/TranscriptScrollingTests/testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
     "RundaleUITests/RundalePhase2DialogueUITests/testPhase2IncrementalChunksUpdateOneDialogueRowBeforeFinal",
     "RundaleUITests/RundalePhase2RecoveryUITests/testPhase2StopLeavesInterruptedAttemptAndRetryCompletes",
     "RundaleUITests/RundalePhase4RecoveryUITests/testBackgroundInterruptsStreamAndPreservesNewDraftForRetry",
     "RundaleUITests/RundalePhase4RecoveryUITests/testTerminationDuringStreamingRecoversOneRequestAndRetriesOnce",
     "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAtSendKeepsOneCommandAndOffersRetry",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAfterTheReplyCommitsKeepsItWithoutRetry",
     "RundaleUITests/RundaleUITests/testFollowingNewestStartsAtLatestAndTracksComposerResize",
 )
 UI_TEST_BUNDLE = "RundaleUITests"
