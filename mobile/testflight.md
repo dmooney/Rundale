@@ -66,7 +66,8 @@ The workflow's nightly `gate` job (07:41 UTC) uploads nothing and runs outside
 the `testflight` environment and the upload's concurrency group. It checks what
 the smoke gate left out, after the build shipped: when `main`'s whole input tree
 has no recorded full pass (`check --latest`), it runs `verify.py --phase all`
-(over an hour on this runner) and records the pass, so the next night skips. A
+(over an hour on this runner; the speed-dependent `TIME_SENSITIVE_TESTS` run
+only in local runs) and records the pass, so the next night skips. A
 failed run opens or updates a "Nightly mobile-verify failed" issue with the
 summary, and a passing run closes it. Run workflow uploads only from `main`. The Rust target directory is
 cached between runs. `just testflight-update` keeps the full gate by default.

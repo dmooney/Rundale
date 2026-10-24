@@ -9,6 +9,7 @@ import io
 import json
 import os
 import plistlib
+import re
 import signal
 import subprocess
 import sys
@@ -810,6 +811,92 @@ class VerificationRunnerTests(unittest.TestCase):
                 report = VerificationRun(root, command_runner=FakeRunner()).run()
             self.assertEqual(report["exit_code"], 0)
             store.assert_called_once()
+
+    def test_skip_time_sensitive_leaves_them_out_of_the_combined_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake, skip_time_sensitive=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 0)
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            ]
+            self.assertEqual(len(builds), 1, "one combined simulator run")
+            skipped = [
+                a.removeprefix("-skip-testing:")
+                for a in builds[0]
+                if a.startswith("-skip-testing:")
+            ]
+            self.assertEqual(skipped, list(verify_module.TIME_SENSITIVE_TESTS))
+            record = by_id["time-sensitive-tests"]
+            self.assertEqual(record["status"], "skipped")
+            self.assertFalse(record["blocking"])
+            self.assertEqual(record["details"]["tests"], skipped)
+
+    def test_smoke_skips_only_the_time_sensitive_tests_it_selects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            VerificationRun(root, command_runner=fake, smoke=True, skip_time_sensitive=True).run()
+            build = next(
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            )
+            skipped = [a for a in build if a.startswith("-skip-testing:")]
+            self.assertEqual(
+                skipped,
+                [
+                    "-skip-testing:RundaleTests/Phase1AuditVolumeTests/"
+                    "testThousandRowsRenderAndReachBothEndsWithinBudget",
+                    "-skip-testing:RundaleTests/TranscriptScrollingTests/"
+                    "testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
+                ],
+            )
+
+    def test_full_run_without_the_flag_skips_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run()
+            self.assertFalse(
+                any(
+                    a.startswith("-skip-testing:")
+                    for call in fake.calls
+                    if call["argv"][0] == "xcodebuild"
+                    for a in call["argv"]
+                )
+            )
+            self.assertNotIn("time-sensitive-tests", {s["id"] for s in report["suites"]})
+
+    def test_skip_time_sensitive_rejects_fast_and_single_phases(self):
+        for kwargs in ({"fast": True}, {"phase": 2}):
+            with self.assertRaises(ValueError):
+                VerificationRun(Path("/tmp/rundale-test"), skip_time_sensitive=True).run(**kwargs)
+        with self.assertRaises(ValueError):
+            VerificationRun(
+                Path("/tmp/rundale-test"), skip_time_sensitive=True, device="device"
+            ).run()
+
+    def test_time_sensitive_tests_name_existing_tests_outside_the_smoke_list(self):
+        mobile = Path(__file__).resolve().parents[1]
+        for test in verify_module.TIME_SENSITIVE_TESTS:
+            bundle, cls, name = test.split("/")
+            self.assertNotIn(test, verify_module.SMOKE_UI_TESTS)
+            sources = "\n".join(
+                path.read_text(encoding="utf-8") for path in (mobile / bundle).glob("*.swift")
+            )
+            # The class's body runs to the next top-level declaration.
+            body = re.search(rf"^final class {cls}\b.*?(?=^\S|\Z)", sources, re.M | re.S)
+            self.assertIsNotNone(body, test)
+            assert body is not None
+            self.assertIn(f"func {name}(", body.group(0), test)
 
     def test_smoke_rejects_fast_phase_and_device(self):
         with self.assertRaises(ValueError):
