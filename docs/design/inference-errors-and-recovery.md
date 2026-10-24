@@ -83,8 +83,12 @@ that stays unproven live.
 Closed in this change:
 
 1. **The failure classification had no unit test**, only two mock cases through
-   the UI. `EndpointFailureClassificationTests` now pins every Endpoint code,
-   HTTP status, transport error and the no-secret diagnostic (simulator). No
+   the UI. `EndpointFailureClassificationTests` now pins every Endpoint error code
+   the server emits, the common HTTP statuses, the URL error codes, the
+   missing-terminal, malformed-event and invalid-credential errors, and that
+   the diagnostic carries no server message (simulator). The other
+   `LimerickEndpointError` cases (size limits, version and correlation
+   errors) are not individually pinned. No
    shipped behaviour changes; the controller's classifier is only made visible
    to the tests.
 2. **The intent failure policy had no regression test.** A lost connection
@@ -130,6 +134,11 @@ Open, each needing an owner decision (not built here):
    uncertain and make a further inference call (a change in call volume).
    Decide it together with decision 1; the unit test pins today's mapping.
 
-The unresolved items do not weaken the spec's lifecycle requirements: every
-failure terminates, releases input, names its cause in game voice, and
-leaves the request retryable without a duplicate commit.
+This is a partial audit: the issue's acceptance criteria on intent
+classification (a failed classification must not silently reinterpret an
+action) and on actionable messages for operator faults and refusals stay open
+until the decisions above are made. For the failures that terminate an attempt
+(every dialogue failure, and an intent call lost to the connection), the spec's
+lifecycle requirements hold: the request terminates, input is released, the
+cause is named in game voice, and the request stays retryable without a
+duplicate commit.
