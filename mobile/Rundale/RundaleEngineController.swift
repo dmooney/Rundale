@@ -1033,6 +1033,17 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
                     )
                     let input = identities.input.lowercased()
                     if identities.role == "player_intent" {
+                        // "busy once" rate-limits the intent call on the first
+                        // attempt only, so Retry can complete (issue 1825).
+                        if input.contains("busy once"),
+                           self.claimInjectedFailure(mode: "busy", requestID: identities.requestID) {
+                            continuation.yield(.response(statusCode: 429, headers: ["content-type": "application/json"]))
+                            continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: [
+                                "error": ["code": "RATE_LIMITED", "message": "The Endpoint test is rate limited."]
+                            ])))
+                            continuation.finish()
+                            return
+                        }
                         // The intent Endpoint is a decision and does not stream:
                         // its JSON route returns the output object, chosen from
                         // the options the engine offered, as Jev would answer.

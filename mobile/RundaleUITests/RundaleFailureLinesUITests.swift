@@ -2,8 +2,9 @@ import XCTest
 
 /// A failed Endpoint call shows the mod's line for why it failed
 /// (`mods/rundale/loading.toml` `[failure_lines]`), and Retry recovers. The
-/// mock Endpoint fails "fail" requests as an unavailable provider and drops
-/// the connection once for "offline once".
+/// mock Endpoint fails "fail" requests as an unavailable provider, drops the
+/// connection once for "offline once", and rate-limits the intent call once
+/// for "busy once".
 ///
 /// Set `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>` on `xcodebuild test` to hold
 /// on each settled state when recording a demo (see the phase demo plan).
@@ -36,6 +37,22 @@ final class RundaleFailureLinesUITests: XCTestCase {
         submit("ask Mícheál offline once")
         XCTAssertTrue(row(containing: "The road out of the parish is washed away")
             .waitForExistence(timeout: 10))
+        hold(3)
+        let retry = app.buttons["composer.retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 5))
+        retry.tap()
+        XCTAssertTrue(row(containing: "difficult this week").waitForExistence(timeout: 20))
+        XCTAssertFalse(retry.exists)
+        hold(4)
+    }
+
+    /// An intent call that gets no answer fails the line with its reason's
+    /// line and Retry, rather than guessing the line is speech (issue 1825).
+    func testABusyIntentCallFailsTheLineAndRetryRecovers() {
+        submit("ask Mícheál busy once")
+        XCTAssertTrue(row(containing: "Every tongue in the parish is wagging at once")
+            .waitForExistence(timeout: 10))
+        XCTAssertFalse(row(containing: "difficult this week").exists, "No one answers a line the game could not read")
         hold(3)
         let retry = app.buttons["composer.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 5))
