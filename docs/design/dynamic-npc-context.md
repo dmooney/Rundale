@@ -347,6 +347,7 @@ yes/no:
 | `recipient`   | Choice            | as §4.3 question 1                                                                                 | talk                                          |
 | `mentioned`   | Yes/no per person | as §4.3 question 2                                                                                 | talk                                          |
 | `atmosphere`  | Choice            | listen, omen, folklore, none                                                                       | talk                                          |
+| `anachronism` | Choice            | modern, none. Planned by [NPC dialogue prompt](npc-dialogue-prompt.md) decision 16 (#2299)         | talk                                          |
 
 All questions go in one request and are answered in parallel; the engine uses
 only the answers for the action chosen. Look, examine and interact only

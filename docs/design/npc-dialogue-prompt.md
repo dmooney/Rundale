@@ -77,6 +77,11 @@ Details settled in the same review:
     2-point plateau or $25 of model spend, and is checked on held-out cases.
 15. **Guard removal does not wait for the lab.** The phone already runs none,
     so removal changes only the desktop and headless paths.
+16. **Anachronisms are judged by the intent call.** `rundale-intent` gains a
+    yes/no question: does the player's line contain anything that did not
+    exist, or was not known, in rural Ireland in 1820? It reads the input
+    before generation and never touches the reply. It applies to talk only,
+    and the lab sets its threshold (§6.6).
 
 ## 3. Behaviour requirements
 
@@ -91,7 +96,7 @@ What a reply must do. Each requirement is tested in the prompt lab (§6). The
 | B4  | **Know the common world** of §4.1 as a person of their station would, and use it naturally rather than reciting it.                                                                                                                       | New                                                     |
 | B5  | **Admit what they don't know.** A person, place or thing they have never heard of is something they have never heard of. They do not invent one or send the player to one.                                                                | Person confirmation, person routing, invented place     |
 | B6  | **Tell seen from heard.** Say when something is hearsay, and don't claim to have witnessed what they could not have.                                                                                                                      | Direct-evidence evasion                                 |
-| B7  | **Live in 1820.** Nothing later exists for them. A modern word from the player gets honest puzzlement, a guess, or a mishearing, never fluent use of it.                                                                                  | Anachronism alert, modern phrasing (#1494)              |
+| B7  | **Live in 1820.** Nothing later exists for them. A modern word from the player gets honest puzzlement, a guess, or a mishearing, never fluent use of it.                                                                                  | Anachronism alert, modern phrasing (#1494); flag §4.4   |
 | B8  | **Keep their station.** Talk about what their life and trade would teach them. For other matters, point to the neighbour who would know, or admit they don't.                                                                             | Stay in your lane (#1496), work recommendation, #1481   |
 | B9  | **Feel about people.** How they speak of, and to, someone follows their relationship: warm to a friend, guarded about a rival.                                                                                                            | Rival neutral tone                                      |
 | B10 | **Meet the stranger fresh.** Never presume an earlier acquaintance, or anything about the player's looks or business, that the conversation doesn't show. Treat them as this character would; trust and suspicion grow from what is said. | First-contact familiarity, presumed acquaintance, #1497 |
@@ -204,6 +209,10 @@ to the [dynamic NPC context](dynamic-npc-context.md):
   from what the player says.
 - Village news the character has heard (future dynamic work, with the gossip
   proof, #2197).
+- Whether the player's line holds something foreign to 1820 (decision 16),
+  for talk only. The flag says only that the line holds something the
+  character would not know; the character works out what, and reacts with
+  puzzlement, a guess, a mishearing, or a question about what it means.
 - The player's line.
 
 ### 4.5 Instructions (fixed per game)
@@ -237,6 +246,9 @@ rundale-bench leaderboard (`promptfoo/`), for example under
    game.
 2. _Brief:_ new instructions per §4.5 with §4.1 to §4.4 content, written by
    hand, including the backstory of §4.2.
+3. _Brief without the anachronism flag_ (§4.4), on the B7 cases, to learn
+   whether standing guidance alone is enough. The flag is set by hand in each
+   case; the loop may change how it is worded, not when it is set.
 
 ### 6.2 Models
 
@@ -309,6 +321,17 @@ reads the held-out replies side by side with the baseline's. The prompt is
 frozen for implementation when the owner accepts it; otherwise the owner's
 notes go into another run.
 
+### 6.6 Anachronism threshold
+
+The lab labels a set of player lines as foreign to 1820 or not: clear cases
+("telephone", "awesome", "Wi-Fi"), period-correct ones ("the mail", "a
+musket", "cool weather") and borderline ones ("railway", "tea", "potato
+blight"). It runs the `rundale-intent` anachronism question (decision 16) on
+them through Jev and picks the threshold that best separates the labels,
+favouring few false alarms, since a character puzzled by an ordinary word is
+worse than one who lets a modern word pass. The labelled lines, probabilities
+and chosen threshold go in the write-up.
+
 ## 7. Plan
 
 1. **This document** closes #2024 in Stability.
@@ -316,7 +339,7 @@ notes go into another run.
    starting prompts, run the automated research, owner review, frozen prompt.
 3. **Prompt system** ([#2299](https://github.com/dmooney/Rundale/issues/2299), Existing features usable): design and implement how the
    engine and Endpoint build the frozen prompt from game data, described
-   below.
+   below, including the `rundale-intent` anachronism question.
 4. **Guard removal** ([#2295](https://github.com/dmooney/Rundale/issues/2295), Existing features usable): independent of 2 and 3; it
    can land any time.
 
@@ -353,8 +376,9 @@ matches against `mods/rundale/anachronisms.json` (term, category, origin year,
 note: "telephone", 1876, "invented by Bell") and, on a match, appended an alert
 to the NPC's prompt: the player used words that don't exist in 1820; react with
 confusion, curiosity or a folk interpretation; guess, mishear, or ask. It was
-prompt augmentation, and B7 replaces it with standing guidance, since the
-model knows what came after 1820 better than a word list.
+prompt augmentation. B7's standing guidance and the intent call's anachronism
+question (decision 16) replace it: a model knows what came after 1820 better
+than a word list, and Jev decides without a list's false positives.
 
 **Post-generation guards** (`limerick-npc/src/dialogue_validation.rs`,
 `repetition.rs`, `dialogue_obligations.rs`) rewrote or replaced the reply:
