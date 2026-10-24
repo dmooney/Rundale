@@ -3,7 +3,7 @@
 Audit of issue 1825 (inference errors and recovery) against the current native
 iPhone and Limerick Endpoints path, on the commit this document ships with. It
 records what is implemented and proven, the error contract as built, the gaps,
-and the decisions that belong to the owner. The governing requirements are
+and the owner's decisions on them (2026-10-24). The governing requirements are
 [spec §6 Request Lifecycle and §7 Stop, Retry, and History](../product-specs/mobile-product-technical-spec.md#6-request-lifecycle)
 and [§11 Inference Architecture](../product-specs/mobile-product-technical-spec.md#11-inference-architecture).
 The attempt contract is in [portable-turn-api.md](portable-turn-api.md).
@@ -17,10 +17,11 @@ acceptance is waived (2026-10-04); nothing here claims it.
 
 One failure travels one path. The host (`RundaleEngineController`) classifies
 each failed Endpoint call into a `LimerickFailureReason` and reports it with
-`runtime.fail`. For a dialogue call, or an intent call lost to the connection
-(`offline`), the shared engine ends the attempt `Failed` (or `Interrupted`),
-discards the candidate, and shows the mod's line for the reason. Any other
-intent failure continues as an uncertain classification instead (gap 1 below).
+`runtime.fail`. For a dialogue call, or an intent call that never produced an
+answer (every reason but `garbled`), the shared engine ends the attempt
+`Failed` (or `Interrupted`), discards the candidate, and shows the mod's line
+for the reason. A garbled intent answer continues as an uncertain
+classification (decision 1 below).
 The line is the one from `mods/rundale/loading.toml` `[failure_lines]`. The diagnostic
 string (an Endpoint code or a fixed phrase) goes to the
 `com.rundale.mobile:endpoint` log only; the player never sees it, a provider
@@ -30,7 +31,7 @@ desktop in-process failure, keeps the generic `DIALOGUE_RETRY_MESSAGE`.
 | Condition                                                                                                         | Reported as                       | Player hears (key)         | Next action offered |
 | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------- | ------------------- |
 | No network, lost or broken connection, DNS, TLS, stream ended before its terminal frame                           | `URLError`, `missingTerminal`     | `offline`                  | Retry               |
-| Connection idle timeout (`URLError.timedOut`), reported as `offline` today (see gap 5)                            | `URLError.timedOut`               | `offline`                  | Retry               |
+| Connection idle timeout (`URLError.timedOut`)                                                                     | `URLError.timedOut`               | `timed_out`                | Retry               |
 | Endpoint `REQUEST_TIMEOUT`                                                                                        | code in error frame or body       | `timed_out`                | Retry               |
 | `RATE_LIMITED`, `PROVIDER_RATE_LIMITED`, `QUOTA_EXCEEDED`, HTTP 429                                               | code or status                    | `busy`                     | Retry               |
 | `PROVIDER_UNAVAILABLE`, `INTERNAL_ERROR`, endpoint or version missing or disabled, HTTP 5xx                       | code or status                    | `unavailable`              | Retry               |
@@ -44,7 +45,7 @@ Recovery in every row is the same, Retry (or a new command), because the line
 names the cause and the player cannot fix any of them. That is why the
 distinctions that exist stay at seven keys. Where a distinction would change
 the action (a configuration fault the operator must fix, a quota that will not
-clear in a moment) the contract does not carry it yet; see the gaps below.
+clear in a moment) the contract does not carry it yet; that is issue 2304.
 
 Optional background inference (arrival reactions, banter, tier simulation) does
 not run on mobile. Travel encounters and reactions have no Endpoint role, so
@@ -88,57 +89,44 @@ Closed in this change:
    missing-terminal, malformed-event and invalid-credential errors, and that
    the diagnostic carries no server message (simulator). The other
    `LimerickEndpointError` cases (size limits, version and correlation
-   errors) are not individually pinned. No
-   shipped behaviour changes; the controller's classifier is only made visible
-   to the tests.
-2. **The intent failure policy had no regression test.** A lost connection
-   during the intent call fails the request recoverably, and every other intent
-   failure continues as an uncertain classification. Both halves are now pinned
-   in `turn_lifecycle.rs` (scripted).
+   errors) are not individually pinned. The controller's classifier is made
+   visible to the tests.
+2. **The intent failure policy had no regression test.** Both halves of it,
+   as decided below, are now pinned in `turn_lifecycle.rs` (scripted).
+3. **A failed intent call that never produced an answer continued silently**
+   as an uncertain classification, so a free-form move or action (for example
+   "head over to Darcy's", which the local parser does not take) could run as
+   speech with no signal to the player. Owner decision 1 (2026-10-24): every
+   reason but `garbled` (`offline`, `busy`, `unavailable`, `timed_out`,
+   `refused`, `cancelled`) now fails the request recoverably, with the mod's
+   line and Retry, as a dialogue failure does. A garbled answer, or a failure
+   a host reports without a reason (the desktop's in-process model), stays
+   uncertain. `game_loop/input.rs`; pinned in `turn_lifecycle.rs` for each
+   reason, including the retry (scripted). The design is updated in
+   [dynamic-npc-context.md §4.4](dynamic-npc-context.md#44-failure).
+4. **A client timeout was reported as a lost connection.** Owner decision (2026-10-24):
+   `URLError.timedOut` now reports `timed_out` ("the answer wandered off")
+   rather than `offline`. With decision 1 a timed-out intent call still fails
+   the request, so call volume does not change. Pinned in
+   `EndpointFailureClassificationTests` (simulator).
 
-Open, each needing an owner decision (not built here):
+Tracked elsewhere, by owner decision:
 
-1. **Intent failure other than a lost connection continues silently.** The
-   design (dynamic-npc-context.md §4.4) makes any other failure uncertain: the
-   recipient rules apply, with two or more people present the game asks, with
-   one present that person answers. The line then runs as speech. If the
-   dialogue call that follows succeeds, the player gets no signal that their
-   free-form action (for example "head over to Darcy's", which the local parser
-   does not take) was heard as talk. If it fails too, the dialogue failure line
-   shows. Options: keep as designed; or fail the request recoverably, with the
-   existing failure line and Retry, for every failure of the transport class
-   (`busy`, `unavailable`, `timed_out`, `refused`) while leaving a malformed
-   answer (`garbled`) uncertain. The second is a one-condition change at
-   `game_loop/input.rs` and reuses existing copy, but it edits a design owned by
-   the dynamic NPC context work, so it is not made here.
-2. **The Endpoint cannot say why a provider call failed beyond five buckets.**
-   Provider authentication, quota, model-not-found and safety refusals all
-   arrive as `MODEL_ERROR`, which the player hears as `garbled` ("tangle, try
-   again"). Those are operator faults or terminal refusals, where retrying does
-   not help. Distinguishing them needs new codes in the Endpoint contract and
-   new player copy.
-3. **`Retry-After` and quota are not carried.** `busy` says to wait a moment.
-   `QUOTA_EXCEEDED` will not clear in a moment, and a 429 may carry a delay the
-   app ignores. Carrying it needs a field in the Endpoint error and, for the
-   delay, copy that can state it.
-4. **Authorization and session expiry is mapped but not proven live.** App Check
-   token refresh after expiry, and the `refused` line on a real 401 or 403, are
-   covered only by the mock. Inducing it live means revoking or expiring a
-   debug token.
-5. **A client timeout is reported as a lost connection.** Any `URLError`,
-   including `URLError.timedOut`, maps to `offline`, so a call that ran out of
-   time says the road is washed away rather than the answer wandered off.
-   Mapping it to `timed_out` is trivial but is not made here, because it is
-   coupled to decision 1: the engine fails an intent call recoverably only for
-   `offline`, so the remap would let a timed-out intent call continue as
-   uncertain and make a further inference call (a change in call volume).
-   Decide it together with decision 1; the unit test pins today's mapping.
+1. **The Endpoint cannot say why a provider call failed beyond five buckets**,
+   and **`Retry-After` and quota are not carried.** Provider authentication,
+   quota, model-not-found and safety refusals all arrive as `MODEL_ERROR`,
+   which the player hears as `garbled`; `QUOTA_EXCEEDED` maps to `busy`.
+   Distinguishing them needs new Endpoint codes and new player copy: issue
+   2304, outside Stability.
+2. **Authorization and session expiry is proven only with the mock.** App
+   Check token refresh after expiry, and the `refused` line on a real 401 or
+   403, are covered by the mock Endpoint, not live. The owner accepts mock-only
+   evidence for these; inducing them live would mean revoking a debug token
+   mid-run.
 
-This is a partial audit: the issue's acceptance criteria on intent
-classification (a failed classification must not silently reinterpret an
-action) and on actionable messages for operator faults and refusals stay open
-until the decisions above are made. For the failures that terminate an attempt
-(every dialogue failure, and an intent call lost to the connection), the spec's
-lifecycle requirements hold: the request terminates, input is released, the
-cause is named in game voice, and the request stays retryable without a
-duplicate commit.
+With these decisions the issue's acceptance criteria hold on the current path:
+failures terminate visibly and release input, the cause is named in game voice
+with no credential, provider body or reasoning, a failed classification no
+longer silently reinterprets an action, and Retry, Stop and relaunch follow the
+attempt contract without a duplicate commit. Actionable copy for operator
+faults and refusals moves to issue 2304.
