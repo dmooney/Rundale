@@ -96,4 +96,17 @@ final class LaunchConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.fixture, .pagedHistory)
         XCTAssertTrue(configuration.isUITesting)
     }
+
+    func testFixtureStepSecondsDefaultsAndIsBounded() {
+        func step(_ arguments: [String]) -> Double {
+            LaunchConfiguration(arguments: arguments, environment: [:], bundle: [:]).fixtureStepSeconds
+        }
+
+        XCTAssertEqual(step(["--fixture=standard"]), 2.75)
+        XCTAssertEqual(step(["--fixture=standard", "--fixture-step-seconds=6"]), 6)
+        XCTAssertEqual(step(["--fixture-step-seconds=0"]), 0.5)
+        XCTAssertEqual(step(["--fixture-step-seconds=600"]), 30)
+        XCTAssertEqual(step(["--fixture-step-seconds=soon"]), 2.75)
+        XCTAssertEqual(step(["--fixture-step-seconds=nan"]), 2.75)
+    }
 }

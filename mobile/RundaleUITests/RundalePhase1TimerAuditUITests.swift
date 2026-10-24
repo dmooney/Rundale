@@ -9,12 +9,20 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
     private let first = "The first part arrives."
     private let second = "The first part arrives. Then the road opens into rain and light."
     private let final = "The first part arrives. Then the road opens into rain and light. At last, the whole thought is clear."
+    /// Seconds between the fixture's automatic steps. Each chunk shows for one
+    /// step, and a check of it makes several accessibility queries that take
+    /// seconds each on a slow host, so the app's 2.75 s default let a chunk
+    /// pass unseen there (#2287). The interpretation is the first step, so
+    /// the first chunk arrives two steps after Send and the stream completes
+    /// three steps after it.
+    private static let step: TimeInterval = 6
+    private static let stepArgument = "--fixture-step-seconds=\(Int(step))"
 
     override func setUp() async throws {
         try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["--fixture=long-history", "--reset-fixture", "--no-auto-focus"]
+        app.launchArguments = ["--fixture=long-history", "--reset-fixture", "--no-auto-focus", Self.stepArgument]
         app.launch()
     }
 
@@ -62,21 +70,21 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         submitStream()
         let start = Date()
         let firstRow = row("Dialogue. Peig. \(first). In progress")
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 8))
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 3 * Self.step))
         let identity = firstRow.identifier
         let firstTime = Date()
         assertVisible(firstRow)
         let secondRow = row("Dialogue. Peig. \(second). In progress")
-        XCTAssertTrue(secondRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(secondRow.waitForExistence(timeout: 2 * Self.step))
         XCTAssertEqual(secondRow.identifier, identity)
         let secondTime = Date()
         assertVisible(secondRow)
         let finalRow = row("Dialogue. Peig. \(final). In progress")
-        XCTAssertTrue(finalRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(finalRow.waitForExistence(timeout: 2 * Self.step))
         XCTAssertEqual(finalRow.identifier, identity)
         assertVisible(finalRow)
         XCTAssertGreaterThan(secondTime.timeIntervalSince(firstTime), 1)
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 2 * Self.step))
         XCTAssertFalse(app.buttons["composer.stop"].exists)
         XCTAssertFalse(app.buttons["transcript.new-text"].exists)
         let receipt = XCTAttachment(string: "Automatic stream completion: \(Date().timeIntervalSince(start))s; successive exact chunks share \(identity)")
@@ -88,7 +96,7 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         app.terminate()
         app.launchArguments = [
             "--fixture=standard", "--multiline-simulator-composer",
-            "--reset-fixture", "--no-auto-focus"
+            "--reset-fixture", "--no-auto-focus", Self.stepArgument
         ]
         app.launch()
 
@@ -102,9 +110,9 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fixture.step"].exists)
 
         let firstRow = row("Dialogue. Peig. \(first). In progress")
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 8))
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 3 * Self.step))
         assertVisible(firstRow)
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 4 * Self.step))
         let completed = row("Dialogue. Peig. \(final)")
         XCTAssertTrue(completed.waitForExistence(timeout: 3))
         assertVisible(completed)
@@ -112,7 +120,7 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
 
     func testAutomaticOutputPreservesHistoryAndNewTextReturnsToFinalReply() {
         submitStream()
-        XCTAssertTrue(row("Dialogue. Peig. \(first). In progress").waitForExistence(timeout: 8))
+        XCTAssertTrue(row("Dialogue. Peig. \(first). In progress").waitForExistence(timeout: 3 * Self.step))
         scroll.swipeDown(velocity: .fast)
         let historical = app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Narration. Historical fixture entry'"
@@ -121,7 +129,7 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
         let identity = historical.identifier
         let y = historical.frame.minY
         XCTAssertTrue(app.buttons["composer.stop"].exists, "Stream must still be active when history anchor is recorded")
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 4 * Self.step))
         let same = app.descendants(matching: .any).matching(identifier: identity).firstMatch
         XCTAssertTrue(same.exists && same.isHittable)
         XCTAssertEqual(same.frame.minY, y, accuracy: 5)
@@ -137,7 +145,7 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
     func testAutomaticStopRetainsExactPartialBeyondNextTimerTicks() {
         submitStream()
         let partial = row("Dialogue. Peig. \(first). In progress")
-        XCTAssertTrue(partial.waitForExistence(timeout: 8))
+        XCTAssertTrue(partial.waitForExistence(timeout: 3 * Self.step))
         let identity = partial.identifier
         app.buttons["composer.stop"].tap()
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
@@ -148,7 +156,8 @@ final class RundalePhase1TimerAuditUITests: XCTestCase {
             !stopped.exists || stopped.identifier != identity || self.app.buttons["composer.stop"].exists
         }, object: nil)
         changed.isInverted = true
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 6), .completed)
+        // Two steps: the next timer ticks would have changed the row by then.
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 2 * Self.step), .completed)
         input.tap()
         input.typeText("/look")
         XCTAssertEqual(input.value as? String, "/look")

@@ -38,6 +38,9 @@ struct LaunchConfiguration: Sendable {
     let phase2MockTransport: Bool
     let fixture: Fixture
     let manualStream: Bool
+    /// Seconds between automatic fixture stream steps. UI tests that must
+    /// observe each step lengthen it so a slow host can see it (#2287).
+    let fixtureStepSeconds: Double
     let autoFocusComposer: Bool
     let initialDraft: String?
     let draftFileURL: URL?
@@ -78,6 +81,10 @@ struct LaunchConfiguration: Sendable {
 
         fixture = requestedFixture
         manualStream = !phase2 && (isUITesting || arguments.contains("--manual-stream"))
+        fixtureStepSeconds = arguments.first(where: { $0.hasPrefix("--fixture-step-seconds=") })
+            .flatMap { Double($0.dropFirst("--fixture-step-seconds=".count)) }
+            .flatMap { $0.isFinite ? min(max($0, 0.5), 30) : nil }
+            ?? 2.75
         autoFocusComposer = !arguments.contains("--no-auto-focus")
         initialDraft = environment["RUNDALE_UI_TEST_DRAFT"]
         // UI automation must never open the player's ordinary local save. The

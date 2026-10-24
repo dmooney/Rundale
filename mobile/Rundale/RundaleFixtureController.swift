@@ -16,6 +16,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     let draftStore: FixtureDraftStore
     let sessionStore: FixtureSessionStore
     let manualStream: Bool
+    let automaticStepNanoseconds: UInt64
     let headerTimeOfDay: String
     let headerWeather: String
     @Published private(set) var persistenceError: String?
@@ -110,6 +111,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
             try? sessionStore.remove()
         }
         manualStream = configuration.manualStream
+        automaticStepNanoseconds = UInt64(configuration.fixtureStepSeconds * 1_000_000_000)
         headerTimeOfDay = "Late evening"
         headerWeather = "Rain easing"
         persistenceError = restorationError
@@ -156,11 +158,12 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     private func beginAutomaticStepping() {
         guard automaticTask == nil, !manualStream else { return }
         let adapter = self.adapter
+        let step = automaticStepNanoseconds
         automaticTask = Task { [weak self, adapter] in
             defer { self?.automaticTask = nil }
             while !Task.isCancelled {
                 guard await adapter.isStreaming else { return }
-                try? await Task.sleep(nanoseconds: 2_750_000_000)
+                try? await Task.sleep(nanoseconds: step)
                 guard !Task.isCancelled, await adapter.isStreaming else { return }
                 _ = await adapter.step()
             }
