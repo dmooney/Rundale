@@ -190,8 +190,11 @@ runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`. Each run starts by deleting the Xcode
 DerivedData, result bundles, Swift scratch directories and device inventories
 earlier runs left there (each run writes its own under a timestamp, and nothing
-reads an earlier run's); the reuse cache, recorded passes and logs stay. An
-earlier run whose timestamp appears in a running process's command line is
+reads an earlier run's); the reuse cache, recorded passes and logs stay. With
+`RUNDALE_STABLE_DERIVED_DATA=1`, which CI sets, Xcode builds into
+`DerivedData/iphoneos` and `DerivedData/simulator` instead, which are never
+deleted: CI restores them from a cache so the Swift packages (Firebase) are not
+fetched and rebuilt on every run. An earlier run whose timestamp appears in a running process's command line is
 kept: a run killed outright (SIGKILL) can leave its `xcodebuild` or `swift`
 build running, and those commands name their run's output paths. A run holds
 `.run.lock` in the report directory until its report is written, so a second

@@ -1558,6 +1558,30 @@ class PruneTests(unittest.TestCase):
             for path in kept:
                 self.assertTrue(path.is_dir(), path)
 
+    def test_stable_derived_data_builds_into_unstamped_folders_that_survive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            report = root / "mobile" / ".verification"
+            cached = report / "DerivedData" / "simulator" / "SourcePackages"
+            cached.mkdir(parents=True)
+            fake = FakeRunner()
+            with patch.dict(os.environ, {"RUNDALE_STABLE_DERIVED_DATA": "1"}):
+                VerificationRun(root, command_runner=fake).run()
+            paths = {
+                call["argv"][call["argv"].index("-derivedDataPath") + 1]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and "-derivedDataPath" in call["argv"]
+            }
+            self.assertEqual(
+                paths,
+                {
+                    "mobile/.verification/DerivedData/iphoneos",
+                    "mobile/.verification/DerivedData/simulator",
+                },
+            )
+            self.assertTrue(cached.is_dir())
+
     def test_a_killed_runs_live_build_survives_any_number_of_later_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
