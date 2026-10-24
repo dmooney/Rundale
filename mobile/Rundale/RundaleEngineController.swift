@@ -701,7 +701,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     /// Why a model call failed: the reason the engine shows the mod's line
     /// for, and a diagnostic for the log (never shown to the player).
-    private static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
+    static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
         }
@@ -871,7 +871,7 @@ private struct Phase2Projection: Codable, Sendable {
     let anchorEventCursor: EventCursor?
 }
 
-private struct PlayerFacingFailure: Sendable {
+struct PlayerFacingFailure: Sendable {
     let kind: LimerickRuntimeFailureKind
     /// Why it failed, as the player hears it (the mod's line for it).
     let reason: LimerickFailureReason
@@ -885,7 +885,7 @@ private struct PlayerFacingFailure: Sendable {
     }
 }
 
-private struct EndpointReportedFailure: Error, Sendable {
+struct EndpointReportedFailure: Error, Sendable {
     private struct Payload: Decodable {
         let code: String?
     }

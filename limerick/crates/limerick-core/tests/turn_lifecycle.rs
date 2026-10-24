@@ -26,7 +26,9 @@ use limerick_core::turn::{
     StateRevision, TerminalOutcome, TranscriptEvent, TranscriptEventKind, TurnEngine, TurnError,
     TurnInput, TurnJournal, TurnRules, TurnStatus, TurnStep, drive_in_process,
 };
-use limerick_core::turn_inference::{CallReport, InferenceFailureKind, InferenceOutcome};
+use limerick_core::turn_inference::{
+    CallReport, FailureReason, InferenceFailureKind, InferenceOutcome,
+};
 use limerick_core::world::transport::TransportMode;
 use limerick_core::world::{LocationId, WorldState};
 use tokio::sync::Mutex;
@@ -2762,6 +2764,136 @@ async fn a_request_open_when_the_process_stopped_is_interrupted_on_open_and_neve
         .unwrap();
     assert!(matches!(late.status, TurnStatus::Ignored(_)));
     assert_strictly_increasing(&journal.events().unwrap());
+}
+
+fn failed_because(kind: InferenceFailureKind, reason: FailureReason) -> InferenceOutcome {
+    InferenceOutcome::Failed {
+        kind,
+        message: "scripted failure".to_string(),
+        report: CallReport {
+            reason: Some(reason),
+            ..CallReport::default()
+        },
+    }
+}
+
+// Issue 1825, intent failure contract (design dynamic-npc-context §4.4): an
+// intent call lost to the connection fails the request the way a dialogue
+// call does. The player sees the mod's line for the reason, nothing is
+// committed, and the request stays retryable; nothing is silently
+// reinterpreted.
+#[tokio::test]
+async fn an_intent_call_lost_to_the_connection_fails_the_request_and_retries() {
+    let live = Live::rundale().with_decisions();
+    only_present(&live, &["Roisin Connolly"]).await;
+    let (mut engine, journal) = engine(&live);
+    engine.set_failure_lines(
+        [(
+            FailureReason::Offline,
+            "The road is washed away.".to_string(),
+        )]
+        .into_iter()
+        .collect(),
+    );
+    let before = live.fingerprint().await;
+
+    let step = engine
+        .submit(&live.ctx(), said("hello there"))
+        .await
+        .unwrap();
+    let pending = awaiting(&step).clone();
+    assert_eq!(pending.call.subrole, InferenceSubrole::Intent);
+    let done = engine
+        .resume(
+            &live.ctx(),
+            resolution(
+                &pending,
+                failed_because(InferenceFailureKind::Transport, FailureReason::Offline),
+            ),
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        done.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Failed,
+            revision: None
+        }
+    ));
+    let error = done
+        .events
+        .iter()
+        .find(|event| event.event.kind == TranscriptEventKind::Error)
+        .expect("a visible error event");
+    assert_eq!(
+        error.event.content.as_deref(),
+        Some("The road is washed away.")
+    );
+    assert!(speakers(&done.events).is_empty(), "no NPC answers");
+    assert_eq!(live.fingerprint().await, before, "nothing was committed");
+    assert_eq!(
+        engine.request(&pending.request_id).unwrap().phase,
+        RequestPhase::Failed
+    );
+
+    // Retry is a new attempt of the same logical request and completes.
+    let retry = engine
+        .retry(&live.ctx(), &pending.request_id)
+        .await
+        .unwrap();
+    let (finished, events, _) = run_scripted(&mut engine, &live, retry, "").await;
+    assert!(matches!(
+        finished.status,
+        TurnStatus::Completed {
+            outcome: TerminalOutcome::Succeeded,
+            ..
+        }
+    ));
+    assert_eq!(speakers(&events).len(), 1, "the one person present answers");
+    assert_reducer_contract(&journal.events(), &pending.request_id);
+}
+
+// Issue 1825: the other half of the same contract. A failed intent call that
+// is not a lost connection (busy, unavailable, timed out, refused, garbled)
+// is an uncertain classification: the attempt continues under the recipient
+// rules instead of failing, so the failure shows only if the dialogue call
+// that follows fails too. This pins the documented behaviour; changing it is
+// a product decision (docs/design/inference-errors-and-recovery.md).
+#[tokio::test]
+async fn an_intent_failure_that_is_not_a_lost_connection_continues_as_uncertain() {
+    for reason in [
+        FailureReason::Busy,
+        FailureReason::Unavailable,
+        FailureReason::TimedOut,
+        FailureReason::Refused,
+        FailureReason::Garbled,
+    ] {
+        let live = Live::rundale().with_decisions();
+        only_present(&live, &["Roisin Connolly"]).await;
+        let (mut engine, _) = engine(&live);
+        let step = engine
+            .submit(&live.ctx(), said("hello there"))
+            .await
+            .unwrap();
+        let pending = awaiting(&step).clone();
+        assert_eq!(pending.call.subrole, InferenceSubrole::Intent);
+        let next = engine
+            .resume(
+                &live.ctx(),
+                resolution(
+                    &pending,
+                    failed_because(InferenceFailureKind::Transport, reason),
+                ),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            awaiting(&next).call.subrole,
+            InferenceSubrole::Dialogue,
+            "{reason:?}: the line goes on to the person present"
+        );
+    }
 }
 
 /// Saves of every prior format, and one a newer build wrote, open through
