@@ -10,7 +10,11 @@ just testflight-update
 `mobile-build` builds the embedded Rust framework, generates the Xcode project,
 and builds an unsigned Release iPhone app. `testflight-update` first runs
 `just mobile-verify --phase all`, which reuses suites already passed with identical
-inputs, then builds, signs, inspects, and uploads an internal-only archive. The
+inputs (it leaves most Rust crate tests and the Swift style checks to CI, so
+upload a merged commit, or first run `just mobile-verify --fast`,
+`cargo test -p limerick-core --no-default-features --features mobile`,
+`cargo test -p limerick-mobile-ffi` and `cargo test -p limerick-engine --test world_sheet`
+from `limerick/`), then builds, signs, inspects, and uploads an internal-only archive. The
 archive's build number is passed to `xcodebuild` as `CURRENT_PROJECT_VERSION`, so
 an upload edits no file and leaves nothing to commit; the value in
 `mobile/project.yml` is only for local builds. With an App Store Connect API key
@@ -49,13 +53,23 @@ steps below and confirm **Testing** in **Internal Beta** before declaring delive
 
 `.github/workflows/testflight.yml` uploads from a hosted `macos-26` runner on every
 merge to `main` that changes `mobile/`, `mods/`, the engine crates or the Rust
-toolchain, and on **Run workflow**. It first looks for a recorded `mobile-verify`
-pass for the commit's input tree (`verify_record.py check --commit`; see the
-[mobile scripts README](scripts/README.md#recorded-passes)). With one, it runs
-`release.py testflight --verify none` and goes straight to the Rust build,
-archive, distribution export check and upload, about 15 minutes. Without one,
-for example when `main` moved under the PR before the squash merge, it runs
-`--verify all` and the full gate first. The Rust target directory is
+toolchain, and on **Run workflow** from `main`. CI's required gate passed the PR first,
+with a recorded `mobile-verify` pass or the hosted smoke gate (see the
+[mobile scripts README](scripts/README.md#recorded-passes)); it tested the PR
+head's input tree, which the squash merge matches unless `main` moved under it.
+The `upload` job runs `release.py testflight --verify none` and goes straight to
+the Rust build, archive, distribution export check and upload, about 15 minutes.
+A push that leaves every app input unchanged (its input tree equals `main`'s
+before the push, `verify_record.py tree`) uploads nothing.
+
+The workflow's nightly `gate` job (07:41 UTC) uploads nothing and runs outside
+the `testflight` environment and the upload's concurrency group. It checks what
+the smoke gate left out, after the build shipped: when `main`'s whole input tree
+has no recorded full pass (`check --latest`), it runs `verify.py --phase all`
+(over an hour on this runner; the speed-dependent `TIME_SENSITIVE_TESTS` run
+only in local runs) and records the pass, so the next night skips. A
+failed run opens or updates a "Nightly mobile-verify failed" issue with the
+summary, and a passing run closes it. Run workflow uploads only from `main`. The Rust target directory is
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account

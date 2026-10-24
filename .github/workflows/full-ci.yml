@@ -222,6 +222,29 @@ jobs:
       - name: Test limerick-core mobile configuration
         run: cargo test -p limerick-core --no-default-features --features mobile
 
+      # Built on its own, the FFI crate links limerick-core with only the
+      # mobile feature, as the phone does; the workspace nextest run unifies
+      # desktop features into it. The macOS mobile gate no longer runs this.
+      - name: Test limerick-mobile-ffi mobile configuration
+        run: cargo test -p limerick-mobile-ffi
+
+      # A test newly marked #[ignore] would pass silently; only the named
+      # opt-in measurements may be ignored (the mobile gate's former rule).
+      - name: Check that only the expected mobile tests are ignored
+        run: |
+          check() {
+            expected="$1"
+            shift
+            actual="$(cargo test -q "$@" -- --list --ignored | sed -n 's/: test$//p' | sort | paste -sd ' ')"
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::cargo test $* ignores '$actual'; expected '$expected'"
+              return 1
+            fi
+          }
+          check measure_candidate_capture_cost_on_rundale \
+            -p limerick-core --no-default-features --features mobile --lib --tests
+          check tests::addressee_baseline -p limerick-mobile-ffi
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: ubuntu-latest

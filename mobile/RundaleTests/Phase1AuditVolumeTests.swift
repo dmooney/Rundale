@@ -124,6 +124,32 @@ final class Phase1AuditVolumeTests: XCTestCase {
         XCTAssertEqual(controller.state.transcript, retained)
     }
 
+    /// The #2081 check without the volume budget, so hosted CI, which leaves
+    /// the budget test to local runs (verify.py TIME_SENSITIVE_TESTS), keeps it.
+    func testLayoutPassKeepsAThousandRowViewportAtTheOldestRow() async throws {
+        let controller = TranscriptCollectionViewController()
+        var followModes: [Bool] = []
+        controller.onFollowModeChanged = { follows, _ in followModes.append(follows) }
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 667))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let rows = (0..<1000).map { index in
+            PresentedTranscriptItem(id: "audit-row-\(index)", kind: .npcDialogue,
+                                    text: "Authored row \(index). " + String(repeating: "The rain falls on the road. ", count: index % 4 + 1),
+                                    speaker: "Peig", state: .committed, metadata: [:])
+        }
+        controller.update(items: rows, followsNewest: true, initialFollowsNewest: true, initialAnchor: nil)
+        try? await Task.sleep(for: .milliseconds(500))
+        controller.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(controller.view.subviews.compactMap { $0 as? UICollectionView }.first)
+        scroll.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        XCTAssertTrue(scroll.indexPathsForVisibleItems.contains(IndexPath(item: 0, section: 0)))
+        XCTAssertEqual(followModes, [false], "Scrolling away from the tail leaves follow mode")
+    }
+
     func testThousandRowsRenderAndReachBothEndsWithinBudget() async throws {
         let controller = TranscriptCollectionViewController()
         var followModes: [Bool] = []

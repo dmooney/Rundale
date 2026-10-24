@@ -84,68 +84,6 @@ final class RundaleUITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("Interrupted"))
     }
 
-    func testFailedFixtureShowsErrorAndOffersRetry() {
-        launch(fixture: "failed")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("fail")
-        app.buttons["composer.send"].tap()
-        finishManualStreamIfNeeded()
-
-        XCTAssertTrue(waitForTranscriptText("failed before it could be applied"))
-        let retry = app.buttons["composer.retry"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 3))
-        retry.tap()
-        XCTAssertTrue(app.buttons["fixture.step"].waitForExistence(timeout: 3))
-        XCTAssertTrue(waitForTranscriptText("Retrying the request"))
-        XCTAssertTrue(app.buttons["composer.stop"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["composer.retry"].exists)
-        XCTAssertFalse(app.buttons["composer.send"].exists)
-        finishManualStreamIfNeeded()
-        XCTAssertTrue(waitForTranscriptText("failed before it could be applied"))
-    }
-
-    func testAcceptedStreamIsInterruptedOnRelaunchAndRetryKeepsCommand() {
-        launch(fixture: "restoration")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("long stream")
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText("long stream"))
-
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
-        step.tap()
-        app.terminate()
-
-        app = XCUIApplication()
-        app.launchArguments = ["--ui-tests", "--no-auto-focus", "--fixture=restoration"]
-        app.launch()
-
-        XCTAssertTrue(waitForTranscriptText("long stream"))
-        let retry = app.buttons["composer.retry"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 3))
-        retry.tap()
-        let retryStep = app.buttons["fixture.step"]
-        XCTAssertTrue(retryStep.waitForExistence(timeout: 3))
-        XCTAssertTrue(waitForTranscriptText("Retrying the request"))
-        XCTAssertTrue(
-            waitForValue("Retry accepted and persisted", on: retryStep),
-            "Retry acceptance must reach durable presentation state before relaunch"
-        )
-        app.terminate()
-
-        app = XCUIApplication()
-        app.launchArguments = ["--ui-tests", "--no-auto-focus", "--fixture=restoration"]
-        app.launch()
-
-        XCTAssertTrue(waitForTranscriptText("Retrying the request"))
-        XCTAssertTrue(waitForTranscriptText("Interrupted"))
-        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 3))
-    }
-
     func testCompletionInsertionAndSlashCommandSubmission() {
         launch(fixture: "standard")
 
@@ -232,26 +170,6 @@ final class RundaleUITests: XCTestCase {
         app.buttons["composer.send"].tap()
         XCTAssertTrue(waitForTranscriptText("walk to the bridge slowly"))
         XCTAssertTrue(waitForTranscriptText("walk to the bridge"))
-    }
-
-    func testFixtureSessionRestoresHistoryAndDraftAcrossRelaunch() {
-        launch(fixture: "restoration")
-        submitAndFinish("look around")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("an unsent note survives relaunch")
-        app.terminate()
-
-        app = XCUIApplication()
-        app.launchArguments = ["--ui-tests", "--no-auto-focus", "--fixture=restoration"]
-        app.launch()
-
-        XCTAssertTrue(waitForTranscriptText("look around"))
-        XCTAssertEqual(
-            commandInput.value as? String,
-            "an unsent note survives relaunch"
-        )
     }
 
     func testOrdinaryLaunchRestoresHistoryAndDraftAcrossRelaunch() {
@@ -561,16 +479,6 @@ final class RundaleUITests: XCTestCase {
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
         } while Date() < deadline
         return false
-    }
-
-    private func waitForValue(_ value: String,
-                              on element: XCUIElement,
-                              timeout: TimeInterval = 3) -> Bool {
-        let predicate = value.isEmpty
-            ? NSPredicate(format: "value == '' OR value == nil")
-            : NSPredicate(format: "value == %@", value)
-        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 }
 

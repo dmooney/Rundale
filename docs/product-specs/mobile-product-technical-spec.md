@@ -448,7 +448,7 @@ The design (slash commands, a native browsing surface if the transcript proves i
 
 ## 13. Minimal Rundale World
 
-The content reset begins with a world small enough for a developer or tester to understand completely. This section describes that initial world. Growth beyond it is governed by Milestone 6 (Full village) in §17, and the tiny world remains as a regression fixture.
+The content reset begins with a world small enough for a developer or tester to understand completely. This section describes that initial world. Growth beyond it is governed by Milestone 8 (Full village) in §17, and the tiny world remains as a regression fixture.
 
 Initial target:
 
@@ -501,7 +501,7 @@ The initial world does not require:
 - numerous concurrent quests;
 - generated background facts.
 
-Existing content can later be selectively reintroduced after the foundation is proven. Seasonal schedule variants return in Milestone 5. Festivals and mythology need further design before they are planned.
+Existing content can later be selectively reintroduced after the foundation is proven. Seasonal schedule variants return in Milestone 7. Festivals and mythology need further design before they are planned.
 
 ## 14. Canonical World Sheet
 
@@ -567,7 +567,7 @@ The following existing or proposed capabilities do not define the new UI and sho
 
 These systems may remain in the repository and may be reconsidered individually later.
 
-Items removed from this list by owner decision: bug reporting (shipped as `/bug` and shake-to-report in beta builds), command argument completion (shipped), emoji reactions (2026-10-06, planned for Milestone 5), and save/branch management (2026-10-06, planned for Milestone 5; see §12.3).
+Items removed from this list by owner decision: bug reporting (shipped as `/bug` and shake-to-report in beta builds), command argument completion (shipped), emoji reactions (2026-10-06, planned for Milestone 7), and save/branch management (2026-10-06, planned for Milestone 7; see §12.3).
 
 ## 16. Definition of Done
 
@@ -600,11 +600,15 @@ Milestones 1–3 are complete. The rest are tracked as named [GitHub milestones]
 | Milestone | GitHub milestone         |
 | --------- | ------------------------ |
 | 4         | Stability                |
-| 5         | Existing features usable |
-| 6         | Full village             |
-| 7         | Release                  |
+| 5         | NPC dialogue             |
+| 6         | Living world             |
+| 7         | Existing features usable |
+| 8         | Full village             |
+| 9         | Release                  |
 
-Work beyond Milestone 7 is not planned. It stays as unmilestoned ideas until a post-release review. App Store distribution waits for a billing model and a future milestone.
+The 2026-10-24 owner review split the former Milestone 5 (Existing features usable, with the living-world proofs as its exit gate) into Milestones 5 to 7, and renumbered Full village and Release from 6 and 7 to 8 and 9.
+
+Work beyond Milestone 9 is not planned. It stays as unmilestoned ideas until a post-release review. App Store distribution waits for a billing model and a future milestone.
 
 ### Phase-end demonstrations
 
@@ -755,18 +759,29 @@ Stop feature growth and harden the existing game as a native mobile application.
 
 The existing tiny game behaves like a dependable iPhone application under realistic lifecycle, connectivity, accessibility, keyboard, scrolling, and failure conditions. Known defects that can lose, duplicate, corrupt, or substantially confuse player actions block progression to the next milestone.
 
-Milestone 5 — Existing features usable (living-world proof)
+Milestone 5 — NPC dialogue
 
-Bring existing Limerick features to the phone one at a time, each to a usable standard, and demonstrate Rundale's central living-world premise inside the tiny canonical world.
+Make the characters speak as themselves, from the right facts, before the living-world proofs depend on what they say. The requirements, and the order of work (requirements, then hand-written prompts improved in a prompt lab, then the game's prompt system), are in the [NPC dialogue prompt requirements](../design/npc-dialogue-prompt.md).
 
-**Restoring existing features**
+**Requirements checklist**
 
-- Each restored feature has its own issue with a player need, acceptance criteria and a test plan before implementation (§2.5).
-- A restored feature uses the shared engine path, not mobile-only logic, and preserves offline play, local authoritative saves, transcript stability, request atomicity and duplicate prevention.
-- A feature that cannot reach a usable standard without disproportionate work is postponed: removed from the milestone with a recorded reason, so it does not hold the milestone open.
-- Postponed and not-yet-designed features (for example festivals, omens and folklore) remain unplanned ideas.
+- The dialogue prompt meets the behaviour requirements of the NPC dialogue prompt document on the production model, and the owner has accepted it on replies the prompt lab did not tune against.
+- Each NPC is given its own character, its own village, common knowledge of its time and place, and the present moment. No NPC is given another's private knowledge, mood or current whereabouts.
+- The player is a stranger to every character at first, with no description, so the player can choose who to be. A character learns the player's name only when the player gives it.
+- No code inspects, rewrites or replaces generated dialogue. Only structural validation of the reply and the canonical commit boundary remain.
+- Generated dialogue does not casually contradict who is present, where the speaker is, the time, the weather or today's feast.
+- A line spoken with several people present reaches the person it is meant for, and the game asks only when it cannot tell.
+- A conversation can change an NPC's mood through a validated outcome, never through generated prose alone.
 
-**Living-world requirements checklist**
+**Exit criteria**
+
+A tester can talk with each of the three NPCs in the tiny world and hear three distinct people who answer questions about their village correctly, admit what they do not know, stay in 1820, and treat the player as a stranger until the conversation shows otherwise. The prompt lab's write-up records the frozen prompt, and a live run on the phone path reproduces its quality.
+
+Milestone 6 — Living world
+
+Demonstrate Rundale's central living-world premise inside the tiny canonical world.
+
+**Requirements checklist**
 
 The living-world proofs below are this milestone's exit gate.
 
@@ -794,9 +809,24 @@ The living-world proofs below are this milestone's exit gate.
 
 **Exit criteria**
 
-Every feature in the milestone is usable on the phone or recorded as postponed. A tester can deliberately demonstrate all five living-world behaviors in the three-location/three-NPC world and explain why each observed outcome occurred. Save/resume and repeated tests produce coherent authoritative state, and generated dialogue does not obscure whether the underlying mechanisms worked.
+A tester can deliberately demonstrate all five living-world behaviors in the three-location/three-NPC world and explain why each observed outcome occurred. Save/resume and repeated tests produce coherent authoritative state, and generated dialogue does not obscure whether the underlying mechanisms worked.
 
-Milestone 6 — Full village
+Milestone 7 — Existing features usable
+
+Bring existing Limerick features to the phone one at a time, each to a usable standard.
+
+**Restoring existing features**
+
+- Each restored feature has its own issue with a player need, acceptance criteria and a test plan before implementation (§2.5).
+- A restored feature uses the shared engine path, not mobile-only logic, and preserves offline play, local authoritative saves, transcript stability, request atomicity and duplicate prevention.
+- A feature that cannot reach a usable standard without disproportionate work is postponed: removed from the milestone with a recorded reason, so it does not hold the milestone open.
+- Postponed and not-yet-designed features (for example festivals, omens and folklore) remain unplanned ideas.
+
+**Exit criteria**
+
+Every feature in the milestone is usable on the phone or recorded as postponed.
+
+Milestone 8 — Full village
 
 Only after the previous milestones are stable may Rundale begin growing beyond the canonical tiny world. It grows to a full village, then stops for a release. Expansion is incremental rather than a return to the previous content scale.
 
@@ -829,7 +859,7 @@ The target size and shape of the village and its population, and the order of th
 
 The milestone is complete when the approved village target is reached. Each expansion increment is Done only when its explicit acceptance criteria and planned tests pass, all applicable project-wide Definition of Done requirements are satisfied, and the increment leaves Rundale more useful or expressive without sacrificing the reliability, comprehensibility, mobile usability, and text-first identity established by the earlier milestones.
 
-Milestone 7 — Release
+Milestone 9 — Release
 
 Cut Rundale's first release once the full village is stable. No new features are added in this milestone.
 

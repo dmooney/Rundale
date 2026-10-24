@@ -79,7 +79,7 @@ Ordinary prose, no machine-checked format. Include:
 ## 8. Commit + push + PR
 
 - Conventional commit (`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`).
-- Body explains the _why_, not the _what_. Do not add a Claude-specific co-author trailer unless the user explicitly asks for it.
+- Body explains the _why_, not the _what_. Do not add trailers (`Co-Authored-By`, session links, or other attribution).
 - PR title prefix matches commit.
 - PR body from step 7, linking the evidence page (step 9).
 

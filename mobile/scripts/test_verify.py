@@ -9,6 +9,7 @@ import io
 import json
 import os
 import plistlib
+import re
 import signal
 import subprocess
 import sys
@@ -86,6 +87,8 @@ class FakeRunner:
         self.xcresult_output = XCRESULT_JSON
         # Per `-only-testing:` selector case results in a combined run's tree.
         self.case_results: dict[str, str] = {}
+        # Per selector failure message, as xcresulttool nests it under the case.
+        self.case_failures: dict[str, str] = {}
         # Called with each command first; a CommandResult it returns wins.
         self.intercept = None
         self.device_output = json.dumps(
@@ -162,6 +165,10 @@ class FakeRunner:
                     "nodeType": "Test Case",
                     "name": test or "testFixture()",
                     "result": self.case_results.get(arg, "Passed"),
+                    "children": [
+                        {"nodeType": "Failure Message", "name": message, "result": "Failed"}
+                        for message in filter(None, [self.case_failures.get(arg)])
+                    ],
                 }
             )
         return {
@@ -354,6 +361,8 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertGreater(report["summary"]["not_automatable"], 0)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(by_id["swift-package-tests"]["status"], "passed")
+            # Style checks read source text only; --fast runs them on Linux.
+            self.assertNotIn("swiftlint", by_id)
             self.assertEqual(by_id["xcodegen"]["status"], "passed")
             self.assertEqual(by_id["ios-device-build"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
@@ -450,6 +459,36 @@ class VerificationRunnerTests(unittest.TestCase):
                 parser.parse_args([])
             self.assertEqual(raised.exception.code, 2)
 
+    def test_command_timeout_option_reads_environment(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).command_timeout, 30)
+            args = verify_module.build_parser().parse_args(["--command-timeout", "75"])
+            self.assertEqual(args.command_timeout, 75)
+        with patch.dict(os.environ, {"RUNDALE_COMMAND_TIMEOUT_MINUTES": "80"}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).command_timeout, 80)
+        for bad in ("soon", "0", "-5"):
+            with patch.dict(os.environ, {"RUNDALE_COMMAND_TIMEOUT_MINUTES": bad}, clear=True):
+                parser = verify_module.build_parser()
+                with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
+                    parser.parse_args([])
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_failure_reason_names_a_timeout_before_the_last_output(self):
+        killed = CommandResult(
+            None, stderr="launching the app", duration_seconds=1800.4, timed_out=True
+        )
+        self.assertEqual(
+            verify_module._failure_reason(killed, "xcodebuild failed"),
+            "timed out after 1800s: launching the app",
+        )
+        silent = CommandResult(None, duration_seconds=60, timed_out=True)
+        self.assertEqual(
+            verify_module._failure_reason(silent, "xcodebuild failed"),
+            "timed out after 60s: xcodebuild failed",
+        )
+        failed = CommandResult(65, stderr="Testing failed")
+        self.assertEqual(verify_module._failure_reason(failed, "fallback"), "Testing failed")
+
     def test_device_is_opt_in_and_simulator_remains_default(self):
         with patch.dict(os.environ, {}, clear=True):
             args = verify_module.build_parser().parse_args([])
@@ -537,7 +576,7 @@ class VerificationRunnerTests(unittest.TestCase):
             fake = FakeRunner(
                 {lint: CommandResult(2, stdout="Foo.swift:1:1: error: Force Try Violation")}
             )
-            report = VerificationRun(root, command_runner=fake).run(1)
+            report = VerificationRun(root, command_runner=fake).run(fast=True)
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
@@ -564,7 +603,7 @@ class VerificationRunnerTests(unittest.TestCase):
             create_phase1_fixture(root)
             install = ("bash", "mobile/scripts/install-swift-tools.sh")
             fake = FakeRunner({install: CommandResult(1, stderr="digest mismatch")})
-            report = VerificationRun(root, command_runner=fake).run(1)
+            report = VerificationRun(root, command_runner=fake).run(fast=True)
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
@@ -666,6 +705,206 @@ class VerificationRunnerTests(unittest.TestCase):
                     for call in fake.calls
                 )
             )
+
+    def test_smoke_runs_unit_classes_and_core_ui_tests_and_records_no_full_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            with patch.object(VerificationRun, "_store_full_pass") as store:
+                report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            store.assert_not_called()
+            self.assertEqual(report["exit_code"], 0)
+            self.assertEqual(report["phase"], "smoke")
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            ]
+            self.assertEqual(len(builds), 1, "one combined simulator run")
+            selectors = [
+                a.removeprefix("-only-testing:")
+                for a in builds[0]
+                if a.startswith("-only-testing:")
+            ]
+            ui = [s for s in selectors if s.startswith("RundaleUITests")]
+            self.assertEqual(sorted(ui), sorted(verify_module.SMOKE_UI_TESTS))
+            self.assertIn("RundaleTests/LaunchConfigurationTests", selectors)
+            self.assertIn("RundaleTests", selectors)
+            # Unit classes still run under their suite; UI-only suites are
+            # left to the full run without blocking.
+            self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
+            self.assertIn("--smoke", by_id["ios-simulator-tests"]["name"])
+            for identifier in ("phase3-ios-simulator-tests", "phase4-ios-simulator-tests"):
+                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
+                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            self.assertEqual(by_id["phase4-ios-controller-tests"]["status"], "passed")
+            self.assertEqual(by_id["ios-simulator-smoke-tests"]["status"], "passed")
+            self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
+            # CI's Linux lane runs the Swift packages and style checks.
+            self.assertFalse(any(call["argv"][:2] == ("swift", "test") for call in fake.calls))
+            for identifier in (
+                "swift-package-tests",
+                "swift-bridge-tests",
+                "swift-endpoint-kit-tests",
+            ):
+                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
+                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            self.assertNotIn("swiftlint", by_id)
+            # Rust gates and the device build still run.
+            for identifier in (
+                "limerick-persistence-tests",
+                "mobile-rust-packaging",
+                "ios-device-build",
+            ):
+                self.assertIn(identifier, by_id)
+
+    def test_smoke_fails_when_a_core_ui_test_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            selector = f"-only-testing:{verify_module.SMOKE_UI_TESTS[2]}"
+            fake.case_results[selector] = "Failed"
+            fake.case_failures[selector] = "RundalePhase2UITests.swift:9: XCTAssertTrue failed"
+            report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 1)
+            smoke = by_id["ios-simulator-smoke-tests"]
+            self.assertEqual(smoke["status"], "failed")
+            self.assertTrue(smoke["blocking"])
+            self.assertIn("XCTAssertTrue failed", smoke["details"]["failures"][0])
+
+    def test_smoke_fails_when_a_named_core_ui_test_did_not_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            renamed = (*verify_module.SMOKE_UI_TESTS[:-1], "RundaleUITests/RundaleUITests/testGone")
+            fake = FakeRunner()
+            real_tree = fake.xcresult_tree
+
+            def without_gone(*args, **kwargs):
+                tree = real_tree(*args, **kwargs)
+                for plan in tree["testNodes"]:
+                    for bundle in plan["children"]:
+                        for suite in bundle["children"]:
+                            suite["children"] = [
+                                c for c in suite["children"] if c["name"] != "testGone"
+                            ]
+                return tree
+
+            fake.xcresult_tree = without_gone
+            with patch.object(verify_module, "SMOKE_UI_TESTS", renamed):
+                report = VerificationRun(root, command_runner=fake, smoke=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            smoke = by_id["ios-simulator-smoke-tests"]
+            self.assertEqual(report["exit_code"], 1)
+            self.assertEqual(smoke["status"], "failed")
+            self.assertIn("did not run: RundaleUITests/RundaleUITests/testGone", smoke["reason"])
+
+    def test_full_run_still_records_a_full_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            with patch.object(VerificationRun, "_store_full_pass") as store:
+                report = VerificationRun(root, command_runner=FakeRunner()).run()
+            self.assertEqual(report["exit_code"], 0)
+            store.assert_called_once()
+
+    def test_skip_time_sensitive_leaves_them_out_of_the_combined_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake, skip_time_sensitive=True).run()
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(report["exit_code"], 0)
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            ]
+            self.assertEqual(len(builds), 1, "one combined simulator run")
+            skipped = [
+                a.removeprefix("-skip-testing:")
+                for a in builds[0]
+                if a.startswith("-skip-testing:")
+            ]
+            self.assertEqual(skipped, list(verify_module.TIME_SENSITIVE_TESTS))
+            record = by_id["time-sensitive-tests"]
+            self.assertEqual(record["status"], "skipped")
+            self.assertFalse(record["blocking"])
+            self.assertEqual(record["details"]["tests"], skipped)
+
+    def test_smoke_skips_only_the_time_sensitive_tests_it_selects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            VerificationRun(root, command_runner=fake, smoke=True, skip_time_sensitive=True).run()
+            build = next(
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            )
+            skipped = [a for a in build if a.startswith("-skip-testing:")]
+            self.assertEqual(
+                skipped,
+                [
+                    "-skip-testing:RundaleTests/Phase1AuditVolumeTests/"
+                    "testThousandRowsRenderAndReachBothEndsWithinBudget",
+                    "-skip-testing:RundaleTests/TranscriptScrollingTests/"
+                    "testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
+                ],
+            )
+
+    def test_full_run_without_the_flag_skips_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run()
+            self.assertFalse(
+                any(
+                    a.startswith("-skip-testing:")
+                    for call in fake.calls
+                    if call["argv"][0] == "xcodebuild"
+                    for a in call["argv"]
+                )
+            )
+            self.assertNotIn("time-sensitive-tests", {s["id"] for s in report["suites"]})
+
+    def test_skip_time_sensitive_rejects_fast_and_single_phases(self):
+        for kwargs in ({"fast": True}, {"phase": 2}):
+            with self.assertRaises(ValueError):
+                VerificationRun(Path("/tmp/rundale-test"), skip_time_sensitive=True).run(**kwargs)
+        with self.assertRaises(ValueError):
+            VerificationRun(
+                Path("/tmp/rundale-test"), skip_time_sensitive=True, device="device"
+            ).run()
+
+    def test_time_sensitive_tests_name_existing_tests_outside_the_smoke_list(self):
+        mobile = Path(__file__).resolve().parents[1]
+        for test in verify_module.TIME_SENSITIVE_TESTS:
+            bundle, cls, name = test.split("/")
+            self.assertNotIn(test, verify_module.SMOKE_UI_TESTS)
+            sources = "\n".join(
+                path.read_text(encoding="utf-8") for path in (mobile / bundle).glob("*.swift")
+            )
+            # The class's body runs to the next top-level declaration.
+            body = re.search(rf"^final class {cls}\b.*?(?=^\S|\Z)", sources, re.M | re.S)
+            self.assertIsNotNone(body, test)
+            assert body is not None
+            self.assertIn(f"func {name}(", body.group(0), test)
+
+    def test_smoke_rejects_fast_phase_and_device(self):
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True).run(fast=True)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True).run(2)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), smoke=True, device="device").run()
 
     def test_fast_lane_rejects_phase_and_device(self):
         with self.assertRaises(ValueError):
@@ -828,22 +1067,51 @@ class VerificationRunnerTests(unittest.TestCase):
                 self.assertIn(f"-only-testing:{selector}", selectors)
             self.assertEqual(by_id["ios-simulator-combined-run"]["status"], "passed")
             self.assertEqual(by_id["phase4-ios-simulator-tests-results"]["status"], "passed")
-            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 3)
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 2)
 
     def test_combined_run_fails_only_the_suite_whose_case_failed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
             fake = FakeRunner()
-            fake.case_results["-only-testing:RundaleUITests/RundalePhase3UITests"] = "Failed"
+            selector = "-only-testing:RundaleUITests/RundalePhase3UITests"
+            fake.case_results[selector] = "Failed"
+            fake.case_failures[selector] = "RundalePhase3UITests.swift:42: XCTAssertTrue failed"
             report = VerificationRun(root, command_runner=fake).run(4)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
             self.assertEqual(by_id["phase3-ios-simulator-tests"]["status"], "failed")
             self.assertIn("1 failed test", by_id["phase3-ios-simulator-tests"]["reason"])
+            # The assertion text reaches summary.txt, which CI prints to its log.
+            failure = "RundalePhase3UITests.testFixture(): RundalePhase3UITests.swift:42: XCTAssertTrue failed"
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["failures"], [failure])
+            self.assertNotIn("failures", by_id["phase2-ios-simulator-tests"]["details"])
+            summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
+            self.assertIn(f"\n    {failure}\n", summary)
             self.assertEqual(by_id["phase3-ios-simulator-test-results"]["status"], "failed")
             for identifier in ("ios-simulator-tests", "phase2-ios-simulator-tests"):
                 self.assertEqual(by_id[identifier]["status"], "passed", identifier)
+
+    def test_summary_prints_a_long_failure_message_as_one_marked_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            selector = "-only-testing:RundaleUITests/RundalePhase3UITests"
+            fake.case_results[selector] = "Failed"
+            message = "A.swift:1: XCTAssertEqual failed\n" + "x" * 500
+            fake.case_failures[selector] = message
+            report = VerificationRun(root, command_runner=fake).run(4)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            details = by_id["phase3-ios-simulator-tests"]["details"]
+            self.assertEqual(
+                details["failures"], [f"RundalePhase3UITests.testFixture(): {message}"]
+            )
+            summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
+            line = next(line for line in summary.splitlines() if "A.swift:1" in line)
+            self.assertIn("XCTAssertEqual failed xxx", line)
+            self.assertEqual(len(line), 4 + verify_module.FAILURE_MESSAGE_CHARS)
+            self.assertTrue(line.endswith("…"))
 
     def test_combined_run_that_exits_nonzero_fails_passing_suites(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -915,9 +1183,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(report["exit_code"], 0)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             for identifier in (
-                "limerick-core-mobile-tests",
                 "limerick-persistence-tests",
-                "limerick-mobile-ffi-tests",
                 "mobile-dependency-graph",
                 "mobile-rust-packaging",
                 "swift-package-tests-phase2",
@@ -937,16 +1203,12 @@ class VerificationRunnerTests(unittest.TestCase):
                 if call["argv"][:5]
                 == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test")
             ]
-            self.assertEqual(len(rust_test_calls), 3)
-            for call in rust_test_calls:
-                index = call["argv"].index("--manifest-path")
-                self.assertEqual(call["argv"][index + 1], "limerick/Cargo.toml")
-            core_call = next(c for c in rust_test_calls if "limerick-core" in c["argv"])
-            # The whole portable configuration, not a filtered subset: it
-            # includes the turn API and the Endpoint call tests.
+            # Only persistence: the other crates' tests run on Linux (full-ci.yml).
+            self.assertEqual(len(rust_test_calls), 1)
+            index = rust_test_calls[0]["argv"].index("--manifest-path")
             self.assertEqual(
-                core_call["argv"][-5:],
-                ("--no-default-features", "--features", "mobile", "--lib", "--tests"),
+                rust_test_calls[0]["argv"][index + 1 :],
+                ("limerick/Cargo.toml", "-p", "limerick-persistence"),
             )
             packaging_call = next(
                 call
@@ -1000,41 +1262,28 @@ class VerificationRunnerTests(unittest.TestCase):
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
             self.assertEqual(report["exit_code"], 1)
-            self.assertEqual(by_id["limerick-core-mobile-tests"]["status"], "failed")
+            self.assertEqual(by_id["limerick-persistence-tests"]["status"], "failed")
             self.assertIn(
-                "did not report test-result counts", by_id["limerick-core-mobile-tests"]["reason"]
+                "did not report test-result counts", by_id["limerick-persistence-tests"]["reason"]
             )
 
-    def test_rust_gate_passes_named_ignored_test_and_skips_any_other(self):
-        measurement = (
-            "test measure_candidate_capture_cost_on_rundale ... ignored, measurement\n"
-            "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n"
-        )
-        for extra, expected in (
-            ("", "passed"),
-            ("test newly_ignored ... ignored\n", "skipped"),
-        ):
-            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                (root / "mobile").mkdir()
-                create_phase2_fixture(root)
-                fake = FakeRunner()
-                fake.rust_output = extra + measurement
-                if extra:
-                    fake.rust_output = fake.rust_output.replace("1 ignored", "2 ignored")
-                report = VerificationRun(root, command_runner=fake, use_cache=False).run(2)
+    def test_rust_gate_skips_on_any_ignored_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.rust_output = (
+                "test newly_ignored ... ignored\n"
+                "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n"
+            )
+            report = VerificationRun(root, command_runner=fake, use_cache=False).run(2)
 
-                by_id = {suite["id"]: suite for suite in report["suites"]}
-                core = by_id["limerick-core-mobile-tests"]
-                self.assertEqual(core["status"], expected)
-                self.assertEqual(
-                    core["details"]["expected_ignored"],
-                    ["measure_candidate_capture_cost_on_rundale"],
-                )
-                if extra:
-                    self.assertIn("newly_ignored", core["reason"])
-                # Gates that name no expected ignore treat any ignore as a skip.
-                self.assertEqual(by_id["limerick-mobile-ffi-tests"]["status"], "skipped")
+            persistence = {suite["id"]: suite for suite in report["suites"]}[
+                "limerick-persistence-tests"
+            ]
+            self.assertEqual(persistence["status"], "skipped")
+            self.assertIn("newly_ignored", persistence["reason"])
 
     def test_phase2_dependency_gate_rejects_forbidden_crate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1506,6 +1755,59 @@ class XcresultTreeTests(unittest.TestCase):
             },
         )
 
+    def test_failures_keep_every_message_under_their_case(self):
+        case = {
+            "nodeType": "Test Case",
+            "name": "testSlow()",
+            "result": "Failed",
+            "children": [
+                {
+                    "nodeType": "Device",
+                    "name": "iPhone 17",
+                    "children": [
+                        {"nodeType": "Failure Message", "name": "A.swift:3: first"},
+                        {"nodeType": "Failure Message", "name": "A.swift:9: second"},
+                    ],
+                },
+                {"nodeType": "Attachment", "name": "Screenshot"},
+            ],
+        }
+        # An XCTExpectFailure case carries its messages, but is not a failure.
+        expected = {
+            "nodeType": "Test Case",
+            "name": "testKnownDefect()",
+            "result": "Expected Failure",
+            "children": [{"nodeType": "Failure Message", "name": "B.swift:5: known"}],
+        }
+        tree = {
+            "testNodes": [
+                {
+                    "nodeType": "Test Plan",
+                    "name": "Rundale",
+                    "children": [
+                        {
+                            "nodeType": "UI test bundle",
+                            "name": "RundaleUITests",
+                            "children": [
+                                {
+                                    "nodeType": "Test Suite",
+                                    "name": "AUITests",
+                                    "children": [case, expected],
+                                },
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        self.assertEqual(
+            verify_module._xcresult_failures(tree),
+            [
+                ("RundaleUITests", "AUITests", "testSlow()", "A.swift:3: first"),
+                ("RundaleUITests", "AUITests", "testSlow()", "A.swift:9: second"),
+            ],
+        )
+
 
 class VerificationCacheTests(unittest.TestCase):
     def run_phase(self, root: Path, phase: int = 2, **options):
@@ -1520,12 +1822,12 @@ class VerificationCacheTests(unittest.TestCase):
             first, first_report = self.run_phase(root)
             self.assertEqual(first_report["exit_code"], 0)
             self.assertEqual(first_report["summary"]["reused"], 0)
-            self.assertEqual(len(executed_suites(first)), 8)
+            self.assertEqual(len(executed_suites(first)), 6)
 
             second, report = self.run_phase(root)
             self.assertEqual(report["exit_code"], 0)
             self.assertEqual(executed_suites(second), [])
-            self.assertEqual(report["summary"]["reused"], 9)
+            self.assertEqual(report["summary"]["reused"], 7)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             reused = by_id["phase2-ios-simulator-tests"]["details"]["cache"]
             self.assertTrue(reused["reused"])
@@ -1533,7 +1835,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-test-results"]["status"], "passed")
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
-            self.assertIn("9 passed suite(s) reused", summary)
+            self.assertIn("7 passed suite(s) reused", summary)
 
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1614,11 +1916,11 @@ class VerificationCacheTests(unittest.TestCase):
             tracked = root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift"
             tracked.write_text("// changed\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8, "tracked edit reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 6, "tracked edit reruns every suite")
 
             (root / "mobile" / "Untracked.swift").write_text("// new\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8, "untracked source reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 6, "untracked source reruns every suite")
 
     def test_private_firebase_configuration_and_toolchain_are_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1629,12 +1931,12 @@ class VerificationCacheTests(unittest.TestCase):
             plist.parent.mkdir(parents=True)
             plist.write_bytes(b"private")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
 
             fake = GitBackedRunner()
             fake.results[("xcodebuild", "-version")] = CommandResult(0, stdout="Xcode 99.0\n")
             VerificationRun(root, command_runner=fake).run(2)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
 
     def test_failures_are_never_reused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1655,7 +1957,7 @@ class VerificationCacheTests(unittest.TestCase):
             create_cached_repository(root)
             self.run_phase(root)
             fake, report = self.run_phase(root, use_cache=False)
-            self.assertEqual(len(executed_suites(fake)), 8)
+            self.assertEqual(len(executed_suites(fake)), 6)
             self.assertEqual(report["summary"]["reused"], 0)
             self.assertFalse(report["cache"]["enabled"])
 
