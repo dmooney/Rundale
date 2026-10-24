@@ -604,7 +604,7 @@ criterion.
 
 ## 9. Coordination
 
-- #2024: static facts, including homes, routines and authored festival names.
+- #2024 and [static NPC context](static-npc-context.md): static facts, including homes, routines and authored festival names.
 - #2025: background (Tier 2) inference and mood changes.
 - #1891: task semantics.
 - #2128: short labels for people in clarification choices.
