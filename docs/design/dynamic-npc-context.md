@@ -1,7 +1,7 @@
 # Design: dynamic NPC context and recipient resolution
 
 > Status: Accepted · Issue: [#2143](https://github.com/dmooney/Rundale/issues/2143) ·
-> Milestone: Existing features usable (spec Milestone 5) · Pairs with:
+> Milestone: NPC dialogue (spec Milestone 5) · Pairs with:
 > [#2024](https://github.com/dmooney/Rundale/issues/2024) (static context)
 
 This is the contract #2143 requires before implementation. It covers who a
@@ -604,9 +604,10 @@ Rows 27, 28 and 35 keep the assertions of four shipped tests:
 they answer the decision role instead of naming a target in an intent reply.
 
 Implementation PRs that change shipped behaviour also run
-`just mobile-verify --phase all` and publish an evidence page. The Phase 5
-gate (`just mobile-verify --phase 5`) is built by #2194, which carries that
-criterion.
+`just mobile-verify --phase all` and publish an evidence page. Since the
+2026-10-24 split, this work belongs to spec Milestone 5 (NPC dialogue), whose
+gate is `--phase all`; #2194 builds the living-world phase gate for spec
+Milestone 6 (Living world).
 
 ## 9. Coordination
 
