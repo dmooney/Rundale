@@ -746,6 +746,8 @@ jobs:
       # simulator workers were measured on: six clones there outran the
       # 30-minute command limit (#2276). A smoke pass is never recorded as a
       # full pass, so testflight.yml's nightly full gate runs on what this merges.
+      # Tests whose result depends on machine speed run only in local runs
+      # (verify.py TIME_SENSITIVE_TESTS).
       - name: Run the mobile-verify gate
         if: steps.recorded.outputs.run == 'true'
         env:
@@ -755,7 +757,7 @@ jobs:
         # GATE_ARGS is `--smoke` or `--phase all`.
         run: |
           read -ra args <<< "$GATE_ARGS"
-          python3 mobile/scripts/verify.py "${args[@]}"
+          python3 mobile/scripts/verify.py "${args[@]}" --skip-time-sensitive
 
       # Saved even when a later test fails: the Rust build finished first.
       - name: Save the Rust mobile build

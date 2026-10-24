@@ -45,7 +45,8 @@ record the pass, and report its `summary.txt`. Without a recorded pass, CI's
 job runs, plus a few core-loop UI tests; the full
 gate on a PR labelled `mobile-verify-full`), and the
 TestFlight workflow's nightly run runs the full gate on `main` after the merge
-has uploaded.
+has uploaded. Hosted runs leave the tests whose result depends on machine speed
+(`verify.py` `TIME_SENSITIVE_TESTS`) to local runs.
 
 The live Endpoint, soak, and performance suites need a physical iPhone, the
 private Firebase configuration, and an App Check debug token or App Attest.

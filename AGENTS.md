@@ -129,8 +129,11 @@ Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
 job finds no recorded pass for the PR's input tree and runs `verify.py --smoke`
 on a hosted macOS runner: every Mac gate but the full UI suites and the Swift
 package suites (CI's Linux "Swift quality" job runs those and the style checks),
-plus a few core-loop UI tests. It records no full pass. To prove a change to the UI suites before
-merge, label the PR `mobile-verify-full` and push: that job then runs and records
+plus a few core-loop UI tests. It records no full pass. Hosted runs pass
+`--skip-time-sensitive`, so tests whose result depends on machine speed
+(`TIME_SENSITIVE_TESTS` in `verify.py`) run only in a local
+`just mobile-verify`; never pass it locally. To prove a change to the UI suites
+before merge, label the PR `mobile-verify-full` and push: that job then runs and records
 the full gate (over an hour on that runner). Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.

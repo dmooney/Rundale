@@ -59,6 +59,27 @@ SMOKE_UI_TESTS = (
     "RundaleUITests/RundalePhase3UITests/testPlaceNameTravelWithoutEndpointInference",
     "RundaleUITests/RundalePhase4UITests/testDraftAndCommittedTravelSurviveBackgroundAndTermination",
 )
+# Tests whose result depends on the machine's speed: real fixture timers, a
+# slow mock Endpoint racing Stop or a background, a wall-clock budget, or rows
+# and layout settling within a polling window. They pass on a developer's Mac
+# and failed on the hosted macos-26 runner (#2292), so hosted CI passes
+# --skip-time-sensitive and they run only in local `just mobile-verify` runs
+# (owner's decision, #2287).
+TIME_SENSITIVE_TESTS = (
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksStayVisibleAndCompleteWithoutNext",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksWorkWithNativeMultilineComposer",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticOutputPreservesHistoryAndNewTextReturnsToFinalReply",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticStopRetainsExactPartialBeyondNextTimerTicks",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testLongFixtureTraversesOldestAndNewestWithinInteractionBudget",
+    "RundaleUITests/RundalePhase1AuditUITests/testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply",
+    "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
+    "RundaleUITests/RundalePhase2DialogueUITests/testPhase2IncrementalChunksUpdateOneDialogueRowBeforeFinal",
+    "RundaleUITests/RundalePhase2RecoveryUITests/testPhase2StopLeavesInterruptedAttemptAndRetryCompletes",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testBackgroundInterruptsStreamAndPreservesNewDraftForRetry",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testTerminationDuringStreamingRecoversOneRequestAndRetriesOnce",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAtSendKeepsOneCommandAndOffersRetry",
+    "RundaleUITests/RundaleUITests/testFollowingNewestStartsAtLatestAndTracksComposerResize",
+)
 UI_TEST_BUNDLE = "RundaleUITests"
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
@@ -526,6 +547,13 @@ def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool
     return False
 
 
+def _named_case(test: str) -> tuple[str, str, str, str]:
+    """A `bundle/class/test` identifier as an xcresult case, for `_selected`."""
+
+    bundle, cls, name = test.split("/")
+    return bundle, cls, name, ""
+
+
 def _case_counts(results: Sequence[str]) -> dict[str, int]:
     """Count xcresult case results into the summary's buckets; anything unknown fails."""
 
@@ -649,10 +677,13 @@ class VerificationRun:
         host_lock: Path | None = None,
         host_lock_wait_seconds: float = HOST_LOCK_WAIT_SECONDS,
         smoke: bool = False,
+        skip_time_sensitive: bool = False,
     ) -> None:
         self.root = repo_root.resolve()
         # Every gate but the full UI suites, which SMOKE_UI_TESTS stand in for.
         self.smoke = smoke
+        # Leaves TIME_SENSITIVE_TESTS out of the combined simulator run.
+        self.skip_time_sensitive = skip_time_sensitive
         # Every worktree's non-fast run (just mobile-verify, release.py, the
         # Dependabot upkeep routine) shares the simulator and the Cargo target.
         self.host_lock = host_lock if host_lock is not None else default_host_lock()
@@ -1610,6 +1641,11 @@ class VerificationRun:
                     if isinstance(only_testing, str)
                     else list(only_testing or []),
                     "skip_testing": list(skip_testing),
+                    **(
+                        {"skip_time_sensitive": True}
+                        if self.skip_time_sensitive and destination is not None
+                        else {}
+                    ),
                     "simulator": None
                     if simulator is None
                     else {
@@ -1693,8 +1729,26 @@ class VerificationRun:
             if part == "-resultBundlePath":
                 next(parts)
                 command.append(bundle)
+        skipped = [
+            test
+            for test in TIME_SENSITIVE_TESTS
+            if self.skip_time_sensitive and _selected(_named_case(test), selectors)
+        ]
         at = command.index("-derivedDataPath")
-        command[at:at] = [f"-only-testing:{selector}" for selector in selectors]
+        command[at:at] = [f"-only-testing:{selector}" for selector in selectors] + [
+            f"-skip-testing:{test}" for test in skipped
+        ]
+        if skipped:
+            self._record(
+                identifier="time-sensitive-tests",
+                name="Time-sensitive simulator tests",
+                phase=pending[0]["phase"],
+                status=SKIPPED,
+                required=False,
+                kind="automated",
+                reason="--skip-time-sensitive leaves these to local runs",
+                details={"tests": skipped},
+            )
         run = self._run(
             identifier="ios-simulator-combined-run",
             name="Combined iOS simulator test run",
@@ -2927,6 +2981,12 @@ class VerificationRun:
             raise ValueError("--fast runs no phase or device suites")
         if self.smoke and (fast or phase is not None or self.physical_device is not None):
             raise ValueError("--smoke runs every phase on the simulator, without --fast")
+        if self.skip_time_sensitive and (
+            fast or phase not in {None, 4} or self.physical_device is not None
+        ):
+            raise ValueError(
+                "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+            )
         self.report_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as held:
             if not fast:  # --fast runs no simulator suite and builds no Rust
@@ -3054,6 +3114,7 @@ class VerificationRun:
                 {
                     "input_tree": tree,
                     "content_key": self._content_key_value,
+                    "skipped_time_sensitive": self.skip_time_sensitive,
                     "started_at": report["started_at"],
                     "finished_at": report["finished_at"],
                     "summary": report["summary"],
@@ -3195,6 +3256,14 @@ def build_parser() -> argparse.ArgumentParser:
             "never records a full pass"
         ),
     )
+    parser.add_argument(
+        "--skip-time-sensitive",
+        action="store_true",
+        help=(
+            "leave the tests whose result depends on machine speed "
+            "(TIME_SENSITIVE_TESTS) to local runs; for hosted CI only"
+        ),
+    )
     parser.add_argument("--project-spec", type=Path)
     parser.add_argument("--project", type=Path)
     parser.add_argument("--scheme", default="Rundale")
@@ -3274,6 +3343,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--fast runs no phase or device suites")
     if args.smoke and (args.fast or args.phase is not None or args.device):
         parser.error("--smoke runs every phase on the simulator, without --fast")
+    if args.skip_time_sensitive and (args.fast or args.phase not in {None, 4} or args.device):
+        parser.error(
+            "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+        )
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(
         root,
@@ -3294,6 +3367,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parallel_workers=args.parallel_workers,
         command_timeout_seconds=args.command_timeout * 60,
         smoke=args.smoke,
+        skip_time_sensitive=args.skip_time_sensitive,
     )
     # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
     # group before the report-directory lock is released.

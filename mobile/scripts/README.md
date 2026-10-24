@@ -57,6 +57,16 @@ named GitHub milestones (Stability, Existing features usable, Full village, Rele
   fixture stream and Stop, the engine booting the canonical world, travel by
   place name, a save surviving termination) stand in for the UI classes. It is
   CI's hosted pull-request gate. A smoke pass is never saved as a full pass.
+- `--skip-time-sensitive` (with `--smoke`, `--phase 4`, or `--phase all`) adds
+  `-skip-testing` for `TIME_SENSITIVE_TESTS` to the combined simulator run and
+  reports them as one non-blocking skipped suite. Those tests depend on machine
+  speed (real fixture timers, a slow mock racing Stop or a background, a
+  wall-clock budget, layout settling within a polling window) and failed on the
+  hosted runner (#2292), so every hosted run passes it and they run only in
+  local runs. A full pass with it is still saved and recorded like any other
+  (only its `verify.json` lists the skipped suite), so a recorded pass does not
+  show whether these ran: never pass the flag locally, and run
+  `just mobile-verify --phase all` on a Mac after changing what they test.
 
 Phase 4 includes the earlier regression suites and native lifecycle/connectivity
 recovery tests. Its physical sessions, accessibility judgment, and performance
