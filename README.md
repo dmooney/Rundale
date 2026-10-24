@@ -24,10 +24,10 @@ local observation commands, live dialogue, streaming and save/resume are wired i
 That implementation status does not establish completion of every milestone or
 physical-iPhone acceptance gate.
 
-- [Product specifications](docs/product-specs/README.md): seven product milestones,
+- [Product specifications](docs/product-specs/README.md): nine product milestones,
   from native interaction prototype through embedded gameplay, tiny-world navigation,
-  mobile reliability, existing features and the living-world proof, a full village,
-  and a release.
+  mobile reliability, NPC dialogue, the living-world proofs, existing features, a full
+  village, and a release.
 - [Mobile engine convergence plan](docs/plans/mobile-engine-convergence.md): the
   integration sequence and dependencies. Its dated status notes are historical;
   [GitHub milestones](https://github.com/dmooney/Rundale/milestones) and
@@ -35,19 +35,22 @@ physical-iPhone acceptance gate.
 - [Native app implementation and setup](mobile/README.md),
   [test plans](docs/test-plans/README.md) and [phase demonstrations](docs/product-specs/phase-demo-plan.md).
 
-As of October 6, 2026, shared-engine integration, re-acceptance of the first three
-product milestones, and lifting the feature freeze have landed. Delivery now follows
-four [GitHub milestones](https://github.com/dmooney/Rundale/milestones), in order:
+As of October 24, 2026, shared-engine integration, re-acceptance of the first three
+product milestones, and Stability (product Milestone 4) have landed. Delivery now
+follows five [GitHub milestones](https://github.com/dmooney/Rundale/milestones), in
+order:
 
-1. **Stability**: make the existing tiny game dependable on iPhone, including the NPC
-   static and dynamic context contract (product Milestone 4).
-2. **Existing features usable**: bring existing engine features to the phone one at a
-   time, including the living-world proofs of memory, gossip, a task, weather behavior
-   and scheduled movement (product Milestone 5). A feature too rough to finish is
-   postponed rather than holding the milestone.
-3. **Full village**: grow the tiny world to a full village in small batches (product
-   Milestone 6).
-4. **Release**: cut a release (product Milestone 7). Later work is kept as unmilestoned
+1. **NPC dialogue**: characters speak as themselves from the right facts, through a
+   prompt developed in a prompt lab and built per NPC from game data (product
+   Milestone 5).
+2. **Living world**: the living-world proofs of memory, gossip, a task, weather
+   behavior and scheduled movement in the tiny world (product Milestone 6).
+3. **Existing features usable**: bring existing engine features to the phone one at a
+   time (product Milestone 7). A feature too rough to finish is postponed rather than
+   holding the milestone.
+4. **Full village**: grow the tiny world to a full village in small batches (product
+   Milestone 8).
+5. **Release**: cut a release (product Milestone 9). Later work is kept as unmilestoned
    ideas.
 
 `mobile-verify --phase N` refers to product milestone N.
