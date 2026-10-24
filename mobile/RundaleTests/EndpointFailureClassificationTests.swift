@@ -57,19 +57,23 @@ final class EndpointFailureClassificationTests: XCTestCase {
         }
     }
 
-    /// Every URL error, the connection's idle timeout included, is reported as
-    /// `offline`. That is deliberate for now: the engine fails an intent call
-    /// recoverably only for `offline`, so reporting a client timeout as
-    /// `timed_out` would let a timed-out intent call continue as an uncertain
-    /// classification and make a further call
-    /// (docs/design/inference-errors-and-recovery.md, open decision 1).
+    /// Every URL error but the idle timeout is reported as `offline`.
     func testEveryTransportErrorIsReportedAsOffline() {
         for code in [URLError.Code.notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
-                     .cannotConnectToHost, .dnsLookupFailed, .secureConnectionFailed, .timedOut] {
+                     .cannotConnectToHost, .dnsLookupFailed, .secureConnectionFailed] {
             let failure = RundaleEngineController.playerFacingFailure(URLError(code))
             XCTAssertEqual(failure.reason, .offline, "\(code)")
             XCTAssertEqual(failure.kind, .transport, "\(code)")
         }
+    }
+
+    /// The connection's idle timeout is a call that ran out of time, reported
+    /// as `timed_out`; the engine fails an intent call recoverably for it as
+    /// for `offline` (issue 1825).
+    func testTheConnectionIdleTimeoutIsReportedAsTimedOut() {
+        let failure = RundaleEngineController.playerFacingFailure(URLError(.timedOut))
+        XCTAssertEqual(failure.reason, .timedOut)
+        XCTAssertEqual(failure.kind, .timedOut)
     }
 
     func testAStreamThatEndsEarlyOrBreaksItsProtocolIsNotAPlainOutage() {

@@ -705,6 +705,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
         }
+        // The connection's idle timeout means the call ran out of time, not
+        // that the device is offline (issue 1825).
+        if let urlError = error as? URLError, urlError.code == .timedOut {
+            return PlayerFacingFailure(.timedOut, .timedOut, "the response took too long")
+        }
         guard let endpoint = error as? LimerickEndpointError else {
             return PlayerFacingFailure(.transport, .offline, "the response service could not be reached")
         }
