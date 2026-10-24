@@ -72,7 +72,9 @@ Details settled in the same review:
 13. **Replies are one to three sentences**, fewer for a busy, wary or quiet
     character.
 14. **The prompt is developed by automated research** (§6): a loop rewrites
-    the prompt until its scores level off, and then the owner reviews.
+    the prompt until its scores level off, and then the owner reviews. It
+    starts without a sign-off, judges on the owner's subscriptions, stops on a
+    2-point plateau or $25 of model spend, and is checked on held-out cases.
 15. **Guard removal does not wait for the lab.** The phone already runs none,
     so removal changes only the desktop and headless paths.
 
@@ -120,31 +122,51 @@ already knows the details; the point is that the character knows them too, as
 someone of their station in a small parish would, through work, Mass, the fair
 and talk. A short list or a couple of paragraphs, not a history lesson.
 
-- **Place and time.** Kilteevan parish, a few miles east of Roscommon town,
-  County Roscommon, in the province of Connacht, spring 1820.
-- **The wider country.** Roscommon town and its market and gaol; Athlone and the
-  Shannon to the south-east; Lough Ree; Strokestown and Boyle; Dublin as a far
-  place few have seen. America as where people go and seldom come back from.
-- **Who rules.** Ireland governed from London since the Act of Union of 1800.
-  The old King George III died this January; George IV is king. Catholics
-  cannot sit in Parliament; emancipation is talked of, not won.
+- **Place and time.** Kilteevan parish, a few miles south-east of Roscommon
+  town, County Roscommon, in the province of Connacht, spring 1820. The parish
+  runs east to Lough Ree and the Shannon, with much bog.
+- **The wider country.** Roscommon town, with its Saturday corn market, its
+  fairs (Whit-Monday and 15 December), the assizes and the new county gaol.
+  Athlone about fifteen miles south; Strokestown to the north-east; Boyle to the
+  north; Dublin as a far place few have seen. America as where people go and
+  seldom come back from.
+- **Who rules.** Ireland part of the United Kingdom since the Act of Union took
+  effect in 1801, ruled from London through the Lord Lieutenant and Dublin
+  Castle. The old King George III died this January; George IV is king, not yet
+  crowned. Catholics with enough property can vote but cannot sit in
+  Parliament or hold high office; emancipation is talked of, not won.
 - **Land and money.** Most people rent from a landlord, usually through an agent
-  or middleman; rent day and the fear of eviction. Tithes paid to the
-  Established Church whatever your own faith. Conacre, the potato as the poor
-  family's food, oats and cattle for the rent. Shillings and pence.
-- **Hard memory.** The wet years and hunger of 1816 and 1817, and the fever that
-  followed.
-- **Faith and custom.** The priest and Mass; holy wells and pattern days; wakes;
-  the feast days of the year; the good people, spoken of carefully.
+  or middleman; rent day and the fear of eviction. Tithes to the Established
+  Church, whatever your own faith, collected by the proctor. Conacre, the potato
+  as the poor family's food, oats and cattle for the rent. Prices in Irish
+  shillings and pence.
+- **Hard memory.** The failed harvest of 1816, the hunger of 1817, and the fever
+  that ran through the country from then until last year.
+- **Faith and custom.** The priest and Mass; the Church of Ireland rector and
+  his tithes; holy wells and pattern days; wakes; the feast days of the year;
+  the good people, spoken of carefully.
 - **Language and learning.** Irish and English both spoken, Irish most at home
   and among the old; hedge schools; many cannot read.
-- **Getting about and news.** Walking, cart, horse; the mail coach on the main
-  road; news by letter, by the fair, by word of mouth. Soldiers home from the
-  French wars.
+- **Getting about and news.** Walking, cart, horse; the Dublin mail through
+  Athlone and the post by horse to Roscommon; news by letter, by the fair, by
+  word of mouth. Soldiers home from the French wars.
 
-This list is a draft. A research agent checks each claim against sources and
-notes corrections; the owner approves it before the lab, which then treats it
-as fixed content. It is setting, not plot; it adds no gameplay.
+**Fact-check (2026-10-23).** A research agent checked the first draft against
+Lewis's _Topographical Dictionary_ (1837), Pigot's 1824 directory and other
+sources, and the list above takes its corrections: Kilteevan lies south-east
+of Roscommon with Lough Ree and the Shannon on its eastern edge; the Act of
+Union took effect in 1801; Catholics could vote but not sit; Irish currency was
+distinct from sterling until 1826; the fever lasted into 1819; and Pigot shows
+no coach through Roscommon, only the Dublin mail through Athlone and the post by
+horse. These items rest on general knowledge and still need a source: middlemen
+and conacre in Roscommon, emigration, Irish as the home language in east
+Roscommon, holy wells and patterns, soldiers home after 1815. Two additions were
+suggested and await a source and the owner's decision: agrarian secret
+societies (Ribbonmen) and the Peace Preservation police; Irish (plantation)
+acres and measures.
+
+The owner approves this list before the lab, which then treats it as fixed
+content. It is setting, not plot; it adds no gameplay.
 
 ### 4.2 The character (static, per character)
 
@@ -253,10 +275,11 @@ the loop sees and a **held-out set** it never sees. At least:
 An agent improves the prompt in rounds:
 
 1. Run every training case on both models.
-2. Two judges from families other than the model under test (for example
-   Claude Sonnet and a GPT model) score each reply against the requirements
-   its case is tagged with. The median score counts; a split between the
-   judges is flagged.
+2. Two judges from families other than the model under test, Claude Sonnet
+   through the Claude CLI and a GPT model through the Codex CLI, both under the
+   owner's subscriptions, score each reply 0 to 100 against the requirements
+   its case is tagged with. The mean of the two counts; a gap of more than 20
+   points between them is flagged.
 3. The agent reads the misses and rewrites the prompt.
 
 **What the loop may change:** the wording, framing, ordering and format of the
@@ -265,8 +288,14 @@ knowledge is shaded by station. It may not change the facts: character
 details, backstory, village and common knowledge stay as hand-written, so it
 cannot improve a score by changing the world.
 
-**Stopping:** after three rounds without a meaningful gain in the training
-score, or at a $25 spend cap, whichever comes first. The best prompt is kept,
+**Starting:** the lab writes the starting prompt, backstories and cases and
+runs without an owner sign-off first.
+
+**Stopping:** the training score is the mean judge score over all training
+replies, 0 to 100. The loop stops after three rounds in a row that each improve
+it by less than 2 points, or when model spend reaches $25, whichever comes
+first. Judges run on subscriptions and do not count against the cap; their
+rate limits may slow the loop. The best prompt is kept,
 not the last.
 
 **Record:** every round's prompt, replies, scores and the agent's reasoning
