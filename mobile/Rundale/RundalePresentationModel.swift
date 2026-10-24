@@ -59,7 +59,6 @@ final class RundalePresentationModel: ObservableObject {
     @Published private(set) var streamRevision = 0
     @Published private(set) var submissionMessage: String?
     @Published private(set) var accessibilityNotice: String?
-    @Published private(set) var uiTestCheckpoint = ""
     /// UI-test-only JSON log of every transcript-row state published to the
     /// view. A provisional row can last well under an XCUITest poll interval,
     /// and virtualized rows leave the accessibility tree once scrolled away on
@@ -438,9 +437,6 @@ final class RundalePresentationModel: ObservableObject {
         let retryGeneration = lifecycleGeneration
         let retryRequestID = session.state.requests.last(where: { $0.phase.canRetry })?.id
         isStreaming = true
-        if launch.isUITesting {
-            uiTestCheckpoint = ""
-        }
         Task {
             do {
                 guard allowsSubmission, lifecycleGeneration == retryGeneration else {
@@ -455,9 +451,6 @@ final class RundalePresentationModel: ObservableObject {
                     }
                     refreshFromSession()
                     return
-                }
-                if launch.isUITesting {
-                    uiTestCheckpoint = "Retry accepted and persisted"
                 }
                 submissionMessage = nil
                 refreshFromSession()
