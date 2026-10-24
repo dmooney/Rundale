@@ -507,9 +507,12 @@ jobs:
     name: Swift quality (lint, format, packages)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.swift == 'true'
-    # Hosted macOS runners are free for this public repository. Pin the image
-    # and Xcode so lint, compiler, and coverage results match local runs.
-    runs-on: macos-26
+    # The three Swift packages, SwiftLint and SwiftFormat run on Linux as on
+    # macOS, so this lane needs no Mac (#2287). The image pins the Swift
+    # release Xcode 26.6 ships (6.3.3), which the coverage baseline was
+    # measured with; install-swift-tools.sh pins the Linux tool builds.
+    runs-on: ubuntu-latest
+    container: swift:6.3.3-noble
     timeout-minutes: 30
     defaults:
       run:
@@ -518,8 +521,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Select Xcode 26.6
-        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+      # The Swift image has unzip but no Python or curl.
+      - name: Install Python and curl
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 curl ca-certificates
 
       - name: Swift lint, format, and package tests
         run: python3 mobile/scripts/verify.py --fast
@@ -652,8 +656,9 @@ jobs:
   # (`just mobile-verify --phase all`, then `just mobile-verify-record`), and
   # this job finds that recorded pass for the PR's input tree. When none is
   # recorded, for example for a change made in a Linux cloud session, the job
-  # runs `verify.py --smoke` on the image and Xcode "Swift quality" uses: every
-  # gate but the full UI suites, plus a few core-loop UI tests. The full UI
+  # runs `verify.py --smoke` on a pinned image and Xcode: every Mac gate
+  # but the full UI suites and the Swift package suites (swift-quality runs
+  # those on Linux), plus a few core-loop UI tests. The full UI
   # suites took most of an hour here, so they run on main instead, in
   # testflight.yml's nightly full gate. A PR labelled `mobile-verify-full`
   # (set before the push that should use it) runs the full gate here instead

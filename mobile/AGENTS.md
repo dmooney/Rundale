@@ -21,7 +21,8 @@ just mobile-verify --fast                  # CI's Swift lane: lint, format, thre
 
 `just mobile-verify` is the app's gate and `just verify` is the engine's; one
 does not stand in for the other. Both need macOS for the iOS parts; on Linux,
-say which gates you could not run.
+`just mobile-verify --fast` runs (it is CI's Linux Swift lane), and say which
+other gates you could not run.
 
 Iterating: run only the affected class with `xcodebuild test-without-building
 -only-testing:RundaleUITests/<Class>`, and the full `just mobile-verify` gate once

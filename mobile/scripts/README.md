@@ -19,9 +19,10 @@ which runs the engine's checks and harness walkthrough.
 
 ## Swift style, warnings, and coverage
 
-Every phase run starts with `install-swift-tools.sh`, which installs the pinned
-SwiftLint and SwiftFormat release binaries after checking their SHA-256, then
-runs `swiftlint lint --strict` and `swiftformat --lint` over `mobile/`. The
+`--fast` starts with `install-swift-tools.sh`, which installs the pinned
+SwiftLint and SwiftFormat release binaries (macOS or x86_64 Linux) after
+checking their SHA-256, then runs `swiftlint lint --strict` and
+`swiftformat --lint` over `mobile/`. The
 Swift package suites build with `-warnings-as-errors` and
 `--enable-code-coverage`. Each package's line coverage over its own `Sources/`
 becomes a `<suite>-coverage` gate checked against
@@ -29,8 +30,12 @@ becomes a `<suite>-coverage` gate checked against
 [Swift quality gates](../../docs/agent/swift-quality-gates.md).
 
 `--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`, and
-`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator.
-It is CI's `Swift quality` job and a quick local check:
+`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator,
+and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
+quick local check. The phase gates run the package suites against Apple's
+Foundation but not the style checks, which read only source text; `--smoke`
+leaves out both, since CI's Linux job runs them on every pull request. Run
+`--fast` with a phase gate to cover everything locally:
 
 ```sh
 just mobile-verify --fast
