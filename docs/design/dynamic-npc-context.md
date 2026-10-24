@@ -347,6 +347,7 @@ yes/no:
 | `recipient`   | Choice            | as §4.3 question 1                                                                                 | talk                                          |
 | `mentioned`   | Yes/no per person | as §4.3 question 2                                                                                 | talk                                          |
 | `atmosphere`  | Choice            | listen, omen, folklore, none                                                                       | talk                                          |
+| `anachronism` | Choice            | modern, none. Planned by [NPC dialogue prompt](npc-dialogue-prompt.md) decision 16 (#2299)         | talk                                          |
 
 All questions go in one request and are answered in parallel; the engine uses
 only the answers for the action chosen. Look, examine and interact only
@@ -604,7 +605,7 @@ criterion.
 
 ## 9. Coordination
 
-- #2024: static facts, including homes, routines and authored festival names.
+- #2024 and [NPC dialogue prompt requirements](npc-dialogue-prompt.md): static facts, including homes, routines and authored festival names.
 - #2025: background (Tier 2) inference and mood changes.
 - #1891: task semantics.
 - #2128: short labels for people in clarification choices.
