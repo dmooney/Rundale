@@ -24,10 +24,11 @@ end, and never edit a worktree while a gate is building from it.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 
-Every `just mobile-verify` run starts with pinned SwiftLint and SwiftFormat
-checks. Swift builds treat warnings as errors, and each Swift package must hold
-its line-coverage baseline. CI's `Swift quality` job runs those checks and the
-three package suites on hosted macOS (`just mobile-verify --fast`).
+`just mobile-verify --fast` runs pinned SwiftLint and SwiftFormat checks and
+the three Swift package suites. Swift builds treat warnings as errors, and each
+Swift package must hold its line-coverage baseline. CI's `Swift quality` job
+runs it on Linux. The phase gates run the package suites too, against Apple's
+Foundation, but not the style checks; `--smoke` leaves out both.
 The full simulator gate runs on a Mac; without a recorded pass, CI runs
 `--smoke` on a PR (the full gate on one labelled `mobile-verify-full`) and the
 TestFlight workflow runs the full gate nightly. The
@@ -109,8 +110,8 @@ Most engine commands should be run from the `limerick/` directory:
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
 - Lint: `cargo clippy --workspace -- -D warnings`
-- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings` and `cargo test -p limerick-core --no-default-features --features mobile`
-  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes)
+- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings`, `cargo test -p limerick-core --no-default-features --features mobile`, and `cargo test -p limerick-mobile-ffi`
+  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes). `just mobile-verify` does not rerun these on the Mac.
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 

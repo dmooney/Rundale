@@ -21,7 +21,8 @@ just mobile-verify --fast                  # CI's Swift lane: lint, format, thre
 
 `just mobile-verify` is the app's gate and `just verify` is the engine's; one
 does not stand in for the other. Both need macOS for the iOS parts; on Linux,
-say which gates you could not run.
+`just mobile-verify --fast` runs (it is CI's Linux Swift lane), and say which
+other gates you could not run.
 
 Iterating: run only the affected class with `xcodebuild test-without-building
 -only-testing:RundaleUITests/<Class>`, and the full `just mobile-verify` gate once
@@ -65,6 +66,14 @@ is set (recording only).
   calls in one engine attempt, so `endpointAttemptID(callID:)` sends each call's
   own id. Reusing the attempt id makes the second stream fail with HTTP 500 and
   no invocation row. A mock-only run cannot show it; the live suite does.
+- **Stop records a cancelled invocation only while the dialogue call is open.**
+  `rundale-intent` is non-streaming and finishes server-side, and a live
+  dialogue reply streams for under a second (the tap itself takes about a
+  second to land), so a single fixed Stop delay usually records nothing.
+  `test09` in `RundaleLiveEndpointUITests` steps the delay; the app's
+  "Interrupted; not applied" row is not a reliable signal that `/cancel` hit an
+  open stream. Check `invocations` for `error_code = REQUEST_CANCELLED` on the
+  `rundale-dialogue` request id `<request>:<attempt>.<call>` (#2171).
 - **The Endpoints database keeps no request or response bodies.** Its
   `invocations` rows hold status, sizes, tokens, and error codes only, so
   `limerick-prod.sh sql` cannot show what `rundale-intent` returned. To see a
@@ -94,4 +103,4 @@ is set (recording only).
   `@limerick/*` (#2007). Leave Irish geography, ADR text, and historical
   revision URLs alone.
 - **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
-- **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's own Rust and Xcode builds go to `mobile/.verification/` without sccache, so its first run recompiles the engine from scratch.
+- **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's Xcode builds and its host Rust test build go to `mobile/.verification/` and its iOS Rust libraries to `mobile/.build/rust-mobile/`, without sccache, so its first run recompiles the engine from scratch.

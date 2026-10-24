@@ -1,9 +1,9 @@
 import XCTest
 
-/// Product spec §5.4 on the shared engine (#2120): the advertised slash
-/// commands are offered under Commands and answer locally, with no Endpoint
-/// call; the unadvertised time and inspection commands also work. Typing
-/// `/` completes every command step by step (#2146).
+/// Product spec §5.4 on the shared engine (#2120): the unadvertised time and
+/// inspection commands work, a refused command keeps its draft, and typing
+/// `/` completes every command step by step (#2146). The engine's own command
+/// answers are tested on Linux (limerick-mobile-ffi).
 ///
 /// Set `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>` on `xcodebuild test` to hold
 /// on each settled state when recording a demo (see the phase demo plan).
@@ -21,34 +21,6 @@ final class RundaleCommandsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(row(containing: "A muddy road runs between low stone walls")
             .waitForExistence(timeout: 15))
-    }
-
-    func testAdvertisedCommandsAreOfferedAndAnswerLocally() {
-        let commands = app.buttons["composer.commands"]
-        XCTAssertTrue(commands.waitForExistence(timeout: 5), "The Commands button is shown")
-        commands.tap()
-        for name in ["look", "people", "exits", "help"] {
-            XCTAssertTrue(app.buttons["completion.\(name)"].waitForExistence(timeout: 3), name)
-        }
-        hold(3)
-        app.buttons["completion.exits"].tap()
-        XCTAssertEqual(input.value as? String, "/exits")
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(row(containing: "Connolly Cottage (4 min on foot)").waitForExistence(timeout: 8))
-        hold(3)
-
-        submit("/help")
-        XCTAssertTrue(row(containing: "/people: Who is here").waitForExistence(timeout: 8))
-        XCTAssertFalse(row(containing: "/wait").exists, "/wait is not advertised")
-
-        submit("go to Connolly Cottage")
-        submit("/people")
-        XCTAssertTrue(row(containing: "cattle drover").waitForExistence(timeout: 8))
-        submit("/look")
-        XCTAssertTrue(row(containing: "A peat fire warms the single room. A scrubbed table")
-            .waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["composer.retry"].exists, "No command failed")
-        hold(4)
     }
 
     func testUnadvertisedCommandsWorkAndOthersAreRefused() {
