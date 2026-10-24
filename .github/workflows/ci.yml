@@ -722,15 +722,20 @@ jobs:
         if: steps.recorded.outputs.run == 'true'
         run: brew install xcodegen
 
-      # The mobile Rust build's target directory; only changed crates rebuild.
-      - uses: actions/cache@v6
+      # The iOS Rust libraries' target directory. The crates.io dependencies
+      # are reused; a checkout makes the workspace's own sources newer than
+      # their cached products, so those recompile.
+      # A pull request restores its own last build, else main's (testflight.yml
+      # saves one with each upload).
+      - name: Restore the Rust mobile build
+        id: rust-cache
         if: steps.recorded.outputs.run == 'true'
+        uses: actions/cache/restore@v6
         with:
           path: mobile/.build/rust-mobile/cargo-target
-          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.event.pull_request.head.sha }}
+          key: rust-mobile-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '.cargo/**', 'limerick/Cargo.toml', 'limerick/Cargo.lock', 'limerick/crates/**') }}
           restore-keys: |
-            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
-            rust-mobile-
+            rust-mobile-${{ runner.os }}-
 
       # The hosted runner has a few cores, not the 18 the default six
       # simulator workers were measured on: six clones there outran the
@@ -746,6 +751,14 @@ jobs:
         run: |
           read -ra args <<< "$GATE_ARGS"
           python3 mobile/scripts/verify.py "${args[@]}"
+
+      # Saved even when a later test fails: the Rust build finished first.
+      - name: Save the Rust mobile build
+        if: ${{ !cancelled() && steps.recorded.outputs.run == 'true' && steps.rust-cache.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
 
       # A labelled full pass counts as the author's recorded pass. A token that
       # cannot write statuses (Dependabot's) leaves the gate's result as is.
