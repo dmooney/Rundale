@@ -30,12 +30,12 @@ just act-pr         # simulate the pull_request fast lane
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
 - **CI-only edits need no evidence page ([agent-check](../../docs/agent/agent-check.md)).** Only runtime-shipping paths (engine runtime crates, `mods/**`, `mobile/**`) require the `rundale-pages/pr/<number>/` link in the PR body.
 - **The agent-check job reads the body when it runs.** `pull_request` runs on `opened`/`synchronize`/`reopened`, not `edited`; after adding the link to an existing PR, re-run the job or push a commit.
-- **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
+- **Linux native deps come from one action in `full-ci.yml`** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`): its jobs use `.github/actions/install-tauri-deps`, which caches the downloads (see `full-ci.yml` below). `release.yml` still installs them inline, with `libssl-dev`; update both when the dep list changes.
 - **Rust cache workspace paths are repository-root relative.** Every `Swatinem/rust-cache` step that builds the nested Cargo workspace must set `workspaces: limerick -> target`; a job or workflow `working-directory` applies only to `run`, not `uses`.
 - **Rust toolchain is pinned by root `rust-toolchain.toml`.** Keep that file in
   `ci.yml`'s runtime path filter, and bump it in a dedicated PR alongside any
   compiler or lint fixes.
-- **No YAML anchors** — setup steps (checkout, toolchain, cache, native deps) are inlined per job.
+- **No YAML anchors** — setup steps (checkout, toolchain, cache) are inlined per job; native deps in `full-ci.yml` use the local action above.
 - **`concurrency: cancel-in-progress: true`** on most workflows; `release.yml` sets `cancel-in-progress: false` (releases must not be cancelled).
 - **Secrets:** `GITHUB_TOKEN` (all), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). The disabled Gemini sources retain references to `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` for a future re-enable. Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
 - **`concurrency: pages`** in `publish-bench-site.yml` — do not rename without checking the `deploy-pages` action's concurrency expectations.
@@ -66,7 +66,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
 - **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + limerick-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
-- **Linux native packages:** every job that links the Tauri crates installs them with the local `.github/actions/install-tauri-deps` action, not an inline `apt-get install`. It caches the downloaded `.deb` files per runner image, because the hosted runners' Ubuntu mirror has served them slowly enough (about 45 KB/s, 25 minutes for the set) to push the Rust quality gate past its 30-minute limit. Change the package list in the action, not in a job.
+- **Linux native packages:** every `full-ci.yml` job that links the Tauri crates installs them with the local `.github/actions/install-tauri-deps` action, not an inline `apt-get install`. It caches the downloaded `.deb` files per runner image, because the hosted runners' Ubuntu mirror has served them slowly enough (about 45 KB/s, 25 minutes for the set) to push the Rust quality gate past its 30-minute limit. Change the package list in the action, not in a job.
 
 ### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
 

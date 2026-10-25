@@ -9,14 +9,21 @@ description: >-
 runs:
   using: composite
   steps:
+    # A new runner image brings new base packages, so start a fresh cache
+    # with it. ImageOS and ImageVersion are runner process variables, not
+    # part of the `env` context, so only a shell can read them.
+    - name: Name the runner image
+      id: image
+      shell: bash
+      run: echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >>"$GITHUB_OUTPUT"
+
     - name: Restore apt package cache
       id: restore
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/apt-archives
-        # A new runner image brings new base packages, so start a fresh
-        # cache with it. Editing this file (the package list) does too.
-        key: apt-tauri-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('.github/actions/install-tauri-deps/action.yml') }}
+        # Editing this file (the package list) also starts a fresh cache.
+        key: apt-tauri-${{ runner.os }}-${{ runner.arch }}-${{ steps.image.outputs.image }}-${{ hashFiles('.github/actions/install-tauri-deps/action.yml') }}
 
     - name: Install packages
       shell: bash
@@ -24,7 +31,11 @@ runs:
         archives="$HOME/.cache/apt-archives"
         mkdir -p "$archives/partial"
         sudo apt-get update
-        sudo apt-get install -y -o Dir::Cache::Archives="$archives" \
+        # apt's _apt download user cannot write under the runner's home, so
+        # download as root rather than have apt warn and fall back to it.
+        sudo apt-get install -y \
+          -o Dir::Cache::Archives="$archives" \
+          -o APT::Sandbox::User=root \
           pkg-config \
           libgtk-3-dev \
           libwebkit2gtk-4.1-dev \
