@@ -85,6 +85,7 @@ jobs:
               - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
+              - '.github/actions/install-tauri-deps/**'
             # Anything compiled into limerick-server / limerick-engine, the
             # content and fixtures they run, and the differential tooling.
             differential:

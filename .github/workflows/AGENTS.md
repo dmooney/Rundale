@@ -66,6 +66,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
 - **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + limerick-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
+- **Linux native packages:** every job that links the Tauri crates installs them with the local `.github/actions/install-tauri-deps` action, not an inline `apt-get install`. It caches the downloaded `.deb` files per runner image, because the hosted runners' Ubuntu mirror has served them slowly enough (about 45 KB/s, 25 minutes for the set) to push the Rust quality gate past its 30-minute limit. Change the package list in the action, not in a job.
 
 ### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
 

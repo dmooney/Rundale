@@ -1,0 +1,44 @@
+name: Install Tauri Linux dependencies
+description: >-
+  Install the GTK/WebKit packages the Tauri crates link against, reusing the
+  downloaded .deb files from the Actions cache. The Ubuntu mirror the hosted
+  runners use has served these packages at tens of KB/s, which pushed the
+  install past the Rust quality gate's 30-minute limit; with a warm cache,
+  apt only downloads packages updated since the runner image was built.
+
+runs:
+  using: composite
+  steps:
+    - name: Restore apt package cache
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/apt-archives
+        # A new runner image brings new base packages, so start a fresh
+        # cache with it. Editing this file (the package list) does too.
+        key: apt-tauri-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('.github/actions/install-tauri-deps/action.yml') }}
+
+    - name: Install packages
+      shell: bash
+      run: |
+        archives="$HOME/.cache/apt-archives"
+        mkdir -p "$archives/partial"
+        sudo apt-get update
+        sudo apt-get install -y -o Dir::Cache::Archives="$archives" \
+          pkg-config \
+          libgtk-3-dev \
+          libwebkit2gtk-4.1-dev \
+          libappindicator3-dev \
+          librsvg2-dev
+        # apt writes the archives as root; the cache save runs as the runner.
+        sudo rm -f "$archives/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$archives"
+
+    - name: Save apt package cache
+      # Several jobs share the key; the first to finish saves it, and the
+      # others' saves are skipped with a warning.
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/apt-archives
+        key: ${{ steps.restore.outputs.cache-primary-key }}
