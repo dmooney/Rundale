@@ -1992,6 +1992,31 @@ class FailureEvidenceTests(unittest.TestCase):
             self.assertEqual(len(runs), 1)
             self.assertIn("could not list the tests", (runs[0] / "index.md").read_text())
             self.assertTrue(list((runs[0] / "diagnostics").iterdir()))
+            report = json.loads((root / "mobile/.verification/verify.json").read_text())
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(
+                suite["details"]["failure_evidence_index"],
+                str((runs[0] / "index.md").relative_to(root)),
+            )
+
+    def test_failed_invocation_with_no_failed_case_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def crashed(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(65, stderr="runner never started")
+                return None
+
+            fake.intercept = crashed
+            report = VerificationRun(root, command_runner=fake).run(4)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            index = root / suite["details"]["failure_evidence_index"]
+            self.assertIn("no failed test case", index.read_text())
 
     def test_oversized_attachments_are_listed_not_copied(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -917,6 +917,8 @@ class VerificationRun:
         self.use_cache = use_cache
         # Failed-test evidence already written, by result bundle.
         self._failure_evidence: dict[str, list[dict[str, Any]]] = {}
+        # The index.md kept for each bundle that has failure evidence.
+        self._evidence_index: dict[str, str] = {}
         self._evidence_written = False
         # Shared by every report directory so a custom --report-dir still
         # reuses and contributes passes.
@@ -976,8 +978,37 @@ class VerificationRun:
         )
         return env
 
+    def _evidence_details(
+        self, bundle: str, entries: Sequence[Mapping[str, Any]]
+    ) -> dict[str, Any]:
+        """The record details that point a failed run at its evidence."""
+
+        return {
+            **(
+                {
+                    "failures": [
+                        f"{entry['test']}: {message}"
+                        for entry in entries
+                        for message in entry["messages"]
+                    ],
+                    "failure_evidence": [_evidence_summary(entry) for entry in entries],
+                }
+                if entries
+                else {}
+            ),
+            **(
+                {"failure_evidence_index": self._evidence_index[bundle]}
+                if bundle in self._evidence_index
+                else {}
+            ),
+        }
+
     def _collect_failure_evidence(
-        self, bundle: str, tree: Mapping[str, Any] | None = None
+        self,
+        bundle: str,
+        tree: Mapping[str, Any] | None = None,
+        *,
+        invocation_failed: bool = False,
     ) -> list[dict[str, Any]]:
         """Keep the diagnosis of every failed test in `failures/<run>/<test>/`.
 
@@ -988,6 +1019,9 @@ class VerificationRun:
         short screen recording) within size bounds, and once per run the test
         runner's logs and crash reports. Returns one entry per case: test,
         directory, digest, messages. Done once per bundle; later calls reuse it.
+        A bundle whose xcodebuild invocation failed (`invocation_failed`) is kept
+        and given an index even when it lists no failed case (a runner that
+        never started) or cannot be read.
         """
 
         if bundle in self._failure_evidence:
@@ -1011,7 +1045,10 @@ class VerificationRun:
                 )
             )
         run_dir = self.report_dir / FAILURES_DIR / self.run_stamp
-        if not isinstance(tree, Mapping):
+        failed = _failed_case_nodes(tree) if isinstance(tree, Mapping) else []
+        if not failed and isinstance(tree, Mapping) and not invocation_failed:
+            return entries
+        if not failed:
             if bundle_path.exists():
                 # The tests could not be listed, but the bundle is still the
                 # only evidence: mark the run so the next prune keeps it, and
@@ -1019,16 +1056,20 @@ class VerificationRun:
                 run_dir.mkdir(parents=True, exist_ok=True)
                 self._evidence_written = True
                 diagnostics = self._export_runner_diagnostics(bundle, run_dir)
+                reason = (
+                    "xcresulttool listed no failed test case"
+                    if isinstance(tree, Mapping)
+                    else "xcresulttool could not list the tests"
+                )
                 (run_dir / "index.md").write_text(
                     f"# Failed run {self.run_stamp}\n\n"
-                    f"xcresulttool could not list the tests in `{bundle}`; open it in Xcode.\n"
+                    f"{reason} in `{bundle}`; open it in Xcode.\n"
                     + (f"Runner and crash logs: `{diagnostics}`\n" if diagnostics else ""),
                     encoding="utf-8",
                 )
+                self._evidence_index[bundle] = _relative(run_dir / "index.md", self.root)
             return entries
-        failed = _failed_case_nodes(tree)
-        if not failed:
-            return entries
+        assert isinstance(tree, Mapping)
         run_dir.mkdir(parents=True, exist_ok=True)
         self._evidence_written = True
         diagnostics = self._export_runner_diagnostics(bundle, run_dir)
@@ -1085,6 +1126,7 @@ class VerificationRun:
         if len(failed) > len(entries):
             index.append(f"- ... {len(failed) - len(entries)} more failed test(s); see `{bundle}`")
         (run_dir / "index.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+        self._evidence_index[bundle] = _relative(run_dir / "index.md", self.root)
         return entries
 
     def _export_runner_diagnostics(self, bundle: str, run_dir: Path) -> str | None:
@@ -2093,18 +2135,8 @@ class VerificationRun:
         elif destination is not None and not is_physical and (self.root / bundle).exists():
             # xcodebuild failed: its tests may have failed, and nothing else
             # validates this bundle, so read the evidence now.
-            evidence = self._collect_failure_evidence(bundle)
-            if evidence:
-                record.setdefault("details", {}).update(
-                    {
-                        "failures": [
-                            f"{entry['test']}: {message}"
-                            for entry in evidence
-                            for message in entry["messages"]
-                        ],
-                        "failure_evidence": [_evidence_summary(entry) for entry in evidence],
-                    }
-                )
+            evidence = self._collect_failure_evidence(bundle, invocation_failed=True)
+            record.setdefault("details", {}).update(self._evidence_details(bundle, evidence))
         return record
 
     def _run_deferred_simulator_suites(self) -> None:
@@ -2185,12 +2217,14 @@ class VerificationRun:
                     cases = _xcresult_cases(parsed)
                     failures = _xcresult_failures(parsed)
                     # Read the failed tests' evidence before anything else can discard it.
-                    evidence = self._collect_failure_evidence(bundle, parsed)
+                    evidence = self._collect_failure_evidence(
+                        bundle, parsed, invocation_failed=run["status"] != PASSED
+                    )
                 else:
                     unreadable = "xcresulttool returned a JSON value that is not an object"
         if cases is None:
             # Unreadable results: still keep the bundle and the runner logs.
-            self._collect_failure_evidence(bundle)
+            self._collect_failure_evidence(bundle, invocation_failed=run["status"] != PASSED)
         app_identity = (
             self._built_app_identity(self.root / pending[0]["derived"])
             if run["status"] == PASSED
@@ -2236,6 +2270,11 @@ class VerificationRun:
                 **(counts or {}),
                 **({"failures": messages} if messages else {}),
                 **({"failure_evidence": suite_evidence} if suite_evidence else {}),
+                **(
+                    {"failure_evidence_index": self._evidence_index[bundle]}
+                    if status == FAILED and bundle in self._evidence_index
+                    else {}
+                ),
                 **({"cache_key": spec["key"]} if spec["key"] else {}),
                 **(app_identity if status == PASSED else {}),
             }
@@ -2747,16 +2786,7 @@ class VerificationRun:
         if counts["failedTests"]:
             # Read the failed tests' evidence before anything else can discard it.
             evidence = self._collect_failure_evidence(bundle)
-            if evidence:
-                test_details = {
-                    **counts,
-                    "failures": [
-                        f"{entry['test']}: {message}"
-                        for entry in evidence
-                        for message in entry["messages"]
-                    ],
-                    "failure_evidence": [_evidence_summary(entry) for entry in evidence],
-                }
+            test_details = {**counts, **self._evidence_details(bundle, evidence)}
         self._change(test_record, result_status, result_reason, test_details)
         self._change(summary_record, result_status, result_reason, counts)
 
@@ -3675,6 +3705,8 @@ class VerificationRun:
                 f"- {r['status'].upper()}: {r['name']}"
                 + (f" — {r['reason']}" if r.get("reason") else "")
             )
+            if index := r.get("details", {}).get("failure_evidence_index"):
+                lines.append(f"    evidence index: {index}")
             for kept in r.get("details", {}).get("failure_evidence", ()):
                 lines.append(
                     f"    evidence: {kept['digest']} ({', '.join(kept['files']) or 'no attachments'})"
