@@ -477,6 +477,15 @@ DEFAULT_PARALLEL_WORKERS = 6
 FAILURE_MESSAGE_CHARS = 400
 # Returned for a simulator suite queued for the combined run; never recorded.
 DEFERRED = "deferred"
+# Bounds on the evidence kept for failed tests (see `_collect_failure_evidence`).
+FAILURES_DIR = "failures"
+EVIDENCE_MAX_TESTS = 20
+EVIDENCE_MAX_FILE_BYTES = 3 * 1024 * 1024
+EVIDENCE_MAX_TEST_BYTES = 10 * 1024 * 1024
+EVIDENCE_LOG_TAIL_BYTES = 512 * 1024
+EVIDENCE_TIMELINE_LINES = 80
+# Failed runs whose evidence (and result bundle) survive the next run's prune.
+EVIDENCE_KEPT_RUNS = 3
 
 
 def _xcresult_case_nodes(
@@ -523,19 +532,200 @@ def _xcresult_failures(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str
     as failed (passed, skipped, or an XCTExpectFailure) contributes none.
     """
 
-    def messages(node: Mapping[str, Any]) -> list[str]:
-        found = [str(node.get("name", ""))] if node.get("nodeType") == "Failure Message" else []
-        for child in node.get("children") or ():
-            if isinstance(child, Mapping):
-                found += messages(child)
-        return found
-
     return [
         (bundle, suite, name, message)
         for bundle, suite, name, node in _xcresult_case_nodes(tree)
         if _case_counts([str(node.get("result", ""))])["failedTests"]
-        for message in messages(node)
+        for message in _case_messages(node)
     ]
+
+
+def _failed_case_nodes(
+    tree: Mapping[str, Any],
+) -> list[tuple[str, str, str, Mapping[str, Any]]]:
+    """Return (bundle, class, test, node) for every case `_case_counts` counts as failed."""
+
+    return [
+        case
+        for case in _xcresult_case_nodes(tree)
+        if _case_counts([str(case[3].get("result", ""))])["failedTests"]
+    ]
+
+
+def _case_messages(node: Mapping[str, Any]) -> list[str]:
+    """The `file:line: text` failure messages nested under a test case node."""
+
+    found = [str(node.get("name", ""))] if node.get("nodeType") == "Failure Message" else []
+    for child in node.get("children") or ():
+        if isinstance(child, Mapping):
+            found += _case_messages(child)
+    return found
+
+
+def _evidence_name(text: str, limit: int = 80) -> str:
+    """A path-safe name for a test or attachment."""
+
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._") or "unnamed"
+    return cleaned[:limit]
+
+
+def _activity_timeline(activities: Mapping[str, Any] | None) -> list[str]:
+    """Flatten `xcresulttool get test-results activities` into indented timeline lines.
+
+    Each line is `+seconds title`, offset from the first activity; a step Xcode
+    ties to a failure ends with `<-- FAILURE`. Only the last
+    EVIDENCE_TIMELINE_LINES lines are kept, the lead-up to the failure.
+    """
+
+    lines: list[str] = []
+    starts: list[float] = []
+
+    def collect(items: Any) -> None:
+        for item in items or ():
+            if isinstance(item, Mapping):
+                if isinstance(item.get("startTime"), (int, float)):
+                    starts.append(float(item["startTime"]))
+                collect(item.get("childActivities"))
+
+    runs = [r for r in (activities or {}).get("testRuns") or () if isinstance(r, Mapping)]
+    for run in runs:
+        collect(run.get("activities"))
+    origin = min(starts) if starts else 0.0
+
+    def walk(items: Any, depth: int) -> None:
+        for item in items or ():
+            if not isinstance(item, Mapping):
+                continue
+            start = item.get("startTime")
+            offset = (
+                f"+{float(start) - origin:7.2f}s" if isinstance(start, (int, float)) else " " * 9
+            )
+            mark = "  <-- FAILURE" if item.get("isAssociatedWithFailure") else ""
+            title = " ".join(str(item.get("title", "")).split())
+            lines.append(f"{offset} {'  ' * depth}{title}{mark}")
+            walk(item.get("childActivities"), depth + 1)
+
+    for run in runs:
+        walk(run.get("activities"), 0)
+    if len(lines) > EVIDENCE_TIMELINE_LINES:
+        dropped = len(lines) - EVIDENCE_TIMELINE_LINES
+        lines = [f"... {dropped} earlier step(s) omitted ..."] + lines[-EVIDENCE_TIMELINE_LINES:]
+    return lines
+
+
+def _attachment_entries(manifest: Any, test_id: str) -> list[Mapping[str, Any]]:
+    """The attachment records `xcresulttool export attachments` listed for one test."""
+
+    entries: list[Mapping[str, Any]] = []
+    if isinstance(manifest, list):
+        for group in manifest:
+            if isinstance(group, Mapping) and group.get("testIdentifier") == test_id:
+                entries += [a for a in group.get("attachments") or () if isinstance(a, Mapping)]
+    return entries
+
+
+def _failure_digest(
+    *,
+    test: str,
+    bundle: str,
+    messages: Sequence[str],
+    details: Mapping[str, Any] | None,
+    timeline: Sequence[str],
+    saved: Sequence[str],
+    skipped: Sequence[str],
+    diagnostics: str | None,
+    notes: Sequence[str] = (),
+) -> str:
+    """The short `failure.md` that points a reader at everything kept for one failed test."""
+
+    device = ""
+    if details and isinstance(details.get("devices"), list) and details["devices"]:
+        first = details["devices"][0]
+        if isinstance(first, Mapping):
+            device = f"{first.get('deviceName', '')} ({first.get('platform', '')} {first.get('osVersion', '')})"
+    out = [f"# Failed: {test}", ""]
+    out.append(f"- Result bundle: `{bundle}` (open with Xcode, or `xcrun xcresulttool`)")
+    if device.strip(" ()"):
+        out.append(f"- Device: {device}")
+    if details and details.get("durationInSeconds") is not None:
+        out.append(f"- Duration: {float(details['durationInSeconds']):.1f}s")
+    out += ["", "## Failure messages", ""]
+    out += [f"- {' '.join(m.split())}" for m in messages] or [
+        "- (none recorded in the result bundle)"
+    ]
+    out += ["", "## Timeline before the failure", ""]
+    out += ["```", *timeline, "```"] if timeline else ["(activities unavailable)"]
+    out += ["", "## Attachments", ""]
+    out += [f"- `{name}`" for name in saved] or ["- (none exported)"]
+    out += [f"- skipped: {entry}" for entry in skipped]
+    if diagnostics:
+        out += ["", "## Runner and crash logs", "", f"- `{diagnostics}`"]
+    if notes:
+        out += ["", "## Notes", ""] + [f"- {note}" for note in notes]
+    return "\n".join(out) + "\n"
+
+
+def _json_output(result: CommandResult) -> Any:
+    """The parsed JSON of a successful command, or None."""
+
+    if result.returncode != 0:
+        return None
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def _copy_tail(source: Path, target: Path, limit: int) -> None:
+    """Copy `source` to `target`, keeping only the last `limit` bytes of a larger file."""
+
+    size = source.stat().st_size
+    if size <= limit:
+        shutil.copyfile(source, target)
+        return
+    with source.open("rb") as handle:
+        handle.seek(size - limit)
+        tail = handle.read()
+    target.write_bytes(f"[first {size - limit} bytes omitted]\n".encode() + tail)
+
+
+def _copy_runner_diagnostics(exported: Path, target: Path) -> list[str]:
+    """Copy the test runner's logs and any crash reports out of an exported diagnostics tree.
+
+    `xcresulttool export diagnostics` writes the whole simulator's logs (over
+    150 MB). Only the test runner's own output (`<Bundle>-<id>/...` folders),
+    testmanagerd's log, and `.ips`/`.crash` reports naming the app, the runner
+    or xctest are worth keeping; the rest stays out. Returns the copied names.
+    """
+
+    copied: list[str] = []
+    for source in sorted(exported.rglob("*")):
+        if not source.is_file():
+            continue
+        parts = source.relative_to(exported).parts
+        runner_log = any(part.startswith("RundaleUITests-") for part in parts[:-1])
+        crash = source.suffix in {".ips", ".crash"} and re.search(
+            r"Rundale|xctest|Runner", source.name, re.IGNORECASE
+        )
+        if not (runner_log or crash or source.name == "testmanagerd.log"):
+            continue
+        # The file name carries the meaning; a short parent keeps names apart.
+        name = _evidence_name(parts[-1], limit=100)
+        if len(parts) > 1:
+            name = f"{_evidence_name(parts[-2], limit=24)}__{name}"
+        target.mkdir(parents=True, exist_ok=True)
+        unique, count = name, 2
+        while unique in copied:
+            unique, count = f"{count}-{name}", count + 1
+        _copy_tail(source, target / unique, EVIDENCE_LOG_TAIL_BYTES)
+        copied.append(unique)
+    return copied
+
+
+def _evidence_summary(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """The part of a failed test's evidence entry that verify.json and summary.txt carry."""
+
+    return {key: entry[key] for key in ("test", "directory", "digest", "files")}
 
 
 def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
@@ -724,6 +914,8 @@ class VerificationRun:
         self.started_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.run_stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         self.use_cache = use_cache
+        # Failed-test evidence already written, by result bundle.
+        self._failure_evidence: dict[str, list[dict[str, Any]]] = {}
         # Shared by every report directory so a custom --report-dir still
         # reuses and contributes passes.
         self.cache_dir = self.root / "mobile" / ".verification" / "cache"
@@ -781,6 +973,185 @@ class VerificationRun:
             }
         )
         return env
+
+    def _collect_failure_evidence(
+        self, bundle: str, tree: Mapping[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Keep the diagnosis of every failed test in `failures/<run>/<test>/`.
+
+        A failure line alone cannot root-cause a flaky UI test, and the result
+        bundle is pruned with the run, so the gate reads the bundle before
+        anything is thrown away. Per failed case it writes `failure.md` (the
+        digest), the exported attachments (failure screenshot, UI hierarchy,
+        short screen recording) within size bounds, and once per run the test
+        runner's logs and crash reports. Returns one entry per case: test,
+        directory, digest, messages. Done once per bundle; later calls reuse it.
+        """
+
+        if bundle in self._failure_evidence:
+            return self._failure_evidence[bundle]
+        entries: list[dict[str, Any]] = []
+        self._failure_evidence[bundle] = entries
+        bundle_path = self.root / bundle
+        if tree is None:
+            tree = _json_output(
+                self._execute(
+                    [
+                        "xcrun",
+                        "xcresulttool",
+                        "get",
+                        "test-results",
+                        "tests",
+                        "--path",
+                        bundle,
+                        "--compact",
+                    ]
+                )
+            )
+        if not isinstance(tree, Mapping):
+            return entries
+        failed = _failed_case_nodes(tree)
+        if not failed:
+            return entries
+        run_dir = self.report_dir / FAILURES_DIR / self.run_stamp
+        run_dir.mkdir(parents=True, exist_ok=True)
+        diagnostics = self._export_runner_diagnostics(bundle, run_dir)
+        for case_bundle, suite, name, node in failed[:EVIDENCE_MAX_TESTS]:
+            test_id = str(node.get("nodeIdentifier") or f"{suite}/{name}")
+            directory = run_dir / _evidence_name(f"{suite}.{name.removesuffix('()')}", limit=120)
+            suffix = 2
+            while directory.exists():
+                directory = directory.with_name(f"{directory.name}-{suffix}")
+                suffix += 1
+            directory.mkdir(parents=True)
+            messages = _case_messages(node)
+            notes: list[str] = []
+            base = ["xcrun", "xcresulttool", "get", "test-results"]
+            details = _json_output(
+                self._execute(
+                    [*base, "test-details", "--path", bundle, "--test-id", test_id, "--compact"]
+                )
+            )
+            activities = _json_output(
+                self._execute(
+                    [*base, "activities", "--path", bundle, "--test-id", test_id, "--compact"]
+                )
+            )
+            if activities is None:
+                notes.append("xcresulttool could not read the activity timeline")
+            saved, skipped = self._export_attachments(bundle, test_id, directory, notes)
+            (directory / "failure.md").write_text(
+                _failure_digest(
+                    test=f"{case_bundle}/{suite}/{name}",
+                    bundle=_relative(bundle_path, self.root),
+                    messages=messages,
+                    details=details if isinstance(details, Mapping) else None,
+                    timeline=_activity_timeline(activities),
+                    saved=saved,
+                    skipped=skipped,
+                    diagnostics=diagnostics,
+                    notes=notes,
+                ),
+                encoding="utf-8",
+            )
+            entries.append(
+                {
+                    "case": (case_bundle, suite, name, ""),
+                    "test": f"{suite}.{name}",
+                    "directory": _relative(directory, self.root),
+                    "digest": _relative(directory / "failure.md", self.root),
+                    "files": saved,
+                    "messages": messages,
+                }
+            )
+        index = [f"# Failed tests of run {self.run_stamp}", ""]
+        index += [f"- {e['test']}: `{e['digest']}`" for e in entries]
+        if len(failed) > len(entries):
+            index.append(f"- ... {len(failed) - len(entries)} more failed test(s); see `{bundle}`")
+        (run_dir / "index.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+        return entries
+
+    def _export_runner_diagnostics(self, bundle: str, run_dir: Path) -> str | None:
+        """Copy the runner logs and crash reports of `bundle` into `run_dir/diagnostics`."""
+
+        with tempfile.TemporaryDirectory(prefix="xcresult-diagnostics-") as scratch:
+            result = self._execute(
+                [
+                    "xcrun",
+                    "xcresulttool",
+                    "export",
+                    "diagnostics",
+                    "--path",
+                    bundle,
+                    "--output-path",
+                    scratch,
+                ]
+            )
+            if result.returncode != 0:
+                return None
+            copied = _copy_runner_diagnostics(Path(scratch), run_dir / "diagnostics")
+        return _relative(run_dir / "diagnostics", self.root) if copied else None
+
+    def _export_attachments(
+        self, bundle: str, test_id: str, directory: Path, notes: list[str]
+    ) -> tuple[list[str], list[str]]:
+        """Export one test's attachments into `directory`; return (saved, skipped) names."""
+
+        saved: list[str] = []
+        skipped: list[str] = []
+        with tempfile.TemporaryDirectory(prefix="xcresult-attachments-") as scratch:
+            result = self._execute(
+                [
+                    "xcrun",
+                    "xcresulttool",
+                    "export",
+                    "attachments",
+                    "--path",
+                    bundle,
+                    "--test-id",
+                    test_id,
+                    "--output-path",
+                    scratch,
+                ]
+            )
+            manifest_path = Path(scratch) / "manifest.json"
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                notes.append(
+                    "xcresulttool exported no attachments"
+                    + (
+                        ""
+                        if result.returncode == 0
+                        else f": {_failure_reason(result, 'export failed')}"
+                    )
+                )
+                return saved, skipped
+            total = 0
+            entries = sorted(
+                _attachment_entries(manifest, test_id), key=lambda a: a.get("timestamp") or 0
+            )
+            for entry in entries:
+                exported = Path(scratch) / str(entry.get("exportedFileName", ""))
+                human = re.sub(
+                    r"_\d+_[0-9A-Fa-f-]{36}", "", str(entry.get("suggestedHumanReadableName", ""))
+                )
+                stem = _evidence_name(Path(human).stem if Path(human).suffix else human)
+                name = stem + (exported.suffix or ".bin")
+                if not exported.is_file():
+                    continue
+                size = exported.stat().st_size
+                if size > EVIDENCE_MAX_FILE_BYTES or total + size > EVIDENCE_MAX_TEST_BYTES:
+                    skipped.append(f"{name} ({size} bytes, over the evidence size bound)")
+                    continue
+                target, count = directory / name, 2
+                while target.exists():
+                    target = directory / f"{Path(name).stem}-{count}{Path(name).suffix}"
+                    count += 1
+                shutil.copyfile(exported, target)
+                total += size
+                saved.append(target.name)
+        return saved, skipped
 
     def _bundle(self, name: str) -> str:
         return _relative(
@@ -1771,6 +2142,7 @@ class VerificationRun:
         )
         cases: list[tuple[str, str, str, str]] | None = None
         failures: list[tuple[str, str, str, str]] = []
+        evidence: list[dict[str, Any]] = []
         unreadable = _failure_reason(tree, "xcresulttool could not read the combined result bundle")
         if tree.returncode == 0:
             try:
@@ -1781,6 +2153,8 @@ class VerificationRun:
                 if isinstance(parsed, Mapping):
                     cases = _xcresult_cases(parsed)
                     failures = _xcresult_failures(parsed)
+                    # Read the failed tests' evidence before anything else can discard it.
+                    evidence = self._collect_failure_evidence(bundle, parsed)
                 else:
                     unreadable = "xcresulttool returned a JSON value that is not an object"
         app_identity = (
@@ -1813,6 +2187,11 @@ class VerificationRun:
                 for failure in failures
                 if _selected(failure, spec["selectors"])
             ]
+            suite_evidence = [
+                _evidence_summary(entry)
+                for entry in evidence
+                if _selected(entry["case"], spec["selectors"])
+            ]
             details: dict[str, Any] = {
                 "scheme": self.scheme,
                 "destination": spec["destination"],
@@ -1822,6 +2201,7 @@ class VerificationRun:
                 "combined_run": "ios-simulator-combined-run",
                 **(counts or {}),
                 **({"failures": messages} if messages else {}),
+                **({"failure_evidence": suite_evidence} if suite_evidence else {}),
                 **({"cache_key": spec["key"]} if spec["key"] else {}),
                 **(app_identity if status == PASSED else {}),
             }
@@ -2329,7 +2709,21 @@ class VerificationRun:
             self._change(summary_record, FAILED, reason, counts)
             return
         result_status, result_reason = _result_status(counts, summary.get("result"))
-        self._change(test_record, result_status, result_reason, counts)
+        test_details: dict[str, Any] = dict(counts)
+        if counts["failedTests"]:
+            # Read the failed tests' evidence before anything else can discard it.
+            evidence = self._collect_failure_evidence(bundle)
+            if evidence:
+                test_details = {
+                    **counts,
+                    "failures": [
+                        f"{entry['test']}: {message}"
+                        for entry in evidence
+                        for message in entry["messages"]
+                    ],
+                    "failure_evidence": [_evidence_summary(entry) for entry in evidence],
+                }
+        self._change(test_record, result_status, result_reason, test_details)
         self._change(summary_record, result_status, result_reason, counts)
 
     def _simulator_tests(self, xcodegen_ok: bool, ready: bool) -> None:
@@ -3142,6 +3536,19 @@ class VerificationRun:
         """
 
         stamp = re.compile(r"(\d{8}T\d{12}Z)")
+        # A failed run's result bundle is the evidence behind its failures/
+        # folder: keep the newest few such runs whole, drop the older ones.
+        failed_runs = sorted(
+            (
+                entry
+                for entry in (self.report_dir / FAILURES_DIR).glob("*")
+                if entry.is_dir() and stamp.fullmatch(entry.name)
+            ),
+            key=lambda entry: entry.name,
+        )
+        kept_failed = {entry.name for entry in failed_runs[-EVIDENCE_KEPT_RUNS:]}
+        for entry in failed_runs[:-EVIDENCE_KEPT_RUNS]:
+            shutil.rmtree(entry, ignore_errors=True)
         entries: dict[str, list[Path]] = {}
         for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
             folder = self.report_dir / name
@@ -3155,7 +3562,7 @@ class VerificationRun:
         if in_use is None:
             return  # without a process list, nothing is known to be free
         for run, paths in entries.items():
-            if run in in_use:
+            if run in in_use or run in kept_failed:
                 continue
             for entry in paths:
                 if entry.is_dir():
@@ -3215,6 +3622,15 @@ class VerificationRun:
                 f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
                 "(details.cache in the JSON report; --no-cache reruns them)"
             )
+        if self._failure_evidence and any(self._failure_evidence.values()):
+            lines += [
+                "",
+                f"FAILURE EVIDENCE: {FAILURES_DIR}/{self.run_stamp}/index.md under the report "
+                f"directory ({_relative(self.report_dir / FAILURES_DIR / self.run_stamp, self.root)}).",
+                "Read each failure.md, its screenshot and UI hierarchy, and the .xcresult, and "
+                "diagnose the failure before re-running or calling a test flaky.",
+                "",
+            ]
         for r in self.records:
             if not (r["blocking"] or r["status"] == FAILED):
                 continue
@@ -3222,6 +3638,10 @@ class VerificationRun:
                 f"- {r['status'].upper()}: {r['name']}"
                 + (f" — {r['reason']}" if r.get("reason") else "")
             )
+            for kept in r.get("details", {}).get("failure_evidence", ()):
+                lines.append(
+                    f"    evidence: {kept['digest']} ({', '.join(kept['files']) or 'no attachments'})"
+                )
             for failure in r.get("details", {}).get("failures", ()):
                 # One log line each; verify.json keeps the full text.
                 line = " ".join(failure.split())

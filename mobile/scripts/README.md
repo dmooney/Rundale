@@ -295,7 +295,10 @@ Each run emits:
 - `verify.junit.xml`, JUnit-compatible suite and case results;
 - `summary.txt`, a concise human-readable summary that lists each failed simulator
   test's assertion message (file, line, and text) under its suite, so the CI log
-  shows why a test failed without the result bundle; and
+  shows why a test failed without the result bundle;
+- `failures/<run>/`, written when a simulator test fails: per failed test a
+  `failure.md` digest, the failure screenshot, UI hierarchy and screen recording,
+  plus the test runner's logs and crash reports; `summary.txt` names the paths; and
 - `logs/<gate-id>.log`, preserving command output and gate reasons.
 
 The JSON report separates `passed`, `failed`, `skipped`, `unavailable`, and
