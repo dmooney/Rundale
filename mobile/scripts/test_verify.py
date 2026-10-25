@@ -183,6 +183,9 @@ class FakeRunner:
         runner = out / "RundaleUITests-ABC-Configuration-Iteration-1" / "RundaleUITests-1"
         runner.mkdir(parents=True)
         (runner / "StandardOutputAndStandardError.txt").write_text("runner output\n")
+        unit = out / "RundaleTests-DEF-Configuration-Iteration-1"
+        unit.mkdir(parents=True)
+        (unit / "scheduling.log").write_text("unit test runner\n")
         (out / "simctl_diagnostics" / "DiagnosticReports").mkdir(parents=True)
         reports = out / "simctl_diagnostics" / "DiagnosticReports"
         (reports / "RundaleUITests-Runner-2026-10-25.ips").write_text("crash report\n")
@@ -1892,7 +1895,7 @@ class FailureEvidenceTests(unittest.TestCase):
             exported.mkdir()
             FakeRunner().export_diagnostics(("x", "--output-path", str(exported)))
             copied = verify_module._copy_runner_diagnostics(exported, target)
-            self.assertEqual(len(copied), 2)
+            self.assertEqual(len(copied), 3)
             self.assertTrue(
                 any(name.endswith("StandardOutputAndStandardError.txt") for name in copied)
             )
@@ -1938,7 +1941,7 @@ class FailureEvidenceTests(unittest.TestCase):
                 self.assertTrue((digest.parent / name).is_file(), name)
             self.assertIn("Failure_UI_hierarchy.txt", evidence[0]["files"])
             diagnostics = digest.parent.parent / "diagnostics"
-            self.assertEqual(len(list(diagnostics.iterdir())), 2)
+            self.assertEqual(len(list(diagnostics.iterdir())), 3)
             self.assertTrue((digest.parent.parent / "index.md").is_file())
             # Only the suite whose case failed carries evidence; the fan-out is exact.
             self.assertNotIn("failure_evidence", by_id["phase2-ios-simulator-tests"]["details"])
@@ -1971,6 +1974,25 @@ class FailureEvidenceTests(unittest.TestCase):
             digest = root / suite["details"]["failure_evidence"][0]["digest"]
             self.assertTrue(digest.is_file())
 
+    def test_unreadable_results_still_keep_the_bundle_and_runner_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def unreadable(command):
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+                    (root / command[command.index("--path") + 1]).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(1, stderr="no result bundle")
+                return None
+
+            fake.intercept = unreadable
+            VerificationRun(root, command_runner=fake).run(4)
+            runs = list((root / "mobile" / ".verification" / "failures").iterdir())
+            self.assertEqual(len(runs), 1)
+            self.assertIn("could not list the tests", (runs[0] / "index.md").read_text())
+            self.assertTrue(list((runs[0] / "diagnostics").iterdir()))
+
     def test_oversized_attachments_are_listed_not_copied(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1994,6 +2016,7 @@ class FailureEvidenceTests(unittest.TestCase):
                 (reports / "xcresults").mkdir(exist_ok=True)
                 (reports / "xcresults" / f"simulator-{stamp}.xcresult").mkdir()
                 (reports / "failures" / stamp).mkdir(parents=True)
+                (reports / "DerivedData" / f"simulator-{stamp}").mkdir(parents=True)
             quiet = "20260901T000000000000Z"
             (reports / "xcresults" / f"simulator-{quiet}.xcresult").mkdir()
             run = VerificationRun(Path(directory), command_runner=FakeRunner())
@@ -2003,6 +2026,7 @@ class FailureEvidenceTests(unittest.TestCase):
             kept = sorted(p.name for p in (reports / "xcresults").iterdir())
             self.assertEqual(kept, [f"simulator-{s}.xcresult" for s in stamps[-3:]])
             self.assertEqual(sorted(p.name for p in (reports / "failures").iterdir()), stamps[-3:])
+            self.assertFalse(list((reports / "DerivedData").iterdir()))
 
 
 class UiTestBaseClassTests(unittest.TestCase):

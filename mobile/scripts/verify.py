@@ -703,7 +703,8 @@ def _copy_runner_diagnostics(exported: Path, target: Path) -> list[str]:
         if not source.is_file():
             continue
         parts = source.relative_to(exported).parts
-        runner_log = any(part.startswith("RundaleUITests-") for part in parts[:-1])
+        # `<TestBundle>-<id>` folders: RundaleUITests-..., RundaleTests-...
+        runner_log = any(re.match(r"[A-Za-z]+Tests-", part) for part in parts[:-1])
         crash = source.suffix in {".ips", ".crash"} and re.search(
             r"Rundale|xctest|Runner", source.name, re.IGNORECASE
         )
@@ -916,6 +917,7 @@ class VerificationRun:
         self.use_cache = use_cache
         # Failed-test evidence already written, by result bundle.
         self._failure_evidence: dict[str, list[dict[str, Any]]] = {}
+        self._evidence_written = False
         # Shared by every report directory so a custom --report-dir still
         # reuses and contributes passes.
         self.cache_dir = self.root / "mobile" / ".verification" / "cache"
@@ -1008,13 +1010,27 @@ class VerificationRun:
                     ]
                 )
             )
+        run_dir = self.report_dir / FAILURES_DIR / self.run_stamp
         if not isinstance(tree, Mapping):
+            if bundle_path.exists():
+                # The tests could not be listed, but the bundle is still the
+                # only evidence: mark the run so the next prune keeps it, and
+                # keep the runner logs.
+                run_dir.mkdir(parents=True, exist_ok=True)
+                self._evidence_written = True
+                diagnostics = self._export_runner_diagnostics(bundle, run_dir)
+                (run_dir / "index.md").write_text(
+                    f"# Failed run {self.run_stamp}\n\n"
+                    f"xcresulttool could not list the tests in `{bundle}`; open it in Xcode.\n"
+                    + (f"Runner and crash logs: `{diagnostics}`\n" if diagnostics else ""),
+                    encoding="utf-8",
+                )
             return entries
         failed = _failed_case_nodes(tree)
         if not failed:
             return entries
-        run_dir = self.report_dir / FAILURES_DIR / self.run_stamp
         run_dir.mkdir(parents=True, exist_ok=True)
+        self._evidence_written = True
         diagnostics = self._export_runner_diagnostics(bundle, run_dir)
         for case_bundle, suite, name, node in failed[:EVIDENCE_MAX_TESTS]:
             test_id = str(node.get("nodeIdentifier") or f"{suite}/{name}")
@@ -2172,6 +2188,9 @@ class VerificationRun:
                     evidence = self._collect_failure_evidence(bundle, parsed)
                 else:
                     unreadable = "xcresulttool returned a JSON value that is not an object"
+        if cases is None:
+            # Unreadable results: still keep the bundle and the runner logs.
+            self._collect_failure_evidence(bundle)
         app_identity = (
             self._built_app_identity(self.root / pending[0]["derived"])
             if run["status"] == PASSED
@@ -3577,9 +3596,12 @@ class VerificationRun:
         if in_use is None:
             return  # without a process list, nothing is known to be free
         for run, paths in entries.items():
-            if run in in_use or run in kept_failed:
+            if run in in_use:
                 continue
             for entry in paths:
+                # A kept failed run keeps only its result bundle, not its build products.
+                if run in kept_failed and entry.parent.name == "xcresults":
+                    continue
                 if entry.is_dir():
                     shutil.rmtree(entry, ignore_errors=True)
                 else:
@@ -3637,7 +3659,7 @@ class VerificationRun:
                 f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
                 "(details.cache in the JSON report; --no-cache reruns them)"
             )
-        if self._failure_evidence and any(self._failure_evidence.values()):
+        if self._evidence_written:
             lines += [
                 "",
                 f"FAILURE EVIDENCE: {FAILURES_DIR}/{self.run_stamp}/index.md under the report "
