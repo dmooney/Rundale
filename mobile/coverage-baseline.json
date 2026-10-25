@@ -4,9 +4,10 @@
     "RundaleKit": { "line_percent": 86.72, "covered": 1398, "lines": 1612 },
     "RundaleBridge": { "line_percent": 37.93, "covered": 165, "lines": 435 },
     "LimerickEndpointKit": {
-      "line_percent": 75.64,
-      "covered": 705,
-      "lines": 932
+      "line_percent": 88.49,
+      "covered": 830,
+      "lines": 938,
+      "note": "Raised with the URLSessionEndpointTransport loopback tests (#2271); measured by verify.py --fast on Linux, Swift 6.3.3, 2026-10-25."
     }
   },
   "app_reference": {

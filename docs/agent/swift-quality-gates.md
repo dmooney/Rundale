@@ -33,7 +33,10 @@ coverage baseline, measured on macOS, holds on both platforms: on 2026-10-24
 Linux measured RundaleKit 87.25%, RundaleBridge 37.5% and LimerickEndpointKit
 75.8%, within the one-point tolerance (RundaleBridge with 0.57 points to spare).
 LimerickEndpointKit's Linux figure includes a non-Darwin branch the app never
-ships.
+ships. Its baseline was raised to 88.49% on 2026-10-25, measured on Linux,
+when `URLSessionTransportTests` began driving the production
+`URLSessionEndpointTransport` against a loopback HTTP server; the Mac phase
+gates confirm it against Apple's Foundation.
 
 The full simulator gate is not in the per-PR `Swift quality` job. It needs the
 Rust XCFramework (a full cross-compile of the engine for two iOS targets), and
