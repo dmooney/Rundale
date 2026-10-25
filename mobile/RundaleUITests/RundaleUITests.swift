@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor
-final class RundaleUITests: XCTestCase {
+final class RundaleUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {

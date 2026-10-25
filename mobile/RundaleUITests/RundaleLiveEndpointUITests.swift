@@ -4,7 +4,7 @@ import XCTest
 /// 2 verifier does not select this class; callers must provide the live origin
 /// and private App Check debug-token environment explicitly.
 @MainActor
-final class RundaleLiveEndpointUITests: XCTestCase {
+final class RundaleLiveEndpointUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {
