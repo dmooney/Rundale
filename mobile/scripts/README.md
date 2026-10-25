@@ -30,8 +30,8 @@ becomes a `<suite>-coverage` gate checked against
 [Swift quality gates](../../docs/agent/swift-quality-gates.md).
 
 `--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`,
-`LimerickEndpointKit`, and `RundaleSession` suites, with no Rust build, Xcode project, or simulator,
-and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
+`LimerickEndpointKit`, and `RundaleSession` suites, with no Rust build, Xcode
+project, or simulator, and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
 quick local check. The phase gates run the package suites against Apple's
 Foundation but not the style checks, which read only source text; `--smoke`
 leaves out both, since CI's Linux job runs them on every pull request. Run
