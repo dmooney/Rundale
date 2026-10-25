@@ -29,14 +29,14 @@ swift-corelibs-foundation, though, not Apple's Foundation, so the Mac phase
 gates (`--phase N`, and so the nightly full gate and `just testflight-update`)
 still run the package suites; the hosted per-PR `--smoke` gate leaves them to
 this job. The style checks read only source text and run only in `--fast`. The
-coverage baseline, measured on macOS, holds on both platforms: on 2026-10-24
-Linux measured RundaleKit 87.25%, RundaleBridge 37.5% and LimerickEndpointKit
-75.8%, within the one-point tolerance (RundaleBridge with 0.57 points to spare).
-LimerickEndpointKit's Linux figure includes a non-Darwin branch the app never
-ships. Its baseline was raised to 88.49% on 2026-10-25, measured on Linux,
-when `URLSessionTransportTests` began driving the production
-`URLSessionEndpointTransport` against a loopback HTTP server; the Mac phase
-gates confirm it against Apple's Foundation.
+RundaleKit and RundaleBridge baselines, measured on macOS, hold on both
+platforms: on 2026-10-24 Linux measured RundaleKit 87.25% and RundaleBridge
+37.5%, within the one-point tolerance (RundaleBridge with 0.57 points to spare).
+The LimerickEndpointKit baseline is a Linux figure: 88.49% on 2026-10-25, when
+`URLSessionTransportTests` began driving the production
+`URLSessionEndpointTransport` against a loopback HTTP server. It includes a
+non-Darwin branch the app never ships. The same floor applies to the Mac phase
+gates.
 
 The full simulator gate is not in the per-PR `Swift quality` job. It needs the
 Rust XCFramework (a full cross-compile of the engine for two iOS targets), and

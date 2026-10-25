@@ -7,7 +7,7 @@
       "line_percent": 88.49,
       "covered": 830,
       "lines": 938,
-      "note": "Raised with the URLSessionEndpointTransport loopback tests (#2271); measured by verify.py --fast on Linux, Swift 6.3.3, 2026-10-25."
+      "note": "Unlike the other entries, measured on Linux: verify.py --fast, Swift 6.3.3, 2026-10-25, when the URLSessionEndpointTransport loopback tests were added (#2271). covered and lines are Linux counts."
     }
   },
   "app_reference": {
