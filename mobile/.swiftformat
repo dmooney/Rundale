@@ -1,5 +1,5 @@
 --swiftversion 6.0
---exclude .build,DerivedData,Rundale.xcodeproj,RundaleKit/.build,RundaleBridge/.build,LimerickEndpointKit/.build
+--exclude .build,DerivedData,Rundale.xcodeproj,RundaleKit/.build,RundaleBridge/.build,LimerickEndpointKit/.build,RundaleSession/.build
 --ifdef no-indent
 --indent 4
 --wraparguments preserve

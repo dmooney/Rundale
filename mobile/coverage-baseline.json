@@ -7,6 +7,12 @@
       "line_percent": 75.64,
       "covered": 705,
       "lines": 932
+    },
+    "RundaleSession": {
+      "line_percent": 63.66,
+      "covered": 1929,
+      "lines": 3030,
+      "measured": "2026-10-25, just mobile-verify --fast on Linux (Swift 6.3.3)"
     }
   },
   "app_reference": {

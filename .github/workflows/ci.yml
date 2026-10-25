@@ -500,7 +500,7 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
-  # SwiftLint, SwiftFormat, and the three Swift package suites with their
+  # SwiftLint, SwiftFormat, and the four Swift package suites with their
   # coverage floors (`mobile/scripts/verify.py --fast`). The Xcode app build and
   # simulator suites need the Rust XCFramework and run in `just mobile-verify`
   # (docs/agent/swift-quality-gates.md).
@@ -508,7 +508,7 @@ jobs:
     name: Swift quality (lint, format, packages)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.swift == 'true'
-    # The three Swift packages, SwiftLint and SwiftFormat run on Linux as on
+    # The four Swift packages, SwiftLint and SwiftFormat run on Linux as on
     # macOS, so this lane needs no Mac (#2287). The image pins the Swift
     # release Xcode 26.6 ships (6.3.3), which the coverage baseline was
     # measured with; install-swift-tools.sh pins the Linux tool builds.
