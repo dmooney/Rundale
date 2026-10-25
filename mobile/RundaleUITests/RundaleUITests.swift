@@ -427,16 +427,54 @@ final class RundaleUITests: XCTestCase {
             .firstMatch
     }
 
-    private func visibleHistoricalRow(in scroll: XCUIElement) -> XCUIElement? {
-        let candidates = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS 'Historical fixture entry'")
-        )
-        let scrollFrame = scroll.frame
-        for index in 0..<candidates.count {
-            let candidate = candidates.element(boundBy: index)
-            guard candidate.isHittable, candidate.frame.intersects(scrollFrame) else { continue }
-            return candidate
+    /// One historical row as the accessibility tree reported it at a single
+    /// instant. Equal snapshots on consecutive polls mean the scroll stopped.
+    private struct HistoricalRowSnapshot: Equatable {
+        let label: String
+        let frame: CGRect
+    }
+
+    /// The historical rows currently inside `scrollFrame`, top to bottom, read
+    /// from one accessibility snapshot. A snapshot is one consistent read of the
+    /// tree, so a lazy row recycled mid-scroll cannot vanish between reading its
+    /// label and its frame, and no live element is asked for `isHittable` (which
+    /// throws for an element without a valid frame or activation point).
+    private func historicalRowSnapshots(in scrollFrame: CGRect) -> [HistoricalRowSnapshot] {
+        guard let root = try? app.snapshot() else { return [] }
+        var rows: [HistoricalRowSnapshot] = []
+        func visit(_ node: XCUIElementSnapshot) {
+            if node.elementType == .staticText,
+               node.label.contains("Historical fixture entry"),
+               node.frame.intersects(scrollFrame) {
+                rows.append(HistoricalRowSnapshot(label: node.label, frame: node.frame))
+            }
+            node.children.forEach(visit)
         }
+        visit(root)
+        return rows.sorted { ($0.frame.minY, $0.label) < ($1.frame.minY, $1.label) }
+    }
+
+    /// Waits until the historical rows inside the transcript stop moving (two
+    /// consecutive snapshots match), then returns the first one that is hittable.
+    /// A fast swipe keeps the transcript decelerating and the lazy stack
+    /// recycling rows after `swipeDown` returns; asking a row mid-flight for
+    /// `isHittable` throws "Activation point invalid" (#2314).
+    private func visibleHistoricalRow(in scroll: XCUIElement, timeout: TimeInterval = 5) -> XCUIElement? {
+        let scrollFrame = scroll.frame
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous: [HistoricalRowSnapshot] = []
+        repeat {
+            let current = historicalRowSnapshots(in: scrollFrame)
+            if !current.isEmpty, current == previous {
+                for row in current {
+                    let element = app.staticTexts[row.label]
+                    if element.exists, element.isHittable { return element }
+                }
+                return nil
+            }
+            previous = current
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+        } while Date() < deadline
         return nil
     }
 
