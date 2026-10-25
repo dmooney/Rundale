@@ -17,7 +17,7 @@ bash bug-report/deploy/limerick-prod.sh pull <dir>
 - **Not part of Limerick Endpoints.** Do not move this into `endpoints/` or
   import its packages; Endpoints must stay a generic AI runtime.
 - **The wire shape has two sides.** The Swift `PendingBugReport` (in
-  `mobile/Rundale/BugReportFiler.swift`) and `src/report.ts` both test against
+  `mobile/RundaleSession/Sources/RundaleSession/BugReports.swift`) and `src/report.ts` both test against
   `test/fixtures/phone-report.json`. A key renamed on one side only answered
   400 live while each side's own tests passed (`reportID` against
   `reportId`). Change the fixture and both sides together.

@@ -16,7 +16,7 @@ just mobile-verify --phase N               # iPhone gate for product spec Milest
 just mobile-build                          # unsigned Release build
 just testflight-update                      # verify, sign, upload an internal beta
 swift test --package-path mobile/RundaleKit
-just mobile-verify --fast                  # CI's Swift lane: lint, format, three packages
+just mobile-verify --fast                  # CI's Swift lane: lint, format, four packages
 ```
 
 `just mobile-verify` is the app's gate and `just verify` is the engine's; one
@@ -45,6 +45,17 @@ is set (recording only).
 
 ## Traps
 
+- **Session logic lives in `RundaleSession`, not the app target.** The app
+  keeps views, `RundalePresentationModel` (it forwards the presenter to
+  SwiftUI), and the Firebase, OSLog, and UIKit wiring
+  (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule a Linux host
+  must share goes in the package, or the two drift (#2272).
+- **A synchronous test in a `@MainActor` XCTestCase crashes Linux test
+  discovery** (`swift_dynamicCastFailure` in `__allTests`, before any test
+  runs). Make the test `async` with a real `await`; SwiftFormat's
+  `redundantAsync` strips an `async` with none. Pure helpers can be
+  `nonisolated` instead, declared in a `nonisolated extension`: SwiftLint and
+  SwiftFormat disagree on the order of `nonisolated` beside an access modifier.
 - **Every Swift warning is an error.** The app targets set
   `SWIFT_TREAT_WARNINGS_AS_ERRORS` and the package gate passes
   `-warnings-as-errors`; SwiftLint runs `--strict`. Fix the warning; any

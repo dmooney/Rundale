@@ -1,6 +1,7 @@
 import UIKit
 import XCTest
 import RundaleKit
+import RundaleSession
 @testable import Rundale
 
 /// `/bug` and shake-to-report send a report to `limerick-bug-report` in beta

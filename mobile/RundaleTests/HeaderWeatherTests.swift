@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import RundaleSession
 @testable import Rundale
 
 final class HeaderWeatherTests: XCTestCase {

@@ -1,6 +1,7 @@
 import XCTest
 import RundaleBridge
 import RundaleKit
+import RundaleSession
 @testable import Rundale
 
 /// The RundaleKit request-lifecycle tests, run against the real engine

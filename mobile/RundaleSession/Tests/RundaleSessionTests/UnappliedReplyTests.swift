@@ -1,6 +1,6 @@
 import RundaleKit
 import XCTest
-@testable import Rundale
+@testable import RundaleSession
 
 final class UnappliedReplyTests: XCTestCase {
     func testOnlyRepliesTheGameDidNotApplyCarryTheNote() {

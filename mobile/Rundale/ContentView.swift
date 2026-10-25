@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import RundaleKit
+import RundaleSession
 
 struct ContentView: View {
     @ObservedObject var model: RundalePresentationModel
@@ -1173,9 +1174,7 @@ private struct Composer: View {
     let availableHeight: CGFloat
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var canSubmitDraft: Bool {
-        !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    private var canSubmitDraft: Bool { model.canSubmitDraft }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -1204,7 +1203,7 @@ private struct Composer: View {
                     }
 
                 VStack(spacing: 7) {
-                    if model.isStreaming {
+                    if model.showsStop {
                         Button {
                             model.stop()
                             focused = true
@@ -1266,7 +1265,7 @@ private struct Composer: View {
                     .accessibilityIdentifier("composer.commands")
                 }
                 Spacer()
-                if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
+                if model.showsFixtureStep {
                     Button {
                         model.advanceFixture()
                     } label: {
@@ -1283,7 +1282,7 @@ private struct Composer: View {
                     .accessibilityLabel("Advance fixture stream")
                     .accessibilityIdentifier("fixture.step")
                 }
-                if model.canRetry && !model.isStreaming {
+                if model.showsRetry {
                     Button("Retry") {
                         model.retryLastFailed()
                         focused = true

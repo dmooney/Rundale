@@ -1,7 +1,10 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import LimerickEndpointKit
 import XCTest
-@testable import Rundale
+@testable import RundaleSession
 
 /// The fixture Endpoint the phase suites play against must answer the
 /// engine's `rundale-intent` call: a decision, read from the input's `line`.

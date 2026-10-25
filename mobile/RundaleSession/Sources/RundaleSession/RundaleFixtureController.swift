@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import RundaleKit
 
@@ -7,24 +6,28 @@ import RundaleKit
 /// its semantic events through the package reducer and exposes a SwiftUI-safe
 /// snapshot.
 @MainActor
-final class RundaleFixtureController: ObservableObject, RundaleSessionControlling {
-    @Published private(set) var state: SessionState
-    @Published private(set) var lastEvent: SemanticEvent?
-
-    let adapter: FixtureSessionAdapter
-    let completionRegistry: FixtureCompletionRegistry
-    let draftStore: FixtureDraftStore
-    let sessionStore: FixtureSessionStore
-    let manualStream: Bool
-    let headerTimeOfDay: String
-    let headerWeather: String
-    @Published private(set) var persistenceError: String?
-
-    var statePublisher: AnyPublisher<SessionState, Never> {
-        $state.eraseToAnyPublisher()
+public final class RundaleFixtureController: RundaleSessionControlling {
+    public private(set) var state: SessionState {
+        didSet { changes.send() }
     }
 
-    var currentHeader: PresentedHeader {
+    public private(set) var lastEvent: SemanticEvent?
+
+    public let adapter: FixtureSessionAdapter
+    public let completionRegistry: FixtureCompletionRegistry
+    public let draftStore: FixtureDraftStore
+    public let sessionStore: FixtureSessionStore
+    public let manualStream: Bool
+    public let headerTimeOfDay: String
+    public let headerWeather: String
+    public private(set) var persistenceError: String?
+    private let changes = SessionChangeSignal()
+
+    public func stateChanges() -> AsyncStream<Void> {
+        changes.stream()
+    }
+
+    public var currentHeader: PresentedHeader {
         PresentedHeader(
             location: state.scene?.name ?? "The crossroads",
             timeOfDay: headerTimeOfDay,
@@ -47,7 +50,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     private var eventTask: Task<Void, Never>?
     private var automaticTask: Task<Void, Never>?
 
-    init(configuration: LaunchConfiguration) {
+    public init(configuration: LaunchConfiguration) {
         let applicationSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let sessionURL: URL
@@ -121,7 +124,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         automaticTask?.cancel()
     }
 
-    func start() {
+    public func start() {
         guard eventTask == nil else { return }
         let adapter = self.adapter
         let cursor = state.eventCursor
@@ -151,7 +154,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         }
     }
 
-    func setInferenceAllowed(_ allowed: Bool) {}
+    public func setInferenceAllowed(_ allowed: Bool) {}
 
     private func beginAutomaticStepping() {
         guard automaticTask == nil, !manualStream else { return }
@@ -167,15 +170,15 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         }
     }
 
-    func updateDraft(_ text: String) {
+    public func updateDraft(_ text: String) {
         presentation.updateDraft(text)
         state = presentation.state
     }
 
-    var initialFollowsNewest: Bool { state.viewport.isFollowingNewest }
-    var initialUnreadCount: Int { state.viewport.unreadCount }
+    public var initialFollowsNewest: Bool { state.viewport.isFollowingNewest }
+    public var initialUnreadCount: Int { state.viewport.unreadCount }
 
-    func followNewest() {
+    public func followNewest() {
         let history = historyPresentation.state.transcript
         let tail = Array(history.suffix(state.transcriptCapacity))
         presentation.showNewestTranscript(
@@ -187,13 +190,13 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         persistSessionState()
     }
 
-    func readHistory(anchor: TranscriptAnchor? = nil) {
+    public func readHistory(anchor: TranscriptAnchor? = nil) {
         presentation.readHistory(anchor: anchor)
         state = presentation.state
         persistSessionState()
     }
 
-    func loadOlderTranscript() async {
+    public func loadOlderTranscript() async {
         guard state.hasOlderTranscript,
               let oldestID = state.transcript.first?.id,
               let oldestIndex = historyPresentation.state.transcript.firstIndex(where: { $0.id == oldestID }) else {
@@ -212,12 +215,12 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         await persistSessionStateAndWait()
     }
 
-    func restoredDraft() -> Draft? {
+    public func restoredDraft() -> Draft? {
         try? draftStore.restore()
     }
 
     @discardableResult
-    func persistDraft(_ text: String) -> String? {
+    public func persistDraft(_ text: String) -> String? {
         let draft = Draft(id: state.draft.id, text: text)
         do {
             try draftStore.save(draft)
@@ -229,7 +232,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     }
 
     @discardableResult
-    func persistSessionState() -> String? {
+    public func persistSessionState() -> String? {
         guard canPersistSession else { return persistenceError }
         let snapshot = state
         let transcriptHistory = historyPresentation.state.transcript
@@ -253,7 +256,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     /// adapter call emits before its AsyncStream subscriber necessarily runs,
     /// so saving the last published state directly could omit an accepted
     /// request at the exact moment the app becomes inactive.
-    func persistLifecycleSnapshot() async {
+    public func persistLifecycleSnapshot() async {
         _ = await reconcilePendingAdapterEvents(persistBoundary: false)
         await persistSessionStateAndWait()
     }
@@ -277,7 +280,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         return persistenceGeneration
     }
 
-    func submit(_ text: String) async throws -> SubmissionReceipt {
+    public func submit(_ text: String) async throws -> SubmissionReceipt {
         let draftID = presentation.state.draft.id
         let receipt = try await adapter.submit(text: text, draftID: draftID, logicalRequestID: nil)
         _ = await reconcilePendingAdapterEvents(persistBoundary: false)
@@ -286,7 +289,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         return receipt
     }
 
-    func retryLastFailed() async throws {
+    public func retryLastFailed() async throws {
         guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
             throw FixtureAdapterError.requestNotRetryable
         }
@@ -296,14 +299,14 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         beginAutomaticStepping()
     }
 
-    func stop() async -> StopReceipt {
+    public func stop() async -> StopReceipt {
         let receipt = await adapter.stop()
         _ = await reconcilePendingAdapterEvents(persistBoundary: false)
         await persistSessionStateAndWait()
         return receipt
     }
 
-    func step() async -> FixtureStepResult {
+    public func step() async -> FixtureStepResult {
         let result = await adapter.step()
         _ = await reconcilePendingAdapterEvents(persistBoundary: false)
         if result.isFinished {
@@ -312,7 +315,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         return result
     }
 
-    func answerClarification(choiceID: String) async throws {
+    public func answerClarification(choiceID: String) async throws {
         guard let pending = state.pendingClarification else {
             throw FixtureAdapterError.noClarificationPending
         }
@@ -327,18 +330,18 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
 
     /// Fixture sessions have no engine; the report says so, with the
     /// scene, so a UI test can check what was filed.
-    func bugReport(description: String) async throws -> String {
+    public func bugReport(description: String) async throws -> String {
         let said = description.isEmpty ? "(no description)" : description
         return "Rundale bug report\n\(said)\n\nFixture scene: \(currentHeader.location)\n"
     }
 
-    func suggestions(for text: String) -> [CompletionItem] {
+    public func suggestions(for text: String) -> [CompletionItem] {
         completionRegistry.suggestions(for: text)
     }
 
-    var advertisedCommands: [CompletionItem] { completionRegistry.advertisedCommands }
+    public var advertisedCommands: [CompletionItem] { completionRegistry.advertisedCommands }
 
-    func insert(_ item: CompletionItem, into text: String) -> String {
+    public func insert(_ item: CompletionItem, into text: String) -> String {
         completionRegistry.applying(item, to: text)
     }
 
