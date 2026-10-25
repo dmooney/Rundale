@@ -2074,6 +2074,21 @@ class VerificationRun:
             app_identity = self._built_app_identity(self.root / derived)
             if app_identity:
                 record.setdefault("details", {}).update(app_identity)
+        elif destination is not None and not is_physical and (self.root / bundle).exists():
+            # xcodebuild failed: its tests may have failed, and nothing else
+            # validates this bundle, so read the evidence now.
+            evidence = self._collect_failure_evidence(bundle)
+            if evidence:
+                record.setdefault("details", {}).update(
+                    {
+                        "failures": [
+                            f"{entry['test']}: {message}"
+                            for entry in evidence
+                            for message in entry["messages"]
+                        ],
+                        "failure_evidence": [_evidence_summary(entry) for entry in evidence],
+                    }
+                )
         return record
 
     def _run_deferred_simulator_suites(self) -> None:

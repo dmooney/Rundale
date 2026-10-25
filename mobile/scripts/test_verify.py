@@ -1947,6 +1947,30 @@ class FailureEvidenceTests(unittest.TestCase):
             self.assertIn("FAILURE EVIDENCE", summary)
             self.assertIn("before re-running or calling a test flaky", summary)
 
+    def test_standalone_phase_run_that_fails_keeps_its_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.case_results["-only-testing:RundaleUITests/RundalePhase2UITests"] = "Failed"
+            fake.case_failures["-only-testing:RundaleUITests/RundalePhase2UITests"] = (
+                "RundalePhase2UITests.swift:9: XCTAssertTrue failed"
+            )
+
+            def failing(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(65, stderr="** TEST FAILED **")
+                return None
+
+            fake.intercept = failing
+            report = VerificationRun(root, command_runner=fake, parallel_workers=1).run(2)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(suite["status"], "failed")
+            digest = root / suite["details"]["failure_evidence"][0]["digest"]
+            self.assertTrue(digest.is_file())
+
     def test_oversized_attachments_are_listed_not_copied(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
