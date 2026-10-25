@@ -293,6 +293,9 @@ private final class LoopbackHTTPServer: @unchecked Sendable {
                     return true
                 } catch LoopbackError.socket {
                     return true
+                } catch LoopbackError.timedOut {
+                    // A spurious wakeup; keep waiting until the deadline.
+                    continue
                 }
             }
             return false

@@ -154,7 +154,7 @@ no entry for the package.
 
 The tolerance (1 percentage point) absorbs small refactors that delete covered
 lines. It also absorbs a little new untested code: at the recorded baselines,
-roughly 18 uncovered lines in RundaleKit, 12 in LimerickEndpointKit, and 11 in
+roughly 18 uncovered lines in RundaleKit, 10 in LimerickEndpointKit, and 11 in
 RundaleBridge pass the gate, and anything larger fails it. The floor is not a
 target: raise a package's `line_percent` in the pull request that adds tests,
 and lower it only with a stated reason in that pull request. The baseline is
