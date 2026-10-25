@@ -137,6 +137,8 @@ jobs:
           keychain="$RUNNER_TEMP/signing.keychain-db"
           password="$(openssl rand -hex 24)"
           security create-keychain -p "$password" "$keychain"
+          # Registered first, so cleanup finds it even if a later line fails.
+          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$password" "$keychain"
           echo "$DISTRIBUTION_CERTIFICATE_P12_B64" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
@@ -159,7 +161,6 @@ jobs:
           security find-identity -v -p codesigning "$keychain"
           echo "Distribution profile: $name ($uuid)"
           echo "RUNDALE_DISTRIBUTION_PROFILE=$name" >> "$GITHUB_ENV"
-          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
       - name: Sign and upload
         if: steps.changed.outputs.upload == 'true'
