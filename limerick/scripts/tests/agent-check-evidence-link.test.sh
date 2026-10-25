@@ -129,6 +129,7 @@ for path in \
     mobile/RundaleTests/Phase1AuditVolumeTests.swift \
     mobile/RundaleKit/Tests/RundaleKitTests/TurnTests.swift \
     mobile/LimerickEndpointKit/Tests/LimerickEndpointKitTests/ClientTests.swift \
+    mobile/coverage-baseline.json \
     limerick/crates/limerick-config/src/lib.rs; do
     commit_change "$path"
     check "pr: $path needs no link" "$(run_gate --source=pr 42)" "pass"
