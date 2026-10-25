@@ -3,8 +3,9 @@ description: >-
   Install the GTK/WebKit packages the Tauri crates link against, reusing the
   downloaded .deb files from the Actions cache. The Ubuntu mirror the hosted
   runners use has served these packages at tens of KB/s, which pushed the
-  install past the Rust quality gate's 30-minute limit; with a warm cache,
-  apt only downloads packages updated since the runner image was built.
+  install past the Rust quality gate's 30-minute limit. With a warm cache, apt
+  downloads only packages updated since the cache was saved; a new runner image
+  starts a new cache.
 
 runs:
   using: composite
