@@ -200,6 +200,30 @@ def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
     ]
 
 
+# A hosted runner starts with an empty keychain, so automatic signing there
+# creates a new Apple Development certificate on every archive until the
+# account's certificate limit stops it. The GitHub workflow instead imports one
+# stored Apple Distribution certificate and its App Store profile and names the
+# profile here; the archive then signs manually with them. Without it,
+# automatic signing uses the signed-in Xcode account, as on the owner's Mac.
+DISTRIBUTION_PROFILE_ENV = "RUNDALE_DISTRIBUTION_PROFILE"
+
+
+def archive_signing_args(env: dict[str, str] | None = None) -> list[str]:
+    """The archive's signing style: a named distribution profile, or automatic."""
+
+    env = dict(os.environ) if env is None else env
+    profile = env.get(DISTRIBUTION_PROFILE_ENV, "")
+    if not profile:
+        return ["CODE_SIGN_STYLE=Automatic"]
+    return [
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Apple Distribution",
+        # mobile/project.yml gives only the app target this profile.
+        f"{DISTRIBUTION_PROFILE_ENV}={profile}",
+    ]
+
+
 APP_STORE_CONNECT_APP_ID = "6811694290"
 APP_STORE_CONNECT_BUILDS_URL = (
     "https://api.appstoreconnect.apple.com/v1/builds"
@@ -504,7 +528,7 @@ class Release:
                     *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
-                    "CODE_SIGN_STYLE=Automatic",
+                    *archive_signing_args(),
                     *endpoint_args(),
                 ],
                 cwd=self.paths.root,
@@ -569,7 +593,7 @@ class Release:
                     *signing_auth_args(),
                     "archive",
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
-                    "CODE_SIGN_STYLE=Automatic",
+                    *archive_signing_args(),
                     *endpoint_args(),
                     f"CURRENT_PROJECT_VERSION={build}",
                 ],

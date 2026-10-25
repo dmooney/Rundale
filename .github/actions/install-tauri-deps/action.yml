@@ -1,0 +1,56 @@
+name: Install Tauri Linux dependencies
+description: >-
+  Install the GTK/WebKit packages the Tauri crates link against, reusing the
+  downloaded .deb files from the Actions cache. The Ubuntu mirror the hosted
+  runners use has served these packages at tens of KB/s, which pushed the
+  install past the Rust quality gate's 30-minute limit. With a warm cache, apt
+  downloads only packages updated since the cache was saved; a new runner image
+  starts a new cache.
+
+runs:
+  using: composite
+  steps:
+    # A new runner image brings new base packages, so start a fresh cache
+    # with it. ImageOS and ImageVersion are runner process variables, not
+    # part of the `env` context, so only a shell can read them.
+    - name: Name the runner image
+      id: image
+      shell: bash
+      run: echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >>"$GITHUB_OUTPUT"
+
+    - name: Restore apt package cache
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/apt-archives
+        # Editing this file (the package list) also starts a fresh cache.
+        key: apt-tauri-${{ runner.os }}-${{ runner.arch }}-${{ steps.image.outputs.image }}-${{ hashFiles('.github/actions/install-tauri-deps/action.yml') }}
+
+    - name: Install packages
+      shell: bash
+      run: |
+        archives="$HOME/.cache/apt-archives"
+        mkdir -p "$archives/partial"
+        sudo apt-get update
+        # apt's _apt download user cannot write under the runner's home, so
+        # download as root rather than have apt warn and fall back to it.
+        sudo apt-get install -y \
+          -o Dir::Cache::Archives="$archives" \
+          -o APT::Sandbox::User=root \
+          pkg-config \
+          libgtk-3-dev \
+          libwebkit2gtk-4.1-dev \
+          libappindicator3-dev \
+          librsvg2-dev
+        # apt writes the archives as root; the cache save runs as the runner.
+        sudo rm -f "$archives/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$archives"
+
+    - name: Save apt package cache
+      # Several jobs share the key; the first to finish saves it, and the
+      # others' saves are skipped with a warning.
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/apt-archives
+        key: ${{ steps.restore.outputs.cache-primary-key }}
