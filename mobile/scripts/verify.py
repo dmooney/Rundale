@@ -1026,7 +1026,9 @@ class VerificationRun:
         never started) or cannot be read.
         """
 
-        if bundle in self._failure_evidence:
+        if bundle in self._failure_evidence and (
+            bundle in self._evidence_index or not invocation_failed
+        ):
             return self._failure_evidence[bundle]
         entries: list[dict[str, Any]] = []
         self._failure_evidence[bundle] = entries
@@ -2257,6 +2259,10 @@ class VerificationRun:
                 for failure in failures
                 if _selected(failure, spec["selectors"])
             ]
+            if status != PASSED:
+                # Whatever blocked the suite (an empty tree, a test that never
+                # ran), keep the bundle for the next prune.
+                self._collect_failure_evidence(bundle, invocation_failed=True)
             suite_evidence = [
                 _evidence_summary(entry)
                 for entry in evidence
@@ -2274,7 +2280,7 @@ class VerificationRun:
                 **({"failure_evidence": suite_evidence} if suite_evidence else {}),
                 **(
                     {"failure_evidence_index": self._evidence_index[bundle]}
-                    if status == FAILED and bundle in self._evidence_index
+                    if status != PASSED and bundle in self._evidence_index
                     else {}
                 ),
                 **({"cache_key": spec["key"]} if spec["key"] else {}),
@@ -2701,7 +2707,7 @@ class VerificationRun:
         if (
             test_record["status"] != PASSED
             and bundle
-            and bundle not in self._failure_evidence
+            and bundle not in self._evidence_index
             and (self.root / bundle).exists()
         ):
             # Validation failed before it could name a failed test (unreadable

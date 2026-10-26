@@ -2034,6 +2034,30 @@ class FailureEvidenceTests(unittest.TestCase):
             index = next((root / "mobile/.verification/failures").glob("*/index.md"))
             self.assertIn("1 more failed test(s)", index.read_text())
 
+    def test_validation_that_blocks_a_passing_run_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            real_tree = fake.xcresult_tree
+
+            def empty_tree():
+                tree = real_tree()
+                tree["testNodes"] = []
+                return tree
+
+            def keep_bundle(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+
+            fake.xcresult_tree = empty_tree
+            fake.intercept = keep_bundle
+            report = VerificationRun(root, command_runner=fake).run(4)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(suite["status"], "unavailable")
+            self.assertTrue((root / suite["details"]["failure_evidence_index"]).is_file())
+
     def test_failed_invocation_with_no_failed_case_keeps_the_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
