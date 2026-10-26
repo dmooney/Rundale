@@ -144,7 +144,8 @@ export interface EditorSaveResponse {
 	validation: ValidationReport;
 }
 
-export type EditorDoc = 'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters';
+export type EditorDoc =
+	'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters';
 
 export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator' | 'saves';
 
