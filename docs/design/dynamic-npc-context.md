@@ -1,7 +1,7 @@
 # Design: dynamic NPC context and recipient resolution
 
 > Status: Accepted · Issue: [#2143](https://github.com/dmooney/Rundale/issues/2143) ·
-> Milestone: Existing features usable (spec Milestone 5) · Pairs with:
+> Milestone: NPC dialogue (spec Milestone 5) · Pairs with:
 > [#2024](https://github.com/dmooney/Rundale/issues/2024) (static context)
 
 This is the contract #2143 requires before implementation. It covers who a
@@ -272,9 +272,14 @@ Appendices A and B under these rules
 
 ### 4.4 Failure
 
-A failure caused by lost connectivity follows the request's existing recoverable
-failure path, the same as a failed dialogue call. Any other failure (an error, a
-timeout after 2 s, or an answer that is not an offered option) is uncertain.
+A call that never produced an answer (a lost connection, a rate limit, an
+outage, a timeout, a refusal, or a cancellation the player did not ask for)
+follows the request's existing recoverable failure path, the same as a failed
+dialogue call: the mod's line for the reason, and Retry. Guessing would let a
+move or an action silently become speech (owner decision 2026-10-24, issue
+1825; [inference errors and recovery](inference-errors-and-recovery.md)). Only
+an answer that is not an offered option, or a failure the host reports without
+a reason (the desktop's in-process model), is uncertain.
 
 ### 4.5 Endpoint integration
 
@@ -347,6 +352,7 @@ yes/no:
 | `recipient`   | Choice            | as §4.3 question 1                                                                                 | talk                                          |
 | `mentioned`   | Yes/no per person | as §4.3 question 2                                                                                 | talk                                          |
 | `atmosphere`  | Choice            | listen, omen, folklore, none                                                                       | talk                                          |
+| `anachronism` | Choice            | modern, none. Planned by [NPC dialogue prompt](npc-dialogue-prompt.md) decision 16 (#2299)         | talk                                          |
 
 All questions go in one request and are answered in parallel; the engine uses
 only the answers for the action chosen. Look, examine and interact only
@@ -598,13 +604,14 @@ Rows 27, 28 and 35 keep the assertions of four shipped tests:
 they answer the decision role instead of naming a target in an intent reply.
 
 Implementation PRs that change shipped behaviour also run
-`just mobile-verify --phase all` and publish an evidence page. The Phase 5
-gate (`just mobile-verify --phase 5`) is built by #2194, which carries that
-criterion.
+`just mobile-verify --phase all` and publish an evidence page. Since the
+2026-10-24 split, this work belongs to spec Milestone 5 (NPC dialogue), whose
+gate is `--phase all`; #2194 builds the living-world phase gate for spec
+Milestone 6 (Living world).
 
 ## 9. Coordination
 
-- #2024: static facts, including homes, routines and authored festival names.
+- #2024 and [NPC dialogue prompt requirements](npc-dialogue-prompt.md): static facts, including homes, routines and authored festival names.
 - #2025: background (Tier 2) inference and mood changes.
 - #1891: task semantics.
 - #2128: short labels for people in clarification choices.

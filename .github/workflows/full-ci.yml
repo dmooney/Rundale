@@ -58,14 +58,7 @@ jobs:
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
+        uses: ./.github/actions/install-tauri-deps
 
       - name: Format check
         run: cargo fmt --all --check
@@ -131,14 +124,7 @@ jobs:
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
+        uses: ./.github/actions/install-tauri-deps
 
       - name: Install cargo-llvm-cov and cargo-nextest
         uses: taiki-e/install-action@v2
@@ -178,14 +164,7 @@ jobs:
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
+        uses: ./.github/actions/install-tauri-deps
 
       - name: Compile workspace
         run: cargo check --workspace --all-targets
@@ -222,6 +201,29 @@ jobs:
       - name: Test limerick-core mobile configuration
         run: cargo test -p limerick-core --no-default-features --features mobile
 
+      # Built on its own, the FFI crate links limerick-core with only the
+      # mobile feature, as the phone does; the workspace nextest run unifies
+      # desktop features into it. The macOS mobile gate no longer runs this.
+      - name: Test limerick-mobile-ffi mobile configuration
+        run: cargo test -p limerick-mobile-ffi
+
+      # A test newly marked #[ignore] would pass silently; only the named
+      # opt-in measurements may be ignored (the mobile gate's former rule).
+      - name: Check that only the expected mobile tests are ignored
+        run: |
+          check() {
+            expected="$1"
+            shift
+            actual="$(cargo test -q "$@" -- --list --ignored | sed -n 's/: test$//p' | sort | paste -sd ' ')"
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::cargo test $* ignores '$actual'; expected '$expected'"
+              return 1
+            fi
+          }
+          check measure_candidate_capture_cost_on_rundale \
+            -p limerick-core --no-default-features --features mobile --lib --tests
+          check tests::addressee_baseline -p limerick-mobile-ffi
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: ubuntu-latest
@@ -244,14 +246,7 @@ jobs:
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
+        uses: ./.github/actions/install-tauri-deps
 
       - name: Build engine once
         run: cargo build -p limerick-engine
