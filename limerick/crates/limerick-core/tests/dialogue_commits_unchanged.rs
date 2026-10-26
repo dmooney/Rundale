@@ -38,8 +38,10 @@ use tokio::sync::Mutex;
 
 /// Nobody by this name lives in the parish: the world has no such person.
 const QUESTION: &str = "Do you know Tadhg Mulvihill?";
+/// Ends in a bare capitalised word, as parsers once trimmed off as a stage
+/// direction: the reply is committed with it.
 const REPLY: &str = "Tadhg Mulvihill? Aye, the cartwright from beyond the bridge, a grand man \
-                     altogether. He'll be at the fair on Saturday.";
+                     altogether. Who sent you? Seamus";
 const ACTION: &str = "tips his cap";
 
 fn reply_json() -> String {
