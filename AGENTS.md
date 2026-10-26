@@ -32,15 +32,15 @@ Do not restore legacy surfaces or content merely because the engine supports the
 
 ## Sources of truth
 
-| Question                                                           | Read                                                                  |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| Product scope, seven milestones, acceptance and Definition of Done | [Product specs](docs/product-specs/README.md)                         |
-| Target mobile architecture and open integration decisions          | [Mobile architecture](docs/agent/mobile-architecture.md)              |
-| Existing engine layout and ownership                               | [Architecture](docs/agent/architecture.md)                            |
-| Build, tests, and available verification commands                  | [Build/test](docs/agent/build-test.md)                                |
-| Detailed invariants, selected by affected subsystem                | [Engineering rules](docs/agent/engineering-rules.md)                  |
-| Debugging and known pitfalls                                       | [Gotchas](docs/agent/gotchas.md), [LEARNINGS.md](LEARNINGS.md)        |
-| Repository navigation                                              | [Codebase map](docs/agent/codebase-map.md), [docs hub](docs/index.md) |
+| Question                                                          | Read                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Product scope, nine milestones, acceptance and Definition of Done | [Product specs](docs/product-specs/README.md)                         |
+| Target mobile architecture and open integration decisions         | [Mobile architecture](docs/agent/mobile-architecture.md)              |
+| Existing engine layout and ownership                              | [Architecture](docs/agent/architecture.md)                            |
+| Build, tests, and available verification commands                 | [Build/test](docs/agent/build-test.md)                                |
+| Detailed invariants, selected by affected subsystem               | [Engineering rules](docs/agent/engineering-rules.md)                  |
+| Debugging and known pitfalls                                      | [Gotchas](docs/agent/gotchas.md), [LEARNINGS.md](LEARNINGS.md)        |
+| Repository navigation                                             | [Codebase map](docs/agent/codebase-map.md), [docs hub](docs/index.md) |
 
 Versioned product specs govern the reset. Technical recommendations remain proposals
 until validated or recorded as decisions. Existing subsystem docs describe reusable
@@ -126,8 +126,15 @@ For a PR that changes what the app ships (`mobile/`, `mods/`, `limerick/crates`,
 `.cargo/`, `bug-report/test/fixtures`), run `just mobile-verify --phase all` on a
 clean checkout of the commit on a Mac, push, then `just mobile-verify-record`.
 Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
-job finds no recorded pass for the PR's input tree, runs the full gate on a
-hosted macOS runner instead, and records it. Run the gate once, after review rounds,
+job finds no recorded pass for the PR's input tree and runs `verify.py --smoke`
+on a hosted macOS runner: every Mac gate but the full UI suites and the Swift
+package suites (CI's Linux "Swift quality" job runs those and the style checks),
+plus a few core-loop UI tests. It records no full pass. Hosted runs pass
+`--skip-time-sensitive`, so tests whose result depends on machine speed
+(`TIME_SENSITIVE_TESTS` in `verify.py`) run only in a local
+`just mobile-verify`; never pass it locally. To prove a change to the UI suites
+before merge, label the PR `mobile-verify-full` and push: that job then runs and records
+the full gate (over an hour on that runner). Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
@@ -226,9 +233,11 @@ not ask for routine release confirmation. Documentation-only changes do not need
 a build.
 
 The TestFlight workflow (`.github/workflows/testflight.yml`) uploads a build on
-every merge to `main` that changes the app. It skips `mobile-verify` when the
-merge commit's input tree has a recorded pass (see the commands section above)
-and runs the full gate itself otherwise. For a build outside that workflow, use
+every merge to `main` that changes the app; CI's required gate passed the PR
+first (a recorded `mobile-verify` pass, or the hosted smoke gate; see the
+commands section above). Its nightly `gate` job then runs the full gate on `main` when no full
+pass is recorded for it, records the pass, and on failure opens or updates a
+"Nightly mobile-verify failed" issue. For a build outside that workflow, use
 `just testflight-update` and its [runbook](mobile/testflight.md); it runs the
 full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
 success alone is not delivery), and report the build number App Store Connect
