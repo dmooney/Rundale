@@ -40,7 +40,6 @@ PHASE2_UI_CLASSES = (
 )
 PHASE3_UI_CLASSES = (
     "RundaleUITests/RundalePhase3UITests",
-    "RundaleUITests/RundalePhase3ArrivalsUITests",
     "RundaleUITests/RundalePhase3ClarificationUITests",
 )
 PHASE4_UI_CLASSES = (
@@ -49,6 +48,41 @@ PHASE4_UI_CLASSES = (
     "RundaleUITests/RundalePhase4NetworkUITests",
     "RundaleUITests/RundalePhase4AccessibilityUITests",
 )
+# The hosted pull-request gate (--smoke) runs these core-loop UI tests in place
+# of the full UI suites, which take most of an hour on a hosted runner and run
+# nightly instead (testflight.yml): launch, a fixture stream and Stop, the engine booting the
+# canonical world, travel by place name, and a save surviving termination.
+SMOKE_UI_TESTS = (
+    "RundaleUITests/RundaleUITests/testLaunchShowsOnlyPrimaryPlayRegions",
+    "RundaleUITests/RundaleUITests/testManualStreamCanBeStoppedWithPartialOutputRetained",
+    "RundaleUITests/RundalePhase2UITests/testPhase2FoundationBootsCanonicalWorldAndPeig",
+    "RundaleUITests/RundalePhase3UITests/testPlaceNameTravelWithoutEndpointInference",
+    "RundaleUITests/RundalePhase4UITests/testDraftAndCommittedTravelSurviveBackgroundAndTermination",
+)
+# Tests whose result depends on the machine's speed: real fixture timers, a
+# slow mock Endpoint racing Stop or a background, a wall-clock budget, or rows
+# and layout settling within a polling window. They pass on a developer's Mac
+# and failed on the hosted macos-26 runner (#2292), so hosted CI passes
+# --skip-time-sensitive and they run only in local `just mobile-verify` runs
+# (owner's decision, #2287).
+TIME_SENSITIVE_TESTS = (
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksStayVisibleAndCompleteWithoutNext",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksWorkWithNativeMultilineComposer",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticOutputPreservesHistoryAndNewTextReturnsToFinalReply",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticStopRetainsExactPartialBeyondNextTimerTicks",
+    "RundaleUITests/RundalePhase1TimerAuditUITests/testLongFixtureTraversesOldestAndNewestWithinInteractionBudget",
+    "RundaleUITests/RundalePhase1AuditUITests/testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply",
+    "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
+    "RundaleTests/TranscriptScrollingTests/testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
+    "RundaleUITests/RundalePhase2DialogueUITests/testPhase2IncrementalChunksUpdateOneDialogueRowBeforeFinal",
+    "RundaleUITests/RundalePhase2RecoveryUITests/testPhase2StopLeavesInterruptedAttemptAndRetryCompletes",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testBackgroundInterruptsStreamAndPreservesNewDraftForRetry",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testTerminationDuringStreamingRecoversOneRequestAndRetriesOnce",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAtSendKeepsOneCommandAndOffersRetry",
+    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAfterTheReplyCommitsKeepsItWithoutRetry",
+    "RundaleUITests/RundaleUITests/testFollowingNewestStartsAtLatestAndTracksComposerResize",
+)
+UI_TEST_BUNDLE = "RundaleUITests"
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 7
@@ -299,13 +333,15 @@ def _command_text(command: Sequence[str]) -> str:
 
 
 def _failure_reason(result: CommandResult, fallback: str) -> str:
+    # A killed command's last output rarely says why it stopped; lead with that.
+    prefix = f"timed out after {result.duration_seconds:.0f}s: " if result.timed_out else ""
     source = result.stderr.strip() or result.stdout.strip()
     if not source:
-        return fallback
+        return prefix + fallback
     reason = " | ".join(line.strip() for line in source.splitlines() if line.strip())
     if len(reason) > 600:
         reason = "…" + reason[-597:]
-    return reason
+    return prefix + reason
 
 
 def _swift_errors(output: str, limit: int = 3) -> list[str]:
@@ -335,6 +371,16 @@ def _under_root(value: Path | None, default: Path, root: Path) -> Path:
 
 def _safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "command"
+
+
+def _timeout_minutes(value: str) -> float:
+    try:
+        minutes = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("timeout must be a number of minutes > 0") from exc
+    if not minutes > 0:
+        raise argparse.ArgumentTypeError("timeout must be a number of minutes > 0")
+    return minutes
 
 
 def _worker_count(value: str) -> int:
@@ -426,14 +472,30 @@ def _select_simulator(
 # Measured on an 18-core M5 Pro: one combined run of every simulator suite took
 # 448 s with 4 workers and 353 s with 6.
 DEFAULT_PARALLEL_WORKERS = 6
+# Longest "Suite.test: message" line summary.txt prints per failed test; CI
+# prints summary.txt to its log, and verify.json keeps the full message.
+FAILURE_MESSAGE_CHARS = 400
 # Returned for a simulator suite queued for the combined run; never recorded.
 DEFERRED = "deferred"
+# Bounds on the evidence kept for failed tests (see `_collect_failure_evidence`).
+# Past EVIDENCE_MAX_TESTS failed tests, only the first get a digest; index.md
+# says how many more the result bundle holds.
+FAILURES_DIR = "failures"
+EVIDENCE_MAX_TESTS = 20
+EVIDENCE_MAX_FILE_BYTES = 3 * 1024 * 1024
+EVIDENCE_MAX_TEST_BYTES = 10 * 1024 * 1024
+EVIDENCE_LOG_TAIL_BYTES = 512 * 1024
+EVIDENCE_TIMELINE_LINES = 80
+# Failed runs whose evidence (and result bundle) survive the next run's prune.
+EVIDENCE_KEPT_RUNS = 3
 
 
-def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
-    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+def _xcresult_case_nodes(
+    tree: Mapping[str, Any],
+) -> list[tuple[str, str, str, Mapping[str, Any]]]:
+    """Return (bundle, class, test, node) for every test case node in an xcresult tree."""
 
-    cases: list[tuple[str, str, str, str]] = []
+    cases: list[tuple[str, str, str, Mapping[str, Any]]] = []
 
     def walk(node: Mapping[str, Any], bundle: str, suite: str) -> None:
         kind = str(node.get("nodeType", ""))
@@ -443,7 +505,7 @@ def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
         elif kind == "Test Suite" and not suite:
             suite = name
         elif kind == "Test Case":
-            cases.append((bundle, suite, name, str(node.get("result", ""))))
+            cases.append((bundle, suite, name, node))
             return
         for child in node.get("children") or ():
             if isinstance(child, Mapping):
@@ -455,6 +517,220 @@ def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
     return cases
 
 
+def _xcresult_cases(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, result) for every test case in an xcresult tree."""
+
+    return [
+        (bundle, suite, name, str(node.get("result", "")))
+        for bundle, suite, name, node in _xcresult_case_nodes(tree)
+    ]
+
+
+def _xcresult_failures(tree: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+    """Return (bundle, class, test, message) for every failure message of a failed case.
+
+    The messages carry the file, line and assertion text, so a CI log shows why a
+    test failed without the result bundle. A case `_case_counts` does not count
+    as failed (passed, skipped, or an XCTExpectFailure) contributes none.
+    """
+
+    return [
+        (bundle, suite, name, message)
+        for bundle, suite, name, node in _xcresult_case_nodes(tree)
+        if _case_counts([str(node.get("result", ""))])["failedTests"]
+        for message in _case_messages(node)
+    ]
+
+
+def _failed_case_nodes(
+    tree: Mapping[str, Any],
+) -> list[tuple[str, str, str, Mapping[str, Any]]]:
+    """Return (bundle, class, test, node) for every case `_case_counts` counts as failed."""
+
+    return [
+        case
+        for case in _xcresult_case_nodes(tree)
+        if _case_counts([str(case[3].get("result", ""))])["failedTests"]
+    ]
+
+
+def _case_messages(node: Mapping[str, Any]) -> list[str]:
+    """The `file:line: text` failure messages nested under a test case node."""
+
+    found = [str(node.get("name", ""))] if node.get("nodeType") == "Failure Message" else []
+    for child in node.get("children") or ():
+        if isinstance(child, Mapping):
+            found += _case_messages(child)
+    return found
+
+
+def _evidence_name(text: str, limit: int = 80) -> str:
+    """A path-safe name for a test or attachment."""
+
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._") or "unnamed"
+    return cleaned[:limit]
+
+
+def _activity_timeline(activities: Mapping[str, Any] | None) -> list[str]:
+    """Flatten `xcresulttool get test-results activities` into indented timeline lines.
+
+    Each line is `+seconds title`, offset from the first activity; a step Xcode
+    ties to a failure ends with `<-- FAILURE`. Only the last
+    EVIDENCE_TIMELINE_LINES lines are kept, the lead-up to the failure.
+    """
+
+    lines: list[str] = []
+    starts: list[float] = []
+
+    def collect(items: Any) -> None:
+        for item in items or ():
+            if isinstance(item, Mapping):
+                if isinstance(item.get("startTime"), (int, float)):
+                    starts.append(float(item["startTime"]))
+                collect(item.get("childActivities"))
+
+    runs = [r for r in (activities or {}).get("testRuns") or () if isinstance(r, Mapping)]
+    for run in runs:
+        collect(run.get("activities"))
+    origin = min(starts) if starts else 0.0
+
+    def walk(items: Any, depth: int) -> None:
+        for item in items or ():
+            if not isinstance(item, Mapping):
+                continue
+            start = item.get("startTime")
+            offset = (
+                f"+{float(start) - origin:7.2f}s" if isinstance(start, (int, float)) else " " * 9
+            )
+            mark = "  <-- FAILURE" if item.get("isAssociatedWithFailure") else ""
+            title = " ".join(str(item.get("title", "")).split())
+            lines.append(f"{offset} {'  ' * depth}{title}{mark}")
+            walk(item.get("childActivities"), depth + 1)
+
+    for run in runs:
+        walk(run.get("activities"), 0)
+    if len(lines) > EVIDENCE_TIMELINE_LINES:
+        dropped = len(lines) - EVIDENCE_TIMELINE_LINES
+        lines = [f"... {dropped} earlier step(s) omitted ..."] + lines[-EVIDENCE_TIMELINE_LINES:]
+    return lines
+
+
+def _attachment_entries(manifest: Any, test_id: str) -> list[Mapping[str, Any]]:
+    """The attachment records `xcresulttool export attachments` listed for one test."""
+
+    entries: list[Mapping[str, Any]] = []
+    if isinstance(manifest, list):
+        for group in manifest:
+            if isinstance(group, Mapping) and group.get("testIdentifier") == test_id:
+                entries += [a for a in group.get("attachments") or () if isinstance(a, Mapping)]
+    return entries
+
+
+def _failure_digest(
+    *,
+    test: str,
+    bundle: str,
+    messages: Sequence[str],
+    details: Mapping[str, Any] | None,
+    timeline: Sequence[str],
+    saved: Sequence[str],
+    skipped: Sequence[str],
+    diagnostics: str | None,
+    notes: Sequence[str] = (),
+) -> str:
+    """The short `failure.md` that points a reader at everything kept for one failed test."""
+
+    device = ""
+    if details and isinstance(details.get("devices"), list) and details["devices"]:
+        first = details["devices"][0]
+        if isinstance(first, Mapping):
+            device = f"{first.get('deviceName', '')} ({first.get('platform', '')} {first.get('osVersion', '')})"
+    out = [f"# Failed: {test}", ""]
+    out.append(f"- Result bundle: `{bundle}` (open with Xcode, or `xcrun xcresulttool`)")
+    if device.strip(" ()"):
+        out.append(f"- Device: {device}")
+    if details and details.get("durationInSeconds") is not None:
+        out.append(f"- Duration: {float(details['durationInSeconds']):.1f}s")
+    out += ["", "## Failure messages", ""]
+    out += [f"- {' '.join(m.split())}" for m in messages] or [
+        "- (none recorded in the result bundle)"
+    ]
+    out += ["", "## Timeline before the failure", ""]
+    out += ["```", *timeline, "```"] if timeline else ["(activities unavailable)"]
+    out += ["", "## Attachments", ""]
+    out += [f"- `{name}`" for name in saved] or ["- (none exported)"]
+    out += [f"- skipped: {entry}" for entry in skipped]
+    if diagnostics:
+        out += ["", "## Runner and crash logs", "", f"- `{diagnostics}`"]
+    if notes:
+        out += ["", "## Notes", ""] + [f"- {note}" for note in notes]
+    return "\n".join(out) + "\n"
+
+
+def _json_output(result: CommandResult) -> Any:
+    """The parsed JSON of a successful command, or None."""
+
+    if result.returncode != 0:
+        return None
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def _copy_tail(source: Path, target: Path, limit: int) -> None:
+    """Copy `source` to `target`, keeping only the last `limit` bytes of a larger file."""
+
+    size = source.stat().st_size
+    if size <= limit:
+        shutil.copyfile(source, target)
+        return
+    with source.open("rb") as handle:
+        handle.seek(size - limit)
+        tail = handle.read()
+    target.write_bytes(f"[first {size - limit} bytes omitted]\n".encode() + tail)
+
+
+def _copy_runner_diagnostics(exported: Path, target: Path) -> list[str]:
+    """Copy the test runner's logs and any crash reports out of an exported diagnostics tree.
+
+    `xcresulttool export diagnostics` writes the whole simulator's logs (over
+    150 MB). Only the test runner's own output (`<Bundle>-<id>/...` folders),
+    testmanagerd's log, and `.ips`/`.crash` reports naming the app, the runner
+    or xctest are worth keeping; the rest stays out. Returns the copied names.
+    """
+
+    copied: list[str] = []
+    for source in sorted(exported.rglob("*")):
+        if not source.is_file():
+            continue
+        parts = source.relative_to(exported).parts
+        # `<TestBundle>-<id>` folders: RundaleUITests-..., RundaleTests-...
+        runner_log = any(re.match(r"[A-Za-z]+Tests-", part) for part in parts[:-1])
+        crash = source.suffix in {".ips", ".crash"} and re.search(
+            r"Rundale|xctest|Runner", source.name, re.IGNORECASE
+        )
+        if not (runner_log or crash or source.name == "testmanagerd.log"):
+            continue
+        # The file name carries the meaning; a short parent keeps names apart.
+        name = _evidence_name(parts[-1], limit=100)
+        if len(parts) > 1:
+            name = f"{_evidence_name(parts[-2], limit=24)}__{name}"
+        target.mkdir(parents=True, exist_ok=True)
+        unique, count = name, 2
+        while unique in copied:
+            unique, count = f"{count}-{name}", count + 1
+        _copy_tail(source, target / unique, EVIDENCE_LOG_TAIL_BYTES)
+        copied.append(unique)
+    return copied
+
+
+def _evidence_summary(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """The part of a failed test's evidence entry that verify.json and summary.txt carry."""
+
+    return {key: entry[key] for key in ("test", "directory", "digest", "files")}
+
+
 def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool:
     """Whether an `-only-testing` selector (bundle, bundle/class or bundle/class/test) names a case."""
 
@@ -464,6 +740,13 @@ def _selected(case: tuple[str, str, str, str], selectors: Sequence[str]) -> bool
         if path[: len(parts)] == parts:
             return True
     return False
+
+
+def _named_case(test: str) -> tuple[str, str, str, str]:
+    """A `bundle/class/test` identifier as an xcresult case, for `_selected`."""
+
+    bundle, cls, name = test.split("/")
+    return bundle, cls, name, ""
 
 
 def _case_counts(results: Sequence[str]) -> dict[str, int]:
@@ -588,8 +871,14 @@ class VerificationRun:
         parallel_workers: int | None = None,
         host_lock: Path | None = None,
         host_lock_wait_seconds: float = HOST_LOCK_WAIT_SECONDS,
+        smoke: bool = False,
+        skip_time_sensitive: bool = False,
     ) -> None:
         self.root = repo_root.resolve()
+        # Every gate but the full UI suites, which SMOKE_UI_TESTS stand in for.
+        self.smoke = smoke
+        # Leaves TIME_SENSITIVE_TESTS out of the combined simulator run.
+        self.skip_time_sensitive = skip_time_sensitive
         # Every worktree's non-fast run (just mobile-verify, release.py, the
         # Dependabot upkeep routine) shares the simulator and the Cargo target.
         self.host_lock = host_lock if host_lock is not None else default_host_lock()
@@ -628,6 +917,11 @@ class VerificationRun:
         self.started_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.run_stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         self.use_cache = use_cache
+        # Failed-test evidence already written, by result bundle.
+        self._failure_evidence: dict[str, list[dict[str, Any]]] = {}
+        # The index.md kept for each bundle that has failure evidence.
+        self._evidence_index: dict[str, str] = {}
+        self._evidence_written = False
         # Shared by every report directory so a custom --report-dir still
         # reuses and contributes passes.
         self.cache_dir = self.root / "mobile" / ".verification" / "cache"
@@ -685,6 +979,241 @@ class VerificationRun:
             }
         )
         return env
+
+    def _evidence_details(
+        self, bundle: str, entries: Sequence[Mapping[str, Any]]
+    ) -> dict[str, Any]:
+        """The record details that point a failed run at its evidence."""
+
+        return {
+            **(
+                {
+                    "failures": [
+                        f"{entry['test']}: {message}"
+                        for entry in entries
+                        for message in entry["messages"]
+                    ],
+                    "failure_evidence": [_evidence_summary(entry) for entry in entries],
+                }
+                if entries
+                else {}
+            ),
+            **(
+                {"failure_evidence_index": self._evidence_index[bundle]}
+                if bundle in self._evidence_index
+                else {}
+            ),
+        }
+
+    def _collect_failure_evidence(
+        self,
+        bundle: str,
+        tree: Mapping[str, Any] | None = None,
+        *,
+        invocation_failed: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Keep the diagnosis of every failed test in `failures/<run>/<test>/`.
+
+        A failure line alone cannot root-cause a flaky UI test, and the result
+        bundle is pruned with the run, so the gate reads the bundle before
+        anything is thrown away. Per failed case it writes `failure.md` (the
+        digest), the exported attachments (failure screenshot, UI hierarchy,
+        short screen recording) within size bounds, and once per run the test
+        runner's logs and crash reports. Returns one entry per case: test,
+        directory, digest, messages. Done once per bundle; later calls reuse it.
+        A bundle whose xcodebuild invocation failed (`invocation_failed`) is kept
+        and given an index even when it lists no failed case (a runner that
+        never started) or cannot be read.
+        """
+
+        if bundle in self._failure_evidence and (
+            bundle in self._evidence_index or not invocation_failed
+        ):
+            return self._failure_evidence[bundle]
+        entries: list[dict[str, Any]] = []
+        self._failure_evidence[bundle] = entries
+        bundle_path = self.root / bundle
+        if tree is None:
+            tree = _json_output(
+                self._execute(
+                    [
+                        "xcrun",
+                        "xcresulttool",
+                        "get",
+                        "test-results",
+                        "tests",
+                        "--path",
+                        bundle,
+                        "--compact",
+                    ]
+                )
+            )
+        run_dir = self.report_dir / FAILURES_DIR / self.run_stamp
+        failed = _failed_case_nodes(tree) if isinstance(tree, Mapping) else []
+        if not failed and isinstance(tree, Mapping) and not invocation_failed:
+            return entries
+        if not failed:
+            if bundle_path.exists():
+                # The tests could not be listed, but the bundle is still the
+                # only evidence: mark the run so the next prune keeps it, and
+                # keep the runner logs.
+                run_dir.mkdir(parents=True, exist_ok=True)
+                self._evidence_written = True
+                diagnostics = self._export_runner_diagnostics(bundle, run_dir)
+                reason = (
+                    "xcresulttool listed no failed test case"
+                    if isinstance(tree, Mapping)
+                    else "xcresulttool could not list the tests"
+                )
+                (run_dir / "index.md").write_text(
+                    f"# Failed run {self.run_stamp}\n\n"
+                    f"{reason} in `{bundle}`; open it in Xcode.\n"
+                    + (f"Runner and crash logs: `{diagnostics}`\n" if diagnostics else ""),
+                    encoding="utf-8",
+                )
+                self._evidence_index[bundle] = _relative(run_dir / "index.md", self.root)
+            return entries
+        assert isinstance(tree, Mapping)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self._evidence_written = True
+        diagnostics = self._export_runner_diagnostics(bundle, run_dir)
+        for case_bundle, suite, name, node in failed[:EVIDENCE_MAX_TESTS]:
+            test_id = str(node.get("nodeIdentifier") or f"{suite}/{name}")
+            directory = run_dir / _evidence_name(f"{suite}.{name.removesuffix('()')}", limit=120)
+            suffix = 2
+            while directory.exists():
+                directory = directory.with_name(f"{directory.name}-{suffix}")
+                suffix += 1
+            directory.mkdir(parents=True)
+            messages = _case_messages(node)
+            notes: list[str] = []
+            base = ["xcrun", "xcresulttool", "get", "test-results"]
+            details = _json_output(
+                self._execute(
+                    [*base, "test-details", "--path", bundle, "--test-id", test_id, "--compact"]
+                )
+            )
+            activities = _json_output(
+                self._execute(
+                    [*base, "activities", "--path", bundle, "--test-id", test_id, "--compact"]
+                )
+            )
+            if activities is None:
+                notes.append("xcresulttool could not read the activity timeline")
+            saved, skipped = self._export_attachments(bundle, test_id, directory, notes)
+            (directory / "failure.md").write_text(
+                _failure_digest(
+                    test=f"{case_bundle}/{suite}/{name}",
+                    bundle=_relative(bundle_path, self.root),
+                    messages=messages,
+                    details=details if isinstance(details, Mapping) else None,
+                    timeline=_activity_timeline(activities),
+                    saved=saved,
+                    skipped=skipped,
+                    diagnostics=diagnostics,
+                    notes=notes,
+                ),
+                encoding="utf-8",
+            )
+            entries.append(
+                {
+                    "case": (case_bundle, suite, name, ""),
+                    "test": f"{suite}.{name}",
+                    "directory": _relative(directory, self.root),
+                    "digest": _relative(directory / "failure.md", self.root),
+                    "files": saved,
+                    "messages": messages,
+                }
+            )
+        index = [f"# Failed tests of run {self.run_stamp}", ""]
+        index += [f"- {e['test']}: `{e['digest']}`" for e in entries]
+        if len(failed) > len(entries):
+            index.append(f"- ... {len(failed) - len(entries)} more failed test(s); see `{bundle}`")
+        (run_dir / "index.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+        self._evidence_index[bundle] = _relative(run_dir / "index.md", self.root)
+        return entries
+
+    def _export_runner_diagnostics(self, bundle: str, run_dir: Path) -> str | None:
+        """Copy the runner logs and crash reports of `bundle` into `run_dir/diagnostics`."""
+
+        with tempfile.TemporaryDirectory(prefix="xcresult-diagnostics-") as scratch:
+            result = self._execute(
+                [
+                    "xcrun",
+                    "xcresulttool",
+                    "export",
+                    "diagnostics",
+                    "--path",
+                    bundle,
+                    "--output-path",
+                    scratch,
+                ]
+            )
+            if result.returncode != 0:
+                return None
+            copied = _copy_runner_diagnostics(Path(scratch), run_dir / "diagnostics")
+        return _relative(run_dir / "diagnostics", self.root) if copied else None
+
+    def _export_attachments(
+        self, bundle: str, test_id: str, directory: Path, notes: list[str]
+    ) -> tuple[list[str], list[str]]:
+        """Export one test's attachments into `directory`; return (saved, skipped) names."""
+
+        saved: list[str] = []
+        skipped: list[str] = []
+        with tempfile.TemporaryDirectory(prefix="xcresult-attachments-") as scratch:
+            result = self._execute(
+                [
+                    "xcrun",
+                    "xcresulttool",
+                    "export",
+                    "attachments",
+                    "--path",
+                    bundle,
+                    "--test-id",
+                    test_id,
+                    "--output-path",
+                    scratch,
+                ]
+            )
+            manifest_path = Path(scratch) / "manifest.json"
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                notes.append(
+                    "xcresulttool exported no attachments"
+                    + (
+                        ""
+                        if result.returncode == 0
+                        else f": {_failure_reason(result, 'export failed')}"
+                    )
+                )
+                return saved, skipped
+            total = 0
+            entries = sorted(
+                _attachment_entries(manifest, test_id), key=lambda a: a.get("timestamp") or 0
+            )
+            for entry in entries:
+                exported = Path(scratch) / str(entry.get("exportedFileName", ""))
+                human = re.sub(
+                    r"_\d+_[0-9A-Fa-f-]{36}", "", str(entry.get("suggestedHumanReadableName", ""))
+                )
+                stem = _evidence_name(Path(human).stem if Path(human).suffix else human)
+                name = stem + (exported.suffix or ".bin")
+                if not exported.is_file():
+                    continue
+                size = exported.stat().st_size
+                if size > EVIDENCE_MAX_FILE_BYTES or total + size > EVIDENCE_MAX_TEST_BYTES:
+                    skipped.append(f"{name} ({size} bytes, over the evidence size bound)")
+                    continue
+                target, count = directory / name, 2
+                while target.exists():
+                    target = directory / f"{Path(name).stem}-{count}{Path(name).suffix}"
+                    count += 1
+                shutil.copyfile(exported, target)
+                total += size
+                saved.append(target.name)
+        return saved, skipped
 
     def _bundle(self, name: str) -> str:
         return _relative(
@@ -1016,6 +1545,11 @@ class VerificationRun:
         phase: int,
         required: bool = True,
     ) -> None:
+        if self.smoke:
+            # CI's Linux Swift lane (`--fast`) runs every package suite on each
+            # pull request; the full gate runs them against Apple's Foundation.
+            self._skip(identifier, name, phase, "--smoke leaves Swift packages to --fast")
+            return
         manifest, tests = package_path / "Package.swift", package_path / "Tests"
         if not manifest.is_file():
             self._missing(
@@ -1246,14 +1780,10 @@ class VerificationRun:
             status, reason = PASSED, None
         self._change(test_record, status, reason, details)
 
-    def _validate_rust_result(
-        self, test_record: dict[str, Any], expected_ignored: Sequence[str] = ()
-    ) -> None:
+    def _validate_rust_result(self, test_record: dict[str, Any]) -> None:
         """Require cargo's test harness to report a non-empty test result.
 
-        An ignored test makes the suite a skip unless the gate names it in
-        `expected_ignored` (an opt-in measurement, say), so a newly ignored
-        test still blocks.
+        An ignored test makes the suite a skip, so a newly ignored test blocks.
         """
 
         output = self.results[test_record["id"]].output
@@ -1274,7 +1804,7 @@ class VerificationRun:
         failed = sum(int(match.group(2)) for match in matches)
         ignored = sum(int(match.group(3)) for match in matches)
         ignored_names = re.findall(r"^test (\S+) \.\.\. ignored", output, re.M)
-        unexpected = [name for name in ignored_names if name not in expected_ignored]
+        unexpected = list(ignored_names)
         if len(ignored_names) != ignored:
             unexpected.append(f"{ignored - len(ignored_names)} unnamed")
         executed = passed + failed
@@ -1283,7 +1813,6 @@ class VerificationRun:
             "passed_tests": passed,
             "failed_tests": failed,
             "ignored_tests": ignored,
-            "expected_ignored": [name for name in ignored_names if name in expected_ignored],
             "result_lines": len(matches),
             "toolchain": RUST_TOOLCHAIN,
         }
@@ -1308,7 +1837,6 @@ class VerificationRun:
         package: str,
         cargo_args: Sequence[str] = (),
         phase: int = 2,
-        expected_ignored: Sequence[str] = (),
     ) -> None:
         command = [
             "rustup",
@@ -1343,7 +1871,7 @@ class VerificationRun:
             },
         )
         if record["status"] == PASSED:
-            self._validate_rust_result(record, expected_ignored)
+            self._validate_rust_result(record)
 
     def _mobile_dependency_graph(self) -> None:
         command = [
@@ -1452,8 +1980,23 @@ class VerificationRun:
         only_testing: str | Sequence[str] | None = None,
         skip_testing: Sequence[str] = (),
         summary_identifier: str | None = None,
+        smoke_ui: bool = False,
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
+        if self.smoke and destination is not None and not is_physical and not smoke_ui:
+            # --smoke keeps a suite's unit test classes and leaves its UI
+            # classes to the full run; SMOKE_UI_TESTS run as their own suite.
+            requested = [only_testing] if isinstance(only_testing, str) else only_testing or []
+            kept = [s for s in requested if s.split("/")[0] != UI_TEST_BUNDLE]
+            identifier = identifier or "ios-simulator-tests"
+            name = name or "iOS simulator XCTest/XCUITest suite"
+            if not kept:
+                return self._skip(
+                    identifier, name, phase, "--smoke leaves UI suites to the full run"
+                )
+            if len(kept) < len(requested):
+                name = f"{name} (unit test classes; --smoke)"
+            only_testing = kept
         target_kind = (
             "iphoneos" if destination is None else ("device" if is_physical else "simulator")
         )
@@ -1533,6 +2076,11 @@ class VerificationRun:
                     if isinstance(only_testing, str)
                     else list(only_testing or []),
                     "skip_testing": list(skip_testing),
+                    **(
+                        {"skip_time_sensitive": True}
+                        if self.skip_time_sensitive and destination is not None
+                        else {}
+                    ),
                     "simulator": None
                     if simulator is None
                     else {
@@ -1588,6 +2136,11 @@ class VerificationRun:
             app_identity = self._built_app_identity(self.root / derived)
             if app_identity:
                 record.setdefault("details", {}).update(app_identity)
+        elif destination is not None and not is_physical and (self.root / bundle).exists():
+            # xcodebuild failed: its tests may have failed, and nothing else
+            # validates this bundle, so read the evidence now.
+            evidence = self._collect_failure_evidence(bundle, invocation_failed=True)
+            record.setdefault("details", {}).update(self._evidence_details(bundle, evidence))
         return record
 
     def _run_deferred_simulator_suites(self) -> None:
@@ -1616,8 +2169,26 @@ class VerificationRun:
             if part == "-resultBundlePath":
                 next(parts)
                 command.append(bundle)
+        skipped = [
+            test
+            for test in TIME_SENSITIVE_TESTS
+            if self.skip_time_sensitive and _selected(_named_case(test), selectors)
+        ]
         at = command.index("-derivedDataPath")
-        command[at:at] = [f"-only-testing:{selector}" for selector in selectors]
+        command[at:at] = [f"-only-testing:{selector}" for selector in selectors] + [
+            f"-skip-testing:{test}" for test in skipped
+        ]
+        if skipped:
+            self._record(
+                identifier="time-sensitive-tests",
+                name="Time-sensitive simulator tests",
+                phase=pending[0]["phase"],
+                status=SKIPPED,
+                required=False,
+                kind="automated",
+                reason="--skip-time-sensitive leaves these to local runs",
+                details={"tests": skipped},
+            )
         run = self._run(
             identifier="ios-simulator-combined-run",
             name="Combined iOS simulator test run",
@@ -1637,6 +2208,8 @@ class VerificationRun:
             ["xcrun", "xcresulttool", "get", "test-results", "tests", "--path", bundle, "--compact"]
         )
         cases: list[tuple[str, str, str, str]] | None = None
+        failures: list[tuple[str, str, str, str]] = []
+        evidence: list[dict[str, Any]] = []
         unreadable = _failure_reason(tree, "xcresulttool could not read the combined result bundle")
         if tree.returncode == 0:
             try:
@@ -1646,8 +2219,16 @@ class VerificationRun:
             else:
                 if isinstance(parsed, Mapping):
                     cases = _xcresult_cases(parsed)
+                    failures = _xcresult_failures(parsed)
+                    # Read the failed tests' evidence before anything else can discard it.
+                    evidence = self._collect_failure_evidence(
+                        bundle, parsed, invocation_failed=run["status"] != PASSED
+                    )
                 else:
                     unreadable = "xcresulttool returned a JSON value that is not an object"
+        if cases is None:
+            # Unreadable results: still keep the bundle and the runner logs.
+            self._collect_failure_evidence(bundle, invocation_failed=run["status"] != PASSED)
         app_identity = (
             self._built_app_identity(self.root / pending[0]["derived"])
             if run["status"] == PASSED
@@ -1661,8 +2242,32 @@ class VerificationRun:
             else:
                 counts = _case_counts([c[3] for c in cases if _selected(c, spec["selectors"])])
                 status, reason = _result_status(counts)
+                # A selector naming one test (bundle/class/test) must match a
+                # case it ran: a renamed or deleted test would otherwise drop
+                # out of the suite silently.
+                missing = [
+                    selector
+                    for selector in spec["selectors"]
+                    if selector.count("/") == 2 and not any(_selected(c, [selector]) for c in cases)
+                ]
+                if status == PASSED and missing:
+                    status, reason = FAILED, f"selected test(s) did not run: {', '.join(missing)}"
                 if status == PASSED and run["status"] != PASSED:
                     status, reason = FAILED, f"the combined run failed: {run.get('reason')}"
+            messages = [
+                f"{failure[1]}.{failure[2]}: {failure[3]}"
+                for failure in failures
+                if _selected(failure, spec["selectors"])
+            ]
+            if status != PASSED:
+                # Whatever blocked the suite (an empty tree, a test that never
+                # ran), keep the bundle for the next prune.
+                self._collect_failure_evidence(bundle, invocation_failed=True)
+            suite_evidence = [
+                _evidence_summary(entry)
+                for entry in evidence
+                if _selected(entry["case"], spec["selectors"])
+            ]
             details: dict[str, Any] = {
                 "scheme": self.scheme,
                 "destination": spec["destination"],
@@ -1671,6 +2276,13 @@ class VerificationRun:
                 "result_bundle": bundle,
                 "combined_run": "ios-simulator-combined-run",
                 **(counts or {}),
+                **({"failures": messages} if messages else {}),
+                **({"failure_evidence": suite_evidence} if suite_evidence else {}),
+                **(
+                    {"failure_evidence_index": self._evidence_index[bundle]}
+                    if status != PASSED and bundle in self._evidence_index
+                    else {}
+                ),
                 **({"cache_key": spec["key"]} if spec["key"] else {}),
                 **(app_identity if status == PASSED else {}),
             }
@@ -2090,6 +2702,31 @@ class VerificationRun:
         phase: int | None = None,
         summary_identifier: str = "ios-simulator-test-results",
     ) -> None:
+        self._check_result(test_record, phase=phase, summary_identifier=summary_identifier)
+        bundle = str(test_record.get("details", {}).get("result_bundle", ""))
+        if (
+            test_record["status"] != PASSED
+            and bundle
+            and bundle not in self._evidence_index
+            and (self.root / bundle).exists()
+        ):
+            # Validation failed before it could name a failed test (unreadable
+            # or malformed results): the bundle is still the evidence to keep.
+            evidence = self._collect_failure_evidence(bundle, invocation_failed=True)
+            self._change(
+                test_record,
+                test_record["status"],
+                None,
+                self._evidence_details(bundle, evidence),
+            )
+
+    def _check_result(
+        self,
+        test_record: dict[str, Any],
+        *,
+        phase: int | None = None,
+        summary_identifier: str = "ios-simulator-test-results",
+    ) -> None:
         result_phase = phase if phase is not None else int(test_record["phase"])
         if test_record.get("details", {}).get("cache", {}).get("reused"):
             # The run that produced this pass validated its xcresult first.
@@ -2178,7 +2815,12 @@ class VerificationRun:
             self._change(summary_record, FAILED, reason, counts)
             return
         result_status, result_reason = _result_status(counts, summary.get("result"))
-        self._change(test_record, result_status, result_reason, counts)
+        test_details: dict[str, Any] = dict(counts)
+        if counts["failedTests"]:
+            # Read the failed tests' evidence before anything else can discard it.
+            evidence = self._collect_failure_evidence(bundle)
+            test_details = {**counts, **self._evidence_details(bundle, evidence)}
+        self._change(test_record, result_status, result_reason, test_details)
         self._change(summary_record, result_status, result_reason, counts)
 
     def _simulator_tests(self, xcodegen_ok: bool, ready: bool) -> None:
@@ -2284,7 +2926,6 @@ class VerificationRun:
                 *PHASE2_UI_CLASSES,
                 "RundaleUITests/RundaleSceneUITests",
                 "RundaleUITests/RundaleCommandsUITests",
-                "RundaleUITests/RundaleFailureLinesUITests",
                 "RundaleTests/RundaleEngineLifecycleTests",
                 "RundaleTests/RundaleBugReportTests",
             ],
@@ -2442,28 +3083,13 @@ class VerificationRun:
         reuse_phase1_native_setup: bool,
         rust_packaging_already_run: bool = False,
     ) -> None:
-        # The shared engine in the configuration the phone links: the turn
-        # API, intent and dialogue Endpoint calls, and save round trips.
-        self._cargo_test(
-            identifier="limerick-core-mobile-tests",
-            name="Limerick core portable (mobile feature) tests",
-            package="limerick-core",
-            # Unit and integration tests; the crate's doc examples are not
-            # tests of the portable engine.
-            cargo_args=("--no-default-features", "--features", "mobile", "--lib", "--tests"),
-            expected_ignored=("measure_candidate_capture_cost_on_rundale",),
-        )
+        # The other Rust crates' tests build for the host, not iOS, so CI runs
+        # them on Linux (full-ci.yml). limerick-persistence stays: its save
+        # paths and kernel save lock have Darwin-only code and semantics.
         self._cargo_test(
             identifier="limerick-persistence-tests",
             name="Limerick save format, journal, and kernel save-lock tests",
             package="limerick-persistence",
-        )
-        self._cargo_test(
-            identifier="limerick-mobile-ffi-tests",
-            name="Limerick mobile FFI tests",
-            package="limerick-mobile-ffi",
-            # The System 1 comparison's opt-in baseline harness (#2220).
-            expected_ignored=("tests::addressee_baseline",),
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:
@@ -2517,14 +3143,6 @@ class VerificationRun:
         self._phase2_physical()
 
     def _phase3(self, *, reuse_native_setup: bool) -> None:
-        # mods/rundale is the canonical tiny world (#2084); its world sheet
-        # is the oracle for places, people, and routes.
-        self._cargo_test(
-            identifier="limerick-world-sheet-tests",
-            name="Canonical tiny-world sheet tests",
-            package="limerick-engine",
-            cargo_args=("--test", "world_sheet"),
-        )
         if not reuse_native_setup:
             self._mobile_dependency_graph()
             self._mobile_rust_packaging()
@@ -2692,6 +3310,41 @@ class VerificationRun:
                 reason=reason,
             )
 
+    def _smoke_simulator_tests(self) -> None:
+        identifier, name = "ios-simulator-smoke-tests", "Core-loop UI smoke tests (--smoke)"
+        xcodegen_ok = any(
+            record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records
+        )
+        ready = self.simulator is not None and any(
+            (record["id"] == "simulator-bootstatus" and record["status"] == PASSED)
+            or (
+                record["id"] == "simulator-boot"
+                and record["status"] == SKIPPED
+                and record["kind"] == "infrastructure"
+            )
+            for record in self.records
+        )
+        if not xcodegen_ok or not ready or self.simulator is None:
+            self._skip(
+                identifier,
+                name,
+                1,
+                "blocked because the native project or simulator is not ready",
+                required=True,
+            )
+            return
+        record = self._xcodebuild(
+            "smoke-simulator",
+            f"platform=iOS Simulator,id={self.simulator['udid']}",
+            identifier=identifier,
+            name=name,
+            only_testing=SMOKE_UI_TESTS,
+            summary_identifier=f"{identifier}-results",
+            smoke_ui=True,
+        )
+        if record["status"] == PASSED:
+            self._validate_result(record, phase=1, summary_identifier=f"{identifier}-results")
+
     def _phase1(self) -> None:
         self._swift_tests()
         xcodegen_ok = self._xcodegen()
@@ -2751,10 +3404,12 @@ class VerificationRun:
         }
 
     def _fast(self) -> None:
-        """The pull-request CI lane: Swift style and the three Swift packages.
+        """Swift style and the three Swift packages: CI's Linux Swift lane.
 
-        It needs no Xcode project, Rust build, or simulator, so a hosted macOS
-        runner can run it on every mobile change.
+        It needs no Xcode project, Rust build, or simulator, and runs on Linux
+        as on macOS. The phase gates leave out the style checks, and --smoke
+        the packages too; the full gate keeps the packages for Apple's
+        Foundation.
         """
 
         self._swift_style(phase=1)
@@ -2776,8 +3431,8 @@ class VerificationRun:
 
     def _phases(self, phase: int | None) -> None:
         self._device_preflight()
-        if phase is None or phase in IMPLEMENTED_PHASES:
-            self._swift_style(phase=1 if phase is None else phase)
+        # SwiftLint and SwiftFormat check source text, so they run only in
+        # --fast (CI's Linux Swift lane), not on a Mac.
         if phase is None or phase == 4:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
@@ -2790,6 +3445,8 @@ class VerificationRun:
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            if self.smoke:
+                self._smoke_simulator_tests()
             self._run_deferred_simulator_suites()
             self._optional_physical_suites()
             if phase is None:
@@ -2815,6 +3472,14 @@ class VerificationRun:
             raise ValueError("device opt-in suites require --phase 4 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
+        if self.smoke and (fast or phase is not None or self.physical_device is not None):
+            raise ValueError("--smoke runs every phase on the simulator, without --fast")
+        if self.skip_time_sensitive and (
+            fast or phase not in {None, 4} or self.physical_device is not None
+        ):
+            raise ValueError(
+                "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+            )
         self.report_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as held:
             if not fast:  # --fast runs no simulator suite and builds no Rust
@@ -2864,7 +3529,13 @@ class VerificationRun:
         report = {
             "schema_version": 1,
             "tool": "rundale-mobile-verify",
-            "phase": "fast" if fast else "all" if phase is None else str(phase),
+            "phase": "fast"
+            if fast
+            else "smoke"
+            if self.smoke
+            else "all"
+            if phase is None
+            else str(phase),
             "implemented_phases": list(IMPLEMENTED_PHASES),
             "started_at": self.started_at,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -2893,7 +3564,9 @@ class VerificationRun:
         }
         self._write_reports(report)
         self._store_cached_passes(self.report_dir / "verify.json")
-        if phase is None and not fast and report["status"] == PASSED:
+        # A smoke pass leaves the UI suites untested, so it never stands in
+        # for a full pass.
+        if phase is None and not fast and not self.smoke and report["status"] == PASSED:
             self._store_full_pass(report)
         return report
 
@@ -2934,6 +3607,7 @@ class VerificationRun:
                 {
                     "input_tree": tree,
                     "content_key": self._content_key_value,
+                    "skipped_time_sensitive": self.skip_time_sensitive,
                     "started_at": report["started_at"],
                     "finished_at": report["finished_at"],
                     "summary": report["summary"],
@@ -2959,6 +3633,19 @@ class VerificationRun:
         """
 
         stamp = re.compile(r"(\d{8}T\d{12}Z)")
+        # A failed run's result bundle is the evidence behind its failures/
+        # folder: keep the newest few such runs whole, drop the older ones.
+        failed_runs = sorted(
+            (
+                entry
+                for entry in (self.report_dir / FAILURES_DIR).glob("*")
+                if entry.is_dir() and stamp.fullmatch(entry.name)
+            ),
+            key=lambda entry: entry.name,
+        )
+        kept_failed = {entry.name for entry in failed_runs[-EVIDENCE_KEPT_RUNS:]}
+        for entry in failed_runs[:-EVIDENCE_KEPT_RUNS]:
+            shutil.rmtree(entry, ignore_errors=True)
         entries: dict[str, list[Path]] = {}
         for name in ("DerivedData", "xcresults", "swift-scratch", "device"):
             folder = self.report_dir / name
@@ -2975,6 +3662,9 @@ class VerificationRun:
             if run in in_use:
                 continue
             for entry in paths:
+                # A kept failed run keeps only its result bundle, not its build products.
+                if run in kept_failed and entry.parent.name == "xcresults":
+                    continue
                 if entry.is_dir():
                     shutil.rmtree(entry, ignore_errors=True)
                 else:
@@ -3032,12 +3722,34 @@ class VerificationRun:
                 f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
                 "(details.cache in the JSON report; --no-cache reruns them)"
             )
-        lines += [
-            f"- {r['status'].upper()}: {r['name']}"
-            + (f" — {r['reason']}" if r.get("reason") else "")
-            for r in self.records
-            if r["blocking"] or r["status"] == FAILED
-        ]
+        if self._evidence_written:
+            lines += [
+                "",
+                f"FAILURE EVIDENCE: {FAILURES_DIR}/{self.run_stamp}/index.md under the report "
+                f"directory ({_relative(self.report_dir / FAILURES_DIR / self.run_stamp, self.root)}).",
+                "Read each failure.md, its screenshot and UI hierarchy, and the .xcresult, and "
+                "diagnose the failure before re-running or calling a test flaky.",
+                "",
+            ]
+        for r in self.records:
+            if not (r["blocking"] or r["status"] == FAILED):
+                continue
+            lines.append(
+                f"- {r['status'].upper()}: {r['name']}"
+                + (f" — {r['reason']}" if r.get("reason") else "")
+            )
+            if index := r.get("details", {}).get("failure_evidence_index"):
+                lines.append(f"    evidence index: {index}")
+            for kept in r.get("details", {}).get("failure_evidence", ()):
+                lines.append(
+                    f"    evidence: {kept['digest']} ({', '.join(kept['files']) or 'no attachments'})"
+                )
+            for failure in r.get("details", {}).get("failures", ()):
+                # One log line each; verify.json keeps the full text.
+                line = " ".join(failure.split())
+                if len(line) > FAILURE_MESSAGE_CHARS:
+                    line = line[: FAILURE_MESSAGE_CHARS - 1] + "…"
+                lines.append(f"    {line}")
         lines += ["", f"JSON: {report['reports']['json']}", f"JUnit: {report['reports']['junit']}"]
         (self.report_dir / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -3058,6 +3770,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--fast",
         action="store_true",
         help="run only SwiftLint, SwiftFormat, and the Swift package tests (the PR CI lane)",
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help=(
+            "run every gate but the full UI suites and the Swift packages (--fast "
+            "runs those), plus a few core-loop UI tests (the hosted PR gate); "
+            "never records a full pass"
+        ),
+    )
+    parser.add_argument(
+        "--skip-time-sensitive",
+        action="store_true",
+        help=(
+            "leave the tests whose result depends on machine speed "
+            "(TIME_SENSITIVE_TESTS) to local runs; for hosted CI only"
+        ),
     )
     parser.add_argument("--project-spec", type=Path)
     parser.add_argument("--project", type=Path)
@@ -3106,6 +3835,16 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default {DEFAULT_PARALLEL_WORKERS}, or RUNDALE_PARALLEL_WORKERS)"
         ),
     )
+    parser.add_argument(
+        "--command-timeout",
+        type=_timeout_minutes,
+        default=os.environ.get("RUNDALE_COMMAND_TIMEOUT_MINUTES", "30"),
+        metavar="MINUTES",
+        help=(
+            "stop any single build or test command after this long "
+            "(default 30, or RUNDALE_COMMAND_TIMEOUT_MINUTES)"
+        ),
+    )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument(
@@ -3126,6 +3865,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("device opt-in suites require --phase 4 or all")
     if args.fast and (args.phase is not None or args.device):
         parser.error("--fast runs no phase or device suites")
+    if args.smoke and (args.fast or args.phase is not None or args.device):
+        parser.error("--smoke runs every phase on the simulator, without --fast")
+    if args.skip_time_sensitive and (args.fast or args.phase not in {None, 4} or args.device):
+        parser.error(
+            "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+        )
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(
         root,
@@ -3144,6 +3889,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         configuration=args.configuration,
         use_cache=args.use_cache,
         parallel_workers=args.parallel_workers,
+        command_timeout_seconds=args.command_timeout * 60,
+        smoke=args.smoke,
+        skip_time_sensitive=args.skip_time_sensitive,
     )
     # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
     # group before the report-directory lock is released.

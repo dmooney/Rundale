@@ -3,7 +3,7 @@ import XCTest
 /// Opt-in endurance coverage for a real local world session. The default run
 /// is twenty minutes; RUNDALE_SOAK_SMOKE=1 selects a short smoke run.
 @MainActor
-final class RundaleSoakUITests: XCTestCase {
+final class RundaleSoakUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {

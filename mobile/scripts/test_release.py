@@ -446,6 +446,42 @@ class ReleaseTests(unittest.TestCase):
         for command in signing:
             self.assertEqual(command[command.index("-authenticationKeyID") + 1], "KEYID")
 
+    def test_archive_signs_automatically_without_a_distribution_profile(self):
+        self.assertEqual(release.archive_signing_args({}), ["CODE_SIGN_STYLE=Automatic"])
+
+    def test_archive_signs_manually_with_a_named_distribution_profile(self):
+        self.assertEqual(
+            release.archive_signing_args({"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}),
+            [
+                "CODE_SIGN_STYLE=Manual",
+                "CODE_SIGN_IDENTITY=Apple Distribution",
+                "RUNDALE_DISTRIBUTION_PROFILE=CI App Store",
+            ],
+        )
+
+    def test_both_archives_sign_with_the_named_distribution_profile(self):
+        env = {"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.dict(release.os.environ, env),
+            patch.object(release, "release_build_number", return_value=(1259, False)),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+        ):
+            runner.testflight()
+            runner.archive()
+        archives = [c for c in self.commands if "archive" in c]
+        self.assertEqual(len(archives), 2)
+        for command in archives:
+            self.assertIn("CODE_SIGN_STYLE=Manual", command)
+            self.assertNotIn("CODE_SIGN_STYLE=Automatic", command)
+            self.assertIn("RUNDALE_DISTRIBUTION_PROFILE=CI App Store", command)
+        # The exports keep automatic App Store Connect signing.
+        exports = [c for c in self.commands if "-exportArchive" in c]
+        self.assertEqual(len(exports), 2)
+        for command in exports:
+            self.assertFalse(any(part.startswith("CODE_SIGN_STYLE=") for part in command))
+
     def test_testflight_orders_checks_archive_validation_then_upload(self):
         runner = release.Release(self.paths, runner=self.runner)
         with (

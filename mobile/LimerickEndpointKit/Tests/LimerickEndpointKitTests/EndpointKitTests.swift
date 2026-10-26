@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import XCTest
 @testable import LimerickEndpointKit
 
@@ -479,6 +482,10 @@ final class EndpointKitTests: XCTestCase {
             var validator = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
             XCTAssertThrowsError(try validator.accept(try rawEvent(terminal: terminal)))
         }
+        // A float that is an exact integer is a sequence number, so the float
+        // check must tell it from a boolean rather than reject every non-integer.
+        var exact = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
+        XCTAssertNoThrow(try exact.accept(try rawEvent(sequence: 1.0 as Any)))
     }
 
     func testOversizeAndURLPolicy() throws {

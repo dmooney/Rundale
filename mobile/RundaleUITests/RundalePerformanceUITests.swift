@@ -3,7 +3,7 @@ import XCTest
 /// Opt-in Release-style UI measurements. Results are attached as timing
 /// evidence; the suite intentionally does not invent device-specific limits.
 @MainActor
-final class RundalePerformanceUITests: XCTestCase {
+final class RundalePerformanceUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {
