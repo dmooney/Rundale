@@ -19,7 +19,6 @@ import {
 	worldState,
 	playerSubmittedCount,
 	addReaction,
-	replaceStreamEntryContent,
 } from '../stores/game';
 import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
@@ -501,10 +500,9 @@ describe('ChatPanel', () => {
 
 				textLog.update((entries) => [{ ...entries[0], stream_turn_id: 7 }]);
 				await drainScrollEffects();
-				replaceStreamEntryContent(
-					7,
-					'The canonical corrected reply is longer.',
-				);
+				textLog.update((entries) => [
+					{ ...entries[0], content: 'The canonical reply is longer.' },
+				]);
 				await drainScrollEffects();
 
 				addReaction('reply-1', '👍', 'player');

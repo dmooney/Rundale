@@ -79,13 +79,6 @@ export interface StreamManager {
 	 *  replaces any paced prefix with the complete validated text; failures
 	 *  discard every partial and surface retry guidance. */
 	completeTurn: (payload: StreamTurnEndPayload) => void;
-	/** Applies the legacy post-guard correction without allowing a parked NPC
-	 * turn to bypass single-speaker reveal ordering. */
-	correctTurn: (
-		turnId: number,
-		correctedText: string,
-		messageId?: string,
-	) => void;
 	startTurnPumpIfNeeded: (turn: PendingNpcTurn) => void;
 	/** Immediately reveals the full text of every in-flight streamed NPC line:
 	 *  drains each pending turn's buffer into its textLog entry, cancels the
@@ -374,28 +367,6 @@ export function createStreamManager(): StreamManager {
 		else maybeFinishNpcStream();
 	}
 
-	function correctTurn(
-		turnId: number,
-		correctedText: string,
-		messageId?: string,
-	) {
-		const turn = findPendingTurn(turnId);
-		if (turn && turn.turnId !== activeTurnId) {
-			stopTurnPump(turn);
-			turn.messageId = turn.messageId ?? messageId;
-			turn.buffer = correctedText;
-			turn.complete = true;
-			return;
-		}
-		completeTurn({
-			turn_id: turnId,
-			status: 'completed',
-			message_id: messageId ?? turn?.messageId,
-			source: turn?.source,
-			final_text: correctedText,
-		});
-	}
-
 	function nextParkedTurnId(): number | null {
 		const iter = pendingNpcTurns.keys().next();
 		return iter.done ? null : iter.value;
@@ -562,7 +533,6 @@ export function createStreamManager(): StreamManager {
 		maybeFinishNpcStream,
 		finalizePendingTurn,
 		completeTurn,
-		correctTurn,
 		startTurnPumpIfNeeded,
 		flushAll,
 		setPendingEndHints,

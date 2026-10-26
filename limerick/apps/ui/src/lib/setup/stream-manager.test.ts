@@ -479,17 +479,12 @@ describe('createStreamManager — authoritative turn finalization (#1855, #1857)
 			source: 'Nora',
 			final_text: 'Second speaker waits with complete canonical text.',
 		});
-		sm.correctTurn(
-			2,
-			'Second speaker waits with complete corrected text.',
-			'msg-2',
-		);
 
 		expect(get(textLog).find((entry) => entry.id === 'msg-2')?.content).toBe(
 			'',
 		);
 		expect(sm.findPendingTurn(2)?.buffer).toBe(
-			'Second speaker waits with complete corrected text.',
+			'Second speaker waits with complete canonical text.',
 		);
 	});
 });
