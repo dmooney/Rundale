@@ -30,7 +30,7 @@ else:
 
 Result = upkeep.Result
 REPO = "owner/repo"
-CLAUDE_FIX = "fix: adapt to the bump\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+CLAUDE_FIX = "fix: adapt to the bump"
 
 RELEASE = """
 on:
@@ -319,16 +319,13 @@ class UpkeepCase(unittest.TestCase):
 
 class PureLogicTests(unittest.TestCase):
     def test_gatekeeper_is_never_the_author_family(self) -> None:
-        bump = ["chore(deps): bump x"]
+        bump = {"dependabot[bot]"}
         self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=False), "claude")
         self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=True), "codex")
-        self.assertEqual(
-            upkeep.gatekeeper_family([*bump, CLAUDE_FIX], routine_fixed=False), "codex"
-        )
-        codex = "fix: y\n\nCo-Authored-By: Codex <noreply@openai.com>"
-        self.assertEqual(upkeep.gatekeeper_family([*bump, codex], routine_fixed=False), "claude")
-        self.assertIsNone(upkeep.gatekeeper_family([codex], routine_fixed=True))
-        self.assertIsNone(upkeep.gatekeeper_family([codex, CLAUDE_FIX], routine_fixed=False))
+        # A fix from an earlier run has a non-Dependabot author, possibly one
+        # GitHub cannot match to a login.
+        self.assertEqual(upkeep.gatekeeper_family({*bump, ""}, routine_fixed=False), "codex")
+        self.assertEqual(upkeep.gatekeeper_family({*bump, "dmooney"}, routine_fixed=False), "codex")
 
     def test_latest_verdict_takes_the_newest_marker(self) -> None:
         reviews = [
@@ -581,6 +578,17 @@ class FlowTests(UpkeepCase):
         self.world.checks[33] = [[{"name": "CI gate", "bucket": "pending", "link": "l"}]]
         self.assertEqual(self.outcome(33).status, "timeout")
         self.assertEqual(self.world.ran("claude"), [])
+
+    def test_a_base_merge_keeps_the_claude_gatekeeper(self) -> None:
+        self.world.add(42)
+        self.world.commits[42].append(
+            {"commit": {"message": "Merge"}, "author": {"login": "dmooney"}, "parents": [{}, {}]}
+        )
+        self.world.gatekeeper[42] = self.world.approve_and_merge(42)
+        outcome = self.outcome(42)
+        self.assertEqual(outcome.status, "merged")
+        self.assertIn("(claude)", outcome.detail)
+        self.assertEqual(self.world.ran("codex"), [])
 
     def test_conflict_asks_dependabot_to_rebase_or_recreate(self) -> None:
         self.world.add(40, behind=1)

@@ -666,8 +666,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation else { return }
                 do {
                     let failure = Self.playerFacingFailure(error)
-                    // An intent failure is absorbed by the engine (the turn
-                    // continues as unclassified input), so record every
+                    // The engine absorbs only a garbled intent answer (the
+                    // turn continues as unclassified input), so record every
                     // Endpoint failure here for diagnosis. No credentials
                     // are part of these errors.
                     Self.log.error("""
@@ -701,9 +701,14 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     /// Why a model call failed: the reason the engine shows the mod's line
     /// for, and a diagnostic for the log (never shown to the player).
-    private static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
+    static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
+        }
+        // The connection's idle timeout means the call ran out of time, not
+        // that the device is offline (issue 1825).
+        if let urlError = error as? URLError, urlError.code == .timedOut {
+            return PlayerFacingFailure(.timedOut, .timedOut, "the response took too long")
         }
         guard let endpoint = error as? LimerickEndpointError else {
             return PlayerFacingFailure(.transport, .offline, "the response service could not be reached")
@@ -871,7 +876,7 @@ private struct Phase2Projection: Codable, Sendable {
     let anchorEventCursor: EventCursor?
 }
 
-private struct PlayerFacingFailure: Sendable {
+struct PlayerFacingFailure: Sendable {
     let kind: LimerickRuntimeFailureKind
     /// Why it failed, as the player hears it (the mod's line for it).
     let reason: LimerickFailureReason
@@ -885,7 +890,7 @@ private struct PlayerFacingFailure: Sendable {
     }
 }
 
-private struct EndpointReportedFailure: Error, Sendable {
+struct EndpointReportedFailure: Error, Sendable {
     private struct Payload: Decodable {
         let code: String?
     }
@@ -1028,6 +1033,17 @@ final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable 
                     )
                     let input = identities.input.lowercased()
                     if identities.role == "player_intent" {
+                        // "busy once" rate-limits the intent call on the first
+                        // attempt only, so Retry can complete (issue 1825).
+                        if input.contains("busy once"),
+                           self.claimInjectedFailure(mode: "busy", requestID: identities.requestID) {
+                            continuation.yield(.response(statusCode: 429, headers: ["content-type": "application/json"]))
+                            continuation.yield(.bytes(try JSONSerialization.data(withJSONObject: [
+                                "error": ["code": "RATE_LIMITED", "message": "The Endpoint test is rate limited."]
+                            ])))
+                            continuation.finish()
+                            return
+                        }
                         // The intent Endpoint is a decision and does not stream:
                         // its JSON route returns the output object, chosen from
                         // the options the engine offered, as Jev would answer.

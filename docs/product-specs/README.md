@@ -4,7 +4,7 @@ This directory contains the local, versioned working copies of the two product d
 
 Changes to these specs go through normal versioned repository review. The technical vision is subordinate to the Product & Technical Specification: its mechanisms and defaults are proposals to validate where the product spec leaves an implementation choice, and it cannot waive or replace a product requirement.
 
-Since import, the product specification has been amended in the repository by owner decision. The 2026-10-06 review renamed it to `mobile-product-technical-spec.md`, reorganized §17 into seven milestones (Existing features usable, Full village, Release), recorded the physical-iPhone waiver, and removed restored items from §15. The Google Docs are no longer current for those sections.
+Since import, the product specification has been amended in the repository by owner decision. The 2026-10-06 review renamed it to `mobile-product-technical-spec.md`, reorganized §17 into seven milestones (Existing features usable, Full village, Release), recorded the physical-iPhone waiver, and removed restored items from §15. The 2026-10-24 review split Milestone 5 into NPC dialogue, Living world and Existing features usable, making nine milestones (Full village is now 8 and Release 9). The Google Docs are no longer current for those sections.
 
 These files record source text and proposed direction. They make no claim that a milestone, integration, deployment capability, or acceptance gate is complete.
 

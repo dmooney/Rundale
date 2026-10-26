@@ -63,9 +63,10 @@ web PORT="3001":
 
 # Pre-commit gate: docs/data formatting and Markdown lint (CI's
 # "Docs/data formatting" job), known vulnerabilities in changed lockfiles
-# (CI's OSV-Scanner scan-pr), full Python quality job, then the engine's
-# format, lint, tests, placeholder scan, and doc-paths
-check: docs-check osv-changed endpoints-changed python-quality
+# (CI's OSV-Scanner scan-pr), full Python quality job, the script unit tests
+# from CI's "Shell quality" job, then the engine's format, lint, tests,
+# placeholder scan, and doc-paths
+check: docs-check osv-changed endpoints-changed python-quality script-tests
     cd limerick && just check
 
 # CI's Endpoints job (format, lint, typecheck, tests, build: `pnpm check` in
@@ -261,6 +262,17 @@ fmt-shell: _shell-tools
 lint-shell: _shell-tools
     shellcheck -S warning $(git ls-files '*.sh')
     shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
+
+# Unit tests for the repository scripts (CI's "Proof-tooling unit tests" step in
+# the "Shell quality" job)
+script-tests:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    . limerick/scripts/use-node.sh
+    for t in limerick/scripts/tests/*.test.sh; do
+        echo "== $t =="
+        bash "$t"
+    done
 
 # ─── TOML tooling (taplo) ─────────────────────────────────────────────────────
 # Config in taplo.toml (excludes intentionally-malformed test fixtures).

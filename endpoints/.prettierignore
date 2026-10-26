@@ -2,3 +2,4 @@ AGENTS.md
 docs/
 packages/database/migrations/
 *.tsbuildinfo
+pnpm-lock.yaml
