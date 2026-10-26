@@ -15,7 +15,8 @@ name: TestFlight
 # The nightly `gate` job checks what the smoke gate left out, after the build
 # shipped: when main's input tree has no recorded full pass, it runs the full
 # gate (over an hour on this runner), records the pass, and on failure opens or
-# updates a "Nightly mobile-verify failed" issue. It uploads nothing.
+# updates a "Nightly mobile-verify failed" issue that links an artifact of the failed
+# tests' evidence (failures/ and the .xcresult bundles).
 
 on:
   push:
@@ -281,12 +282,43 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 mobile/scripts/verify_record.py record
 
+      - name: Upload the verification report
+        id: report
+        if: always() && steps.recorded.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-verify-nightly-report
+          path: |
+            mobile/.verification/verify.json
+            mobile/.verification/verify.junit.xml
+            mobile/.verification/summary.txt
+            mobile/.verification/logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Nobody watches the nightly runner, so a failed gate also uploads the
+      # failed tests' evidence (failures/: digests, screenshots, UI hierarchy,
+      # runner and crash logs) and the .xcresult bundles behind it. Per-PR
+      # jobs upload none: the agent that ran those reads it locally.
+      - name: Upload the failure evidence
+        id: evidence
+        if: failure() && steps.recorded.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-verify-nightly-failure-evidence
+          path: |
+            mobile/.verification/failures/
+            mobile/.verification/xcresults/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Report the failure in an issue
         if: failure() && steps.recorded.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           FAILED: ${{ steps.gate.outcome == 'failure' && 'The full mobile-verify gate failed' || steps.gate.outcome == 'success' && 'Recording the mobile-verify pass failed after the gate passed' || 'Setting up the full mobile-verify gate failed' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVIDENCE_URL: ${{ steps.evidence.outputs.artifact-url }}
         run: |
           title="Nightly mobile-verify failed"
           summary="$(cat mobile/.verification/summary.txt 2>/dev/null || echo 'mobile-verify wrote no summary')"
@@ -295,6 +327,8 @@ jobs:
           ${FAILED} on ${GITHUB_SHA}.
 
           Run: ${RUN_URL}
+
+          Failure evidence (failure.md per failed test, screenshot, UI hierarchy, runner and crash logs, .xcresult; kept 14 days): ${EVIDENCE_URL:-not uploaded}
 
           \`\`\`\`text
           ${summary}
@@ -322,16 +356,3 @@ jobs:
             while read -r number; do
               gh issue close "$number" --comment "The full mobile-verify gate passed on ${GITHUB_SHA}: ${RUN_URL}"
             done
-
-      - name: Upload the verification report
-        if: always() && steps.recorded.outputs.run == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: mobile-verify-nightly-report
-          path: |
-            mobile/.verification/verify.json
-            mobile/.verification/verify.junit.xml
-            mobile/.verification/summary.txt
-            mobile/.verification/logs/
-          if-no-files-found: warn
-          retention-days: 14

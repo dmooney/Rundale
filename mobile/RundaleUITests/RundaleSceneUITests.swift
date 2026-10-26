@@ -9,7 +9,7 @@ import XCTest
 /// Set `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>` on `xcodebuild test` to hold
 /// on each settled state when recording a demo (see the phase demo plan).
 @MainActor
-final class RundaleSceneUITests: XCTestCase {
+final class RundaleSceneUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {

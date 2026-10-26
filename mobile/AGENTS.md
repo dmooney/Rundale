@@ -45,6 +45,14 @@ is set (recording only).
 
 ## Traps
 
+- **A failed gate leaves evidence; read it before re-running.** On a simulator
+  test failure `verify.py` writes `mobile/.verification/failures/<run>/`
+  (`failure.md`, screenshot, UI hierarchy, runner and crash logs) and prints the
+  path in `summary.txt`. Diagnose from it, and from the `.xcresult`, before a re-run
+  or calling the test flaky. New UI test classes must subclass `RundaleUITestCase`
+  (not `XCTestCase`) so the hierarchy and screenshot are attached; a Python test
+  enforces it.
+
 - **Every Swift warning is an error.** The app targets set
   `SWIFT_TREAT_WARNINGS_AS_ERRORS` and the package gate passes
   `-warnings-as-errors`; SwiftLint runs `--strict`. Fix the warning; any

@@ -4,7 +4,7 @@ import XCTest
 /// launch the real application target and use only the deterministic Endpoint
 /// transport that is compiled behind the Phase 2 UI-test arguments.
 @MainActor
-class RundalePhase2UITestCase: XCTestCase {
+class RundalePhase2UITestCase: RundaleUITestCase {
     var app: XCUIApplication!
 
     override func setUp() async throws {

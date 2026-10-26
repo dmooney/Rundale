@@ -2,7 +2,7 @@ import XCTest
 
 /// Canonical Phase 3 checks against the embedded Rust world and native UI.
 @MainActor
-class RundalePhase3UITestCase: XCTestCase {
+class RundalePhase3UITestCase: RundaleUITestCase {
     var app: XCUIApplication!
 
     override func setUp() async throws {
