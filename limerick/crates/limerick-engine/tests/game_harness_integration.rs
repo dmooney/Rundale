@@ -267,7 +267,8 @@ fn test_npc_canned_responses_consumed_in_order() {
 
 /// The model's reply is committed as written: a degenerate repeated clause and
 /// a near-verbatim echo of the NPC's previous line both reach the player
-/// unchanged. Nothing collapses, varies or replaces model text.
+/// exactly as the model wrote them. Nothing collapses, varies or replaces model
+/// text.
 #[test]
 fn test_npc_replies_are_committed_unchanged_at_pub() {
     let mut h = GameTestHarness::new();
