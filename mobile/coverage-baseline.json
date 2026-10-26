@@ -4,15 +4,16 @@
     "RundaleKit": { "line_percent": 86.72, "covered": 1398, "lines": 1612 },
     "RundaleBridge": { "line_percent": 37.93, "covered": 165, "lines": 435 },
     "LimerickEndpointKit": {
-      "line_percent": 75.64,
-      "covered": 705,
-      "lines": 932
+      "line_percent": 88.49,
+      "covered": 830,
+      "lines": 938,
+      "note": "Unlike the other entries, measured on Linux: verify.py --fast, Swift 6.3.3, 2026-10-25, when the URLSessionEndpointTransport loopback tests were added (#2271). covered and lines are Linux counts."
     },
     "RundaleSession": {
       "line_percent": 63.66,
       "covered": 1929,
       "lines": 3030,
-      "measured": "2026-10-25, just mobile-verify --fast on Linux (Swift 6.3.3)"
+      "note": "Measured on Linux: verify.py --fast, Swift 6.3.3, 2026-10-25, when the package was created (#2272). The hosted macOS full gate measured 63.63%. covered and lines are Linux counts."
     }
   },
   "app_reference": {
