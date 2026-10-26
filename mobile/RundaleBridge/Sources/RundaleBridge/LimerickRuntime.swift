@@ -74,6 +74,28 @@ public struct LimerickPendingInvocation: Sendable {
     public let streams: Bool
     public let input: Data
 
+    public init(
+        callID: String,
+        logicalRequestID: LogicalRequestID,
+        attemptID: ExecutionAttemptID,
+        baseRevision: StateRevision,
+        role: String,
+        slug: String,
+        version: Int,
+        streams: Bool,
+        input: Data
+    ) {
+        self.callID = callID
+        self.logicalRequestID = logicalRequestID
+        self.attemptID = attemptID
+        self.baseRevision = baseRevision
+        self.role = role
+        self.slug = slug
+        self.version = version
+        self.streams = streams
+        self.input = input
+    }
+
     /// The Endpoint request body: `{"input": <invocation>}`.
     public func requestBody() throws -> Data {
         let object = try JSONSerialization.jsonObject(with: input)

@@ -1,8 +1,11 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import LimerickEndpointKit
 import RundaleBridge
 import XCTest
-@testable import Rundale
+@testable import RundaleSession
 
 /// Which line the player hears for each way a model call can fail
 /// (`mods/rundale/loading.toml` `[failure_lines]`), and what recovery that
@@ -10,7 +13,6 @@ import XCTest
 /// each Endpoint code and transport error is pinned here, not only through
 /// the two mock failures the UI suites drive. The diagnostic is for the log
 /// and must never carry anything but a code or a fixed phrase.
-@MainActor
 final class EndpointFailureClassificationTests: XCTestCase {
     func testEndpointReportedCodesMapToTheirReason() {
         let expected: [(String?, LimerickFailureReason)] = [

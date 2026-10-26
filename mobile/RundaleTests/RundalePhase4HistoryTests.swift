@@ -2,6 +2,7 @@ import SQLite3
 import XCTest
 import RundaleBridge
 import RundaleKit
+import RundaleSession
 @testable import Rundale
 
 /// Runs the packaged Rust FFI and SQLite journal inside the native test host.

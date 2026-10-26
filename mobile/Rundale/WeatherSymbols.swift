@@ -1,3 +1,5 @@
+import RundaleSession
+
 extension PresentedHeader {
     /// Match the engine's Weather display values; unknown prose remains text-only.
     var weatherSymbol: String? {

@@ -3,7 +3,7 @@ import Foundation
 /// Process arguments are intentionally the only fixture controls exposed by
 /// the app. They make UI automation deterministic without adding a product
 /// debug surface to the running experience.
-struct LaunchConfiguration: Sendable {
+public struct LaunchConfiguration: Sendable {
     private enum BundleKey {
         static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
@@ -11,7 +11,7 @@ struct LaunchConfiguration: Sendable {
         static let bugReportURL = "RUNDALE_BUG_REPORT_URL"
     }
 
-    enum Fixture: String, Equatable, Sendable {
+    public enum Fixture: String, Equatable, Sendable {
         case standard
         case manualStream = "manual-stream"
         case longHistory = "long-history"
@@ -26,42 +26,42 @@ struct LaunchConfiguration: Sendable {
         case restorationLongHistory = "restoration-long-history"
     }
 
-    let isUITesting: Bool
+    public let isUITesting: Bool
     /// UI tests normally exercise the iPhone multiline composer. An explicit
     /// fixture-demo argument can select it while retaining automatic stepping.
     /// The simulator keyboard case retains coverage of Mac Return-to-send.
-    let usesMultilineSimulatorComposer: Bool
+    public let usesMultilineSimulatorComposer: Bool
     /// The embedded Limerick runtime is the normal product launch. Fixture
     /// launches remain available for the deterministic Phase 1 UI suite and
     /// for explicit fixture invocations.
-    let phase2: Bool
-    let phase2MockTransport: Bool
-    let fixture: Fixture
-    let manualStream: Bool
-    let autoFocusComposer: Bool
-    let initialDraft: String?
-    let draftFileURL: URL?
-    let resetFixture: Bool
-    let forceDarkAppearance: Bool
+    public let phase2: Bool
+    public let phase2MockTransport: Bool
+    public let fixture: Fixture
+    public let manualStream: Bool
+    public let autoFocusComposer: Bool
+    public let initialDraft: String?
+    public let draftFileURL: URL?
+    public let resetFixture: Bool
+    public let forceDarkAppearance: Bool
     /// A trusted Limerick Endpoints base URL supplied by deployment
     /// configuration. There is intentionally no baked-in production default.
-    let endpointBaseURL: URL?
+    public let endpointBaseURL: URL?
     /// The organization that owns the game's Endpoints. Each model call names
     /// its own Endpoint slug and version (the engine reads them from the
     /// world's Endpoint definitions).
-    let endpointOrganization: String
+    public let endpointOrganization: String
     /// Beta builds offer `/bug` and shake-to-report, which send a report to
     /// `limerick-bug-report`'s private inbox (#2022, ADR-027). Set by the
     /// `RUNDALE_BETA_FEEDBACK` build setting; an App Store build sets it to NO.
-    let allowsBugReports: Bool
+    public let allowsBugReports: Bool
     /// The `limerick-bug-report` service, supplied like the Endpoint origin.
-    let bugReportURL: URL?
+    public let bugReportURL: URL?
     /// The app's version and build, as a bug report names them.
-    let buildDescription: String?
+    public let buildDescription: String?
 
-    init(arguments: [String] = ProcessInfo.processInfo.arguments,
-         environment: [String: String] = ProcessInfo.processInfo.environment,
-         bundle: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
+    public init(arguments: [String] = ProcessInfo.processInfo.arguments,
+                environment: [String: String] = ProcessInfo.processInfo.environment,
+                bundle: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
         isUITesting = arguments.contains("--ui-tests")
         usesMultilineSimulatorComposer = !arguments.contains("--simulator-return-key")
             && (isUITesting || arguments.contains("--multiline-simulator-composer"))
@@ -130,7 +130,7 @@ struct LaunchConfiguration: Sendable {
 
     /// The URL of one Endpoint version: its `/stream` route, or the JSON
     /// route for an Endpoint that does not stream.
-    func endpointURL(slug: String, version: Int, stream: Bool = true) -> URL? {
+    public func endpointURL(slug: String, version: Int, stream: Bool = true) -> URL? {
         guard let endpointBaseURL else { return nil }
         let url = endpointBaseURL
             .appendingPathComponent("v1")

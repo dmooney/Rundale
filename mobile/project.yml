@@ -13,6 +13,8 @@ packages:
     path: RundaleBridge
   LimerickEndpointKit:
     path: LimerickEndpointKit
+  RundaleSession:
+    path: RundaleSession
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     exactVersion: 12.18.0
@@ -37,6 +39,7 @@ targets:
       - package: RundaleKit
       - package: RundaleBridge
       - package: LimerickEndpointKit
+      - package: RundaleSession
       - framework: .build/rust-mobile/LimerickMobileFFI.xcframework
         embed: false
       - package: Firebase

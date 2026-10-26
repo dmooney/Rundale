@@ -3138,6 +3138,12 @@ class VerificationRun:
             name="LimerickEndpointKit Swift Endpoint tests",
             phase=2,
         )
+        self._swift_package_tests(
+            package_path=self.root / "mobile" / "RundaleSession",
+            identifier="swift-session-tests",
+            name="RundaleSession Swift session tests",
+            phase=2,
+        )
         self._phase2_simulator_tests(xcodegen_ok, ready)
         self._phase2_live_endpoint()
         self._phase2_physical()
@@ -3404,7 +3410,7 @@ class VerificationRun:
         }
 
     def _fast(self) -> None:
-        """Swift style and the three Swift packages: CI's Linux Swift lane.
+        """Swift style and the four Swift packages: CI's Linux Swift lane.
 
         It needs no Xcode project, Rust build, or simulator, and runs on Linux
         as on macOS. The phase gates leave out the style checks, and --smoke
@@ -3421,6 +3427,7 @@ class VerificationRun:
                 "swift-endpoint-kit-tests",
                 "LimerickEndpointKit Swift Endpoint tests",
             ),
+            ("RundaleSession", "swift-session-tests", "RundaleSession Swift session tests"),
         ):
             self._swift_package_tests(
                 package_path=self.root / "mobile" / package,

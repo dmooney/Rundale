@@ -280,7 +280,12 @@ def create_phase1_fixture(root: Path) -> None:
                 "tolerance_percentage_points": 1.0,
                 "packages": {
                     name: {"line_percent": 80.0}
-                    for name in ("RundaleKit", "RundaleBridge", "LimerickEndpointKit")
+                    for name in (
+                        "RundaleKit",
+                        "RundaleBridge",
+                        "LimerickEndpointKit",
+                        "RundaleSession",
+                    )
                 },
             }
         ),
@@ -312,6 +317,12 @@ def create_phase2_fixture(root: Path) -> None:
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests" / "FixtureTests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
+    session = root / "mobile" / "RundaleSession"
+    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
+    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
+    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
     packaging = root / "mobile" / "scripts" / "build-rust-mobile.sh"
@@ -722,7 +733,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["swift-package-tests"]["status"], "failed")
             self.assertIn("no coverage report", by_id["swift-package-tests"]["reason"])
 
-    def test_fast_lane_runs_style_and_all_three_packages_only(self):
+    def test_fast_lane_runs_style_and_all_four_packages_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "mobile").mkdir()
@@ -744,6 +755,8 @@ class VerificationRunnerTests(unittest.TestCase):
                     "swift-bridge-tests-coverage",
                     "swift-endpoint-kit-tests",
                     "swift-endpoint-kit-tests-coverage",
+                    "swift-session-tests",
+                    "swift-session-tests-coverage",
                 ],
             )
             self.assertFalse(
@@ -795,6 +808,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 "swift-package-tests",
                 "swift-bridge-tests",
                 "swift-endpoint-kit-tests",
+                "swift-session-tests",
             ):
                 self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
                 self.assertFalse(by_id[identifier]["blocking"], identifier)
@@ -1236,6 +1250,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 "swift-package-tests-phase2",
                 "swift-bridge-tests",
                 "swift-endpoint-kit-tests",
+                "swift-session-tests",
                 "xcodegen",
                 "ios-device-build",
                 "phase2-ios-simulator-tests",
@@ -2145,12 +2160,12 @@ class VerificationCacheTests(unittest.TestCase):
             first, first_report = self.run_phase(root)
             self.assertEqual(first_report["exit_code"], 0)
             self.assertEqual(first_report["summary"]["reused"], 0)
-            self.assertEqual(len(executed_suites(first)), 6)
+            self.assertEqual(len(executed_suites(first)), 7)
 
             second, report = self.run_phase(root)
             self.assertEqual(report["exit_code"], 0)
             self.assertEqual(executed_suites(second), [])
-            self.assertEqual(report["summary"]["reused"], 7)
+            self.assertEqual(report["summary"]["reused"], 8)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             reused = by_id["phase2-ios-simulator-tests"]["details"]["cache"]
             self.assertTrue(reused["reused"])
@@ -2158,7 +2173,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-test-results"]["status"], "passed")
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
-            self.assertIn("7 passed suite(s) reused", summary)
+            self.assertIn("8 passed suite(s) reused", summary)
 
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -2239,11 +2254,11 @@ class VerificationCacheTests(unittest.TestCase):
             tracked = root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift"
             tracked.write_text("// changed\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6, "tracked edit reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 7, "tracked edit reruns every suite")
 
             (root / "mobile" / "Untracked.swift").write_text("// new\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6, "untracked source reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 7, "untracked source reruns every suite")
 
     def test_private_firebase_configuration_and_toolchain_are_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -2254,12 +2269,12 @@ class VerificationCacheTests(unittest.TestCase):
             plist.parent.mkdir(parents=True)
             plist.write_bytes(b"private")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
 
             fake = GitBackedRunner()
             fake.results[("xcodebuild", "-version")] = CommandResult(0, stdout="Xcode 99.0\n")
             VerificationRun(root, command_runner=fake).run(2)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
 
     def test_failures_are_never_reused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -2271,7 +2286,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(report["exit_code"], 1)
             fake, _ = self.run_phase(root)
             self.assertEqual(
-                sum(argv[:2] == ("swift", "test") for argv in executed_suites(fake)), 3
+                sum(argv[:2] == ("swift", "test") for argv in executed_suites(fake)), 4
             )
 
     def test_no_cache_reruns_everything(self):
@@ -2280,7 +2295,7 @@ class VerificationCacheTests(unittest.TestCase):
             create_cached_repository(root)
             self.run_phase(root)
             fake, report = self.run_phase(root, use_cache=False)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
             self.assertEqual(report["summary"]["reused"], 0)
             self.assertFalse(report["cache"]["enabled"])
 

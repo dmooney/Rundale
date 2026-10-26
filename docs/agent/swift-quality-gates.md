@@ -8,16 +8,16 @@ runner; its options and report format are in the
 
 ## Gate matrix
 
-| Gate                                                                      | Where it runs                                               | Required             |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------- |
-| SwiftLint `--strict`, SwiftFormat `--lint` (pinned binaries)              | CI `Swift quality` job (Linux); `just mobile-verify --fast` | Yes                  |
-| `RundaleKit`, `RundaleBridge`, `LimerickEndpointKit` package tests        | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
-| Package line coverage against the baseline                                | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
-| Rust FFI tests, XCFramework packaging, FFI dependency graph               | `just mobile-verify --phase 2` and later                    | Yes, local           |
-| Unsigned device build, app-unit (`RundaleTests`) and simulator UI suites  | `just mobile-verify --phase N`                              | Yes, local           |
-| Live Endpoint suite against `limerick-prod`                               | `just mobile-verify --live-endpoint --device <UDID>`        | Manual, opt-in       |
-| Soak and performance suites                                               | `just mobile-verify --soak` / `--performance --device`      | Manual, opt-in       |
-| Physical-iPhone acceptance (interaction, VoiceOver, sessions, App Attest) | A person with the device                                    | Yes, not automatable |
+| Gate                                                                                 | Where it runs                                               | Required             |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------- | -------------------- |
+| SwiftLint `--strict`, SwiftFormat `--lint` (pinned binaries)                         | CI `Swift quality` job (Linux); `just mobile-verify --fast` | Yes                  |
+| `RundaleKit`, `RundaleBridge`, `LimerickEndpointKit`, `RundaleSession` package tests | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
+| Package line coverage against the baseline                                           | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
+| Rust FFI tests, XCFramework packaging, FFI dependency graph                          | `just mobile-verify --phase 2` and later                    | Yes, local           |
+| Unsigned device build, app-unit (`RundaleTests`) and simulator UI suites             | `just mobile-verify --phase N`                              | Yes, local           |
+| Live Endpoint suite against `limerick-prod`                                          | `just mobile-verify --live-endpoint --device <UDID>`        | Manual, opt-in       |
+| Soak and performance suites                                                          | `just mobile-verify --soak` / `--performance --device`      | Manual, opt-in       |
+| Physical-iPhone acceptance (interaction, VoiceOver, sessions, App Attest)            | A person with the device                                    | Yes, not automatable |
 
 The CI job is `python3 mobile/scripts/verify.py --fast`. It runs on Linux, in
 the `swift:6.3.3-noble` container (the Swift release Xcode 26.6 ships), for
@@ -35,8 +35,11 @@ platforms: on 2026-10-24 Linux measured RundaleKit 87.25% and RundaleBridge
 The LimerickEndpointKit baseline is a Linux figure: 88.49% on 2026-10-25, when
 `URLSessionTransportTests` began driving the production
 `URLSessionEndpointTransport` against a loopback HTTP server. It includes a
-non-Darwin branch the app never ships. The same floor applies to the Mac phase
-gates.
+non-Darwin branch the app never ships. RundaleSession's floor is also a Linux
+figure: 63.66% when the package was created (#2272); the hosted macOS gate
+measured 63.63%. Its tests stand C stubs in for the Rust library, as
+RundaleBridge's do, and script the engine. The same floors apply to the Mac
+phase gates.
 
 The full simulator gate is not in the per-PR `Swift quality` job. It needs the
 Rust XCFramework (a full cross-compile of the engine for two iOS targets), and
