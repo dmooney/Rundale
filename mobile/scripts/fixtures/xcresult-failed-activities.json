@@ -1,0 +1,256 @@
+{
+  "testIdentifier": "ZZThrowawayFailUITests/testDeliberateFailure()",
+  "testIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/ZZThrowawayFailUITests/testDeliberateFailure",
+  "testName": "testDeliberateFailure()",
+  "testRuns": [
+    {
+      "activities": [
+        {
+          "attachments": [
+            {
+              "lifetime": "deleteOnSuccess",
+              "name": "Screen Recording 2026-10-25 at 07.37.35 PM.mp4",
+              "payloadId": "trimmed",
+              "timestamp": 1792971455.977,
+              "uuid": "6CECF0DC-631C-40BE-98F8-43564C3746C1"
+            }
+          ],
+          "childActivities": [
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971455.977,
+              "title": "kXCTAttachmentScreenRecording"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971455.891,
+          "title": "Start Test at 2026-10-25 19:37:35.891"
+        },
+        {
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971455.978,
+          "title": "Set Up"
+        },
+        {
+          "childActivities": [
+            {
+              "childActivities": [
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971456.842,
+                  "title": "Setting up automation session"
+                },
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971457.334,
+                  "title": "Wait for com.rundale.mobile to idle"
+                }
+              ],
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971455.982,
+              "title": "Launch com.rundale.mobile"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971455.981,
+          "title": "Open com.rundale.mobile"
+        },
+        {
+          "childActivities": [
+            {
+              "childActivities": [
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971459.679,
+                  "title": "Checking existence of `\"status.header\" Other`"
+                }
+              ],
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971459.678,
+              "title": "Checking `Expect predicate `existsNoRetry == 1` for object \"status.header\" Other`"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971458.641,
+          "title": "Waiting 3.0s for \"status.header\" Other to exist"
+        },
+        {
+          "attachments": [
+            {
+              "lifetime": "deleteOnSuccess",
+              "name": "Debug description for `\"does.not.exist\" Button`_0_8DC06361-891E-47F3-8289-16DA2C11944B.txt",
+              "payloadId": "trimmed",
+              "timestamp": 1792971460.749,
+              "uuid": "4FDA7551-C3A2-4BEA-8F53-515FBD3BD2AA"
+            }
+          ],
+          "childActivities": [
+            {
+              "attachments": [
+                {
+                  "lifetime": "deleteOnSuccess",
+                  "name": "Debug description for `\"does.not.exist\" Button`_0_8DC06361-891E-47F3-8289-16DA2C11944B.txt",
+                  "payloadId": "trimmed",
+                  "timestamp": 1792971460.749,
+                  "uuid": "4FDA7551-C3A2-4BEA-8F53-515FBD3BD2AA"
+                }
+              ],
+              "childActivities": [
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971460.728,
+                  "title": "Checking existence of `\"does.not.exist\" Button`"
+                },
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971460.749,
+                  "title": "Debug description for `\"does.not.exist\" Button`"
+                },
+                {
+                  "isAssociatedWithFailure": false,
+                  "startTime": 1792971460.749,
+                  "title": "Capturing element debug description"
+                }
+              ],
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.728,
+              "title": "Checking `Expect predicate `existsNoRetry == 1` for object \"does.not.exist\" Button`"
+            },
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.75,
+              "title": "Checking existence of `\"does.not.exist\" Button`"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971459.725,
+          "title": "Waiting 1.0s for \"does.not.exist\" Button to exist"
+        },
+        {
+          "attachments": [
+            {
+              "lifetime": "deleteOnSuccess",
+              "name": "App UI hierarchy for com.rundale_0_24769782-FCCA-45CB-B681-E1501EC3F3D6.mobile",
+              "payloadId": "trimmed",
+              "timestamp": 1792971460.786,
+              "uuid": "E1919CBB-C08F-48BC-94F7-663B3845D8D4"
+            },
+            {
+              "lifetime": "deleteOnSuccess",
+              "name": "UI Snapshot 2026-10-25 at 07.37.40 PM",
+              "payloadId": "trimmed",
+              "timestamp": 1792971460.786,
+              "uuid": "55A242A4-09CD-4FE6-AA08-0B0137E017F2"
+            }
+          ],
+          "childActivities": [
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.765,
+              "title": "Requesting snapshot of accessibility hierarchy for app with pid 13014"
+            },
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.786,
+              "title": "App UI hierarchy for com.rundale.mobile"
+            },
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.786,
+              "title": "kXCTAttachmentLegacySnapshot"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.764,
+          "title": "Collecting debug information to assist test failure triage"
+        },
+        {
+          "childActivities": [
+            {
+              "isAssociatedWithFailure": false,
+              "title": "ZZThrowawayFailUITests.testDeliberateFailure()"
+            }
+          ],
+          "isAssociatedWithFailure": true,
+          "startTime": 1792971460.789,
+          "title": "XCTAssertTrue failed - deliberate failure"
+        },
+        {
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.79,
+          "title": "Requesting snapshot of accessibility hierarchy for app with pid 13014"
+        },
+        {
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.841,
+          "title": "Requesting snapshot of accessibility hierarchy for app with pid 13014"
+        },
+        {
+          "attachments": [
+            {
+              "lifetime": "keepAlways",
+              "name": "Failure UI hierarchy_0_03D06669-476B-47EE-A957-C618150B3009.txt",
+              "payloadId": "trimmed",
+              "timestamp": 1792971460.856,
+              "uuid": "A36CFE8B-A9B7-4C30-83F6-5AE6554C320C"
+            }
+          ],
+          "childActivities": [
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.856,
+              "title": "Failure: UI hierarchy"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.856,
+          "title": "Added attachment named 'Failure: UI hierarchy'"
+        },
+        {
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.856,
+          "title": "Find the Target Application 'com.rundale.mobile'"
+        },
+        {
+          "attachments": [
+            {
+              "lifetime": "keepAlways",
+              "name": "Failure screenshot_0_991C8225-4319-4F5E-822F-DB50F63CC20D.png",
+              "payloadId": "trimmed",
+              "timestamp": 1792971460.925,
+              "uuid": "94864807-4AF2-4317-9745-1DFE4E560D36"
+            }
+          ],
+          "childActivities": [
+            {
+              "isAssociatedWithFailure": false,
+              "startTime": 1792971460.925,
+              "title": "Failure: screenshot"
+            }
+          ],
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971460.925,
+          "title": "Added attachment named 'Failure: screenshot'"
+        },
+        {
+          "isAssociatedWithFailure": false,
+          "startTime": 1792971461.161,
+          "title": "Tear Down"
+        }
+      ],
+      "device": {
+        "architecture": "arm64",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "modelName": "iPhone 17",
+        "osBuildNumber": "23E254a",
+        "osVersion": "26.4.1",
+        "platform": "iOS Simulator"
+      },
+      "testPlanConfiguration": {
+        "configurationId": "1",
+        "configurationName": "Test Scheme Action"
+      }
+    }
+  ]
+}

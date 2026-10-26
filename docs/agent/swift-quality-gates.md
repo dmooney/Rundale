@@ -8,27 +8,48 @@ runner; its options and report format are in the
 
 ## Gate matrix
 
-| Gate                                                                      | Where it runs                                          | Required             |
-| ------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------- |
-| SwiftLint `--strict`, SwiftFormat `--lint` (pinned binaries)              | CI `Swift quality` job; every `just mobile-verify`     | Yes                  |
-| `RundaleKit`, `RundaleBridge`, `LimerickEndpointKit` package tests        | CI `Swift quality` job; `just mobile-verify`           | Yes                  |
-| Package line coverage against the baseline                                | CI `Swift quality` job; `just mobile-verify`           | Yes                  |
-| Rust FFI tests, XCFramework packaging, FFI dependency graph               | `just mobile-verify --phase 2` and later               | Yes, local           |
-| Unsigned device build, app-unit (`RundaleTests`) and simulator UI suites  | `just mobile-verify --phase N`                         | Yes, local           |
-| Live Endpoint suite against `limerick-prod`                               | `just mobile-verify --live-endpoint --device <UDID>`   | Manual, opt-in       |
-| Soak and performance suites                                               | `just mobile-verify --soak` / `--performance --device` | Manual, opt-in       |
-| Physical-iPhone acceptance (interaction, VoiceOver, sessions, App Attest) | A person with the device                               | Yes, not automatable |
+| Gate                                                                      | Where it runs                                               | Required             |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------- |
+| SwiftLint `--strict`, SwiftFormat `--lint` (pinned binaries)              | CI `Swift quality` job (Linux); `just mobile-verify --fast` | Yes                  |
+| `RundaleKit`, `RundaleBridge`, `LimerickEndpointKit` package tests        | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
+| Package line coverage against the baseline                                | CI `Swift quality` job (Linux); `--fast`; `--phase N`       | Yes                  |
+| Rust FFI tests, XCFramework packaging, FFI dependency graph               | `just mobile-verify --phase 2` and later                    | Yes, local           |
+| Unsigned device build, app-unit (`RundaleTests`) and simulator UI suites  | `just mobile-verify --phase N`                              | Yes, local           |
+| Live Endpoint suite against `limerick-prod`                               | `just mobile-verify --live-endpoint --device <UDID>`        | Manual, opt-in       |
+| Soak and performance suites                                               | `just mobile-verify --soak` / `--performance --device`      | Manual, opt-in       |
+| Physical-iPhone acceptance (interaction, VoiceOver, sessions, App Attest) | A person with the device                                    | Yes, not automatable |
 
-The CI job is `python3 mobile/scripts/verify.py --fast`. It runs on GitHub's
-hosted `macos-26` runner with Xcode 26.6 for every pull request that changes
-`mobile/**`, on pushes to `main`, and on manual dispatch. It is part of the
-required `CI gate`. Hosted macOS minutes are free for this public repository.
+The CI job is `python3 mobile/scripts/verify.py --fast`. It runs on Linux, in
+the `swift:6.3.3-noble` container (the Swift release Xcode 26.6 ships), for
+every pull request that changes `mobile/**`, on pushes to `main`, and on manual
+dispatch. It is part of the required `CI gate`. The packages import only
+Foundation, and SwiftLint and SwiftFormat publish Linux builds of the pinned
+versions, so none of this needs a Mac on each pull request. Linux runs
+swift-corelibs-foundation, though, not Apple's Foundation, so the Mac phase
+gates (`--phase N`, and so the nightly full gate and `just testflight-update`)
+still run the package suites; the hosted per-PR `--smoke` gate leaves them to
+this job. The style checks read only source text and run only in `--fast`. The
+RundaleKit and RundaleBridge baselines, measured on macOS, hold on both
+platforms: on 2026-10-24 Linux measured RundaleKit 87.25% and RundaleBridge
+37.5%, within the one-point tolerance (RundaleBridge with 0.57 points to spare).
+The LimerickEndpointKit baseline is a Linux figure: 88.49% on 2026-10-25, when
+`URLSessionTransportTests` began driving the production
+`URLSessionEndpointTransport` against a loopback HTTP server. It includes a
+non-Darwin branch the app never ships. The same floor applies to the Mac phase
+gates.
 
-The Xcode app build and the simulator suites are not in CI. They need the Rust
-XCFramework (a full cross-compile of the engine for two iOS targets) and the
-private Firebase configuration, and the Phase 2 to 4 UI suites take tens of
-minutes on four cloned simulators. Run `just mobile-verify --phase N` locally on
-macOS before a mobile pull request merges, and report its `summary.txt`.
+The full simulator gate is not in the per-PR `Swift quality` job. It needs the
+Rust XCFramework (a full cross-compile of the engine for two iOS targets), and
+the Phase 2 to 4 UI suites take tens of minutes on cloned simulators. Run
+`just mobile-verify --phase all` on a Mac before a mobile pull request merges,
+record the pass, and report its `summary.txt`. Without a recorded pass, CI's
+"Recorded mobile-verify pass" job builds the app and runs `verify.py --smoke`
+(every gate but the full UI suites and the Swift package suites, which this
+job runs, plus a few core-loop UI tests; the full
+gate on a PR labelled `mobile-verify-full`), and the
+TestFlight workflow's nightly run runs the full gate on `main` after the merge
+has uploaded. Hosted runs leave the tests whose result depends on machine speed
+(`verify.py` `TIME_SENSITIVE_TESTS`) to local runs.
 
 The live Endpoint, soak, and performance suites need a physical iPhone, the
 private Firebase configuration, and an App Check debug token or App Attest.
@@ -43,11 +64,12 @@ blocking, never a pass. See [Evidence and exit status](../../mobile/scripts/READ
 ## Lint and format
 
 `mobile/scripts/install-swift-tools.sh` downloads SwiftLint 0.65.1 and
-SwiftFormat 0.63.1 from their GitHub releases into `mobile/.build/swift-tools/bin`,
-checks each archive's SHA-256 before unpacking it, and fails on a mismatch or a
-version that does not match the pin. Homebrew is not used, because it cannot
-install an exact past version. `just mobile-verify` runs the installer first and
-then checks every Swift file under `mobile/` without modifying it:
+SwiftFormat 0.63.1 from their GitHub releases into `mobile/.build/swift-tools/bin`
+(the macOS build, or the x86_64 Linux build), checks each archive's SHA-256
+before unpacking it, and fails on a mismatch or a version that does not match
+the pin. Homebrew is not used, because it cannot install an exact past version.
+`just mobile-verify --fast` runs the installer first and then checks every Swift
+file under `mobile/` without modifying it:
 
 ```sh
 mobile/.build/swift-tools/bin/swiftlint lint --strict --quiet --config mobile/.swiftlint.yml mobile
@@ -132,7 +154,7 @@ no entry for the package.
 
 The tolerance (1 percentage point) absorbs small refactors that delete covered
 lines. It also absorbs a little new untested code: at the recorded baselines,
-roughly 18 uncovered lines in RundaleKit, 12 in LimerickEndpointKit, and 11 in
+roughly 18 uncovered lines in RundaleKit, 10 in LimerickEndpointKit, and 11 in
 RundaleBridge pass the gate, and anything larger fails it. The floor is not a
 target: raise a package's `line_percent` in the pull request that adds tests,
 and lower it only with a stated reason in that pull request. The baseline is

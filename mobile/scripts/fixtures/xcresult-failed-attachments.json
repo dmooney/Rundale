@@ -1,0 +1,62 @@
+[
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "94864807-4AF2-4317-9745-1DFE4E560D36.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Failure screenshot_0_991C8225-4319-4F5E-822F-DB50F63CC20D.png",
+        "timestamp": 1792971460.925
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "A36CFE8B-A9B7-4C30-83F6-5AE6554C320C.txt",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Failure UI hierarchy_0_03D06669-476B-47EE-A957-C618150B3009.txt",
+        "timestamp": 1792971460.856
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "E1919CBB-C08F-48BC-94F7-663B3845D8D4.txt",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "App UI hierarchy for com.rundale_0_24769782-FCCA-45CB-B681-E1501EC3F3D6.mobile",
+        "timestamp": 1792971460.786
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "55A242A4-09CD-4FE6-AA08-0B0137E017F2",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "UI Snapshot 2026-10-25 at 07.37.40 PM",
+        "timestamp": 1792971460.786
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "4FDA7551-C3A2-4BEA-8F53-515FBD3BD2AA.txt",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Debug description for `\"does.not.exist\" Button`_0_8DC06361-891E-47F3-8289-16DA2C11944B.txt",
+        "timestamp": 1792971460.749
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "9B38741F-BCD3-4771-8D3F-747D8F3C735B",
+        "deviceName": "iPhone 17",
+        "exportedFileName": "6CECF0DC-631C-40BE-98F8-43564C3746C1.mp4",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Screen Recording 2026-10-25 at 07.37.35 PM.mp4",
+        "timestamp": 1792971455.977
+      }
+    ],
+    "testIdentifier": "ZZThrowawayFailUITests/testDeliberateFailure()",
+    "testIdentifierURL": "test://com.apple.xcode/Rundale/RundaleUITests/ZZThrowawayFailUITests/testDeliberateFailure"
+  }
+]

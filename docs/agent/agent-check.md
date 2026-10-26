@@ -34,8 +34,9 @@ and `graphify-out/` trees anywhere:
 
 - `mobile/**`: the iPhone app, its Swift packages, endpoint fixtures, and its
   UI tests (UI tests drive the app itself). Exempt: `mobile/scripts/**`, the
-  verification and release tooling, and Swift unit tests
-  (`mobile/RundaleTests/**`, `mobile/*/Tests/**`).
+  verification and release tooling, Swift unit tests
+  (`mobile/RundaleTests/**`, `mobile/*/Tests/**`), and the package coverage
+  floor they are checked against (`mobile/coverage-baseline.json`).
 - `mods/**`: world content and prompt templates (`.txt` counts).
 - The engine's runtime crates and seams: `limerick-tauri/**`,
   `limerick-server/**`, `limerick-engine/**`,

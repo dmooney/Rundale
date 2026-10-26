@@ -64,16 +64,18 @@ jobs:
       - name: Run cargo audit
         run: cargo audit
 
-      # Cargo.lock retains xcap's Linux-only transitive dependencies even
-      # though Limerick enables xcap only on macOS and Windows. The exact git
-      # pins in Cargo.toml therefore clear RustSec without changing a compiled
-      # target. Fail before merge if that target-reachability invariant changes:
-      # wayland-scanner's pinned tree contains unreleased breaking codegen.
-      - name: Verify temporary lock-only pins stay unreachable
+      # Every cargo command fetches git sources, including their submodules,
+      # and cloud sessions' proxy blocks some git hosts (#2270). Keep the
+      # lockfile on crates.io, and prove each supported compilation target
+      # still resolves from it.
+      - name: Verify supported targets resolve from crates.io only
         shell: bash
         run: |
           set -euo pipefail
-          packages=("xcb@1.7.0" "wayland-scanner@0.31.10")
+          if grep -n '^source = "git+' Cargo.lock; then
+            echo "error: Cargo.lock has git sources; use crates.io releases"
+            exit 1
+          fi
           targets=(
             "aarch64-apple-darwin"
             "x86_64-apple-darwin"
@@ -82,12 +84,5 @@ jobs:
           )
 
           for target in "${targets[@]}"; do
-            for package in "${packages[@]}"; do
-              tree="$(cargo tree --locked --workspace --target "$target" -i "$package" 2>/dev/null)"
-              if [[ -n "$tree" ]]; then
-                echo "error: temporary security pin $package is reachable on $target"
-                echo "$tree"
-                exit 1
-              fi
-            done
+            cargo tree --locked --workspace --target "$target" >/dev/null
           done

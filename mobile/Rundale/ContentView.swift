@@ -1281,7 +1281,6 @@ private struct Composer: View {
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.bordered)
                     .accessibilityLabel("Advance fixture stream")
-                    .accessibilityValue(model.uiTestCheckpoint)
                     .accessibilityIdentifier("fixture.step")
                 }
                 if model.canRetry && !model.isStreaming {

@@ -4,7 +4,7 @@ import XCTest
 /// the ordinary simulator field; the combined route also proves automatic
 /// delivery with the same multiline composer used on an iPhone.
 @MainActor
-final class RundalePhase1TimerAuditUITests: XCTestCase {
+final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
     private var app: XCUIApplication!
     private let first = "The first part arrives."
     private let second = "The first part arrives. Then the road opens into rain and light."
