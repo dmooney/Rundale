@@ -26,7 +26,8 @@ updates:
         update-types: ["major"]
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # "/" covers .github/workflows; local composite actions need their own entry.
+    directories: ["/", "/.github/actions/*"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 2

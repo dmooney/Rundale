@@ -72,6 +72,11 @@ jobs:
               - 'limerick/Cargo.lock'
               - 'limerick/config/**'
               - 'rust-toolchain.toml'
+              - '.cargo/**'
+              # Read by limerick-core's endpoint_calls and limerick-mobile-ffi's
+              # header test, which run only here, not in the Mac mobile gate.
+              - 'mobile/endpoint/**'
+              - 'mobile/RundaleBridge/Sources/LimerickMobileFFI/include/**'
               - 'limerick/testing/**'
               - 'limerick/scripts/**'
               - 'limerick/justfile'
@@ -80,6 +85,7 @@ jobs:
               - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
+              - '.github/actions/install-tauri-deps/**'
             # Anything compiled into limerick-server / limerick-engine, the
             # content and fixtures they run, and the differential tooling.
             differential:
@@ -502,9 +508,12 @@ jobs:
     name: Swift quality (lint, format, packages)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.swift == 'true'
-    # Hosted macOS runners are free for this public repository. Pin the image
-    # and Xcode so lint, compiler, and coverage results match local runs.
-    runs-on: macos-26
+    # The three Swift packages, SwiftLint and SwiftFormat run on Linux as on
+    # macOS, so this lane needs no Mac (#2287). The image pins the Swift
+    # release Xcode 26.6 ships (6.3.3), which the coverage baseline was
+    # measured with; install-swift-tools.sh pins the Linux tool builds.
+    runs-on: ubuntu-latest
+    container: swift:6.3.3-noble
     timeout-minutes: 30
     defaults:
       run:
@@ -513,8 +522,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Select Xcode 26.6
-        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+      # The Swift image has unzip but no Python or curl.
+      - name: Install Python and curl
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 curl ca-certificates
 
       - name: Swift lint, format, and package tests
         run: python3 mobile/scripts/verify.py --fast
@@ -647,8 +657,9 @@ jobs:
   # (`just mobile-verify --phase all`, then `just mobile-verify-record`), and
   # this job finds that recorded pass for the PR's input tree. When none is
   # recorded, for example for a change made in a Linux cloud session, the job
-  # runs `verify.py --smoke` on the image and Xcode "Swift quality" uses: every
-  # gate but the full UI suites, plus a few core-loop UI tests. The full UI
+  # runs `verify.py --smoke` on a pinned image and Xcode: every Mac gate
+  # but the full UI suites and the Swift package suites (swift-quality runs
+  # those on Linux), plus a few core-loop UI tests. The full UI
   # suites took most of an hour here, so they run on main instead, in
   # testflight.yml's nightly full gate. A PR labelled `mobile-verify-full`
   # (set before the push that should use it) runs the full gate here instead
@@ -717,20 +728,27 @@ jobs:
         if: steps.recorded.outputs.run == 'true'
         run: brew install xcodegen
 
-      # The mobile Rust build's target directory; only changed crates rebuild.
-      - uses: actions/cache@v6
+      # The iOS Rust libraries' target directory. The crates.io dependencies
+      # are reused; a checkout makes the workspace's own sources newer than
+      # their cached products, so those recompile.
+      # A pull request restores its own last build, else main's (testflight.yml
+      # saves one with each upload).
+      - name: Restore the Rust mobile build
+        id: rust-cache
         if: steps.recorded.outputs.run == 'true'
+        uses: actions/cache/restore@v6
         with:
           path: mobile/.build/rust-mobile/cargo-target
-          key: rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-${{ github.event.pull_request.head.sha }}
+          key: rust-mobile-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '.cargo/**', 'limerick/Cargo.toml', 'limerick/Cargo.lock', 'limerick/crates/**') }}
           restore-keys: |
-            rust-mobile-${{ hashFiles('rust-toolchain.toml', 'limerick/Cargo.lock') }}-
-            rust-mobile-
+            rust-mobile-${{ runner.os }}-
 
       # The hosted runner has a few cores, not the 18 the default six
       # simulator workers were measured on: six clones there outran the
       # 30-minute command limit (#2276). A smoke pass is never recorded as a
       # full pass, so testflight.yml's nightly full gate runs on what this merges.
+      # Tests whose result depends on machine speed run only in local runs
+      # (verify.py TIME_SENSITIVE_TESTS).
       - name: Run the mobile-verify gate
         if: steps.recorded.outputs.run == 'true'
         env:
@@ -740,7 +758,15 @@ jobs:
         # GATE_ARGS is `--smoke` or `--phase all`.
         run: |
           read -ra args <<< "$GATE_ARGS"
-          python3 mobile/scripts/verify.py "${args[@]}"
+          python3 mobile/scripts/verify.py "${args[@]}" --skip-time-sensitive
+
+      # Saved even when a later test fails: the Rust build finished first.
+      - name: Save the Rust mobile build
+        if: ${{ !cancelled() && steps.recorded.outputs.run == 'true' && steps.rust-cache.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
 
       # A labelled full pass counts as the author's recorded pass. A token that
       # cannot write statuses (Dependabot's) leaves the gate's result as is.

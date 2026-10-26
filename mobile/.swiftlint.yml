@@ -1,6 +1,7 @@
 # SwiftLint configuration for the native client. The pinned binary and its
-# checksum are in mobile/scripts/install-swift-tools.sh; `just mobile-verify` runs
-# `swiftlint lint --strict`, so every warning fails the gate.
+# checksum are in mobile/scripts/install-swift-tools.sh; `just mobile-verify --fast`
+# (CI's Linux Swift quality job) runs `swiftlint lint --strict`, so every warning
+# fails the gate.
 # Exclusions are justified in docs/agent/swift-quality-gates.md.
 
 included:

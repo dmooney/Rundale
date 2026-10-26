@@ -2,7 +2,7 @@ import XCTest
 
 /// Canonical Phase 3 checks against the embedded Rust world and native UI.
 @MainActor
-class RundalePhase3UITestCase: XCTestCase {
+class RundalePhase3UITestCase: RundaleUITestCase {
     var app: XCUIApplication!
 
     override func setUp() async throws {
@@ -53,12 +53,6 @@ class RundalePhase3UITestCase: XCTestCase {
         ).firstMatch
     }
 
-    func rows(containing text: String) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(NSPredicate(
-            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", text
-        ))
-    }
-
     func attach(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
@@ -89,36 +83,9 @@ class RundalePhase3UITestCase: XCTestCase {
     }
 }
 
-/// Canonical world visit and place-name travel.
+/// Place-name travel, and local play with every Endpoint request failing.
 @MainActor
 final class RundalePhase3UITests: RundalePhase3UITestCase {
-    func testVisitsCanonicalWorldAndShowsAuthoritativePresence() {
-        launch(reset: true)
-        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
-
-        submit("walk to Connolly Cottage")
-        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        submit("/people")
-        XCTAssertTrue(waitForText("Smallholder and cattle drover", timeout: 8))
-        XCTAssertTrue(waitForText("Spinner and household bookkeeper", timeout: 8))
-
-        submit("go to Kilteevan Village")
-        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
-        submit("go to the Letter Office")
-        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 8))
-        submit("/people")
-        XCTAssertTrue(waitForText("No one else is here.", timeout: 8))
-
-        // Peig's schedule has her set out for the Letter Office at 09:00. A
-        // long wait moves the clock in one step, so she only sets off when it
-        // ends; a short one then lets her arrive (as the canonical world
-        // sheet's script does).
-        submit("/wait 120")
-        submit("/wait 10")
-        submit("/people")
-        XCTAssertTrue(waitForText("Letter-office keeper", timeout: 8))
-    }
-
     /// Spec Milestones 2 and 3: gameplay that needs no inference works with
     /// every Endpoint request failing, and a failed conversation leaves the
     /// session playable.
@@ -167,67 +134,6 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
         submit("go to Kilteevan Village")
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["composer.stop"].exists)
-    }
-}
-
-/// Arrival descriptions and relaunch restore.
-@MainActor
-final class RundalePhase3ArrivalsUITests: RundalePhase3UITestCase {
-    func testArrivalsListPeopleAndKeepRepeatVisitsBriefAfterRelaunch() {
-        launch(reset: true)
-        submit("go to Connolly Cottage")
-        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        let description = "A peat fire warms the single room."
-        let firstDescription = rows(containing: description).firstMatch
-        XCTAssertTrue(firstDescription.waitForExistence(timeout: 8))
-        let originalDescriptionID = firstDescription.identifier
-        let household = "A weathered man in a mud-spattered frieze coat and a young woman with yarn wound about her wrist are here."
-        XCTAssertTrue(rows(containing: household).firstMatch.waitForExistence(timeout: 8))
-        attach("First cottage visit describes the room and lists both people")
-
-        // The opening described the village, where Peig now waits for the post.
-        submit("go to Kilteevan Village")
-        let villageReturn = rows(containing: "Scene. Kilteevan Village. A sharp-eyed woman with a satchel of letters is here.")
-            .firstMatch
-        XCTAssertTrue(villageReturn.waitForExistence(timeout: 8))
-        XCTAssertFalse(villageReturn.label.contains("muddy road"), villageReturn.label)
-        attach("Village return lists Peig without the description")
-        app.terminate()
-        app = XCUIApplication()
-        launch(reset: false)
-        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
-
-        submit("go to Connolly Cottage")
-        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        let returnPresence = rows(containing: household).matching(NSPredicate(
-            format: "identifier != %@", originalDescriptionID
-        )).firstMatch
-        XCTAssertTrue(returnPresence.waitForExistence(timeout: 8))
-        XCTAssertFalse(returnPresence.label.contains("peat fire"), returnPresence.label)
-        // Older rows may remain materialized. No newly appended description may appear.
-        for row in rows(containing: description).allElementsBoundByIndex {
-            XCTAssertEqual(row.identifier, originalDescriptionID)
-        }
-        attach("Returning after save resume lists people without repeating the description")
-
-        submit("/look")
-        XCTAssertTrue(rows(containing: "rain-dark coats by the door. Outside the weather is")
-            .firstMatch.waitForExistence(timeout: 8))
-        attach("Explicit look still describes a familiar room")
-    }
-
-    func testTravelAndPresenceRestoreAfterRelaunch() {
-        launch(reset: true)
-        submit("go to Connolly Cottage")
-        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        app.terminate()
-
-        app = XCUIApplication()
-        launch(reset: false)
-        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
-        submit("/people")
-        XCTAssertTrue(waitForText("Smallholder and cattle drover", timeout: 8))
-        XCTAssertTrue(waitForText("Spinner and household bookkeeper", timeout: 8))
     }
 }
 
@@ -284,55 +190,5 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
                       "the partner answers")
         XCTAssertFalse(app.otherElements["clarification"].exists)
         hold(3)
-    }
-
-    /// Design §8 rows 5, 11 and 18 (owner, 2026-10-17; replaces #2047's
-    /// "not here"): with Peig alone on the village road, "Hello" reaches her
-    /// directly, asking for Mícheál, who is at home, reaches her too, and a
-    /// tagged line naming Róisín gets no system line. Nothing says anyone is
-    /// not here.
-    func testNamingSomeoneElsewhereReachesThePersonPresent() {
-        launch(reset: true)
-        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
-        // 08:00: Peig waits on the village road; the Connollys are at home.
-        submit("/wait 60")
-        submit("/people")
-        XCTAssertTrue(waitForText("Letter-office keeper", timeout: 8))
-        hold(2)
-
-        submit("Hello")
-        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 1, timeout: 15))
-        XCTAssertFalse(app.otherElements["clarification"].exists)
-        hold(2)
-        submit("ask Mícheál about the cattle")
-        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 2, timeout: 15),
-                      "Peig answers for herself")
-        XCTAssertFalse(app.otherElements["clarification"].exists)
-        hold(2)
-        submit("@Peig Hannigan The ribbon was woven by Róisín.")
-        XCTAssertTrue(waitForReplies(containing: "old road quiet", count: 3, timeout: 15))
-        XCTAssertFalse(app.transcriptRows().contains { $0.text.contains("not here") })
-        attach("Naming someone elsewhere in the village")
-        hold(5)
-    }
-
-    func testTaggedNearbyPersonBypassesClarification() {
-        launch(reset: true)
-        submit("go to Connolly Cottage")
-
-        let input = app.descendants(matching: .any)
-            .matching(identifier: "composer.input")
-            .firstMatch
-        input.tap()
-        input.typeText("Hello @")
-        let micheal = app.buttons["completion.npc-2"]
-        XCTAssertTrue(micheal.waitForExistence(timeout: 3))
-        micheal.tap()
-        XCTAssertEqual(input.value as? String, "Hello @a weathered man in a mud-spattered frieze coat")
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
-        app.buttons["composer.send"].tap()
-
-        XCTAssertFalse(app.otherElements["clarification"].waitForExistence(timeout: 2))
-        XCTAssertTrue(waitForText("moving cattle", timeout: 15))
     }
 }

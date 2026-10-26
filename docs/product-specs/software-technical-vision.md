@@ -6,12 +6,13 @@ Architecture for the text-first reset and all six delivery phases
 
 Editorial import note: references to the native Product & Technical Specification, including [P1], resolve within this repository to the versioned [Product & Technical Specification](mobile-product-technical-spec.md). The native document remains source provenance; this note does not change the imported source text or its proposed status.
 
-Editorial note (2026-10-06, owner spec review): the product specification now has seven
-milestones. Its Milestone 5 is "Existing features usable", restoring existing engine
-features to the phone with the living-world proofs below as the exit gate. Milestone 6 is
-"Full village", growing to an owner-approved target rather than having "no required
-destination population". Milestone 7 is "Release": a TestFlight build, a tag and a GitHub
-Release, with no further technical scope here. Where this vision's Phase 5 and Phase 6
+Editorial note (2026-10-06 and 2026-10-24, owner spec reviews): the product specification
+now has nine milestones. Milestone 5 is "NPC dialogue". Milestone 6 is "Living world",
+with the living-world proofs below as its exit gate. Milestone 7 is "Existing features
+usable", restoring existing engine features to the phone. Milestone 8 is "Full village",
+growing to an owner-approved target rather than having "no required destination
+population". Milestone 9 is "Release": a TestFlight build, a tag and a GitHub Release,
+with no further technical scope here. Where this vision's Phase 5 and Phase 6
 text differs, the product specification governs. Its physical-iPhone requirements are
 subject to the owner's waiver in the product specification's §16.
 

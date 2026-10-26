@@ -19,9 +19,10 @@ which runs the engine's checks and harness walkthrough.
 
 ## Swift style, warnings, and coverage
 
-Every phase run starts with `install-swift-tools.sh`, which installs the pinned
-SwiftLint and SwiftFormat release binaries after checking their SHA-256, then
-runs `swiftlint lint --strict` and `swiftformat --lint` over `mobile/`. The
+`--fast` starts with `install-swift-tools.sh`, which installs the pinned
+SwiftLint and SwiftFormat release binaries (macOS or x86_64 Linux) after
+checking their SHA-256, then runs `swiftlint lint --strict` and
+`swiftformat --lint` over `mobile/`. The
 Swift package suites build with `-warnings-as-errors` and
 `--enable-code-coverage`. Each package's line coverage over its own `Sources/`
 becomes a `<suite>-coverage` gate checked against
@@ -29,8 +30,12 @@ becomes a `<suite>-coverage` gate checked against
 [Swift quality gates](../../docs/agent/swift-quality-gates.md).
 
 `--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`, and
-`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator.
-It is CI's `Swift quality` job and a quick local check:
+`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator,
+and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
+quick local check. The phase gates run the package suites against Apple's
+Foundation but not the style checks, which read only source text; `--smoke`
+leaves out both, since CI's Linux job runs them on every pull request. Run
+`--fast` with a phase gate to cover everything locally:
 
 ```sh
 just mobile-verify --fast
@@ -52,6 +57,16 @@ named GitHub milestones (Stability, Existing features usable, Full village, Rele
   fixture stream and Stop, the engine booting the canonical world, travel by
   place name, a save surviving termination) stand in for the UI classes. It is
   CI's hosted pull-request gate. A smoke pass is never saved as a full pass.
+- `--skip-time-sensitive` (with `--smoke`, `--phase 4`, or `--phase all`) adds
+  `-skip-testing` for `TIME_SENSITIVE_TESTS` to the combined simulator run and
+  reports them as one non-blocking skipped suite. Those tests depend on machine
+  speed (real fixture timers, a slow mock racing Stop or a background, a
+  wall-clock budget, layout settling within a polling window) and failed on the
+  hosted runner (#2292), so every hosted run passes it and they run only in
+  local runs. A full pass with it is still saved and recorded like any other
+  (only its `verify.json` lists the skipped suite), so a recorded pass does not
+  show whether these ran: never pass the flag locally, and run
+  `just mobile-verify --phase all` on a Mac after changing what they test.
 
 Phase 4 includes the earlier regression suites and native lifecycle/connectivity
 recovery tests. Its physical sessions, accessibility judgment, and performance
@@ -63,15 +78,20 @@ keyboard audit, automatic fixture streaming, and fixture history volume tests.
 Pin the small iPhone simulator for the accessibility regression; a large-screen
 pass alone does not cover the SE3 layout defect (carried to #2047).
 
-Phase 2 adds the shared engine: `limerick-core` in the portable `mobile`
-configuration the phone links (turn API, Endpoint calls, saves), the
-`limerick-persistence` save-format and kernel save-lock tests, the
-`limerick-mobile-ffi` tests, a check that the FFI's dependency graph has no
+Phase 2 adds the shared engine: the
+`limerick-persistence` save-format and kernel save-lock tests (their save paths
+and lock have Darwin-only code), a check that the FFI's dependency graph has no
 desktop crates or desktop features (`limerick-core`/`limerick-inference`
 `desktop`, `limerick-diagnostics` `github`), the device and simulator `LimerickMobileFFI.xcframework`, the
 `RundaleBridge` and `LimerickEndpointKit` packages, and the Phase 2 and scene UI
-suites with the engine lifecycle tests. Phase 3 adds the canonical tiny-world
-sheet test (`limerick-engine --test world_sheet`) and the Phase 3 UI suite.
+suites with the engine lifecycle tests. Phase 3 adds the Phase 3 UI suite.
+
+The other Rust crates' tests are not part of this gate: they build for the host,
+not iOS, so CI runs them on Linux (`full-ci.yml`). There, `rust-mobile-build`
+tests `limerick-core` in the portable `mobile` configuration the phone links and
+`limerick-mobile-ffi` built on its own, and fails when either ignores a test it
+does not name; the workspace nextest run covers the canonical tiny-world sheet
+test (`limerick-engine --test world_sheet`).
 
 ## Options
 
@@ -275,7 +295,10 @@ Each run emits:
 - `verify.junit.xml`, JUnit-compatible suite and case results;
 - `summary.txt`, a concise human-readable summary that lists each failed simulator
   test's assertion message (file, line, and text) under its suite, so the CI log
-  shows why a test failed without the result bundle; and
+  shows why a test failed without the result bundle;
+- `failures/<run>/`, written when a simulator test fails: per failed test a
+  `failure.md` digest, the failure screenshot, UI hierarchy and screen recording,
+  plus the test runner's logs and crash reports; `summary.txt` names the paths; and
 - `logs/<gate-id>.log`, preserving command output and gate reasons.
 
 The JSON report separates `passed`, `failed`, `skipped`, `unavailable`, and
