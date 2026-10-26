@@ -900,7 +900,6 @@ _promotion_evidence = {
         "peak_memory_gb": 12.0,
     },
     "reliability_soak": {"calls": 500, "valid_responses": 500},
-    "guard_observation": {"turns": 500, "interventions": 25},
     "request_profile": _promotion_request_profile,
 }
 _promotion = pg.evaluate(
@@ -972,7 +971,6 @@ _turn_rows = [
         "attempt": i,
         "contract_valid": 1,
         "turns": 1,
-        "guard_interventions": int(i < 25),
         "parse_dispositions": ["full_json"],
         "request_profiles": [_promotion_request_profile],
     }
@@ -991,7 +989,6 @@ _soak_path.write_text(
             "candidate": _promotion_candidate,
             "dataset_merkle": _promotion_manifest["merkle_root_sha256"],
             "reliability_soak": {"calls": 500, "valid_responses": 500},
-            "guard_observation": {"turns": 500, "interventions": 25},
             "request_profile": _promotion_request_profile,
             "turns_artifact": {
                 "path": _turns_path.name,
