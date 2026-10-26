@@ -170,7 +170,7 @@ Number 13 was removed and has no successor.
 |         30 | [Canonical background simulation](persistence-and-session-rules.md#canonical-background-simulation) |
 |         31 | [Live play signals and replacement contexts](persistence-and-session-rules.md#live-play-signals)    |
 |         32 | [Authoritative gameplay status](persistence-and-session-rules.md#authoritative-gameplay-status)     |
-|         33 | [Commit model dialogue as written](inference-rules.md#canonical-semantic-model-apply)                 |
+|         33 | [Commit model dialogue as written](inference-rules.md#canonical-semantic-model-apply)               |
 |         34 | [Save/session identity](persistence-and-session-rules.md#save-session-identity)                     |
 |         35 | [HTTP harness continuity](legacy-client-rules.md#http-harness-continuity)                           |
 |         36 | [Local-inference promotion](inference-rules.md#local-inference-promotion)                           |
