@@ -51,6 +51,8 @@ jobs:
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      # The golden frames are Markdown, so a change to them is not docs-only.
+      linux_host: ${{ steps.filter.outputs.linux_host == 'false' && 'false' || (steps.nondoc.outputs.nondoc == 'false' && steps.filter.outputs.linux_host_goldens != 'true') && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       # Only pull requests are checked; other events report 'false'.
@@ -108,6 +110,27 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
+            # The Linux host, the session packages and engine it links, and the
+            # world and Endpoint fixtures its golden frames play.
+            linux_host:
+              - 'tools/linux-host/**'
+              - 'mobile/RundaleSession/**'
+              - 'mobile/RundaleKit/**'
+              - 'mobile/RundaleBridge/**'
+              - 'mobile/LimerickEndpointKit/**'
+              - 'mobile/endpoint/**'
+              - 'mobile/.swiftlint.yml'
+              - 'mobile/.swiftformat'
+              - 'mobile/scripts/install-swift-tools.sh'
+              - 'mods/**'
+              - 'limerick/crates/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - '.github/workflows/ci.yml'
+            linux_host_goldens:
+              - 'tools/linux-host/Tests/**'
             # A recorded mobile-verify pass's inputs
             # (mobile/scripts/verify.py ATTESTATION_PATHSPECS).
             mobile_app:
@@ -542,6 +565,52 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # The Linux host (tools/linux-host) plays the app's session logic against
+  # the engine's Linux static library and compares Markdown frames with its
+  # goldens. Frames are not app UI evidence (docs/agent/build-test.md).
+  linux-host:
+    name: Linux host golden frames
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.linux_host == 'true'
+    runs-on: ubuntu-latest
+    container: swift:6.3.3-noble
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The Swift image has no Python, curl, or Rust; Cargo's build scripts
+      # need a C compiler.
+      - name: Install Python, curl, and a C toolchain
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 curl ca-certificates gcc libc6-dev
+
+      # rustup installs rust-toolchain.toml's channel on the first cargo call.
+      - name: Install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+
+      - name: SwiftLint and SwiftFormat
+        run: |
+          bash mobile/scripts/install-swift-tools.sh
+          cd tools/linux-host
+          ../../mobile/.build/swift-tools/bin/swiftlint lint --strict --quiet
+          ../../mobile/.build/swift-tools/bin/swiftformat --lint --config ../../mobile/.swiftformat --exclude .build .
+
+      - name: Golden-frame tests
+        run: bash tools/linux-host/run.sh --test
+
   runtime-suite:
     name: Runtime correctness suite
     needs: changes
@@ -806,6 +875,7 @@ jobs:
         promptfoo-quality,
         shell-quality,
         swift-quality,
+        linux-host,
         toml-quality,
         workflow-quality,
         runtime-suite,
