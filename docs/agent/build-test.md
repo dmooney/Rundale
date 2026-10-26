@@ -21,6 +21,22 @@ gate: build once, then run only the affected class with
 `xcodebuild test-without-building -only-testing:RundaleUITests/<Class>` (or
 `record-ui-test.py`). Run the full `just mobile-verify` once per simulator at the
 end, and never edit a worktree while a gate is building from it.
+When a simulator test fails, the gate reads the `.xcresult` before the next run
+prunes it and keeps the diagnosis under `mobile/.verification/failures/<run>/`:
+`index.md`, one `<Class>.<test>/failure.md` per failed test (failure messages with
+file:line, the activity timeline leading to the failure, result bundle path), the
+test's attachments (failure screenshot, UI hierarchy, a short screen recording;
+files over 3 MB are listed, not copied; the first 20 failed tests get a digest and
+`index.md` counts the rest), and `diagnostics/` (test runner logs and
+any crash reports). `summary.txt` and `verify.json` (`details.failure_evidence`)
+name the paths. The newest three failed runs keep their evidence and `.xcresult`.
+Per-PR CI jobs upload none of it: the agent that ran the gate reads that evidence
+and diagnoses the failure before re-running or calling a test flaky. Only the
+unwatched nightly full gate (`testflight.yml`) uploads `failures/` and the
+`.xcresult` bundles, when it fails, and its "Nightly mobile-verify failed" issue
+links that artifact. UI test classes
+derive from `RundaleUITestCase`, which attaches the app's element hierarchy and a
+screenshot at the moment any assertion fails.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 

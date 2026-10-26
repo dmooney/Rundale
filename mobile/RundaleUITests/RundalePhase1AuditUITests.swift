@@ -4,7 +4,7 @@ import XCTest
 /// the real deterministic fixture adapter; manual stepping makes the Stop
 /// boundary reproducible without a clock or an invented test-only state.
 @MainActor
-final class RundalePhase1AuditUITests: XCTestCase {
+final class RundalePhase1AuditUITests: RundaleUITestCase {
     private var app: XCUIApplication!
 
     override func setUp() async throws {
