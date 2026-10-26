@@ -611,6 +611,15 @@ jobs:
       - name: Golden-frame tests
         run: bash tools/linux-host/run.sh --test
 
+      - name: Upload frames that differ from the goldens
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-host-golden-actual
+          path: tools/linux-host/.build/golden-actual/
+          if-no-files-found: ignore
+          retention-days: 14
+
   runtime-suite:
     name: Runtime correctness suite
     needs: changes
