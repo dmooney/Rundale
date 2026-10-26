@@ -190,6 +190,11 @@ public final class LinuxHost {
               DispatchTime.now().uptimeNanoseconds < deadline {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
+        guard !presenter.transcript.isEmpty || presenter.submissionMessage != nil else {
+            timedOut = true
+            emit(.timedOut, presenter: presenter)
+            return
+        }
         await settle(after: reset ? .newGame : .restored)
     }
 
