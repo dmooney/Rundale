@@ -58,6 +58,26 @@ unavailable, and human/device gates. Keep real-inference integration opt-in and
 separate from deterministic regression tests. Physical-iPhone interaction and
 VoiceOver judgment require recorded evidence, even when automated checks pass.
 
+### Linux host frames
+
+`just linux-host` plays the app's game on Linux and prints each meaningful
+screen state as a Markdown frame; `just linux-host-test` runs its golden-frame
+tests, which CI's `Linux host golden frames` job runs too
+([tools/linux-host](../../tools/linux-host/README.md)). The host runs the
+app's `RundaleSession` controllers and presenter against the real engine,
+linked from `liblimerick_mobile_ffi.a` built for Linux, on `mods/rundale`,
+with the scripted mock Endpoint, a recorded Endpoint stream, or the fixture
+session.
+
+What frames prove: the session logic the app runs, on the engine and world it
+ships, produces this transcript, composer state, and choices for this input,
+including streaming, Stop, an Endpoint failure and Retry, a clarification, and
+a save and resume. What they do not: anything about the app's UI. Frames show
+no layout, styling, keyboard, scrolling, or accessibility, and run on
+swift-corelibs Foundation rather than Apple's. Every frame is labelled "Linux
+host"; never present one as app UI, simulator, or physical-iPhone evidence,
+or as live gameplay unless it was played against a live Endpoint.
+
 ## Existing engine and client commands
 
 These procedures remain applicable to the existing runtimes and tooling.

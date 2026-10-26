@@ -1,0 +1,4 @@
+# inference: mock
+# One dialogue line: the reply streams, then commits.
+go to Connolly Cottage
+Róisín, how is the spinning going?
