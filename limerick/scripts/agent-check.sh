@@ -135,8 +135,9 @@ is_runtime_path() {
             return 1
             ;;
         # Swift unit tests (the app's and each Swift package's), like Rust
-        # and UI tests above.
-        mobile/RundaleTests/* | mobile/*/Tests/*)
+        # and UI tests above, and the package coverage floor verify.py
+        # checks them against.
+        mobile/RundaleTests/* | mobile/*/Tests/* | mobile/coverage-baseline.json)
             return 1
             ;;
         # The iPhone app, its Swift packages, endpoint fixtures, and its UI

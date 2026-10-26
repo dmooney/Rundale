@@ -21,14 +21,33 @@ gate: build once, then run only the affected class with
 `xcodebuild test-without-building -only-testing:RundaleUITests/<Class>` (or
 `record-ui-test.py`). Run the full `just mobile-verify` once per simulator at the
 end, and never edit a worktree while a gate is building from it.
+When a simulator test fails, the gate reads the `.xcresult` before the next run
+prunes it and keeps the diagnosis under `mobile/.verification/failures/<run>/`:
+`index.md`, one `<Class>.<test>/failure.md` per failed test (failure messages with
+file:line, the activity timeline leading to the failure, result bundle path), the
+test's attachments (failure screenshot, UI hierarchy, a short screen recording;
+files over 3 MB are listed, not copied; the first 20 failed tests get a digest and
+`index.md` counts the rest), and `diagnostics/` (test runner logs and
+any crash reports). `summary.txt` and `verify.json` (`details.failure_evidence`)
+name the paths. The newest three failed runs keep their evidence and `.xcresult`.
+Per-PR CI jobs upload none of it: the agent that ran the gate reads that evidence
+and diagnoses the failure before re-running or calling a test flaky. Only the
+unwatched nightly full gate (`testflight.yml`) uploads `failures/` and the
+`.xcresult` bundles, when it fails, and its "Nightly mobile-verify failed" issue
+links that artifact. UI test classes
+derive from `RundaleUITestCase`, which attaches the app's element hierarchy and a
+screenshot at the moment any assertion fails.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 
-Every `just mobile-verify` run starts with pinned SwiftLint and SwiftFormat
-checks. Swift builds treat warnings as errors, and each Swift package must hold
-its line-coverage baseline. CI's `Swift quality` job runs those checks and the
-three package suites on hosted macOS (`just mobile-verify --fast`).
-The Xcode app and simulator suites run only locally. The
+`just mobile-verify --fast` runs pinned SwiftLint and SwiftFormat checks and
+the three Swift package suites. Swift builds treat warnings as errors, and each
+Swift package must hold its line-coverage baseline. CI's `Swift quality` job
+runs it on Linux. The phase gates run the package suites too, against Apple's
+Foundation, but not the style checks; `--smoke` leaves out both.
+The full simulator gate runs on a Mac; without a recorded pass, CI runs
+`--smoke` on a PR (the full gate on one labelled `mobile-verify-full`) and the
+TestFlight workflow runs the full gate nightly. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
 
@@ -70,6 +89,30 @@ Node or Python themselves) are not installed by gates. A gate that needs one
 fails with the command that installs it; none passes or skips silently. `just
 setup` installs the system-level pieces once.
 
+### Cloud sessions
+
+Claude Code cloud sessions (claude.ai/code) run on Linux behind a proxy that
+blocks some download hosts, including `download.swift.org`. The environment's
+setup script installs what the gates need there:
+
+- Swift for Linux, pinned to the Swift version of the Xcode that CI selects
+  (`.github/workflows/ci.yml`); currently 6.3.3. The proxy blocks
+  `download.swift.org`, so take the toolchain from the `swift:6.3.3-noble` image
+  on `mirror.gcr.io`. With it, `swift test` runs in `mobile/RundaleKit`.
+- Node at the latest `.nvmrc` major (some UI dependencies need a recent minor),
+  `just` new enough for the justfile (1.21 cannot parse it), and `osv-scanner`.
+
+Cargo needs only crates.io. Do not add `[patch.crates-io]` git sources: every
+cargo command fetches them, including any submodules, and the proxy can block the
+submodule host (#2270).
+
+A session's disk allowance is fixed (about 40 GB), and Cargo's default debug
+builds fill it: `limerick/target` reached 21 GB in one session. Set
+`CARGO_PROFILE_DEV_DEBUG=0` and `CARGO_INCREMENTAL=0` in the environment's
+variables, as CI does; `just check` then leaves about 3 GB. When a session still
+runs low, delete rebuildable output: `cargo clean` in `limerick/` first, then
+`mobile/RundaleKit/.build` and the npm cache (`~/.npm/_cacache`).
+
 ## Cargo
 
 Most engine commands should be run from the `limerick/` directory:
@@ -83,8 +126,8 @@ Most engine commands should be run from the `limerick/` directory:
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
 - Lint: `cargo clippy --workspace -- -D warnings`
-- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings` and `cargo test -p limerick-core --no-default-features --features mobile`
-  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes)
+- Portable (mobile) configuration: `cargo clippy -p limerick-core --all-targets --no-default-features --features mobile -- -D warnings`, `cargo test -p limerick-core --no-default-features --features mobile`, and `cargo test -p limerick-mobile-ffi`
+  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes). `just mobile-verify` does not rerun these on the Mac.
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 
@@ -250,7 +293,7 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 
 ## Quality gates
 
-- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which installs the root tooling itself; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; `just endpoints-changed`, which runs CI's Endpoints job (`pnpm check` in `endpoints/`) when the branch changes an input CI runs that job for (`scripts/endpoints_changed.py` mirrors its path filter); the complete Python quality job using pinned `.venv-dev` tools, including repository-wide `mypy .` and pytest; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
+- `/check` — both gate levels: `just check` (docs/data Prettier + markdownlint over tracked files, which installs the root tooling itself; `just osv-changed`, which fails on known vulnerabilities that changed lockfiles add, as CI's OSV-Scanner `scan-pr` does, and needs `brew install osv-scanner` and, when a lockfile changed, network access to osv.dev; `just endpoints-changed`, which runs CI's Endpoints job (`pnpm check` in `endpoints/`) when the branch changes an input CI runs that job for (`scripts/endpoints_changed.py` mirrors its path filter); the complete Python quality job using pinned `.venv-dev` tools, including repository-wide `mypy .` and pytest; `just script-tests`, the `limerick/scripts/tests/*.test.sh` suites from CI's "Shell quality" job; then fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
 - `/limerick-engine prove <feature>` — required after implementing any gameplay feature
 - `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/limerick-engine harness [script]` — fixture-script harness run
