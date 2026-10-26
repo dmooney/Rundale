@@ -133,7 +133,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 | Scheduled NPC movement proof (#2201)                                             | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Tier 2 nearby, tier 3 distant and tier 4 far simulation (#2025)                  | Planned     | Implemented | Implemented | Implemented  | Implemented |
 | Autonomous exchanges, arrival reactions and off-screen social simulation (#2025) | Planned     | Implemented | Implemented | Implemented  | Implemented |
-| Anachronism filtering and historical prompt guidance                             | Implemented | Implemented | Implemented | Implemented  | Implemented |
+| Historical prompt guidance                                                       | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Local authoritative SQLite saves and journal recovery                            | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Automatic persistence and resume                                                 | Implemented | Implemented | Implemented | Implemented  | Implemented |
 | Manual save / load and git-style branching commands (#2206)                      | Planned     | Implemented | Implemented | Implemented  | Implemented |

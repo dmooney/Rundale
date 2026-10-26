@@ -9,20 +9,21 @@ promotion and setup systems. It is not a requirement for mobile feature work.
 When a local preset is promoted, the complete rule applies; this scope note
 does not waive the cross-cutting inference, state, or evidence rules.
 
-[Dialogue prompt grounding](#dialogue-prompt-grounding) and
-[canonical semantic model apply](#canonical-semantic-model-apply) describe the
-desktop in-process pipeline. They do not apply to
-the mobile Endpoint path (owner decision, 2026-09-28): the Limerick Endpoint
-definition owns prompt construction and grounding; the app streams reply text
-into the transcript as it arrives, marked provisional; the engine commits the
-final reply after structural checks only (a complete, schema-valid, non-empty
-result), with no semantic content guards such as invented-person or
-invented-place detection. Grounding quality is fixed through the Endpoint
-definition and model, not engine rewrites. Stop or a failed call leaves the
-partial text visibly uncommitted, with no state effects. [Model termination](#model-termination) still applies:
-only a successful terminal result is committed. Desktop keeps its guards
-unchanged. The switch is the `dialogue-content-guards` flag
-(`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`), which the mobile host disables.
+[Dialogue prompt grounding](#dialogue-prompt-grounding) describes the desktop
+in-process prompt assembly. The mobile Endpoint path (owner decision,
+2026-09-28) builds its prompt in the Limerick Endpoint definition instead, and
+the app streams reply text into the transcript as it arrives, marked
+provisional.
+
+[Committing model dialogue as written](#canonical-semantic-model-apply) applies
+to every path: desktop, headless and mobile (owner decision, 2026-10-23, issue
+2295). The engine commits the final reply after the structural checks only (a
+complete, schema-valid, non-empty result), and no code inspects, rewrites or
+replaces it. Grounding quality is fixed through the prompt, the facts it
+supplies, the Endpoint definition and the model, never engine rewrites. Stop or
+a failed call leaves the partial text visibly uncommitted, with no state
+effects. [Model termination](#model-termination) still applies: only a
+successful terminal result is committed.
 
 <a id="dialogue-prompt-grounding"></a>
 <a id="rule-15"></a>
@@ -39,22 +40,30 @@ production); test: `limerick-core/tests/dialogue_prompt_anchor.rs`; flag
 <a id="canonical-semantic-model-apply"></a>
 <a id="rule-33"></a>
 
-## Validate semantic model output at the canonical apply seam
+## Commit model dialogue as written; check structure only
 
-Prompt contracts and deterministic guards must share canonical constants. Treat
-player-visible model dialogue as an effect: quarantine candidate tokens until
-the one canonical apply validator accepts or replaces them, and never
-pre-apply semantic guards or publish raw candidate text from a caller. Rejected
-text and metadata have zero memory, event, UI, or state effects. Schema-valid
-model fields and factual dialogue claims must not change or contradict
-identity, relationships, occupations, workplaces, locations, calendar facts,
-hints, recommendations, or other gameplay/UI metadata until cross-checked
-against authored world data and the final delivered dialogue. Explicit
-current-turn request facets must use one typed, ordered prompt/apply contract;
-if the final transformed dialogue omits a recognized facet, replace the whole
-response before effects. Multi-turn pronouns may carry an unresolved person/place
-only through a bounded typed conversation context and only while the referent
-is unambiguous (#1776, #1779, #1786, #1788–#1790, #1832, #1834, #1839–#1841).
+The model does its best, for better or worse. The canonical apply seam
+(`apply_npc_dialogue_turn_with_disposition` in
+`limerick-core/src/dialogue_apply.rs`) checks only the structural response
+contract, `limerick_npc::dialogue_candidate_is_complete`: the reply parsed as
+the complete authored JSON object (on desktop this includes the Tier 1 metadata
+block) and its dialogue is non-empty. A reply that fails the contract fails the
+turn with no memory, event, UI, or state effects. A reply that passes is
+committed exactly as written: there is no grounding, register, obligation,
+anachronism, repetition, verbosity, or length rewrite, no replacement line, and
+no flag that turns one back on. The host drains provider tokens internally and
+publishes only the committed reply.
+
+Model text still never changes game state by itself. Authoritative state moves
+only through typed seams that read authored data and the player's own words:
+the speaker becomes known from the delivered line plus the authored roster, a
+task is assigned only when the delivered dialogue assigns it and authored
+locations agree, and remembered player objects come from the player's input.
+Test: `limerick-core/tests/dialogue_commits_unchanged.rs` (a reply naming a
+person who does not exist commits unchanged on the desktop and phone paths).
+Do not add a post-generation guard. Fix a bad reply with the prompt
+([NPC dialogue prompt requirements](../design/npc-dialogue-prompt.md)), better
+facts, or a better model.
 
 <a id="local-inference-promotion"></a>
 <a id="rule-36"></a>
@@ -64,7 +73,7 @@ is unambiguous (#1776, #1779, #1786, #1788–#1790, #1832, #1834, #1839–#1841)
 A recommended model/backend/sampling/hardware profile requires a
 content-addressed promotion receipt from the frozen production-prompt holdout
 that passes dialogue and multiturn quality, hard-failure, parser-soak,
-guard-intervention, p95 latency/throughput, and memory-headroom gates.
+p95 latency/throughput, and memory-headroom gates.
 Development-split scores, preliminary leaderboard rows, hand-entered
 summaries, and average quality alone must never change a shipped
 recommendation.
@@ -88,7 +97,7 @@ not a token ceiling.
 Local promotion latency gates must not be reused for routed cloud models. A
 promotion receipt is valid only for the exact provider and API route measured;
 matching model identity through another gateway is not equivalent evidence.
-Cloud screening hard-gates structural validity, guard intervention, evidence
+Cloud screening hard-gates structural validity, evidence
 completeness, and request reliability; latency and throughput rank qualified
 profiles unless a separately measured product SLO explicitly makes one a
 release gate.

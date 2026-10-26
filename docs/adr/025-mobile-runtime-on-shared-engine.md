@@ -101,6 +101,15 @@ after any content edit, because it fingerprints content with `DefaultHasher`.
    - Existing TestFlight saves may be discarded: they are test data, and no
      migrator is built for them.
    - Continuous TestFlight delivery to the owner's own device remains authorized.
+10. **The engine commits model dialogue as written.** There are no
+    post-generation content guards on any path. The phone has run none since
+    2026-09-28 (#2044). The owner extended that to desktop and headless on
+    2026-10-23 (issue 2295): the engine checks only the structural response
+    contract (complete, schema-valid, non-empty) and the canonical commit
+    boundary, and never rewrites or replaces a reply. Grounding is fixed through
+    the prompt, the facts it supplies, the Endpoint definition and the model.
+    Where this ADR's context says `ios-port` reused "dialogue validation", that
+    describes the branch as reviewed; the validators are gone.
 
 ## Alternatives considered
 

@@ -153,15 +153,6 @@ NPCs can die through Tier 4 life events (illness, old age, accident). When death
 
 Controlled by the `banshee` feature flag (default-on). NPCs carry a `banshee_heralded: bool` field to prevent double-triggering.
 
-### Anachronism Detection
-
-- Scans player input for words and concepts that post-date 1820
-- Categories: Technology, Slang, Concepts, Materials, Measurements
-- ~60-term registry with origin years and categories
-- Word-boundary matching to minimize false positives
-- Detected anachronisms are injected into the NPC's prompt so they respond in-period with authentic confusion
-- Both hardcoded dictionary and mod-driven `anachronisms.json`
-
 ### Improv Mode
 
 - Toggleable "improv craft" mode for NPC dialogue (`/improv`)
@@ -673,7 +664,6 @@ mods/<mod-name>/
 │   ├── tier1_system.txt  # Tier 1 system prompt
 │   ├── tier1_context.txt # Tier 1 context template
 │   └── tier2_system.txt  # Tier 2 system prompt
-├── anachronisms.json     # Period-specific anachronism dictionary
 ├── festivals.json        # Calendar festivals with dates and descriptions
 ├── encounters.json       # Travel encounter text by time of day
 ├── loading.toml          # Spinner animation frames, colors, and loading phrases
@@ -771,7 +761,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 ### Eval Rubrics & Baselines
 
 - Snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`
-- Structural rubrics gate against empty look descriptions, frozen clocks, and anachronistic vocabulary
+- Structural rubrics gate against empty look descriptions and frozen clocks
 - Compare current engine output against known-good baselines
 
 ### Architecture Fitness Tests
@@ -857,7 +847,6 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 - Five-layer prompt-injection defense (ADR-010)
 - Short-term NPC memory, relationships, mood, intelligence profiles
 - Autonomous NPC chains (up to 3 follow-on exchanges) and off-screen social simulation
-- Anachronism detection
 - Gossip network with 60% transmission probability and 20% distortion per hop
 - MapLibre GL interactive map with historic 1840s OS Ireland tiles, custom SVG icons, traversal-weighted edges, click-to-travel, and animated travel
 - Three UI themes (cream/parchment, Solarized Light, Solarized Dark) with CSS custom property system

@@ -13,7 +13,7 @@ including tiered cognition and autonomous updates.
 - `autonomous` / `ticks` — simulation loops and periodic updates.
 - `memory` — short/long-term memory representations.
 - `transitions` / `tier4` — cognition tier transitions and low-fidelity rules.
-- `reactions`, `overhear`, `mood`, `anachronism` — dialogue/social subsystems.
+- `reactions`, `overhear`, `mood` — dialogue/social subsystems.
 
 ## Notes
 

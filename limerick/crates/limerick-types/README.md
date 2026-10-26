@@ -16,7 +16,7 @@ higher-level gameplay modules.
 - `conversation` and `gossip` — shared narrative/social data structures.
 - `error` — `LimerickError` and cross-crate error variants.
 - `dice` — deterministic and random utility rolling helpers.
-- `lib.rs` — root re-exports and shared types such as `AnachronismEntry`.
+- `lib.rs` — root re-exports of the shared types above.
 
 ## Used by
 

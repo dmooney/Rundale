@@ -291,11 +291,10 @@ serializes the captured `Vec<ScriptResult>` to JSON, and diffs against a stored
 baseline at `testing/evals/baselines/<fixture>.json`. Any drift fails the
 test with a "live | baseline" diff window and the canonical fix.
 
-The same file applies three structural rubrics to every baselined fixture:
+The same file applies two structural rubrics to every baselined fixture:
 
 | Rubric                                   | Catches                                                 |
 | ---------------------------------------- | ------------------------------------------------------- |
-| `rubric_anachronisms_are_empty`          | NpcResponse drift that introduces out-of-period words   |
 | `rubric_movement_minutes_are_positive`   | Frozen game clock — Moved with `minutes == 0`           |
 | `rubric_look_descriptions_are_non_empty` | Silent renderer failure — Looked with empty description |
 

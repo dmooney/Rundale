@@ -15,7 +15,7 @@ unchanged.
 - `GameMod` / `GameMod::load` — load + validate a mod directory.
 - `manifest` — `ModManifest`, `ModMeta`, `ModKind`, `SettingConfig`,
   `FileRefs`, `PromptRefs`.
-- `types` — runtime data: `PromptTemplates`, `AnachronismData`, `FestivalDef`,
+- `types` — runtime data: `PromptTemplates`, `FestivalDef`,
   `EncounterTable`, `LoadingConfig`, `UiConfig`, `ThemeConfig`,
   `ThemePaletteConfig`, `PronunciationEntry`, plus `default_theme_palette()`.
 - `discovery` — `discover_mods`, `discover_mods_in`, `find_default_mod`,

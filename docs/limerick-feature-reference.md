@@ -43,7 +43,6 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Season-aware schedules** with hourly activity/location entries and per-season overrides.
 - **Autonomous NPC chains** — after a player turn, NPCs may chain up to three follow-on exchanges driven by relationship strength and mood.
 - **Off-screen social simulation** — NPCs interact with one another independent of the player's presence. Tier 2 and Tier 3 inference ticks resolve relationship events, mood shifts, and story beats between non-player characters; outcomes are persisted to world state, progress each NPC's personal story, and surface later as gossip. The world moves forward whether the player is there to witness it or not.
-- **Anachronism filter** — ~60-term registry (each entry tagged with origin year and category) flags out-of-period vocabulary in player input so NPCs can react with authentic confusion instead of going along with it.
 
 ## LLM inference
 
@@ -124,11 +123,10 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ## Modding & content
 
-- **`mod.toml` manifest** declares world, NPCs, prompts, anachronisms, festivals, encounters, transport, pronunciations, UI overrides, and loading-screen text.
+- **`mod.toml` manifest** declares world, NPCs, prompts, festivals, encounters, transport, pronunciations, UI overrides, and loading-screen text.
 - **`world.json`** — locations with id, description templates, lat/lon, indoor/public flags, edge connections, mythological significance, and a `geo_kind` (real / manual / fictional).
 - **`npcs.json`** — full NPC schema with personality, six-axis intelligence, home/workplace, mood, and per-season hourly schedules.
 - **Editable prompt templates** — separate Tier 1 system, Tier 1 context, and Tier 2 system files plus a configurable historical-period preamble.
-- **Anachronism registry** — JSON file of dated terms; modders can extend it for other periods.
 - **Festivals, encounters, transport speeds, and Irish-word pronunciations** are all data-driven.
 - **Backend-agnostic loading** — the same mod loads identically in Tauri, the web server, and the test harness.
 
@@ -152,7 +150,7 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 - **`limerick-harness`** — headless game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against `limerick-server` over HTTP. Each run captures canonical engine state and a rendered telemetry "state-frame" per turn—not a player-visible UI screenshot; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) when gates pass; records findings; and persists everything to SQLite plus on-disk artifacts. The Tauri bridge does not expose the `/api/command` endpoint this client uses, so desktop/UI quality is covered separately by the live MCP quality harness and Playwright lanes. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `limerick-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p limerick-harness -- run --config <cfg> --turns N` against a running server. For a **fully headless real-model game** to drive, boot the web server with `limerick-server --headless-models` (or `LIMERICK_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through runtime slash commands over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `limerick-harness run --player api --judge api` is driven solely by env API keys—no Claude Code session, MCP, or subagent queue—and `--player`/`--judge` select each actor's driver independently.
 - **`limerick-scenario`** — versioned YAML regression runner for agents and CI. Every step drives the shipping `limerick_core::game_loop`, mocks only inference, and evaluates explicit assertions over emitted IPC events and post-step state. Run all scenarios with `just scenario-test` or print one JSON report with `just scenario-run <file>`.
 - **Legacy script harness** — `test_*.txt` fixtures in `testing/fixtures/` retain compatibility coverage through structured `ScriptResult` output. One-off demonstrations are separated under `testing/proofs/` and are not counted as regression tests merely because they execute without crashing.
-- **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
+- **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, and frozen clocks.
 - **Architecture fitness tests** — `crates/limerick-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
 - **`justfile`** with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`.
 - **Witness-marker scan** — `just witness-scan` rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files.

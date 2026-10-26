@@ -16,7 +16,7 @@ Integration tests reference `../../testing/fixtures/...` and `../../../mods/rund
 - **`ScheduleEntry::start_hour` means "depart at", not "arrive at".** NPCs are in transit during the first `travel_minutes` of each window. Tests asserting presence at exact `start_hour` will spuriously fail.
 - **Tier transitions are async + bounded.** `manager` orchestrates promotions/demotions across tiers (1→4); skipping a tier requires explicit justification. Tier 4 = low-fidelity rules-only.
 - **Memory representation has short + long-term split** (`memory/`); long-term writes are persisted via `limerick-persistence` — never write directly.
-- **Anachronism subsystem watches dialogue output**, not just NPC state — touches `reactions/`, `overhear/`, `mood/`, `anachronism/`.
+- **Nothing in this crate inspects or rewrites a model reply.** `dialogue_candidate_is_complete` (`response.rs`) is the only reply check; `dialogue_identity.rs` derives authoritative speaker identity from the delivered line plus the authored roster. Do not add a guard (issue 2295).
 - **Schema types are re-exported** for the Limerick Designer + mod tooling. Renames break editor compile.
 - **`snapshot.restore` wipes `tier_assignments`** — fixed by calling `npc_manager.seed_tier_state(world)` at the end of `restore`. The seed function is in `limerick-npc/src/tier_assign.rs` and shares its BFS distance compute with `assign_tiers` but publishes no events. Tier is derivable from `(player_location, npc.location, npc.state)` so the snapshot file itself doesn't need to carry it.
 - **Broad NPC trait cue detectors need negated-example tests.** Bios may compare against someone else's trait ("lacks his father's cunning"), so matching a bare cue like `cunning` can misclassify the child/foil. Prefer narrower phrases (`cunning with`) and add a negative fixture alongside the positive one.
@@ -28,4 +28,4 @@ Integration tests reference `../../testing/fixtures/...` and `../../../mods/rund
 
 ## Module map
 
-`manager/` tier orchestration, `autonomous/`+`ticks/` sim loops, `memory/` short+long, `transitions/`+`tier4/` cognition, `reactions/`+`overhear/`+`mood/`+`anachronism/` social.
+`manager/` tier orchestration, `autonomous/`+`ticks/` sim loops, `memory/` short+long, `transitions/`+`tier4/` cognition, `reactions/`+`overhear/`+`mood/` social, `dialogue_grounding.rs` prompt facts + player object facts.
