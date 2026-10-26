@@ -102,6 +102,10 @@ public final class LinuxHost {
         }
         switch line {
         case ":stop":
+            guard presenter.showsStop else {
+                output("_Stop is not offered._\n")
+                return true
+            }
             presenter.stop()
             await settle(after: .stopped)
         case ":retry":
@@ -141,7 +145,11 @@ public final class LinuxHost {
         guard let presenter else { return }
         await presenter.persistLifecycleSnapshot()
         self.presenter = nil
-        try? await runtime?.close()
+        do {
+            try await runtime?.close()
+        } catch {
+            output("_The engine did not close cleanly: \(error)_\n")
+        }
         runtime = nil
     }
 

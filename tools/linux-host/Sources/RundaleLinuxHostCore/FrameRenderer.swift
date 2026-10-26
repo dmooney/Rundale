@@ -73,8 +73,8 @@ public enum FrameRenderer {
             text = item.text
         }
         // The app dims a reply it did not apply and notes it under the
-        // reply; other rows say so only to VoiceOver, and the error line
-        // that ended the attempt not at all.
+        // reply; other rows say so only to VoiceOver. The error line that
+        // ended the attempt is shown as it looks, without a note.
         if let note = item.unappliedReplyNote {
             return "\(text)\n_(\(note))_"
         }
