@@ -193,22 +193,6 @@ fn process_event(
             stream_state.conversation_done = true;
             flush_pending_turns(npc_turns, lines);
         }
-        "dialogue-corrected" => {
-            let payload: Option<limerick_core::ipc::DialogueCorrectedPayload> =
-                serde_json::from_value(event.payload).ok();
-            if let Some(p) = payload {
-                if let Some((source, text)) = npc_turns.get_mut(&p.turn_id) {
-                    let _ = source;
-                    *text = p.corrected_text.clone();
-                }
-                if let Some(line) = lines
-                    .iter_mut()
-                    .find(|line| line.id == format!("stream-{}", p.turn_id))
-                {
-                    line.text = p.corrected_text;
-                }
-            }
-        }
         "dialogue-quality" => {
             if let Ok(payload) =
                 serde_json::from_value::<limerick_core::ipc::DialogueQualityPayload>(event.payload)
@@ -269,12 +253,12 @@ mod tests {
     use limerick_core::event_bus::ServerEvent;
 
     #[test]
-    fn quality_event_is_retained_and_correction_replaces_flushed_text() {
+    fn quality_event_is_retained_and_leaves_the_committed_text_alone() {
         let mut lines = vec![OutputLine {
             id: "stream-42".to_string(),
             role: Role::Npc,
             speaker: "Máire".to_string(),
-            text: "raw model text".to_string(),
+            text: "committed model text".to_string(),
         }];
         let mut npc_turns = HashMap::new();
         let mut world_update = None;
@@ -287,28 +271,11 @@ mod tests {
 
         process_event(
             ServerEvent {
-                event: "dialogue-corrected".to_string(),
-                payload: serde_json::json!({
-                    "turn_id": 42,
-                    "corrected_text": "guarded text"
-                }),
-            },
-            &mut lines,
-            &mut npc_turns,
-            &mut world_update,
-            &mut travel,
-            &mut stream_state,
-            &mut quality,
-        );
-        process_event(
-            ServerEvent {
                 event: "dialogue-quality".to_string(),
                 payload: serde_json::json!({
                     "turn_id": 42,
                     "parse_disposition": "full_json",
                     "contract_valid": true,
-                    "guard_intervened": true,
-                    "guard_reasons": ["display_cap"],
                     "model": "local-test",
                     "generation": {
                         "max_tokens": 768,
@@ -327,10 +294,9 @@ mod tests {
             &mut quality,
         );
 
-        assert_eq!(lines[0].text, "guarded text");
+        assert_eq!(lines[0].text, "committed model text");
         assert_eq!(quality.len(), 1);
         assert!(quality[0].contract_valid);
-        assert!(quality[0].guard_intervened);
     }
 
     #[test]

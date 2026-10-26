@@ -36,9 +36,7 @@ use crate::world::{Location, LocationId, WorldState};
 // the historical paths so desktop callers and tests keep their API unchanged.
 pub use crate::dialogue_apply::{
     DialogueTurnOutcome, PLAYER_TASK_PROGRESSION_FLAG, apply_npc_dialogue_turn,
-    apply_npc_dialogue_turn_with_disposition, apply_npc_dialogue_turn_with_validation,
-    cap_dialogue_for_display, cap_dialogue_for_display_with_trim, dialogue_grounding_snapshot,
-    is_task_request_input,
+    apply_npc_dialogue_turn_with_disposition, dialogue_facts, is_task_request_input,
 };
 
 /// Monotonically increasing request ID counter for reaction inference calls.
@@ -1837,136 +1835,11 @@ mod tests {
         );
     }
 
-    // ── #1224 — cap_dialogue_for_display (AC-6, AC-7) ────────────────────────
-
-    /// AC-7 (fix-1224-1225): dialogue shorter than the cap passes through unchanged.
+    /// The model's reply is committed exactly as written. There is no display
+    /// cap and no rewrite: a long reply reaches the event, the conversation log
+    /// and the player unchanged.
     #[test]
-    fn cap_dialogue_for_display_short_dialogue_unchanged() {
-        let short = "Dia dhuit, a chara. What brings ye here?";
-        let result = crate::game_session::cap_dialogue_for_display(short, 800);
-        assert_eq!(
-            result.as_ref(),
-            short,
-            "short dialogue must not be modified"
-        );
-    }
-
-    /// AC-6 (fix-1224-1225): dialogue longer than the cap is truncated with `…`.
-    #[test]
-    fn cap_dialogue_for_display_long_dialogue_truncated() {
-        let long = "a".repeat(1000);
-        let result = crate::game_session::cap_dialogue_for_display(&long, 800);
-        assert!(
-            result.len() <= 800,
-            "capped dialogue must not exceed max_chars bytes (got {})",
-            result.len()
-        );
-        assert!(
-            result.ends_with('…'),
-            "truncated dialogue must end with single-codepoint ellipsis"
-        );
-        assert!(
-            !result.ends_with("..."),
-            "must use U+2026 ellipsis, not three ASCII dots"
-        );
-    }
-
-    /// cap is disabled when max_chars is 0.
-    #[test]
-    fn cap_dialogue_for_display_zero_cap_is_passthrough() {
-        let long = "a".repeat(5000);
-        let result = crate::game_session::cap_dialogue_for_display(&long, 0);
-        assert_eq!(result.len(), 5000, "zero cap must not truncate");
-    }
-
-    // ── #1400 — sentence-boundary-aware display cap ──────────────────────────
-
-    /// AC-1 (#1400): a reply that overruns the cap is trimmed back to a sentence
-    /// boundary — the result ends on a terminator + `…`, never mid-word or on a
-    /// dangling conjunction/comma.
-    #[test]
-    fn cap_dialogue_sentence_trim_ends_on_clause_boundary() {
-        // Two clean sentences, then a long dangling clause that would overrun a
-        // small cap mid-word ("...out and about, and …").
-        let dialogue = "'Tis a grand morning indeed. The fields are bright with \
-            dew and birdsong. 'Tis a fine day to be out and about, and the road \
-            north past the low fields is as pleasant a walk as any in the parish";
-        // Cap chosen so the raw clip lands inside the third, dangling clause.
-        let cap = 95;
-        let result = crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, true);
-        assert!(result.ends_with('…'), "must end with ellipsis: {result:?}");
-        // Strip the trailing ellipsis and assert the preceding char is a clean
-        // sentence terminator (or a quote closing one), never a comma/letter.
-        let body = result.trim_end_matches('\u{2026}');
-        let last = body.chars().last().unwrap();
-        assert!(
-            matches!(last, '.' | '!' | '?' | '"' | '\'' | '\u{201D}' | '\u{2019}'),
-            "clipped reply must end on a clause boundary, got {last:?}: {result:?}"
-        );
-        assert!(
-            !body.trim_end().ends_with("and") && !body.trim_end().ends_with(','),
-            "must not end on a dangling conjunction/comma: {result:?}"
-        );
-        // It kept at least the first sentence.
-        assert!(result.contains("grand morning indeed."));
-    }
-
-    /// AC-2 (#1400): a reply already under the cap and ending on a sentence
-    /// boundary passes through unchanged (no spurious trimming).
-    #[test]
-    fn cap_dialogue_sentence_trim_under_cap_unchanged() {
-        let s = "Welcome. I run the pub here. What'll ye have?";
-        let result = crate::game_session::cap_dialogue_for_display_with_trim(s, 800, true);
-        assert_eq!(result.as_ref(), s, "under-cap dialogue must be unchanged");
-    }
-
-    /// AC-3 (#1400): a single giant run-on word with no boundary in the budget
-    /// falls back to the raw char-boundary clip — never panics, stays ≤ cap,
-    /// valid UTF-8.
-    #[test]
-    fn cap_dialogue_sentence_trim_no_boundary_falls_back() {
-        let run_on = "x".repeat(2000);
-        let result = crate::game_session::cap_dialogue_for_display_with_trim(&run_on, 800, true);
-        assert!(result.len() <= 800, "fallback clip must stay within cap");
-        assert!(result.ends_with('…'));
-        // Valid UTF-8 (no panic on char iteration).
-        let _ = result.chars().count();
-    }
-
-    /// AC-3 corollary: multibyte content with no sentence boundary still clips
-    /// safely on a char boundary.
-    #[test]
-    fn cap_dialogue_sentence_trim_multibyte_no_boundary() {
-        let irish = "Dia dhuit a chara cén chaoi a bhfuil tú ".repeat(40);
-        let result = crate::game_session::cap_dialogue_for_display_with_trim(&irish, 200, true);
-        assert!(result.len() <= 200);
-        assert!(result.ends_with('…'));
-        let _ = result.chars().count(); // must be valid UTF-8
-    }
-
-    /// AC-4 (#1400): kill-switch — with sentence-boundary trim disabled, the cap
-    /// reverts to the legacy raw char-boundary clip (byte-for-byte identical to
-    /// `cap_dialogue_for_display` before this fix).
-    #[test]
-    fn cap_dialogue_sentence_trim_killswitch_matches_legacy_clip() {
-        let dialogue = "'Tis a grand morning indeed. The fields are bright with \
-            dew and birdsong. 'Tis a fine day to be out and about, and the road";
-        let cap = 95;
-        let trimmed_off =
-            crate::game_session::cap_dialogue_for_display_with_trim(dialogue, cap, false);
-        // Legacy raw clip: floor char boundary at cap-3, then "…".
-        let raw_boundary = crate::npc::floor_char_boundary(dialogue, cap - 3);
-        let expected = format!("{}\u{2026}", &dialogue[..raw_boundary]);
-        assert_eq!(
-            trimmed_off.as_ref(),
-            expected,
-            "kill-switched cap must match the legacy raw char-boundary clip"
-        );
-    }
-
-    /// `apply_npc_dialogue_turn` stores capped dialogue in the DialogueOccurred event.
-    #[test]
-    fn apply_npc_dialogue_turn_caps_dialogue_in_event() {
+    fn apply_npc_dialogue_turn_commits_long_dialogue_unchanged() {
         use crate::npc::manager::NpcManager;
         use crate::npc::{NpcId, NpcStreamResponse};
         use chrono::TimeZone;
@@ -1978,13 +1851,12 @@ mod tests {
         let mut rx = world.event_bus.subscribe();
         let mut npc_manager = NpcManager::new();
 
-        // Synthesise an NPC at the player's start location.
         let mut npc = crate::npc::Npc::new_test_npc();
         npc.id = NpcId(1);
         npc.set_location(world.player_location);
         npc_manager.add_npc(npc);
 
-        let long_dialogue = "word ".repeat(300); // ~1500 chars, well over 800
+        let long_dialogue = "word ".repeat(300);
         let parsed = NpcStreamResponse {
             dialogue: long_dialogue.clone(),
             metadata: None,
@@ -2005,382 +1877,29 @@ mod tests {
             "Padraig",
             "Padraig O'Brien",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
-        assert!(
-            outcome
-                .guard_reasons
-                .iter()
-                .any(|reason| reason == "display_cap"),
-            "a material cap must be visible in quality telemetry: {:?}",
-            outcome.guard_reasons
-        );
-        assert!(
-            outcome
-                .guard_reasons
-                .iter()
-                .any(|reason| reason == "verbosity_guard"),
-            "the setup must exercise the overlapping verbosity guard: {:?}",
-            outcome.guard_reasons
-        );
-        assert_eq!(
-            outcome
-                .guard_reasons
-                .iter()
-                .filter(|reason| reason.as_str() == "display_cap")
-                .count(),
-            1,
-            "the material display constraint must be reported exactly once"
-        );
+        assert!(outcome.accepted_candidate);
+        assert_eq!(outcome.display_text, long_dialogue);
 
-        // The DialogueOccurred event published to the bus must carry the
-        // capped dialogue, not the full 1500-char original.
-        let default_cap = crate::config::NpcConfig::default().dialogue_display_max_chars;
-        // try_recv pulls events without async: the broadcast tx just sent one.
         let event = rx
             .try_recv()
             .expect("DialogueOccurred event must be published to the bus");
-
-        if let GameEvent::DialogueOccurred { npc_said, .. } = event {
-            let said = npc_said.as_deref().unwrap_or("");
-            assert!(
-                said.len() <= default_cap,
-                "AC-6: npc_said in event ({} bytes) must not exceed cap ({} bytes)",
-                said.len(),
-                default_cap
-            );
-        } else {
-            panic!("Expected DialogueOccurred event, got something else");
+        match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(long_dialogue.as_str()));
+            }
+            other => panic!("Expected DialogueOccurred event, got {other:?}"),
         }
     }
 
+    /// A reply that names a person the world does not have is committed as the
+    /// model wrote it: no replacement line, and its metadata takes effect.
     #[test]
-    fn canonical_apply_rejects_issue_1834_text_and_metadata_before_side_effects() {
+    fn apply_commits_reply_naming_a_nonexistent_person_unchanged() {
         use crate::npc::manager::NpcManager;
-        use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
-        };
-        use chrono::TimeZone;
-        use limerick_world::WorldState;
-
-        let mut world = WorldState::new();
-        world.dialogue_anachronisms = vec![
-            limerick_types::AnachronismEntry {
-                term: "planning board".to_string(),
-                category: Some("concept".to_string()),
-                origin_year: Some(1934),
-                note: "postdates 1820".to_string(),
-            },
-            limerick_types::AnachronismEntry {
-                term: "agricultural show".to_string(),
-                category: Some("concept".to_string()),
-                origin_year: Some(1831),
-                note: "postdates 1820".to_string(),
-            },
-        ];
-        let mut events = world.event_bus.subscribe();
-        let mut manager = NpcManager::new();
-        let mut npc = crate::npc::Npc::new_test_npc();
-        npc.id = NpcId(1);
-        npc.name = "Peig Hannigan".to_string();
-        npc.mood = "sharp".to_string();
-        npc.set_location(world.player_location);
-        manager.add_npc(npc);
-        let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
-        let location = world.player_location;
-        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
-        let raw = "Council says the planning board has set tongues";
-        let candidate = NpcStreamResponse {
-            dialogue: raw.to_string(),
-            metadata: Some(NpcMetadata {
-                action: "points at a committee notice".to_string(),
-                mood: "delighted".to_string(),
-                internal_thought: Some("modern plan".to_string()),
-                language_hints: Vec::new(),
-                mentioned_people: vec!["Council".to_string()],
-                assigned_task: Some("Attend the agricultural show committee".to_string()),
-            }),
-        };
-
-        let outcome = apply_npc_dialogue_turn_with_validation(
-            &mut world,
-            &mut manager,
-            NpcId(1),
-            &candidate,
-            NpcResponseParseDisposition::FullJson,
-            &grounding,
-            DialogueValidationPolicy::default(),
-            "I'll take the work. What would you have me do first?",
-            "I'll take the work. What would you have me do first?",
-            game_time,
-            location,
-            "an elderly widow",
-            "Peig Hannigan",
-            Some(1834),
-            &grounding.known_person_names,
-            &LanguageSettings::english_only(),
-            &FeatureFlags::default(),
-        );
-
-        assert!(!outcome.accepted_candidate);
-        assert!(outcome.display_text.is_empty());
-        assert_eq!(outcome.guard_reasons, ["anachronism_output_guard"]);
-        assert!(
-            outcome.action.is_none(),
-            "rejected action metadata must vanish"
-        );
-        assert!(
-            outcome.assigned_task.is_none(),
-            "rejected task metadata must vanish"
-        );
-        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
-        assert!(world.conversation_log.recent_at(location, 1).is_empty());
-        assert!(events.try_recv().is_err());
-    }
-
-    #[test]
-    fn canonical_apply_replaces_incomplete_multifacet_reply_before_all_effects() {
-        use crate::npc::manager::NpcManager;
-        use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
-        };
-        use chrono::TimeZone;
-        use limerick_world::WorldState;
-
-        let mut world = WorldState::new();
-        let mut events = world.event_bus.subscribe();
-        let mut manager = NpcManager::new();
-        let mut priest = crate::npc::Npc::new_test_npc();
-        priest.id = NpcId(1);
-        priest.name = "Fr. Declan Tierney".to_string();
-        priest.mood = "solemn".to_string();
-        priest.set_location(world.player_location);
-        manager.add_npc(priest);
-        let mut peig = crate::npc::Npc::new_test_npc();
-        peig.id = NpcId(2);
-        peig.name = "Peig Hannigan".to_string();
-        peig.set_location(world.player_location);
-        manager.add_npc(peig);
-
-        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
-        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
-        grounding.dialogue_obligations =
-            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
-        let raw = "'Tis a fine morning indeed. What brings ye to this church?";
-        let candidate = NpcStreamResponse {
-            dialogue: raw.to_string(),
-            metadata: Some(NpcMetadata {
-                action: "offers a room key".to_string(),
-                mood: "delighted".to_string(),
-                internal_thought: Some("hire him".to_string()),
-                language_hints: Vec::new(),
-                mentioned_people: vec!["Aiden Carney".to_string()],
-                assigned_task: Some("Start work at the rectory".to_string()),
-            }),
-        };
-        let location = world.player_location;
-        let outcome = apply_npc_dialogue_turn_with_validation(
-            &mut world,
-            &mut manager,
-            NpcId(1),
-            &candidate,
-            NpcResponseParseDisposition::FullJson,
-            &grounding,
-            DialogueValidationPolicy::default(),
-            input,
-            input,
-            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
-            location,
-            "a parish priest",
-            "Fr. Declan Tierney",
-            Some(1832),
-            &grounding.known_person_names,
-            &LanguageSettings::english_only(),
-            &FeatureFlags::default(),
-        );
-
-        assert!(!outcome.accepted_candidate);
-        assert!(
-            outcome
-                .guard_reasons
-                .contains(&"dialogue_obligation_guard".to_string())
-        );
-        assert!(outcome.display_text.is_empty());
-        assert!(outcome.action.is_none());
-        assert!(outcome.assigned_task.is_none());
-        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "solemn");
-        for npc in manager.all_npcs() {
-            assert!(npc.memory.entries().all(|memory| {
-                !memory.content.contains(raw)
-                    && !memory.content.contains("offers a room key")
-                    && !memory.content.contains("Start work at the rectory")
-            }));
-        }
-        assert!(world.conversation_log.recent_at(location, 1).is_empty());
-        assert!(events.try_recv().is_err());
-    }
-
-    #[test]
-    fn canonical_apply_replaces_work_non_answer_with_grounded_referral() {
-        use crate::npc::manager::NpcManager;
-        use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
-        };
-        use chrono::TimeZone;
-        use limerick_world::WorldState;
-
-        let mut world = WorldState::new();
-        let mut manager = NpcManager::new();
-        let mut peig = crate::npc::Npc::new_test_npc();
-        peig.id = NpcId(1);
-        peig.name = "Peig Hannigan".to_string();
-        peig.occupation = "Widow".to_string();
-        peig.set_location(world.player_location);
-        manager.add_npc(peig);
-        let mut siobhan = crate::npc::Npc::new_test_npc();
-        siobhan.id = NpcId(2);
-        siobhan.name = "Siobhan Murphy".to_string();
-        siobhan.occupation = "Farmer".to_string();
-        siobhan.set_location(world.player_location);
-        manager.add_npc(siobhan);
-
-        let input = "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.";
-        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
-        grounding.dialogue_obligations =
-            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
-        let candidate = NpcStreamResponse {
-            dialogue: "I cannot promise work, but I understand you are seeking it.".to_string(),
-            metadata: Some(NpcMetadata {
-                action: "shrugs".to_string(),
-                mood: "curious".to_string(),
-                internal_thought: None,
-                language_hints: Vec::new(),
-                mentioned_people: Vec::new(),
-                assigned_task: Some("Invent a job".to_string()),
-            }),
-        };
-        let location = world.player_location;
-        let outcome = apply_npc_dialogue_turn_with_validation(
-            &mut world,
-            &mut manager,
-            NpcId(1),
-            &candidate,
-            NpcResponseParseDisposition::FullJson,
-            &grounding,
-            DialogueValidationPolicy::default(),
-            input,
-            input,
-            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
-            location,
-            "an elderly widow",
-            "Peig Hannigan",
-            Some(1853),
-            &grounding.known_person_names,
-            &LanguageSettings::english_only(),
-            &FeatureFlags::default(),
-        );
-
-        assert!(!outcome.accepted_candidate);
-        assert!(
-            outcome
-                .guard_reasons
-                .contains(&"dialogue_obligation_guard".to_string())
-        );
-        assert!(outcome.display_text.is_empty());
-        assert!(outcome.action.is_none());
-        assert!(outcome.assigned_task.is_none());
-        assert!(world.player_progress.is_empty());
-    }
-
-    #[test]
-    fn canonical_apply_rejects_typed_factual_claim_before_side_effects() {
-        use crate::npc::manager::NpcManager;
-        use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
-        };
-        use chrono::TimeZone;
-        use limerick_world::WorldState;
-
-        let mut world = WorldState::new();
-        let mut events = world.event_bus.subscribe();
-        let mut manager = NpcManager::new();
-        let mut npc = crate::npc::Npc::new_test_npc();
-        npc.id = NpcId(1);
-        npc.name = "Nora Duffy".to_string();
-        npc.mood = "watchful".to_string();
-        npc.set_location(world.player_location);
-        manager.add_npc(npc);
-        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
-        grounding.current_festival = None;
-        let location = world.player_location;
-        let raw = "'Tis said 'tis blessed on this day, Saint Brigid's feast, and can heal sore eyes and more.";
-        let candidate = NpcStreamResponse {
-            dialogue: raw.to_string(),
-            metadata: Some(NpcMetadata {
-                action: "ties a ribbon to the well".to_string(),
-                mood: "joyful".to_string(),
-                internal_thought: Some("the feast is today".to_string()),
-                language_hints: Vec::new(),
-                mentioned_people: Vec::new(),
-                assigned_task: Some("Join today's feast".to_string()),
-            }),
-        };
-
-        let outcome = apply_npc_dialogue_turn_with_validation(
-            &mut world,
-            &mut manager,
-            NpcId(1),
-            &candidate,
-            NpcResponseParseDisposition::FullJson,
-            &grounding,
-            DialogueValidationPolicy::default(),
-            "Is the well blessed?",
-            "Is the well blessed?",
-            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
-            location,
-            "a watchful woman",
-            "Nora Duffy",
-            Some(1839),
-            &grounding.known_person_names,
-            &LanguageSettings::english_only(),
-            &FeatureFlags::default(),
-        );
-
-        assert!(!outcome.accepted_candidate);
-        assert!(outcome.display_text.is_empty());
-        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
-        assert!(outcome.action.is_none());
-        assert!(outcome.assigned_task.is_none());
-        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "watchful");
-        assert!(
-            manager
-                .get(NpcId(1))
-                .unwrap()
-                .memory
-                .recent(8)
-                .iter()
-                .all(|memory| {
-                    !memory.content.contains(raw)
-                        && !memory.content.contains("Join today's feast")
-                        && !memory.content.contains("ties a ribbon")
-                })
-        );
-        assert!(events.try_recv().is_err());
-    }
-
-    #[test]
-    fn canonical_apply_quarantines_session_contradiction_and_remembers_player_object_fact() {
-        use crate::npc::manager::NpcManager;
-        use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
-        };
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
         use chrono::TimeZone;
         use limerick_world::WorldState;
 
@@ -2394,38 +1913,25 @@ mod tests {
         npc.mood = "content".to_string();
         npc.set_location(location);
         manager.add_npc(npc);
-        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
-        grounding.active_session = Some(crate::world::session::ActiveSessionFact {
-            date: chrono::NaiveDate::from_ymd_opt(1820, 3, 20).unwrap(),
-            location,
-            vignette: crate::world::session::SessionVignette {
-                musician: "An old man's voice lifts from the settle; he".to_string(),
-                tune: "strikes up a ballad.".to_string(),
-                ambient: "The room leans in.".to_string(),
-                verse: Some("The summer is gone".to_string()),
-            },
-        });
-        let raw = "There are only general airs being hummed, with no one singer taking the floor; tonight 'tis only the general clatter of the room.";
+
+        let reply = "Cormac Finn? Aye, he keeps the forge at the crossroads, a grand man.";
         let candidate = NpcStreamResponse {
-            dialogue: raw.to_string(),
+            dialogue: reply.to_string(),
             metadata: Some(NpcMetadata {
-                action: "waves the singer away".to_string(),
-                mood: "angry".to_string(),
-                internal_thought: Some("deny the song".to_string()),
+                action: "nods".to_string(),
+                mood: "friendly".to_string(),
+                internal_thought: None,
                 language_hints: Vec::new(),
-                mentioned_people: Vec::new(),
-                assigned_task: Some("Silence the singer".to_string()),
+                mentioned_people: vec!["Cormac Finn".to_string()],
+                assigned_task: None,
             }),
         };
-        let input = "The red wool ribbon has one blue stitch. What do you make of tonight's song?";
-        let outcome = apply_npc_dialogue_turn_with_validation(
+        let input = "Do you know Cormac Finn?";
+        let outcome = apply_npc_dialogue_turn(
             &mut world,
             &mut manager,
             NpcId(1),
             &candidate,
-            NpcResponseParseDisposition::FullJson,
-            &grounding,
-            DialogueValidationPolicy::default(),
             input,
             input,
             chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap(),
@@ -2433,42 +1939,69 @@ mod tests {
             "the publican",
             "Padraig Darcy",
             Some(1863),
-            &grounding.known_person_names,
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
 
-        assert!(!outcome.accepted_candidate);
-        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
-        assert!(!outcome.display_text.contains("general clatter"));
-        assert!(outcome.action.is_none());
-        assert!(outcome.assigned_task.is_none());
-        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "content");
-        assert!(
-            manager
-                .all_npcs()
-                .all(|npc| npc.memory.entries().all(|memory| {
-                    !memory.content.contains(raw)
-                        && !memory.content.contains("waves the singer away")
-                        && !memory.content.contains("Silence the singer")
-                }))
+        assert!(outcome.accepted_candidate);
+        assert_eq!(outcome.display_text, reply);
+        assert_eq!(outcome.action.as_deref(), Some("nods"));
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "friendly");
+        let logged = world.conversation_log.recent_at(location, 1);
+        assert_eq!(logged[0].npc_dialogue, reply);
+        assert!(events.try_recv().is_ok(), "the dialogue event is published");
+    }
+
+    /// Player-authored object attributes are remembered at the commit boundary
+    /// from the player's own words, never from the model's reply.
+    #[test]
+    fn apply_remembers_player_authored_object_facts() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcStreamResponse};
+        use chrono::TimeZone;
+        use limerick_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.set_location(location);
+        manager.add_npc(npc);
+
+        let candidate = NpcStreamResponse {
+            dialogue: "A blue ribbon, you say? I have not seen it.".to_string(),
+            metadata: None,
+        };
+        let input = "I lost a red wool ribbon with one blue stitch.";
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap(),
+            location,
+            "the publican",
+            "Padraig Darcy",
+            None,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
         );
+
         let facts = world
             .conversation_log
             .remembered_object_facts(NpcId(1), location);
-        assert!(
-            facts.is_empty(),
-            "rejection must not learn player-authored facts"
-        );
-        assert!(events.try_recv().is_err());
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].label, "ribbon");
     }
 
     #[test]
-    fn canonical_apply_rejects_recovered_and_raw_modes_with_identical_fallback() {
+    fn apply_rejects_recovered_and_raw_modes_with_no_effects() {
         use crate::npc::manager::NpcManager;
         use crate::npc::{
-            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
-            NpcResponseParseDisposition, NpcStreamResponse,
+            LanguageSettings, NpcId, NpcMetadata, NpcResponseParseDisposition, NpcStreamResponse,
         };
         use chrono::TimeZone;
         use limerick_world::WorldState;
@@ -2485,7 +2018,6 @@ mod tests {
             npc.mood = "sharp".to_string();
             npc.set_location(world.player_location);
             manager.add_npc(npc);
-            let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
             let location = world.player_location;
             let candidate = NpcStreamResponse {
                 dialogue: "This recovered candidate must never escape.".to_string(),
@@ -2498,14 +2030,12 @@ mod tests {
                     assigned_task: Some("Trust the recovered payload".to_string()),
                 }),
             };
-            let outcome = apply_npc_dialogue_turn_with_validation(
+            let outcome = apply_npc_dialogue_turn_with_disposition(
                 &mut world,
                 &mut manager,
                 NpcId(1),
                 &candidate,
                 disposition,
-                &grounding,
-                DialogueValidationPolicy::default(),
                 "Good morning.",
                 "Good morning.",
                 chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
@@ -2513,13 +2043,11 @@ mod tests {
                 "an elderly widow",
                 "Peig Hannigan",
                 None,
-                &grounding.known_person_names,
                 &LanguageSettings::english_only(),
                 &FeatureFlags::default(),
             );
             assert!(!outcome.accepted_candidate);
             assert!(outcome.display_text.is_empty());
-            assert_eq!(outcome.guard_reasons, ["response_contract_guard"]);
             assert!(outcome.action.is_none());
             assert!(outcome.assigned_task.is_none());
             assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
@@ -2567,7 +2095,6 @@ mod tests {
             "an elderly widow",
             "Peig Hannigan",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2592,7 +2119,6 @@ mod tests {
             "an elderly widow",
             "Peig Hannigan",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2636,7 +2162,6 @@ mod tests {
             "a broad-shouldered smith",
             "Seamus Gallagher",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2697,7 +2222,6 @@ mod tests {
             "Padraig",
             "Padraig O'Brien",
             None,
-            &[],
             &LanguageSettings::new("en-IE", Some("ga-IE".to_string())),
             &FeatureFlags::default(),
         );
@@ -2775,7 +2299,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2801,7 +2324,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2881,7 +2403,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -2943,7 +2464,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3006,7 +2526,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3035,7 +2554,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3055,7 +2573,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3086,7 +2603,6 @@ mod tests {
                 "a farmer",
                 "Siobhan Murphy",
                 None,
-                &[],
                 &LanguageSettings::english_only(),
                 &FeatureFlags::default(),
             );
@@ -3110,7 +2626,6 @@ mod tests {
             "a farmer",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &disabled,
         );
@@ -3200,7 +2715,6 @@ mod tests {
             "a publican",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3240,7 +2754,6 @@ mod tests {
             "a publican",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );
@@ -3279,7 +2792,6 @@ mod tests {
             "a publican",
             "Siobhan Murphy",
             None,
-            &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
         );

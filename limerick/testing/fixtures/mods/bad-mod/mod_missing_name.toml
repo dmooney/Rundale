@@ -12,7 +12,6 @@ period_year = 1820
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"

@@ -170,16 +170,6 @@ pub async fn post_command(
                         .iter()
                         .filter(|item| item.contract_valid)
                         .count(),
-                    "guard_interventions": drain
-                        .dialogue_quality
-                        .iter()
-                        .filter(|item| item.guard_intervened)
-                        .count(),
-                    "guard_reasons": drain
-                        .dialogue_quality
-                        .iter()
-                        .flat_map(|item| item.guard_reasons.iter().map(String::as_str))
-                        .collect::<Vec<_>>(),
                     "parse_dispositions": drain
                         .dialogue_quality
                         .iter()
@@ -390,8 +380,6 @@ mod generation_profile_tests {
             turn_id: 1,
             parse_disposition: "full_json".into(),
             contract_valid: true,
-            guard_intervened: false,
-            guard_reasons: Vec::new(),
             model: "qwen-9b".into(),
             generation: limerick_core::ipc::DialogueGenerationTelemetry {
                 max_tokens: 768,

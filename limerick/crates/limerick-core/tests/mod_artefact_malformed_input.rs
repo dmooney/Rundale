@@ -68,13 +68,6 @@ fn minimal_valid_mod() -> TempDir {
     )
     .unwrap();
 
-    // anachronisms.json
-    fs::write(
-        root.join("anachronisms.json"),
-        r#"{"context_alert_prefix": "NOTE:", "context_alert_suffix": "END", "terms": []}"#,
-    )
-    .unwrap();
-
     // festivals.json
     fs::write(root.join("festivals.json"), "[]").unwrap();
 
@@ -123,7 +116,6 @@ period_year = 1820
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"
@@ -165,7 +157,6 @@ period_year = 1820
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"
@@ -314,32 +305,6 @@ fn prompt_file_missing_returns_err() {
     assert!(
         result.is_err(),
         "missing prompt file should cause load failure"
-    );
-    let msg = result.unwrap_err().to_string();
-    assert!(
-        !msg.is_empty(),
-        "error message should be non-empty; got: {msg}"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// 8. anachronisms.json — missing required `context_alert_prefix` field
-// ---------------------------------------------------------------------------
-
-#[test]
-fn anachronisms_json_missing_prefix_returns_err() {
-    let tmp = minimal_valid_mod();
-    // Write anachronisms.json without `context_alert_prefix`
-    fs::write(
-        tmp.path().join("anachronisms.json"),
-        r#"{"context_alert_suffix": "END", "terms": []}"#,
-    )
-    .unwrap();
-
-    let result = limerick_core::game_mod::GameMod::load(tmp.path());
-    assert!(
-        result.is_err(),
-        "anachronisms.json missing `context_alert_prefix` should fail"
     );
     let msg = result.unwrap_err().to_string();
     assert!(

@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chrono::{Datelike, Timelike};
 
 use crate::game_mod::PronunciationEntry;
-use crate::npc::anachronism;
 use crate::npc::manager::{NpcManager, NpcReference};
 use crate::npc::mood::mood_emoji;
 use crate::npc::ticks;
@@ -1097,36 +1096,6 @@ pub struct NpcConversationSetup {
     pub system_prompt: String,
     /// The assembled context string for the LLM.
     pub context: String,
-    /// Names from the full parish person registry plus the player when known.
-    /// Used by the post-generation person-confirmation guard (#1459) to detect
-    /// when the NPC's reply affirms a fabricated person not on this list.
-    pub known_person_names: Vec<String>,
-    /// Full roster as (name, occupation) pairs, including the speaker.
-    /// Used by the wrong-speaker-identity guard (#1475) to detect when this
-    /// NPC's reply claims to be a different roster member.
-    pub roster_names_occupations: Vec<(String, String)>,
-    /// Current player location name.
-    /// Used by the wrong-location-reference guard (#1477) to detect when an NPC
-    /// names a different settlement in "here in X" / "village of X" collocations.
-    pub location_name: String,
-    /// All known location names in the world graph.
-    /// Used by the invented-place-confirmation guard (#1530) to detect when an
-    /// NPC confirms a place name that does not exist in the world.
-    pub known_location_names: Vec<String>,
-    /// Player's name as currently known from world state.
-    /// Passed through to post-generation guards so the player's own name is
-    /// never treated as a fabricated third-party person (#1553).
-    pub player_name: Option<String>,
-    /// Whether this NPC already had a canonical conversation exchange with the
-    /// player before the current turn. Kept separate from identity knowledge:
-    /// an NPC can have met the player without having said their name (#1776,
-    /// #1786).
-    pub had_prior_exchange: bool,
-    /// Canonical authored work facts for post-generation referral validation.
-    pub work_roster: Vec<crate::npc::GroundedWorkFact>,
-    /// Immutable authored facts captured before inference. The canonical apply
-    /// seam validates the completed candidate against this exact snapshot.
-    pub grounding: crate::npc::DialogueGroundingSnapshot,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -1272,33 +1241,6 @@ pub fn prepare_npc_conversation_turn(
     // Transcript history first (current player input excluded — shown separately below).
     append_transcript_context(&mut context, transcript, player_label, player_input);
 
-    // Prompt and output validation consume the same mod-authored term set.
-    // Empty test worlds retain the legacy static dictionary fallback.
-    if world.dialogue_anachronisms.is_empty() {
-        let detected = anachronism::check_input(player_input);
-        if let Some(alert) = anachronism::format_context_alert(&detected) {
-            context.push_str(&alert);
-        }
-    } else {
-        let detected =
-            anachronism::check_input_from_mod_data(player_input, &world.dialogue_anachronisms);
-        if let Some(alert) = anachronism::format_context_alert_from_mod_data(
-            &detected,
-            &world.dialogue_anachronism_alert_prefix,
-            &world.dialogue_anachronism_alert_suffix,
-        ) {
-            context.push_str(&alert);
-        }
-    }
-
-    // Modern-register echo guard (TODO #55) — separate from the
-    // technology/slang anachronism path. Fires when the player uses a
-    // 21st-century phrase from MODERN_REGISTER_TERMS so the NPC doesn't
-    // echo it back and trip the post-reply validator.
-    if let Some(alert) = crate::npc::quality::format_player_register_alert(player_input) {
-        context.push_str(&alert);
-    }
-
     // Current player input — comes after conversation history as the triggering line.
     context.push_str("\n\n");
     context.push_str(&limerick_npc::build_named_action_line(
@@ -1319,139 +1261,12 @@ pub fn prepare_npc_conversation_turn(
         player_input,
     ));
 
-    // Extract plain name strings for the person-confirmation guard (#1459, #1488).
-    //
-    // The guard must never emit a false denial for a REAL parish NPC — even one
-    // the speaking NPC does not personally know. `roster` only contains the NPCs
-    // this NPC has a relationship/co-residence with ("PEOPLE YOU KNOW"), so a
-    // shopkeeper recommended by one NPC but absent from another NPC's roster
-    // would wrongly trigger the guard (#1488: Roisin false-denial bug).
-    //
-    // Fix: seed the known list from ALL parish NPC names, then append the
-    // player entry from the personal roster. This makes the guard conservative:
-    // it only fires for names that do not appear anywhere in the parish registry.
-    let mut known_person_names: Vec<String> =
-        npc_manager.all_npcs().map(|n| n.name.clone()).collect();
-    // Also include the player's name if injected at the front of `roster`.
-    // The player entry has NpcId(0); include it to avoid false-positive on the
-    // player's own name appearing in a question.
-    for (id, name, _) in &roster {
-        if *id == NpcId(0) && !known_person_names.iter().any(|n| n == name) {
-            known_person_names.push(name.clone());
-        }
-    }
-    let dialogue_obligations =
-        crate::npc::derive_dialogue_obligations(player_input, &known_person_names);
-    context.push_str(&crate::npc::render_dialogue_obligation_contract(
-        &dialogue_obligations,
+    // Authored calendar, landmark, session and player-object facts the model
+    // can ground a reply in. These are prompt inputs; nothing compares the
+    // reply against them.
+    context.push_str(&crate::npc::render_dialogue_facts(
+        &crate::game_session::dialogue_facts(world, speaker_id),
     ));
-
-    // The canonical identity guards need the complete authored NPC roster,
-    // not merely the speaker's social/prompt roster. Otherwise a first name
-    // that looks unique from one NPC's perspective can collide elsewhere in
-    // the parish, and wrong-speaker validation changes with relationships.
-    // The player is not an NPC and therefore is not part of this collection.
-    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
-        .all_npcs()
-        .map(|person| (person.name.clone(), person.occupation.clone()))
-        .collect();
-    roster_names_occupations.sort();
-
-    let location_name = world
-        .graph
-        .get(world.player_location)
-        .map(|d| d.name.clone())
-        .unwrap_or_default();
-
-    // All location names in the world graph, for the invented-place guard (#1530).
-    // Reuse the already-computed `location_names` if grounding was enabled;
-    // otherwise build it fresh so the guard always has the full list.
-    let known_location_names: Vec<String> = location_names.unwrap_or_else(|| {
-        let mut names: Vec<String> = world
-            .graph
-            .location_ids()
-            .into_iter()
-            .filter_map(|id| world.graph.get(id).map(|d| d.name.clone()))
-            .collect();
-        names.sort();
-        names
-    });
-
-    let mut work_roster_with_ids: Vec<(NpcId, String, String, Option<String>)> = npc_manager
-        .all_npcs()
-        .map(|person| {
-            let workplace = person
-                .workplace
-                .and_then(|location_id| world.graph.get(location_id))
-                .map(|location| location.name.clone());
-            (
-                person.id,
-                person.name.clone(),
-                person.occupation.clone(),
-                workplace,
-            )
-        })
-        .collect();
-    work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster: Vec<crate::npc::GroundedWorkFact> = work_roster_with_ids
-        .into_iter()
-        .map(
-            |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
-                name,
-                occupation,
-                workplace,
-            },
-        )
-        .collect();
-
-    let prior_player_inputs = world
-        .conversation_log
-        .recent_at(
-            world.player_location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .filter(|exchange| exchange.speaker_id == speaker_id)
-        .map(|exchange| exchange.player_input.clone())
-        .collect();
-    let typed_grounding =
-        crate::game_session::dialogue_grounding_snapshot(world, npc_manager, speaker_id);
-    let grounding = crate::npc::DialogueGroundingSnapshot {
-        speaker_name: npc.name.clone(),
-        speaker_context: Some(crate::npc::DialogueSpeakerContext {
-            name: npc.name.clone(),
-            occupation: npc.occupation.clone(),
-            mood: npc.mood.clone(),
-        }),
-        canonical_mood: npc.mood.clone(),
-        had_prior_exchange,
-        time_of_day: world.clock.time_of_day(),
-        known_person_names: known_person_names.clone(),
-        roster_names_occupations: roster_names_occupations.clone(),
-        current_location_name: location_name.clone(),
-        known_location_names: known_location_names.clone(),
-        player_name: world.player_name.clone(),
-        work_roster: work_roster.clone(),
-        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
-        prior_player_inputs,
-        forbidden_output_terms: world
-            .dialogue_anachronisms
-            .iter()
-            .map(|entry| entry.term.clone())
-            .collect(),
-        prior_openers: Vec::new(),
-        current_festival: typed_grounding.current_festival,
-        current_weekday: typed_grounding.current_weekday,
-        current_day_type: typed_grounding.current_day_type,
-        active_session: typed_grounding.active_session,
-        remembered_objects: typed_grounding.remembered_objects,
-        person_facts: typed_grounding.person_facts,
-        location_facts: typed_grounding.location_facts,
-        referent_context: typed_grounding.referent_context,
-        dialogue_obligations,
-    };
-
-    context.push_str(&crate::npc::render_dialogue_grounding_contract(&grounding));
 
     Some(NpcConversationSetup {
         display_name,
@@ -1459,14 +1274,6 @@ pub fn prepare_npc_conversation_turn(
         npc_id: speaker_id,
         system_prompt,
         context,
-        known_person_names,
-        roster_names_occupations,
-        location_name,
-        known_location_names,
-        player_name: world.player_name.clone(),
-        had_prior_exchange,
-        work_roster,
-        grounding,
     })
 }
 
@@ -1503,38 +1310,6 @@ pub fn prepare_npc_conversation(
 // Name detection is part of the portable dialogue apply seam; keep the
 // historical `crate::ipc::detect_and_record_player_name` path for callers.
 pub use crate::dialogue_apply::detect_and_record_player_name;
-
-/// Checks an NPC response for hallucinated names and returns a corrective
-/// system prompt addendum if any are found.
-///
-/// Call this after parsing the NPC response. If it returns `Some(correction)`,
-/// append the correction to the system prompt and re-submit once. If the
-/// retry also hallucinates, accept and log.
-pub fn check_for_hallucinated_names(
-    response: &crate::npc::NpcStreamResponse,
-    known_roster: &[(NpcId, String, String)],
-    player_name: Option<&str>,
-) -> Option<String> {
-    let mentioned = response
-        .metadata
-        .as_ref()
-        .map(|m| &m.mentioned_people)
-        .filter(|mp| !mp.is_empty())?;
-
-    let hallucinated = crate::npc::validate_mentioned_people(mentioned, known_roster, player_name);
-    if hallucinated.is_empty() {
-        return None;
-    }
-
-    let names = hallucinated.join(", ");
-    tracing::warn!("NPC hallucinated names: {}", names);
-    Some(format!(
-        "\n\nCORRECTION: Your previous response mentioned '{}', \
-        who does not exist in this parish. Regenerate your dialogue \
-        without inventing names for people not in your PEOPLE YOU KNOW list.",
-        names
-    ))
-}
 
 // ── Pronunciation hints ────────────────────────────────────────────────────
 
@@ -2496,19 +2271,6 @@ mod tests {
         assert_eq!(hints[0].word, "Siobhan");
     }
 
-    // ── check_for_hallucinated_names ─────────────────────────────────────────
-
-    #[test]
-    fn check_hallucinated_returns_none_when_metadata_absent() {
-        let response = crate::npc::NpcStreamResponse {
-            dialogue: "Hello.".to_string(),
-            metadata: None,
-        };
-        let roster: Vec<(NpcId, String, String)> = vec![];
-        let result = check_for_hallucinated_names(&response, &roster, None);
-        assert!(result.is_none());
-    }
-
     // ── resolve_addressed_targets role-vocative parity (#1221) ───────────────
 
     /// Regression (#1221): `resolve_addressed_targets` must use the same
@@ -2709,19 +2471,8 @@ mod tests {
 
         let setup = setup.expect("setup must succeed for co-located NPC");
 
-        // The fix: Roisin must appear in both the hidden guard allow-list and
-        // the system prompt even though she is NOT in the priest's personal
-        // relationship roster.
-        assert!(
-            setup
-                .known_person_names
-                .iter()
-                .any(|n| n == "Roisin Malone"),
-            "Roisin Malone (a real parish NPC) must appear in known_person_names \
-             even though she has no relationship with the speaking priest (#1488); \
-             got: {:?}",
-            setup.known_person_names
-        );
+        // The fix: Roisin must appear in the system prompt even though she is
+        // NOT in the priest's personal relationship roster.
         assert!(
             setup.system_prompt.contains("Roisin Malone, Shopkeeper")
                 && setup.system_prompt.contains("real parish person"),
@@ -2729,114 +2480,54 @@ mod tests {
              so the model is not instructed to deny her (#1563):\n{}",
             setup.system_prompt
         );
-
-        // Validate that the person-confirmation guard does NOT fire on a good
-        // reply about Roisin, because she is now in the known list.
-        let good_reply = "Roisin Malone keeps a shop at the crossroads. She is a fine woman.";
-        let guarded = crate::npc::guard_fabricated_person_confirmation(
-            good_reply,
-            "Where can I find Roisin Malone?",
-            &setup.known_person_names,
-            &[],
-            None,
-            0,
-        );
-        assert_eq!(
-            guarded, good_reply,
-            "person-confirmation guard must NOT fire on a real parish NPC (Roisin Malone) \
-             after #1488 fix; got: {guarded:?}"
-        );
     }
 
+    /// The prompt carries standing guidance and authored facts only: no code
+    /// reads the player's line for anachronisms or request facets and appends
+    /// per-turn alerts or obligations (#2295).
     #[test]
-    fn prompt_and_validation_snapshot_share_mod_anachronism_terms() {
+    fn conversation_prompt_adds_no_input_derived_alerts() {
         use crate::config::NpcConfig;
         use crate::npc::{Npc, manager::NpcManager};
 
-        let mut world = WorldState::new();
-        world.dialogue_anachronisms = vec![limerick_types::AnachronismEntry {
-            term: "planning board".to_string(),
-            category: Some("concept".to_string()),
-            origin_year: Some(1934),
-            note: "postdates 1820".to_string(),
-        }];
-        world.dialogue_anachronism_alert_prefix = "AUTHORED PERIOD ALERT".to_string();
-        world.dialogue_anachronism_alert_suffix = "DO NOT ECHO IT".to_string();
+        let world = WorldState::new();
         let mut npc_manager = NpcManager::new();
         let mut npc = Npc::new_test_npc();
         npc.id = NpcId(1);
         npc.set_location(world.player_location);
         npc_manager.add_npc(npc);
 
-        let setup = prepare_npc_conversation_turn(
-            &world,
-            &mut npc_manager,
-            "What says the planning board?",
-            NpcId(1),
-            &[],
-            false,
-            &crate::npc::LanguageSettings::english_only(),
-            &NpcConfig::default(),
-        )
-        .expect("conversation setup");
+        for input in [
+            "What says the planning board about the telephone?",
+            "I'm taking in the sights. Peig Hannigan sent me, seeking honest work and somewhere dry to sleep.",
+        ] {
+            let setup = prepare_npc_conversation_turn(
+                &world,
+                &mut npc_manager,
+                input,
+                NpcId(1),
+                &[],
+                false,
+                &crate::npc::LanguageSettings::english_only(),
+                &NpcConfig::default(),
+            )
+            .expect("conversation setup");
 
-        assert!(setup.context.contains("AUTHORED PERIOD ALERT"));
-        assert!(setup.context.contains("planning board"));
-        assert_eq!(setup.grounding.forbidden_output_terms, ["planning board"]);
-    }
-
-    #[test]
-    fn conversation_setup_renders_exact_issue_obligations_in_player_order() {
-        use crate::config::NpcConfig;
-        use crate::npc::{DialogueObligation, Npc, manager::NpcManager};
-
-        let world = WorldState::new();
-        let mut npc_manager = NpcManager::new();
-        let mut priest = Npc::new_test_npc();
-        priest.id = NpcId(1);
-        priest.name = "Fr. Declan Tierney".to_string();
-        priest.occupation = "Parish Priest".to_string();
-        priest.set_location(world.player_location);
-        npc_manager.add_npc(priest);
-        let mut peig = Npc::new_test_npc();
-        peig.id = NpcId(2);
-        peig.name = "Peig Hannigan".to_string();
-        peig.set_location(world.player_location);
-        npc_manager.add_npc(peig);
-
-        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
-        let setup = prepare_npc_conversation_turn(
-            &world,
-            &mut npc_manager,
-            input,
-            NpcId(1),
-            &[],
-            false,
-            &crate::npc::LanguageSettings::english_only(),
-            &NpcConfig::default(),
-        )
-        .expect("conversation setup");
-
-        assert_eq!(
-            setup.grounding.dialogue_obligations,
-            vec![
-                DialogueObligation::Referral {
-                    referrer: "Peig Hannigan".to_string(),
-                },
-                DialogueObligation::Name {
-                    player_name: "Aiden Carney".to_string(),
-                },
-                DialogueObligation::Work,
-                DialogueObligation::Lodging,
-            ]
-        );
-        let referral = setup.context.find("1. REFERRAL").unwrap();
-        let name = setup.context.find("2. NAME").unwrap();
-        let work = setup.context.find("3. WORK").unwrap();
-        let lodging = setup.context.find("4. LODGING").unwrap();
-        assert!(referral < name && name < work && work < lodging);
-        assert!(setup.context.contains("PLAYER REQUESTS TO ANSWER NOW"));
-        assert!(setup.context.contains("fulfill EVERY numbered item"));
+            for alert in [
+                "ANACHRONISM ALERT",
+                "MODERN-REGISTER ALERT",
+                "PLAYER REQUESTS TO ANSWER NOW",
+            ] {
+                assert!(
+                    !setup.context.contains(alert),
+                    "{alert} must not be derived from the player's line: {input}"
+                );
+            }
+            assert!(
+                setup.context.contains("CURRENT AUTHORED FACTS"),
+                "authored facts remain part of the prompt"
+            );
+        }
     }
 
     #[test]
@@ -2867,7 +2558,6 @@ mod tests {
         )
         .expect("speaker exists");
         assert_eq!(setup.display_name, "an elderly widow");
-        assert!(!setup.had_prior_exchange);
         assert!(setup.context.contains("FIRST CONTACT"));
         assert!(
             !npc_mgr.is_introduced(NpcId(22)),
@@ -2896,7 +2586,6 @@ mod tests {
             &NpcConfig::default(),
         )
         .expect("speaker exists");
-        assert!(follow_up.had_prior_exchange);
         assert_eq!(follow_up.display_name, "an elderly widow");
         assert!(!follow_up.context.contains("FIRST CONTACT"));
         assert!(!npc_mgr.is_introduced(NpcId(22)));

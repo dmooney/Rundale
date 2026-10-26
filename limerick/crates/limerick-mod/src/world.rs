@@ -15,9 +15,6 @@ pub fn world_state_from_mod(
         limerick_types::LocationId(game_mod.start_location()),
         game_mod.start_date(),
     )?;
-    world.dialogue_anachronisms = game_mod.anachronisms.terms.clone();
-    world.dialogue_anachronism_alert_prefix = game_mod.anachronisms.context_alert_prefix.clone();
-    world.dialogue_anachronism_alert_suffix = game_mod.anachronisms.context_alert_suffix.clone();
     world.content = Some(game_mod.content_identity());
     Ok(world)
 }
@@ -27,7 +24,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rundale_world_carries_authored_dialogue_anachronisms() {
+    fn world_from_mod_carries_content_identity() {
         let mod_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../testing/fixtures/mods/rundale-legacy");
         let game_mod = GameMod::load(&mod_path).expect("load Rundale mod");
@@ -39,19 +36,6 @@ mod tests {
                 version: game_mod.manifest.meta.version.clone(),
             }),
             "the world carries the content identity saves record"
-        );
-
-        assert!(
-            world
-                .dialogue_anachronisms
-                .iter()
-                .any(|entry| entry.term == "planning board")
-        );
-        assert!(
-            world
-                .dialogue_anachronisms
-                .iter()
-                .any(|entry| entry.term == "agricultural show")
         );
     }
 }

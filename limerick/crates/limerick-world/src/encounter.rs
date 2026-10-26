@@ -142,8 +142,8 @@ mod tests {
 
     /// Every fallback description must be free of anachronistic terms.
     ///
-    /// Extend `FORBIDDEN_WORDS` when a new term is added to `mods/rundale/anachronisms.json`
-    /// that could plausibly appear in encounter prose.  Adding a new time-of-day arm to
+    /// Extend `FORBIDDEN_WORDS` when a new post-1820 term could plausibly appear in
+    /// encounter prose.  Adding a new time-of-day arm to
     /// `fallback_description` without updating the word list will NOT cause this test to fail
     /// silently — the helper covers every `TimeOfDay` variant exhaustively.
     #[test]

@@ -94,9 +94,6 @@ async fn seed_stale_branch_runtime(state: &Arc<crate::state::AppState>) {
     let mut conversation = state.conversation.lock().await;
     conversation.location = Some(location);
     conversation.record_player_input("old branch input");
-    conversation
-        .seen_openers_this_location
-        .push("old opener".to_string());
     conversation.transcript.push_back(ConversationLine {
         speaker: "Old NPC".to_string(),
         text: "Old branch transcript".to_string(),
@@ -1421,7 +1418,6 @@ async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifet
     assert!(conversation.location.is_none());
     assert!(conversation.transcript.is_empty());
     assert!(conversation.last_player_input.is_none());
-    assert!(conversation.seen_openers_this_location.is_empty());
     drop(conversation);
     assert!(state.game_events.lock().await.is_empty());
     assert!(
@@ -1666,7 +1662,6 @@ async fn failed_branch_recovery_preserves_runtime_context_and_event_cursor() {
         Some("old branch input")
     );
     assert_eq!(conversation.transcript.len(), 1);
-    assert_eq!(conversation.seen_openers_this_location, ["old opener"]);
     drop(conversation);
     assert_eq!(state.game_events.lock().await.len(), 1);
     assert_eq!(

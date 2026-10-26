@@ -660,9 +660,6 @@ mod tests {
         conversation.location = Some(location);
         conversation.record_player_input("old branch input");
         conversation
-            .seen_openers_this_location
-            .push("old opener".to_string());
-        conversation
             .transcript
             .push_back(limerick_core::ipc::ConversationLine {
                 speaker: "Old NPC".to_string(),
@@ -783,7 +780,6 @@ mod tests {
         assert!(conversation.location.is_none());
         assert!(conversation.transcript.is_empty());
         assert!(conversation.last_player_input.is_none());
-        assert!(conversation.seen_openers_this_location.is_empty());
         drop(conversation);
         assert!(state.game_events.lock().await.is_empty());
         assert!(
@@ -829,7 +825,6 @@ mod tests {
             Some("old branch input")
         );
         assert_eq!(conversation.transcript.len(), 1);
-        assert_eq!(conversation.seen_openers_this_location, ["old opener"]);
         drop(conversation);
         assert_eq!(state.game_events.lock().await.len(), 1);
         assert_eq!(

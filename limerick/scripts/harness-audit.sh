@@ -116,7 +116,6 @@ SUBSYSTEMS=(
     "Speed presets|speed|speed"
     "Pause / resume|pause|pause"
     "Persistence|persistence|persistence"
-    "Anachronism detection|anachronism|anachronism"
     "Weather|weather|weather"
     "Banshee / death|banshee|banshee"
     "Frontier (sparse-tier)|frontier|frontier"

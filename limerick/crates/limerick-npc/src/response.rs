@@ -5,8 +5,9 @@ use super::*;
 /// How a Tier-1 model response crossed the production parsing boundary.
 ///
 /// Promotion soaks distinguish contract-valid JSON from diagnostic recovery.
-/// The canonical apply validator maps both recovery dispositions to a safe
-/// fallback, and a model that relies on them does not satisfy the contract.
+/// The canonical apply seam rejects both recovery dispositions (the turn fails
+/// with no effects), and a model that relies on them does not satisfy the
+/// contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcResponseParseDisposition {
     /// The complete response deserialized as the authored JSON object.
@@ -26,6 +27,20 @@ impl NpcResponseParseDisposition {
             Self::RawText => "raw_text",
         }
     }
+}
+
+/// The structural response contract checked at the commit boundary.
+///
+/// A candidate is committable only when it parsed as the complete authored JSON
+/// object and carries non-empty spoken dialogue. This is the only check applied
+/// to a reply: nothing inspects, rewrites, or replaces what the model said.
+/// Callers fail the turn, with no memory, event, UI, or state effects, when it
+/// returns `false`.
+pub fn dialogue_candidate_is_complete(
+    candidate: &NpcStreamResponse,
+    disposition: NpcResponseParseDisposition,
+) -> bool {
+    disposition == NpcResponseParseDisposition::FullJson && !candidate.dialogue.trim().is_empty()
 }
 
 /// Parsed result from an NPC LLM response.
@@ -630,5 +645,33 @@ mod tests {
             "straight quote must be stripped: {:?}",
             resp.dialogue
         );
+    }
+
+    fn candidate(dialogue: &str) -> NpcStreamResponse {
+        NpcStreamResponse {
+            dialogue: dialogue.to_string(),
+            metadata: None,
+        }
+    }
+
+    /// The commit boundary applies the structural contract only: a complete
+    /// JSON reply with non-empty dialogue is committable whatever it says.
+    #[test]
+    fn candidate_contract_is_structural_only() {
+        use NpcResponseParseDisposition::{FullJson, RawText, RecoveredDialogue};
+
+        assert!(dialogue_candidate_is_complete(
+            &candidate("Aye, Seamus the cartwright sent ye? A grand man."),
+            FullJson
+        ));
+        assert!(!dialogue_candidate_is_complete(
+            &candidate("  \n"),
+            FullJson
+        ));
+        assert!(!dialogue_candidate_is_complete(
+            &candidate("Aye."),
+            RecoveredDialogue
+        ));
+        assert!(!dialogue_candidate_is_complete(&candidate("Aye."), RawText));
     }
 }
