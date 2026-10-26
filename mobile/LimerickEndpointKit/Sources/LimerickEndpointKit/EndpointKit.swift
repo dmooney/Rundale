@@ -465,7 +465,14 @@ public struct EndpointStreamValidator: Sendable {
                     // through int64Value, and floating values must be exact
                     // nonnegative integers before entering the wire model.
                     guard CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
-                    if CFNumberIsFloatType(value) {
+                    #if canImport(Darwin)
+                    let isFloat = CFNumberIsFloatType(value)
+                    #else
+                    // swift-corelibs-foundation does not bridge NSNumber to
+                    // CFNumber; its JSON floats are doubles.
+                    let isFloat = ["f", "d"].contains(String(cString: value.objCType))
+                    #endif
+                    if isFloat {
                         var decimal = value.decimalValue
                         var rounded = Decimal()
                         NSDecimalRound(&rounded, &decimal, 0, .plain)

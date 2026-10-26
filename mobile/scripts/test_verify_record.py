@@ -304,6 +304,43 @@ class VerifyRecordTests(unittest.TestCase):
         with patch.object(record_module, "_gh", fake), redirect_stderr(io.StringIO()):
             self.assertEqual(record_module.check(pr=7, commit=None, wait=0), 1)
 
+    def test_latest_finds_a_pass_recorded_on_the_pr_or_by_an_earlier_night(self):
+        tree = record_module.input_tree(self.head)
+        status = {
+            "context": "mobile-verify",
+            "state": "success",
+            "description": f"input tree {tree}",
+        }
+        # The PR's own commit carries the author's pass; main then gained a
+        # docs commit, which keeps the input tree.
+        pr_commit = "a" * 40
+        (self.root / "docs" / "notes.md").write_text("later\n", encoding="utf-8")
+        later = commit(self.root, "docs")
+        fake = FakeGitHub({7: [pr_commit, self.head]}, {pr_commit: [status]}, base=self.base)
+        with patch.object(record_module, "_gh", fake), redirect_stdout(io.StringIO()):
+            self.assertEqual(record_module.latest(later), 0)
+        # A nightly pass is recorded on main's head itself.
+        fake = FakeGitHub({}, {later: [status]})
+        with patch.object(record_module, "_gh", fake), redirect_stdout(io.StringIO()):
+            self.assertEqual(record_module.latest(later), 0)
+
+    def test_latest_needs_a_pass_for_the_current_tree(self):
+        old_tree = record_module.input_tree(self.base)
+        stale = {
+            "context": "mobile-verify",
+            "state": "success",
+            "description": f"input tree {old_tree}",
+        }
+        # A pass for the tree before the app change does not cover it, and an
+        # unchanged commit still needs one (unlike `check --commit`'s exit 3).
+        fake = FakeGitHub({}, {self.base: [stale]})
+        with patch.object(record_module, "_gh", fake), redirect_stderr(io.StringIO()):
+            self.assertEqual(record_module.latest(self.head), 1)
+        (self.root / "docs" / "notes.md").write_text("later\n", encoding="utf-8")
+        later = commit(self.root, "docs")
+        with patch.object(record_module, "_gh", fake), redirect_stderr(io.StringIO()):
+            self.assertEqual(record_module.latest(later), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

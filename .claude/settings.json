@@ -1,4 +1,7 @@
 {
+  "attribution": {
+    "commit": ""
+  },
   "env": {
     "MCP_TIMEOUT": "900000"
   },

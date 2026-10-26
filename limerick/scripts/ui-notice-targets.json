@@ -11,7 +11,7 @@
   "sensors": {
     "audit": {
       "path": ".github/workflows/audit.yml",
-      "purpose": "The security audit checks temporary Rust pins on these compilation targets; it is not a release matrix.",
+      "purpose": "The security audit checks that these compilation targets resolve from crates.io only; it is not a release matrix.",
       "targets": [
         {
           "source": "aarch64-apple-darwin",

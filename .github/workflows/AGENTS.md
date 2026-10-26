@@ -30,12 +30,12 @@ just act-pr         # simulate the pull_request fast lane
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
 - **CI-only edits need no evidence page ([agent-check](../../docs/agent/agent-check.md)).** Only runtime-shipping paths (engine runtime crates, `mods/**`, `mobile/**`) require the `rundale-pages/pr/<number>/` link in the PR body.
 - **The agent-check job reads the body when it runs.** `pull_request` runs on `opened`/`synchronize`/`reopened`, not `edited`; after adding the link to an existing PR, re-run the job or push a commit.
-- **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
+- **Linux native deps come from one action in `full-ci.yml`** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`): its jobs use `.github/actions/install-tauri-deps`, which caches the downloads (see `full-ci.yml` below). `release.yml` still installs them inline, with `libssl-dev`; update both when the dep list changes.
 - **Rust cache workspace paths are repository-root relative.** Every `Swatinem/rust-cache` step that builds the nested Cargo workspace must set `workspaces: limerick -> target`; a job or workflow `working-directory` applies only to `run`, not `uses`.
 - **Rust toolchain is pinned by root `rust-toolchain.toml`.** Keep that file in
   `ci.yml`'s runtime path filter, and bump it in a dedicated PR alongside any
   compiler or lint fixes.
-- **No YAML anchors** — setup steps (checkout, toolchain, cache, native deps) are inlined per job.
+- **No YAML anchors** — setup steps (checkout, toolchain, cache) are inlined per job; native deps in `full-ci.yml` use the local action above.
 - **`concurrency: cancel-in-progress: true`** on most workflows; `release.yml` sets `cancel-in-progress: false` (releases must not be cancelled).
 - **Secrets:** `GITHUB_TOKEN` (all), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). The disabled Gemini sources retain references to `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` for a future re-enable. Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
 - **`concurrency: pages`** in `publish-bench-site.yml` — do not rename without checking the `deploy-pages` action's concurrency expectations.
@@ -55,7 +55,8 @@ just act-pr         # simulate the pull_request fast lane
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
 - **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, swift-quality, toml-quality, workflow-quality (actionlint + remote action inputs), Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
-- **Swift contract:** `swift-quality` runs `python3 mobile/scripts/verify.py --fast` (pinned SwiftLint/SwiftFormat, the three Swift packages, coverage floors) on hosted `macos-26` with Xcode 26.6 when `changes.swift` is true (`mobile/**`). It is skipped otherwise, which `ci-gate.sh` accepts. The Xcode app and simulator suites are local-only ([Swift quality gates](../../docs/agent/swift-quality-gates.md)).
+- **Swift contract:** `swift-quality` runs `python3 mobile/scripts/verify.py --fast` (pinned SwiftLint/SwiftFormat, the three Swift packages, coverage floors) on `ubuntu-latest` in the `swift:6.3.3-noble` container when `changes.swift` is true (`mobile/**`). It is skipped otherwise, which `ci-gate.sh` accepts. The Xcode app and simulator suites run in `mobile-verify-recorded` instead ([Swift quality gates](../../docs/agent/swift-quality-gates.md)).
+- **App-input contract:** `mobile-verify-recorded` runs on hosted `macos-26` when `changes.mobile_app` is true. It looks for a recorded `mobile-verify` pass for the PR head's input tree (`verify_record.py check --pr`, waiting up to two minutes). Without one it runs `verify.py --smoke --skip-time-sensitive` (the speed-dependent `TIME_SENSITIVE_TESTS` run only in local runs) with Xcode 26.6 and the Rust iOS targets and 2 simulator workers: every Mac gate but the full UI suites and the Swift package suites (CI's Linux `swift-quality` job runs those and the style checks), plus `SMOKE_UI_TESTS`. The full gate took 75 minutes on this runner, most of it UI suites. A smoke pass is not a full pass, so the job records nothing. A PR labelled `mobile-verify-full` before its push runs `verify.py --phase all --skip-time-sensitive` there instead and records the pass (`statuses: write`, `continue-on-error`), to prove a change to the UI suites before merge.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`, which requires the evidence-page link in the PR body for runtime-shipping diffs. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
@@ -65,6 +66,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
 - **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + limerick-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
+- **Linux native packages:** every `full-ci.yml` job that links the Tauri crates installs them with the local `.github/actions/install-tauri-deps` action, not an inline `apt-get install`. It caches the downloaded `.deb` files per runner image, because the hosted runners' Ubuntu mirror has served them slowly enough (about 45 KB/s, 25 minutes for the set) to push the Rust quality gate past its 30-minute limit. Change the package list in the action, not in a job.
 
 ### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
 
@@ -83,7 +85,7 @@ just act-pr         # simulate the pull_request fast lane
 
 - **Triggers:** `schedule` (daily 06:17 UTC), dependency-changing `pull_request`, `push` to `main` on Cargo manifest/lock changes, and `workflow_dispatch`.
 - Installs `cargo-audit` via `cargo install --locked`; caches binary with `Swatinem/rust-cache` (no target dir).
-- While the temporary xcb/wayland-scanner security pins remain, verifies they are unreachable on supported macOS, Linux, and Windows target triples.
+- Fails if `Cargo.lock` has git sources, and checks that each supported macOS, Linux, and Windows target resolves from crates.io (`--locked`).
 - **Concurrency:** `audit-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `osv-scanner.yml` — OSV vulnerability scanner
@@ -120,10 +122,11 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `testflight.yml` — Internal TestFlight upload
 
-- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `AGENTS.md` files are excluded; `workflow_dispatch`.
-- Runs `python3 mobile/scripts/release.py testflight` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. It passes `--verify none` when `verify_record.py check --commit` finds a recorded `mobile-verify` pass for the commit's input tree, and `--verify all` (the full gate here) otherwise. The build number is App Store Connect's highest upload plus one, fetched with the API key; full history is checked out for the commit-count fallback.
+- **Triggers:** `push` to `main` changing `mobile/**`, `mods/**`, `limerick/crates/**`, `limerick/Cargo.toml`, `limerick/Cargo.lock`, `limerick/config/**`, `rust-toolchain.toml`, `.cargo/**` or the workflow; `AGENTS.md` files are excluded; nightly `schedule` (07:41 UTC); `workflow_dispatch`.
+- **`upload` job** (push and `workflow_dispatch`, on `main` only): when the push's input tree differs from `main`'s before the push (`verify_record.py tree`), or on dispatch, runs `python3 mobile/scripts/release.py testflight --verify none` on `macos-26` with Xcode 26.6: Rust build (target dir cached), archive, distribution export check and upload. CI's required gate (a recorded pass or `verify.py --smoke`) passed the PR head's input tree first; the squash merge matches it unless `main` moved under the PR. The build number is App Store Connect's highest upload plus one, fetched with the API key; full history is checked out for the commit-count fallback.
+- **`gate` job** (nightly `schedule` only, no environment, its own `testflight-nightly-gate` concurrency group): when `check --latest` finds no recorded full pass for `main`'s input tree it runs `verify.py --phase all --skip-time-sensitive`, records the pass with `verify_record.py record` (`statuses: write`), and on failure opens or comments on a "Nightly mobile-verify failed" issue (`issues: write`); a passing run closes that issue. It uploads the report always, and on failure also `mobile-verify-nightly-failure-evidence` (`failures/` and the `.xcresult` bundles), whose URL the issue carries; no per-PR job uploads such evidence.
 - **Auth:** an App Store Connect API key (`ASC_API_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`) and the private Firebase plist (`FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64`), secrets of the `testflight` environment ([runbook](../../mobile/testflight.md#uploading-from-github)).
-- **Concurrency:** `testflight`, cancel-in-progress: **false**.
+- **Concurrency:** `upload` uses `testflight`, `gate` uses `testflight-nightly-gate`; cancel-in-progress: **false**.
 
 ### `release.yml` — Tag-driven release pipeline
 
