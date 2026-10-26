@@ -15,7 +15,8 @@ name: TestFlight
 # The nightly `gate` job checks what the smoke gate left out, after the build
 # shipped: when main's input tree has no recorded full pass, it runs the full
 # gate (over an hour on this runner), records the pass, and on failure opens or
-# updates a "Nightly mobile-verify failed" issue. It uploads nothing.
+# updates a "Nightly mobile-verify failed" issue that links an artifact of the failed
+# tests' evidence (failures/ and the .xcresult bundles).
 
 on:
   push:
