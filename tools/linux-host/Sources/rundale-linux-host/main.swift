@@ -17,6 +17,18 @@ func runHost() async -> Int32 {
         FileHandle.standardError.write(Data("rundale-linux-host: \(message)\n".utf8))
         return 2
     }
+    let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script"]
+    var index = 0
+    while index < arguments.count {
+        let argument = arguments[index]
+        if valued.contains(argument) {
+            index += 2
+        } else if ["--resume", "--help"].contains(argument) {
+            index += 1
+        } else {
+            return fail("unknown argument '\(argument)' (see --help)")
+        }
+    }
     if arguments.contains("--help") {
         print("""
         usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse]
@@ -39,7 +51,11 @@ func runHost() async -> Int32 {
         guard let fixture = value("--sse-fixture") else {
             return fail("--inference sse needs --sse-fixture FILE")
         }
-        inference = .sseFixture(URL(fileURLWithPath: fixture))
+        do {
+            inference = try .sseFixture(SSEFixtureEndpointTransport(fixture: URL(fileURLWithPath: fixture)))
+        } catch {
+            return fail("cannot use --sse-fixture \(fixture): \(error)")
+        }
     case let other:
         return fail("unknown inference mode '\(other)'; use fixture, mock, or sse")
     }

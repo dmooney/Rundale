@@ -22,6 +22,17 @@ public final class SSEFixtureEndpointTransport: EndpointTransport, @unchecked Se
             block.split(separator: "\n").first(where: { $0.hasPrefix("data: ") })
                 .map { Data($0.dropFirst("data: ".count).utf8) }
         }
+        // A file that is not a whole recorded stream would hang the turn
+        // until it timed out; refuse it here instead.
+        let types = try events.map { data -> String? in
+            guard let event = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SSEFixtureError.notAStream(fixture.path)
+            }
+            return event["type"] as? String
+        }
+        guard let last = types.last, last == "final" || last == "error" else {
+            throw SSEFixtureError.notAStream(fixture.path)
+        }
         self.pauseNanoseconds = pauseNanoseconds
     }
 
@@ -68,5 +79,16 @@ public final class SSEFixtureEndpointTransport: EndpointTransport, @unchecked Se
             continuation.onTermination = { _ in task.cancel() }
         }
         return EndpointByteStream(events: stream, cancel: {})
+    }
+}
+
+public enum SSEFixtureError: Error, CustomStringConvertible {
+    case notAStream(String)
+
+    public var description: String {
+        switch self {
+        case let .notAStream(path):
+            return "\(path) is not a recorded Endpoint stream ending in a final or error event"
+        }
     }
 }

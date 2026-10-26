@@ -49,6 +49,17 @@ final class GoldenFrameTests: XCTestCase {
         try await check("fixture-session")
     }
 
+    func testRejectsAFileThatIsNotARecordedStream() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("not-a-stream-\(UUID()).sse")
+        try Data("event: text_delta\ndata: {\"type\":\"text_delta\",\"text\":\"hi\"}\n\n".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        XCTAssertThrowsError(try SSEFixtureEndpointTransport(fixture: file))
+        XCTAssertThrowsError(try SSEFixtureEndpointTransport(
+            fixture: Self.testDirectory.appendingPathComponent("missing.sse")
+        ))
+        await Task.yield()
+    }
+
     func testEveryScenarioHasATest() async throws {
         let scenarios = try FileManager.default
             .contentsOfDirectory(atPath: Self.testDirectory.appendingPathComponent("Scenarios").path)
@@ -94,7 +105,10 @@ final class GoldenFrameTests: XCTestCase {
         }
         let expected = try String(contentsOf: golden, encoding: .utf8)
         if frames != expected {
-            let actual = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).actual.md")
+            // CI uploads this directory when the job fails.
+            let directory = Self.packageDirectory.appendingPathComponent(".build/golden-actual")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let actual = directory.appendingPathComponent("\(name).md")
             try frames.write(to: actual, atomically: true, encoding: .utf8)
             XCTFail("""
             Frames differ from Goldens/\(name).md; they are in \(actual.path). \
@@ -111,7 +125,9 @@ final class GoldenFrameTests: XCTestCase {
         case "mock":
             return .mock
         case "sse":
-            return .sseFixture(Self.repositoryRoot.appendingPathComponent("mobile/endpoint/fixtures/dialogue-v1.sse"))
+            return try .sseFixture(SSEFixtureEndpointTransport(
+                fixture: Self.repositoryRoot.appendingPathComponent("mobile/endpoint/fixtures/dialogue-v1.sse")
+            ))
         default:
             throw UnknownInference(header: header)
         }

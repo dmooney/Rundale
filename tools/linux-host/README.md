@@ -50,6 +50,7 @@ A line is typed into the composer and sent. Host commands stand in for taps:
 | `:restart`       | Saves, closes the engine, and opens the save again.     |
 | `:frame`         | Prints the current frame.                               |
 | `:quit`          | Saves and exits.                                        |
+| `:help`          | Lists these commands.                                   |
 
 Lines starting with `#` are comments. Each command waits until the turn
 settles before the next line runs, except `:stream`.
@@ -73,7 +74,8 @@ heading names why it was printed:
 
 `Tests/RundaleLinuxHostTests/Scenarios/*.txt` are host scripts; the first
 `# inference:` line picks the mode. Each test plays one and compares its
-frames with `Goldens/<name>.md`. After an intended change, regenerate and
+frames with `Goldens/<name>.md`; a mismatch leaves the new frames in
+`.build/golden-actual/`, which CI uploads. After an intended change, regenerate and
 review the diff:
 
 ```sh

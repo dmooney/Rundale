@@ -5,14 +5,14 @@ import RundaleKit
 import RundaleSession
 
 /// How a host session answers model calls.
-public enum HostInference: Sendable, Equatable {
+public enum HostInference: Sendable {
     /// RundaleKit's deterministic fixture session; no engine.
     case fixture
     /// The embedded engine with the scripted mock Endpoint the phase UI
     /// suites play against.
     case mock
     /// The embedded engine, replaying a recorded dialogue stream.
-    case sseFixture(URL)
+    case sseFixture(SSEFixtureEndpointTransport)
 }
 
 public struct HostOptions: Sendable {
@@ -197,7 +197,7 @@ public final class LinuxHost {
         let projection = options.saveDirectory.appendingPathComponent("projection.json")
         var arguments = ["rundale-linux-host", "--draft-file=\(projection.path)"]
         var environment: [String: String] = [:]
-        if options.inference == .fixture {
+        if case .fixture = options.inference {
             arguments.append("--fixture=standard")
         } else {
             arguments.append("--phase2")
@@ -212,8 +212,7 @@ public final class LinuxHost {
     }
 
     private func transport() -> any EndpointTransport {
-        if case let .sseFixture(url) = options.inference,
-           let transport = try? SSEFixtureEndpointTransport(fixture: url) {
+        if case let .sseFixture(transport) = options.inference {
             return transport
         }
         return Phase2MockEndpointTransport()
