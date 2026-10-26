@@ -478,6 +478,8 @@ FAILURE_MESSAGE_CHARS = 400
 # Returned for a simulator suite queued for the combined run; never recorded.
 DEFERRED = "deferred"
 # Bounds on the evidence kept for failed tests (see `_collect_failure_evidence`).
+# Past EVIDENCE_MAX_TESTS failed tests, only the first get a digest; index.md
+# says how many more the result bundle holds.
 FAILURES_DIR = "failures"
 EVIDENCE_MAX_TESTS = 20
 EVIDENCE_MAX_FILE_BYTES = 3 * 1024 * 1024
@@ -2688,6 +2690,31 @@ class VerificationRun:
         return ready["status"] == PASSED
 
     def _validate_result(
+        self,
+        test_record: dict[str, Any],
+        *,
+        phase: int | None = None,
+        summary_identifier: str = "ios-simulator-test-results",
+    ) -> None:
+        self._check_result(test_record, phase=phase, summary_identifier=summary_identifier)
+        bundle = str(test_record.get("details", {}).get("result_bundle", ""))
+        if (
+            test_record["status"] != PASSED
+            and bundle
+            and bundle not in self._failure_evidence
+            and (self.root / bundle).exists()
+        ):
+            # Validation failed before it could name a failed test (unreadable
+            # or malformed results): the bundle is still the evidence to keep.
+            evidence = self._collect_failure_evidence(bundle, invocation_failed=True)
+            self._change(
+                test_record,
+                test_record["status"],
+                None,
+                self._evidence_details(bundle, evidence),
+            )
+
+    def _check_result(
         self,
         test_record: dict[str, Any],
         *,

@@ -1999,6 +1999,41 @@ class FailureEvidenceTests(unittest.TestCase):
                 str((runs[0] / "index.md").relative_to(root)),
             )
 
+    def test_standalone_run_with_unreadable_summary_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def broken(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "summary"):
+                    return CommandResult(0, stdout="not json")
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+                    return CommandResult(1, stderr="unreadable")
+                return None
+
+            fake.intercept = broken
+            report = VerificationRun(root, command_runner=fake, parallel_workers=1).run(1)
+            suite = next(s for s in report["suites"] if s["id"] == "ios-simulator-tests")
+            self.assertEqual(suite["status"], "failed")
+            index = root / suite["details"]["failure_evidence_index"]
+            self.assertTrue(index.is_file())
+
+    def test_overflow_failures_are_counted_in_the_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            for cls in ("RundalePhase2UITests", "RundalePhase3UITests"):
+                fake.case_results[f"-only-testing:RundaleUITests/{cls}"] = "Failed"
+            with patch.object(verify_module, "EVIDENCE_MAX_TESTS", 1):
+                VerificationRun(root, command_runner=fake).run(4)
+            index = next((root / "mobile/.verification/failures").glob("*/index.md"))
+            self.assertIn("1 more failed test(s)", index.read_text())
+
     def test_failed_invocation_with_no_failed_case_keeps_the_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
