@@ -29,18 +29,28 @@ impl NpcResponseParseDisposition {
     }
 }
 
+/// Structural upper bound on the spoken dialogue of one reply, in characters.
+///
+/// The Tier-1 token budget (768) yields roughly 3,000 characters at most, so a
+/// reply over this bound is a runaway generation rather than dialogue. It is
+/// rejected whole, never truncated: an accepted reply is committed unchanged.
+pub const MAX_DIALOGUE_CHARS: usize = 4096;
+
 /// The structural response contract checked at the commit boundary.
 ///
 /// A candidate is committable only when it parsed as the complete authored JSON
-/// object and carries non-empty spoken dialogue. This is the only check applied
-/// to a reply: nothing inspects, rewrites, or replaces what the model said.
+/// object, carries non-empty spoken dialogue, and that dialogue is within
+/// [`MAX_DIALOGUE_CHARS`]. These are the only checks applied to a reply:
+/// nothing inspects, rewrites, truncates, or replaces what the model said.
 /// Callers fail the turn, with no memory, event, UI, or state effects, when it
 /// returns `false`.
 pub fn dialogue_candidate_is_complete(
     candidate: &NpcStreamResponse,
     disposition: NpcResponseParseDisposition,
 ) -> bool {
-    disposition == NpcResponseParseDisposition::FullJson && !candidate.dialogue.trim().is_empty()
+    disposition == NpcResponseParseDisposition::FullJson
+        && !candidate.dialogue.trim().is_empty()
+        && candidate.dialogue.chars().count() <= MAX_DIALOGUE_CHARS
 }
 
 /// Parsed result from an NPC LLM response.
@@ -340,5 +350,20 @@ mod tests {
             RecoveredDialogue
         ));
         assert!(!dialogue_candidate_is_complete(&candidate("Aye."), RawText));
+    }
+
+    /// The size bound rejects a runaway reply whole and never truncates one.
+    #[test]
+    fn candidate_contract_bounds_size_by_rejection() {
+        let at_limit = "a".repeat(MAX_DIALOGUE_CHARS);
+        assert!(dialogue_candidate_is_complete(
+            &candidate(&at_limit),
+            NpcResponseParseDisposition::FullJson
+        ));
+        let over = "a".repeat(MAX_DIALOGUE_CHARS + 1);
+        assert!(!dialogue_candidate_is_complete(
+            &candidate(&over),
+            NpcResponseParseDisposition::FullJson
+        ));
     }
 }

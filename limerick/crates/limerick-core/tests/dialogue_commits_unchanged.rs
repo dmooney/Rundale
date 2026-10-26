@@ -5,8 +5,9 @@
 //! is the structural response contract: complete JSON with non-empty dialogue.
 //!
 //! Each test runs the real shared pipeline (`game_loop::handle_game_input`
-//! through [`TurnEngine`]) on the `mods/rundale` fixture world, with only the
-//! completed provider output scripted. The reply names a person the world does
+//! through [`TurnEngine`]) on the `rundale-legacy` fixture world with no
+//! Endpoint catalog, so the intent call is skipped for an explicit recipient.
+//! Only the completed provider output is scripted. The reply names a person the world does
 //! not have and gives them a trade and a place; it must reach the transcript,
 //! the conversation log and the stream events unchanged on both hosts:
 //!
@@ -327,13 +328,21 @@ async fn desktop_path_commits_a_reply_naming_a_nonexistent_person_unchanged() {
 }
 
 /// The one thing that still fails a turn is the structural contract: a reply
-/// that is not complete JSON, or has no spoken dialogue, commits nothing.
+/// that is not complete JSON, has no spoken dialogue, or is a runaway over the
+/// size bound commits nothing.
 #[tokio::test]
 async fn an_incomplete_reply_still_commits_nothing() {
+    let oversized = serde_json::json!({
+        "dialogue": "word ".repeat(limerick_core::npc::MAX_DIALOGUE_CHARS / 4),
+        "action": "",
+        "mood": "calm"
+    })
+    .to_string();
     for body in [
         r#"{"dialogue":"   ","action":"nods","mood":"friendly"}"#,
         r#"{"dialogue":"Tadhg Mulvihill is a grand man"#,
         "Tadhg Mulvihill is a grand man.",
+        oversized.as_str(),
     ] {
         let live = Live::rundale();
         let mut engine = live.engine();
