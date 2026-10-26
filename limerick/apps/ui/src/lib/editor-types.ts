@@ -104,19 +104,6 @@ export interface LocationData {
 	geo_source?: string | null;
 }
 
-export interface AnachronismEntry {
-	term: string;
-	category?: string | null;
-	origin_year?: number | null;
-	note: string;
-}
-
-export interface AnachronismData {
-	context_alert_prefix: string;
-	context_alert_suffix: string;
-	terms: AnachronismEntry[];
-}
-
 export interface FestivalDef {
 	name: string;
 	month: number;
@@ -149,7 +136,6 @@ export interface EditorModSnapshot {
 	locations: LocationData[];
 	festivals: FestivalDef[];
 	encounters: EncounterTable;
-	anachronisms: AnachronismData;
 	validation: ValidationReport;
 }
 
@@ -158,8 +144,7 @@ export interface EditorSaveResponse {
 	validation: ValidationReport;
 }
 
-export type EditorDoc =
-	'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters' | 'anachronisms';
+export type EditorDoc = 'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters';
 
 export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator' | 'saves';
 
