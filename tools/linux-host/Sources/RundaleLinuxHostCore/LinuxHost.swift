@@ -139,10 +139,14 @@ public final class LinuxHost {
         return true
     }
 
-    /// Saves the presentation as the app does when it leaves the
-    /// foreground, then closes the engine.
+    /// Stops a reply still in flight, as the app does when it leaves the
+    /// foreground, saves the presentation, then closes the engine.
     public func close() async {
         guard let presenter else { return }
+        if presenter.showsStop {
+            presenter.stop()
+            await settle(after: .stopped)
+        }
         await presenter.persistLifecycleSnapshot()
         self.presenter = nil
         do {

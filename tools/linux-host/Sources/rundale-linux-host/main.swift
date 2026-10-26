@@ -22,6 +22,9 @@ func runHost() async -> Int32 {
     while index < arguments.count {
         let argument = arguments[index]
         if valued.contains(argument) {
+            guard index + 1 < arguments.count else {
+                return fail("\(argument) needs a value (see --help)")
+            }
             index += 2
         } else if ["--resume", "--help"].contains(argument) {
             index += 1

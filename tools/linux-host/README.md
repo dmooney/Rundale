@@ -65,7 +65,8 @@ heading names why it was printed:
 - `submitted`: right after Send.
 - `streaming`: a reply's provisional text has held still for half a second.
   A delta replaced sooner, such as the last one before the final reply, is
-  not printed, so frames do not depend on timing.
+  not printed. Frames depend on the mock's pacing (2 s between deltas, 1 s for
+  the recorded stream), not on races within it.
 - `clarification`, `committed`, `failed`, `stopped`: the turn settled, with
   nothing in flight and no change for 0.4 s.
 - `timed out`: the turn ran past 60 s; the host exits 1.
