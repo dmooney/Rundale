@@ -259,6 +259,7 @@ impl LocalCommand {
 fn help_text() -> String {
     advertised()
         .map(|command| format!("{}: {}", command.name, command.summary))
+        .chain(std::iter::once("/new: Start a new game".to_string()))
         .collect::<Vec<_>>()
         .join("\n")
 }

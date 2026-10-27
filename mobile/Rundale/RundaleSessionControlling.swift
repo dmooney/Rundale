@@ -33,6 +33,7 @@ protocol RundaleSessionControlling: AnyObject {
     func loadOlderTranscript() async
 
     func submit(_ text: String) async throws -> SubmissionReceipt
+    func newGame() async throws
     func stop() async throws -> StopReceipt
     func retryLastFailed() async throws
     func step() async -> FixtureStepResult

@@ -5,6 +5,56 @@ import RundaleKit
 
 @MainActor
 final class RundalePhase4Tests: XCTestCase {
+    func testNewGameAliasesUseLifecycleWithoutSubmittingATurn() async {
+        for command in ["/new", "  /NEW-GAME  "] {
+            let session = Phase4TestSession(active: false)
+            let model = RundalePresentationModel(
+                launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:], bundle: [:]),
+                session: session
+            )
+            model.draft = command
+            model.submitDraft()
+            await waitUntil { session.newGameCalls == 1 }
+            XCTAssertEqual(session.submitCalls, 0)
+            XCTAssertEqual(model.draft, "")
+            XCTAssertFalse(model.isStreaming)
+        }
+        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/new please"))
+        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/new-game please"))
+        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/newer"))
+    }
+
+    func testNewGameRefusalPreservesDraftAndCurrentSession() async {
+        let session = Phase4TestSession(active: false)
+        session.newGameError = CocoaError(.fileWriteNoPermission)
+        let model = RundalePresentationModel(
+            launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:], bundle: [:]),
+            session: session
+        )
+        let identity = session.state.sessionID
+        model.draft = "/new"
+        model.submitDraft()
+        await waitUntil { model.submissionMessage != nil }
+        XCTAssertEqual(model.draft, "/new")
+        XCTAssertEqual(session.state.sessionID, identity)
+        XCTAssertFalse(model.isStreaming)
+        XCTAssertEqual(session.submitCalls, 0)
+    }
+
+    func testNewGameRequiresStoppingTheCurrentRequest() {
+        let session = Phase4TestSession(active: true)
+        let model = RundalePresentationModel(
+            launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:], bundle: [:]),
+            session: session
+        )
+        model.draft = "/new"
+        model.submitDraft()
+        XCTAssertEqual(model.submissionMessage, "Stop the current request before starting a new game.")
+        XCTAssertEqual(model.draft, "/new")
+        XCTAssertEqual(session.newGameCalls, 0)
+        XCTAssertEqual(session.stopCalls, 0)
+    }
+
     func testBackgroundingStopsActiveRequestBeforeLifecyclePersistence() async {
         let session = Phase4TestSession(active: true)
         let model = RundalePresentationModel(
@@ -194,6 +244,8 @@ final class Phase4TestSession: RundaleSessionControlling {
     private(set) var state: SessionState
     private(set) var stopCalls = 0
     private(set) var submitCalls = 0
+    private(set) var newGameCalls = 0
+    var newGameError: Error?
     private(set) var followNewestCalls = 0
     private(set) var submitStarted = false
     var gateSubmit = false
@@ -322,6 +374,14 @@ final class Phase4TestSession: RundaleSessionControlling {
         gateSubmit = false
         submitContinuation?.resume()
         submitContinuation = nil
+    }
+
+    func newGame() async throws {
+        if let newGameError { throw newGameError }
+        newGameCalls += 1
+        state = SessionState()
+        presentation = PresentationSession(state: state)
+        subject.send(state)
     }
 
     func stop() async throws -> StopReceipt {

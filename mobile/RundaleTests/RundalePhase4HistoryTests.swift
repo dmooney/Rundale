@@ -26,6 +26,102 @@ final class RundalePhase4HistoryTests: XCTestCase {
         }
     }
 
+    func testNewGameClearsPresentationAndPreservesOldSave() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-game-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let configuration = LaunchConfiguration(
+            arguments: ["--ui-tests", "--phase3", "--phase3-mock",
+                        "--draft-file=\(directory.appendingPathComponent("projection.json").path)"],
+            environment: [:], bundle: [:]
+        )
+        let controller = RundaleEngineController(configuration: configuration)
+        controller.start()
+        try await waitUntil { !controller.state.transcript.isEmpty || controller.persistenceError != nil }
+        XCTAssertNil(controller.persistenceError)
+        let originalID = controller.state.sessionID
+        _ = try await controller.submit("/wait 60")
+        let oldCursor = controller.state.eventCursor
+        controller.updateDraft("old draft")
+        controller.readHistory(anchor: controller.state.transcript.first.map {
+            TranscriptAnchor(itemID: $0.id, offset: 10)
+        })
+        try await controller.newGame()
+        let freshID = controller.state.sessionID
+        XCTAssertNotEqual(freshID, originalID)
+        XCTAssertTrue(controller.state.requests.isEmpty)
+        XCTAssertTrue(controller.state.commandHistory.isEmpty)
+        XCTAssertNil(controller.state.pendingClarification)
+        XCTAssertEqual(controller.state.draft.text, "")
+        XCTAssertTrue(controller.state.viewport.isFollowingNewest)
+        XCTAssertGreaterThan(controller.state.eventCursor, oldCursor)
+        XCTAssertEqual(controller.currentHeader.location, "Kilteevan Village")
+        XCTAssertFalse(controller.state.transcript.contains { $0.content.contains("You wait for 60 minutes") })
+        XCTAssertEqual(controller.state.transcript.filter { $0.kind == .sceneChanged }.count, 1)
+        XCTAssertTrue(controller.advertisedCommands.contains { $0.label == "/new" })
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("phase2.sqlite").path))
+        // Yield to already-buffered event deliveries: they must not refill the new transcript.
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertTrue(controller.state.requests.isEmpty)
+        XCTAssertEqual(controller.state.sessionID, freshID)
+        XCTAssertFalse(controller.state.transcript.contains { $0.content.contains("You wait for 60 minutes") })
+    }
+
+    func testSelectedNewSaveDiscardsAnOlderPresentationProjection() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-game-projection-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let runtime = try LimerickRuntime.openResume(payload: payload(directory))
+        struct Identity: Decodable { let sessionID: SessionID }
+        struct Projection: Encodable {
+            let draft: Draft
+            let viewport: TranscriptViewport
+            let sessionID: SessionID
+        }
+        let previous = try FixtureJSON.decode(Identity.self, from: await runtime.snapshotJSON())
+        let oldProjection = Projection(draft: Draft(text: "a thought from the old game"),
+                                       viewport: TranscriptViewport(), sessionID: previous.sessionID)
+        let fresh = try FixtureJSON.decode(Identity.self, from: await runtime.newGame())
+        try await runtime.close()
+        let projectionURL = directory.appendingPathComponent("projection.json")
+        try FixtureJSON.encode(oldProjection).write(to: projectionURL)
+        let configuration = LaunchConfiguration(
+            arguments: ["--ui-tests", "--phase3", "--phase3-mock", "--draft-file=\(projectionURL.path)"],
+            environment: [:], bundle: [:]
+        )
+        let controller = RundaleEngineController(configuration: configuration)
+        let model = RundalePresentationModel(launch: configuration, session: controller)
+        model.start()
+        try await waitUntil { controller.state.sessionID == fresh.sessionID || controller.persistenceError != nil }
+        try await waitUntil { model.draft.isEmpty }
+        XCTAssertNil(controller.persistenceError)
+        XCTAssertEqual(controller.state.sessionID, fresh.sessionID)
+        XCTAssertEqual(controller.state.draft.text, "")
+        XCTAssertTrue(controller.state.viewport.isFollowingNewest)
+    }
+
+    func testBridgeNewGameSelectionSurvivesCloseAndResume() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-game-resume-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let options = try payload(directory)
+        let runtime = try LimerickRuntime.openResume(payload: options)
+        _ = try await runtime.submit(text: "/wait 60", draftID: DraftID(), logicalRequestID: nil)
+        struct Snapshot: Decodable {
+            let sessionID: SessionID
+            let requests: [RequestRecord]
+        }
+        let fresh = try FixtureJSON.decode(Snapshot.self, from: await runtime.newGame())
+        try await runtime.close()
+        let resumed = try LimerickRuntime.openResume(payload: options)
+        let snapshot = try FixtureJSON.decode(Snapshot.self, from: await resumed.snapshotJSON())
+        XCTAssertEqual(snapshot.sessionID, fresh.sessionID)
+        XCTAssertTrue(snapshot.requests.isEmpty)
+        try await resumed.close()
+    }
+
     func testFirstLaunchCreatesMissingSaveDirectoryBeforeOpeningRuntime() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("phase4-first-launch-\(UUID().uuidString)/nested", isDirectory: true)

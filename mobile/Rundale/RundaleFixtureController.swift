@@ -286,6 +286,10 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         return receipt
     }
 
+    func newGame() async throws {
+        throw CocoaError(.featureUnsupported)
+    }
+
     func retryLastFailed() async throws {
         guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
             throw FixtureAdapterError.requestNotRetryable

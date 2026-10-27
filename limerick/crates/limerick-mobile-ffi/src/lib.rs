@@ -276,6 +276,7 @@ fn run_operation(session: &mut Session, object: &Map<String, Value>) -> Result<V
     let op = string_field(object, "op")?;
     match op.as_str() {
         "snapshot" => session.snapshot(),
+        "new_game" => session.new_game(),
         "submit" => session.submit(
             string_field(object, "text")?,
             optional_string(object, "draft_id")?,

@@ -10,9 +10,10 @@
 //! off on this path (`DIALOGUE_CONTENT_GUARDS_FLAG`): the reply is committed
 //! after structural checks only.
 
+use std::collections::HashSet;
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Instant;
 
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
@@ -25,7 +26,10 @@ use limerick_core::ipc::capitalize_first;
 use limerick_core::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
 use limerick_core::npc::manager::NpcManager;
 use limerick_core::npc::{LanguageSettings, NpcId};
-use limerick_core::persistence::{Database, GameSnapshot, SaveFileLock};
+use limerick_core::persistence::{
+    Database, GameSnapshot, SaveFileLock, read_active_save_identity,
+    read_active_save_identity_candidate, write_active_save_identity,
+};
 use limerick_core::portable_look::{render_look_text, render_scene};
 use limerick_core::session_store::RecoveryBundle;
 use limerick_core::turn::commands::advertised as advertised_commands;
@@ -223,6 +227,7 @@ pub struct Session {
     engine: TurnEngine,
     journal: Arc<SqliteTurnJournal>,
     session_id: String,
+    branch_id: i64,
     pending: Option<PendingInference>,
     index: EventIndex,
     /// Provisional rows of each attempt's delivered dialogue replies, in
@@ -236,12 +241,90 @@ pub struct Session {
     pending_since: Option<Instant>,
     cursor: u64,
     _lock: SaveFileLock,
+    lifecycle: Option<LifecycleLock>,
+    launch_options: OpenOptions,
 }
 
+struct LifecycleLock {
+    path: PathBuf,
+    _lock: Option<SaveFileLock>,
+}
+fn lifecycle_paths() -> &'static StdMutex<HashSet<PathBuf>> {
+    static PATHS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
+    PATHS.get_or_init(Default::default)
+}
+impl LifecycleLock {
+    fn acquire(path: &Path) -> Result<Self, OpError> {
+        // The marker belongs to the directory, not the launch filename.
+        // Canonicalizing the directory also makes symlink and `..` aliases
+        // contend on the same process-local and cross-process lock.
+        let directory = path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))?;
+        let path = std::fs::canonicalize(directory)
+            .map_err(OpError::storage)?
+            .join(".mobile-lifecycle");
+        let mut paths = lifecycle_paths().lock().unwrap_or_else(|e| e.into_inner());
+        if paths.contains(&path) {
+            return Err(OpError::new(
+                "save_locked",
+                "the save is open in another session",
+            ));
+        }
+        let lock = SaveFileLock::try_acquire(&path)
+            .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
+        paths.insert(path.clone());
+        Ok(Self {
+            path,
+            _lock: Some(lock),
+        })
+    }
+}
+impl Drop for LifecycleLock {
+    fn drop(&mut self) {
+        let mut paths = lifecycle_paths().lock().unwrap_or_else(|e| e.into_inner());
+        drop(self._lock.take());
+        paths.remove(&self.path);
+    }
+}
 impl Session {
     /// Opens (or creates) the save and restores the engine from its journal.
     /// A request an earlier process left open ends `Interrupted`.
     pub fn open(mode: OpenMode, options: OpenOptions) -> Result<Self, OpError> {
+        if mode == OpenMode::New && options.save_path.exists() {
+            return Err(OpError::new(
+                "save_exists",
+                "a new game cannot replace an existing save",
+            ));
+        }
+        let lifecycle = LifecycleLock::acquire(&options.save_path)?;
+        let mut selected = options.clone();
+        let mut marker = false;
+        if mode == OpenMode::Resume {
+            let dir = options
+                .save_path
+                .parent()
+                .ok_or_else(|| OpError::storage("save has no parent"))?;
+            if let Some(identity) =
+                read_active_save_identity_candidate(dir).map_err(OpError::storage)?
+            {
+                if !identity.save_path.is_file() {
+                    return Err(OpError::new("save_missing", "the selected save is missing"));
+                }
+                selected.save_path = identity.save_path;
+                marker = true;
+            }
+        }
+        Self::open_selected(mode, selected, options, Some(lifecycle), marker, None)
+    }
+    fn open_selected(
+        mode: OpenMode,
+        options: OpenOptions,
+        launch_options: OpenOptions,
+        lifecycle: Option<LifecycleLock>,
+        marker: bool,
+        seed_cursor: Option<u64>,
+    ) -> Result<Self, OpError> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -261,6 +344,21 @@ impl Session {
         }
         let lock = SaveFileLock::try_acquire(&options.save_path)
             .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
+        if marker {
+            let dir = options
+                .save_path
+                .parent()
+                .ok_or_else(|| OpError::storage("save has no parent"))?;
+            let identity = read_active_save_identity(dir)
+                .map_err(OpError::storage)?
+                .ok_or_else(|| OpError::storage("active save marker disappeared"))?;
+            if identity.save_path != options.save_path || identity.branch_name != "main" {
+                return Err(OpError::new(
+                    "save_incompatible",
+                    "the selected branch is not supported",
+                ));
+            }
+        }
         // A save this build cannot read is kept, byte for byte, beside the
         // new game that replaces it at the save path (ADR-025 §4). So is one
         // an earlier build stopped creating before its first snapshot: it
@@ -268,12 +366,12 @@ impl Session {
         let mut refused = false;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
-                Err(error) if error.code == "save_incompatible" => {
+                Err(error) if !marker && error.code == "save_incompatible" => {
                     set_aside(&options.save_path, "refused")?;
                     refused = true;
                     None
                 }
-                Err(error) if error.code == "save_unfinished" => {
+                Err(error) if !marker && error.code == "save_unfinished" => {
                     set_aside(&options.save_path, "unfinished")?;
                     None
                 }
@@ -286,13 +384,39 @@ impl Session {
             Some(restored) => restored,
             None => create_save(&options.save_path, &game_mod)?,
         };
+        if let Some(cursor) = seed_cursor {
+            db.seed_empty_transcript_sequence(cursor)
+                .map_err(OpError::storage)?;
+        }
         // The opening scene is the first event of every game, so a save
         // without events was interrupted before its opening was journaled.
         let fresh = db
             .transcript_events_page(branch_id, 0, 1)
             .map_err(OpError::storage)?
             .is_empty();
-        let session_id = session_identity(&db, branch_id)?;
+        if marker {
+            let identity = read_active_save_identity(options.save_path.parent().unwrap())
+                .map_err(OpError::storage)?
+                .ok_or_else(|| OpError::storage("active save marker disappeared"))?;
+            if identity.branch_id != branch_id {
+                return Err(OpError::new(
+                    "save_incompatible",
+                    "the selected branch does not match the game",
+                ));
+            }
+        }
+        let mut session_id = session_identity(&db, branch_id)?;
+        // Explicit new-game saves have unique names. Legacy saves retain the
+        // identity older app projections already stored.
+        if options
+            .save_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("mobile-") && name.ends_with(".db"))
+        {
+            session_id.push(':');
+            session_id.push_str(&options.save_path.file_name().unwrap().to_string_lossy());
+        }
         let journal = Arc::new(SqliteTurnJournal::from_database(db, branch_id));
         let live = Live::new(game_mod, world, npc_manager);
 
@@ -336,6 +460,7 @@ impl Session {
             engine,
             journal,
             session_id,
+            branch_id,
             pending: None,
             index: EventIndex::default(),
             streamed: HashMap::new(),
@@ -343,10 +468,69 @@ impl Session {
             pending_since: None,
             cursor: 0,
             _lock: lock,
+            lifecycle,
+            launch_options,
         };
         let history = session.journal.events().map_err(OpError::storage)?;
         session.observe(&history);
         Ok(session)
+    }
+
+    /// Creates and selects a fresh game without replacing the current save.
+    pub fn new_game(&mut self) -> Result<Value, OpError> {
+        if self.engine.open_request().is_some() {
+            return Err(OpError::new(
+                "request_in_progress",
+                "Stop the current request before starting a new game.",
+            ));
+        }
+        let dir = self
+            .launch_options
+            .save_path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))?;
+        let path = loop {
+            let path = dir.join(format!("mobile-{:016x}.db", rand::random::<u64>()));
+            if !path.exists() {
+                break path;
+            }
+        };
+        let options = OpenOptions {
+            save_path: path.clone(),
+            mod_dir: self.launch_options.mod_dir.clone(),
+        };
+        let built = Self::open_selected(
+            OpenMode::New,
+            options,
+            self.launch_options.clone(),
+            None,
+            false,
+            Some(self.cursor),
+        );
+        let mut replacement = match built {
+            Ok(session) => session,
+            Err(error) => {
+                let _ = remove_with_sidecars(&path);
+                let _ = remove_with_sidecars(&sibling(&path, "creating"));
+                return Err(error);
+            }
+        };
+        let snapshot = match replacement.snapshot() {
+            Ok(value) => value,
+            Err(error) => {
+                drop(replacement);
+                let _ = remove_with_sidecars(&path);
+                return Err(error);
+            }
+        };
+        if let Err(error) = write_active_save_identity(dir, &path, replacement.branch_id, "main") {
+            drop(replacement);
+            let _ = remove_with_sidecars(&path);
+            return Err(OpError::storage(error));
+        }
+        replacement.lifecycle = self.lifecycle.take();
+        *self = replacement;
+        Ok(snapshot)
     }
 
     fn observe(&mut self, events: &[TranscriptEvent]) {
@@ -1023,10 +1207,10 @@ impl Session {
                 "commands": advertised_commands().map(|command| json!({
                     "name": command.name,
                     "summary": command.summary,
-                })).collect::<Vec<_>>(),
+                })).chain(std::iter::once(json!({"name":"/new", "summary":"Start a new game"}))).collect::<Vec<_>>(),
                 // Completion: every command the phone runs, the words that
                 // may follow each, and every NPC a name may complete to.
-                "commandCompletions": COMMANDS.iter().map(|command| command.completion()).collect::<Vec<_>>(),
+                "commandCompletions": COMMANDS.iter().map(|command| serde_json::to_value(command.completion()).expect("command serializes")).chain(std::iter::once(json!({"word":"/new", "summary":"Start a new game", "next":[], "takesNpc":false}))).collect::<Vec<_>>(),
                 "everyone": everyone.iter().map(|npc| json!({
                     "id": format!("npc-{}", npc.id.0),
                     "name": npc.name,

@@ -23,6 +23,39 @@ final class RundaleCommandsUITests: XCTestCase {
             .waitForExistence(timeout: 15))
     }
 
+    func testNewGameStartsFreshOfflineAndResumesAfterRelaunch() {
+        hold(3)
+        submit("/wait 60")
+        XCTAssertTrue(row(containing: "You wait for 60 minutes").waitForExistence(timeout: 8))
+        hold(3)
+        input.tap()
+        input.typeText("/ne")
+        XCTAssertTrue(app.buttons["completion.new"].waitForExistence(timeout: 3))
+        app.buttons["completion.new"].tap()
+        hold(2)
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(row(containing: "A muddy road runs between low stone walls").waitForExistence(timeout: 8))
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
+        )], timeout: 8) == .completed)
+        XCTAssertFalse(row(containing: "You wait for 60 minutes").exists)
+        hold(3)
+        submit("/wait 7")
+        XCTAssertTrue(row(containing: "You wait for 7 minutes").waitForExistence(timeout: 8))
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--reset-fixture" }
+        app.launch()
+        XCTAssertTrue(row(containing: "You wait for 7 minutes").waitForExistence(timeout: 15))
+        XCTAssertFalse(row(containing: "You wait for 60 minutes").exists)
+        hold(3)
+        submit("/NEW-GAME")
+        XCTAssertTrue(row(containing: "A muddy road runs between low stone walls").waitForExistence(timeout: 8))
+        XCTAssertFalse(row(containing: "You wait for 7 minutes").exists)
+        submit("/help")
+        XCTAssertTrue(row(containing: "/new").waitForExistence(timeout: 8))
+        hold(5)
+    }
+
     func testUnadvertisedCommandsWorkAndOthersAreRefused() {
         submit("/wait 60")
         XCTAssertTrue(row(containing: "You wait for 60 minutes").waitForExistence(timeout: 8))
