@@ -123,6 +123,32 @@ final class RundalePhase3UITests: RundalePhase3UITestCase {
         hold(5)
     }
 
+    /// The app commits a reply as written: a reply naming a person who is not
+    /// in the world (Tadhg Mulvihill appears in no mod file) still reaches the
+    /// transcript verbatim, and survives a relaunch. The scripted reply comes
+    /// from the mock Endpoint, not a model.
+    func testReplyNamingAnUnknownPersonIsCommittedAsWritten() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 15))
+        hold(3)
+        submit("go to Connolly Cottage")
+        XCTAssertTrue(headerLabel(contains: "Connolly Cottage").waitForExistence(timeout: 8))
+        hold(3)
+        submit("Mícheál, who is minding the cattle?")
+        let reply = "Tadhg Mulvihill is minding them for me, and he has the grazing by the river."
+        XCTAssertTrue(waitForReplies(containing: reply, count: 1, timeout: 30),
+                      "the reply is committed unchanged")
+        XCTAssertTrue(waitForText(reply, timeout: 5))
+        attach("Reply naming an unknown person, shown as written")
+        hold(6)
+
+        app.terminate()
+        launch(reset: false)
+        XCTAssertTrue(waitForText(reply, timeout: 20), "the committed reply survives relaunch")
+        attach("Same reply after relaunch")
+        hold(6)
+    }
+
     func testPlaceNameTravelWithoutEndpointInference() {
         launch(reset: true)
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))

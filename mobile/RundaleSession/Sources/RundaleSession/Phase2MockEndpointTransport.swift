@@ -8,7 +8,8 @@ import LimerickEndpointKit
 /// (`--phase2-mock`): an intent decision on the JSON route, and a
 /// dialogue reply streamed in chunks. Lines can ask for an injected failure
 /// ("busy once", "offline once", "disconnect once", "fail") or a slower
-/// stream ("slow").
+/// stream ("slow"). "who is minding" makes Mícheál name a person who is not in
+/// the world, so a test can show the app commits model text as written.
 public final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable {
     /// Fault-injection state is transport-owned rather than request-owned so a
     /// retry of the same logical request can recover deterministically. Each
@@ -86,7 +87,10 @@ public final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Se
                     } else {
                         let dialogue: String
                         let chunks: [String]
-                        if identities.speakerName == "Róisín Connolly" {
+                        if input.contains("who is minding") {
+                            dialogue = "Tadhg Mulvihill is minding them for me, and he has the grazing by the river."
+                            chunks = ["Tadhg Mulvihill is ", "minding them for me, ", "and he has the grazing by the river."]
+                        } else if identities.speakerName == "Róisín Connolly" {
                             dialogue = "I trade spun yarn in the village when the household work allows."
                             chunks = ["I trade spun yarn ", "in the village when ", "the household work allows."]
                         } else if identities.speakerName == "Mícheál Connolly" {
