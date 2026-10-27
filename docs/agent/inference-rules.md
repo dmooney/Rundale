@@ -47,7 +47,9 @@ The model does its best, for better or worse. The canonical apply seam
 `limerick-core/src/dialogue_apply.rs`) checks only the structural response
 contract, `limerick_npc::dialogue_candidate_is_complete`: the reply parsed as
 the complete authored JSON object (on desktop this includes the Tier 1 metadata
-block) and its dialogue is non-empty. A reply that fails the contract fails the
+block), its dialogue is non-empty, and it is within
+`limerick_npc::MAX_DIALOGUE_CHARS` (4,096 characters, a runaway bound that
+rejects whole and never truncates). A reply that fails the contract fails the
 turn with no memory, event, UI, or state effects. A reply that passes is
 committed exactly as written: there is no grounding, register, obligation,
 anachronism, repetition, verbosity, or length rewrite, no replacement line, and
