@@ -157,8 +157,8 @@ pub fn parse_npc_stream_response_with_disposition(
     let stripped = strip_json_fence(trimmed);
 
     if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(stripped) {
-        // The reply is the model's own words; only surrounding whitespace goes.
-        let dialogue = json_resp.dialogue.trim().to_string();
+        // The reply is the model's own words, kept exactly as written.
+        let dialogue = json_resp.dialogue;
         let metadata = Some(NpcMetadata {
             action: json_resp.action,
             mood: json_resp.mood,
@@ -315,6 +315,7 @@ mod tests {
             "Aye, workin' metal, ain't it? Nod",
             "What brings ye to the forge today? \u{201D}",
             "Good day to ye. '",
+            "  Aye.\n",
         ] {
             let json =
                 serde_json::json!({"dialogue": dialogue, "action": "", "mood": "calm"}).to_string();

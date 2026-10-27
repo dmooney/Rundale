@@ -42,7 +42,7 @@ const QUESTION: &str = "Do you know Tadhg Mulvihill?";
 /// Ends in a bare capitalised word, as parsers once trimmed off as a stage
 /// direction: the reply is committed with it.
 const REPLY: &str = "Tadhg Mulvihill? Aye, the cartwright from beyond the bridge, a grand man \
-                     altogether. Who sent you? Seamus";
+                     altogether. Who sent you? Seamus\n";
 const ACTION: &str = "tips his cap";
 
 fn reply_json() -> String {
