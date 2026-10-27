@@ -75,26 +75,32 @@ pub struct NpcConfig {
     // Accepted and ignored so a config written before the removal still loads.
     #[serde(default, skip_serializing, rename = "dialogue_display_max_chars")]
     #[schemars(skip)]
-    retired_dialogue_display_max_chars: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_dialogue_display_max_chars: Option<serde::de::IgnoredAny>,
     #[serde(default, skip_serializing, rename = "dialogue_repetition_threshold")]
     #[schemars(skip)]
-    retired_dialogue_repetition_threshold: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_dialogue_repetition_threshold: Option<serde::de::IgnoredAny>,
     #[serde(default, skip_serializing, rename = "dialogue_sentence_boundary_trim")]
     #[schemars(skip)]
-    retired_dialogue_sentence_boundary_trim: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_dialogue_sentence_boundary_trim: Option<serde::de::IgnoredAny>,
     #[serde(default, skip_serializing, rename = "dialogue_anti_repetition")]
     #[schemars(skip)]
-    retired_dialogue_anti_repetition: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_dialogue_anti_repetition: Option<serde::de::IgnoredAny>,
     #[serde(
         default,
         skip_serializing,
         rename = "person_confirmation_guard_enabled"
     )]
     #[schemars(skip)]
-    retired_person_confirmation_guard_enabled: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_person_confirmation_guard_enabled: Option<serde::de::IgnoredAny>,
     #[serde(default, skip_serializing, rename = "verbosity_guard_enabled")]
     #[schemars(skip)]
-    retired_verbosity_guard_enabled: Option<serde::de::IgnoredAny>,
+    #[doc(hidden)]
+    pub retired_verbosity_guard_enabled: Option<serde::de::IgnoredAny>,
 }
 
 impl Default for NpcConfig {
