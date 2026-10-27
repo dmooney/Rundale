@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { NpcInfo } from '$lib/types';
+	import type { NpcInfo } from '#lib/types.ts';
 
 	let { npcs, selectedIndex, onSelect, onHighlight }: {
 		npcs: NpcInfo[];

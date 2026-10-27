@@ -11,20 +11,20 @@
 		type SetupStatusPayload,
 		type SetupProgressPayload,
 		type SetupDonePayload
-	} from '$lib/ipc';
-	import { LONG_WAIT_MESSAGES } from '$lib/setupWaitMessages';
+	} from '#lib/ipc.ts';
+	import { LONG_WAIT_MESSAGES } from '#lib/setupWaitMessages.ts';
 	import ByokFork from './ByokFork.svelte';
 	import LocalInferenceFork from './LocalInferenceFork.svelte';
 	import {
 		getOnboardingOptions,
 		type OnboardingChoice,
 		type OnboardingOptions
-	} from '$lib/ipc';
+	} from '#lib/ipc.ts';
 	import {
 		formatElapsed,
 		formatDownloadStats,
 		DownloadRateTracker
-	} from '$lib/setup/download-rate';
+	} from '#lib/setup/download-rate.ts';
 	import {
 		INITIAL_SETUP_MESSAGE,
 		SETUP_START_MESSAGE,
@@ -32,14 +32,14 @@
 		formatSetupStatusMessage,
 		sentenceBreakParts,
 		isLongSetupWaitMessage
-	} from '$lib/setup/setup-messages';
+	} from '#lib/setup/setup-messages.ts';
 	import {
 		readSetupCompleteFlag,
 		readSetupActivity,
 		markSetupComplete as markSetupCompleteStorage,
 		clearSetupComplete as clearSetupCompleteStorage,
 		persistSetupActivity as persistSetupActivityStorage
-	} from '$lib/setup/storage';
+	} from '#lib/setup/storage.ts';
 
 	const tauri = isTauri();
 	const WAIT_MESSAGE_FIRST_DELAY_MS = 2_500;

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { editorMods, editorSnapshot, editorTab, editorValidation } from '../../stores/editor';
-	import { editorOpenMod } from '$lib/editor-ipc';
-	import { runWithLoading } from '$lib/async-loading';
-	import type { ModSummary } from '$lib/editor-types';
+	import { editorOpenMod } from '#lib/editor-ipc.ts';
+	import { runWithLoading } from '#lib/async-loading.ts';
+	import type { ModSummary } from '#lib/editor-types.ts';
 
 	let loading = $state(false);
 	let error = $state('');

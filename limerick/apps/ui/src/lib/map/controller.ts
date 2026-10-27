@@ -26,7 +26,7 @@ import {
 	type MapGeoJSONFeature,
 	type GeoJSONSource,
 } from 'maplibre-gl';
-import type { MapData, TileSource, TravelWaypoint } from '$lib/types';
+import type { MapData, TileSource, TravelWaypoint } from '#lib/types.ts';
 import { buildStyle, readThemeColors, type MapVariant } from './style';
 import {
 	locationsToGeoJSON,
@@ -37,8 +37,8 @@ import {
 	type EdgeFeatureProps,
 } from './geojson';
 import type { FeatureCollection, Point, LineString } from 'geojson';
-import { ICON_PATHS, type LocationIcon } from '$lib/map-icons';
-import { configureMapLibreWorker } from '$lib/maplibre-worker';
+import { ICON_PATHS, type LocationIcon } from '#lib/map-icons.ts';
+import { configureMapLibreWorker } from '#lib/maplibre-worker.ts';
 
 /** Options passed to the controller at construction time. */
 export interface MapControllerOptions {

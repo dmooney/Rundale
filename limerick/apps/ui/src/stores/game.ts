@@ -6,7 +6,7 @@ import type {
 	LanguageHint,
 	TextLogEntry,
 	UiConfig,
-} from '$lib/types';
+} from '#lib/types.ts';
 
 export const worldState = writable<WorldSnapshot | null>(null);
 

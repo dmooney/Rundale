@@ -3,7 +3,7 @@ import { render, fireEvent } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import LocationList from './LocationList.svelte';
 import { editorSnapshot, editorSelectedLocationId } from '../../stores/editor';
-import type { EditorModSnapshot, LocationData } from '$lib/editor-types';
+import type { EditorModSnapshot, LocationData } from '#lib/editor-types.ts';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

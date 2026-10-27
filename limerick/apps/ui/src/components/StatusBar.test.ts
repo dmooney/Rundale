@@ -3,7 +3,7 @@ import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { worldState } from '../stores/game';
 import StatusBar from './StatusBar.svelte';
-import type { WorldSnapshot } from '$lib/types';
+import type { WorldSnapshot } from '#lib/types.ts';
 
 /**
  * Build a UTC epoch for 08:00 today so the StatusBar's rAF-driven clock

@@ -8,8 +8,8 @@
  */
 
 import type { FeatureCollection, Point, LineString } from 'geojson';
-import type { MapData, MapLocation } from '$lib/types';
-import { getLocationIcon, type LocationIcon } from '$lib/map-icons';
+import type { MapData, MapLocation } from '#lib/types.ts';
+import { getLocationIcon, type LocationIcon } from '#lib/map-icons.ts';
 
 /** Feature-state hint patterns for "lit" locations (glow at night / standout). */
 const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;

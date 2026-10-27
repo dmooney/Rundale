@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DebugSnapshot } from '$lib/types';
+	import type { DebugSnapshot } from '#lib/types.ts';
 	import BugChip from './BugChip.svelte';
 
 	let { snap }: { snap: DebugSnapshot } = $props();

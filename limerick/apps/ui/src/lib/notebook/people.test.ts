@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NpcInfo } from '$lib/types';
+import type { NpcInfo } from '#lib/types.ts';
 import { notebookPersonInitial, notebookPersonLabel } from './people';
 
 function npc(overrides: Partial<NpcInfo>): NpcInfo {

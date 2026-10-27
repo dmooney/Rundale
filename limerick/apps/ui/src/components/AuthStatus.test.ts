@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 import AuthStatus from './AuthStatus.svelte';
-import { getAuthStatus } from '$lib/ipc';
+import { getAuthStatus } from '#lib/ipc.ts';
 
 // AuthStatus now routes through the IPC seam (getAuthStatus) instead of a raw
 // fetch('/api/auth/status'); see audit finding M7. Tauri-vs-web forking and the
 // fetch itself are covered in ipc.test.ts; here we mock the binding and assert
 // the rendered output for each status shape.
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	getAuthStatus: vi.fn(),
 }));
 

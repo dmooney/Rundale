@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { SlashCommand } from '$lib/slash-commands';
+	import type { SlashCommand } from '#lib/slash-commands.ts';
 
 	let { commands, selectedIndex, onSelect, onHighlight }: {
 		commands: SlashCommand[];

@@ -5,7 +5,7 @@
  * In Tauri mode, uses `@tauri-apps/api` invoke/listen.
  * In browser mode, uses fetch for commands and WebSocket for events.
  * All command families import `command` / `onEvent` from here so there is
- * exactly one transport adapter; `$lib/ipc` re-exports everything so existing
+ * exactly one transport adapter; `#lib/ipc` re-exports everything so existing
  * import paths are unchanged.
  */
 

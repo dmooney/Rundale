@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { submitInput } from '$lib/ipc';
-	import type { DebugSnapshot } from '$lib/types';
+	import { submitInput } from '#lib/ipc.ts';
+	import type { DebugSnapshot } from '#lib/types.ts';
 	import { Key, Check, WarningCircle } from 'phosphor-svelte';
 	import ByokOnboarding from './ByokOnboarding.svelte';
 	import BugChip from './BugChip.svelte';

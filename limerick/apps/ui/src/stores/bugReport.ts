@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { BugContext } from '$lib/types';
+import type { BugContext } from '#lib/types.ts';
 
 /** Whether the bug-report modal is visible. */
 export const bugReportVisible = writable<boolean>(false);
@@ -32,7 +32,7 @@ export async function prepareBugReport(
 ): Promise<PreparedBugReport> {
 	let screenshot: string | null = null;
 	try {
-		const { captureScreen } = await import('$lib/screenshot');
+		const { captureScreen } = await import('#lib/screenshot.ts');
 		screenshot = await captureScreen();
 	} catch {
 		// A failed capture is non-fatal; the report still opens without an image.

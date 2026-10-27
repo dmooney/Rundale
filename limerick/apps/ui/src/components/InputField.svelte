@@ -10,13 +10,13 @@
 		playerSubmittedCount,
 		intentDraft,
 	} from '../stores/game';
-	import { submitInput } from '$lib/ipc';
-	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
+	import { submitInput } from '#lib/ipc.ts';
+	import { filterCommands, type SlashCommand } from '#lib/slash-commands.ts';
 	import {
 		detectModelTrigger,
 		filterModels,
 		type ModelSuggestion,
-	} from '$lib/model-catalog';
+	} from '#lib/model-catalog.ts';
 	import { knownNouns, findMatches } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
@@ -29,18 +29,18 @@
 		setEditorText,
 		isCursorOnFirstLine,
 		isCursorOnLastLine,
-	} from '$lib/input-field/contenteditable';
+	} from '#lib/input-field/contenteditable.ts';
 	import {
 		HISTORY_MAX,
 		loadHistory,
 		saveHistory,
-	} from '$lib/input-field/history';
+	} from '#lib/input-field/history.ts';
 	import {
 		type CompletionState,
 		resetCompletion as makeEmptyCompletion,
 		extractPrefix,
 		applyCompletion as applyCompletionState,
-	} from '$lib/input-field/completion';
+	} from '#lib/input-field/completion.ts';
 
 	let { autoFocus = true }: { autoFocus?: boolean } = $props();
 

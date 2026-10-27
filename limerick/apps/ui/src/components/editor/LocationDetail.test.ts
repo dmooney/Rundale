@@ -8,7 +8,7 @@ import {
 	editorSnapshot,
 	editorValidation,
 } from '../../stores/editor';
-import type { EditorModSnapshot } from '$lib/editor-types';
+import type { EditorModSnapshot } from '#lib/editor-types.ts';
 
 interface MapHarness {
 	getCanvas(): { style: { cursor: string } };
@@ -110,7 +110,7 @@ vi.mock('maplibre-gl', () => {
 	};
 });
 
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	getUiConfig: vi.fn(async () => ({
 		hints_label: '',
 		default_accent: '',
@@ -134,7 +134,7 @@ vi.mock('$lib/ipc', () => ({
 	})),
 }));
 
-vi.mock('$lib/editor-ipc', () => ({
+vi.mock('#lib/editor-ipc.ts', () => ({
 	editorUpdateLocations: mockState.editorUpdateLocationsMock,
 	editorSave: mockState.editorSaveMock,
 }));
