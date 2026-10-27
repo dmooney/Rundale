@@ -71,6 +71,30 @@ pub struct NpcConfig {
     /// (`flags.is_disabled("npc-dialogue-grounding")` → false).
     #[serde(default = "default_grounding_enabled")]
     pub grounding_enabled: bool,
+    // Keys retired with the post-generation dialogue guards (issue 2295).
+    // Accepted and ignored so a config written before the removal still loads.
+    #[serde(default, skip_serializing, rename = "dialogue_display_max_chars")]
+    #[schemars(skip)]
+    retired_dialogue_display_max_chars: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_repetition_threshold")]
+    #[schemars(skip)]
+    retired_dialogue_repetition_threshold: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_sentence_boundary_trim")]
+    #[schemars(skip)]
+    retired_dialogue_sentence_boundary_trim: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_anti_repetition")]
+    #[schemars(skip)]
+    retired_dialogue_anti_repetition: Option<serde::de::IgnoredAny>,
+    #[serde(
+        default,
+        skip_serializing,
+        rename = "person_confirmation_guard_enabled"
+    )]
+    #[schemars(skip)]
+    retired_person_confirmation_guard_enabled: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "verbosity_guard_enabled")]
+    #[schemars(skip)]
+    retired_verbosity_guard_enabled: Option<serde::de::IgnoredAny>,
 }
 
 impl Default for NpcConfig {
@@ -89,6 +113,12 @@ impl Default for NpcConfig {
             reactions: ReactionConfig::default(),
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
             grounding_enabled: default_grounding_enabled(),
+            retired_dialogue_display_max_chars: None,
+            retired_dialogue_repetition_threshold: None,
+            retired_dialogue_sentence_boundary_trim: None,
+            retired_dialogue_anti_repetition: None,
+            retired_person_confirmation_guard_enabled: None,
+            retired_verbosity_guard_enabled: None,
         }
     }
 }

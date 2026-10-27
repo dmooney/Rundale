@@ -799,4 +799,22 @@ tms = false
         assert!((osm.raster_opacity - 0.85).abs() < f32::EPSILON);
         assert!(!osm.tms);
     }
+
+    /// Keys retired with the dialogue guards (issue 2295) are accepted and
+    /// ignored, so a config written before the removal still loads.
+    #[test]
+    fn retired_dialogue_guard_keys_are_accepted_and_ignored() {
+        let toml_str = r#"
+[npc]
+memory_capacity = 25
+dialogue_display_max_chars = 800
+dialogue_repetition_threshold = 0.92
+dialogue_sentence_boundary_trim = true
+dialogue_anti_repetition = true
+person_confirmation_guard_enabled = true
+verbosity_guard_enabled = true
+"#;
+        let cfg: EngineConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.npc.memory_capacity, 25);
+    }
 }
