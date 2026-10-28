@@ -1,10 +1,9 @@
 //! Text-quality detectors for LLM output.
 //!
-//! Sibling to [`crate::anachronism`]. Where `anachronism` flags
-//! out-of-period concepts in *player* input (and feeds an alert into the
-//! NPC prompt), `quality` scans LLM-emitted text (player auto-actions and
-//! NPC replies) for structural pathologies that no judge slice currently
-//! covers:
+//! `quality` scans LLM-emitted text (player auto-actions and NPC replies)
+//! for structural pathologies that no judge slice currently covers. The
+//! detectors only report: they log a diagnostic and never alter, replace, or
+//! reject a reply:
 //!
 //! 1. **JSON envelope leak** — raw `action": "..."}` literal from the
 //!    auto-player completion bleeding past `extract_action_from_response`.
@@ -383,40 +382,6 @@ const MODERN_REGISTER_TERMS: &[&str] = &[
     "healing properties",
 ];
 
-/// Renders a context alert for the dialogue prompt when the player's
-/// input contains any `MODERN_REGISTER_TERMS` phrase. Mirrors
-/// `anachronism::format_context_alert` in shape so the NPC dialogue
-/// prompt builder can inject both alerts alongside each other.
-///
-/// Regression note (fixed: #55): pre-fix the validator caught modern-register phrases on
-/// NPC *output* only, so a player saying "taking in the sights"
-/// could feed it through and trip a WARN on the NPC's echo. This
-/// alert closes the upstream gap by warning the model up front.
-pub fn format_player_register_alert(player_input: &str) -> Option<String> {
-    let issues = detect_modern_register(player_input);
-    if issues.is_empty() {
-        return None;
-    }
-    let mut alert = String::from(
-        "\nMODERN-REGISTER ALERT: The player used 21st-century phrasing. \
-         Do NOT echo any of these phrases back in your reply — paraphrase \
-         the idea in 1820 Irish-English instead. Specific phrases detected:\n",
-    );
-    for issue in &issues {
-        // QualityIssue::detail looks like "modern-register phrase: 'taking in the sights'"
-        // or "modern-register word: 'fascinating'" — surface the whole detail
-        // string so the model can see what to avoid verbatim.
-        alert.push_str(&format!("- {}\n", issue.detail));
-    }
-    alert.push_str(
-        "\nReply in your character's natural Hiberno-English register. \
-         If the player's wording would be unfamiliar to a 1820 villager, \
-         react to the *idea* (a stroll, a look around, fine sights, a \
-         day's diversion) without using the modern formulation.",
-    );
-    Some(alert)
-}
-
 pub fn detect_modern_register(text: &str) -> Vec<QualityIssue> {
     let lower = text.to_lowercase();
     let mut out = Vec::new();
@@ -644,32 +609,6 @@ mod tests {
             "poitín must be allow-listed; got {:?}",
             issues
         );
-    }
-
-    #[test]
-    fn format_player_register_alert_fires_on_hit() {
-        // Regression (fixed: #55) — the exact phrase the demo audit caught Concannon
-        // echoing in cycle 12 because the player had used it first.
-        let alert = format_player_register_alert("I'm just taking in the sights")
-            .expect("alert must render when a MODERN_REGISTER_TERMS phrase is matched");
-        assert!(
-            alert.contains("MODERN-REGISTER ALERT"),
-            "missing header:\n{alert}"
-        );
-        assert!(
-            alert.contains("Do NOT echo any of these phrases"),
-            "missing echo guard:\n{alert}"
-        );
-        assert!(
-            alert.contains("taking in the sights"),
-            "alert must surface the matched phrase:\n{alert}"
-        );
-    }
-
-    #[test]
-    fn format_player_register_alert_silent_on_clean_input() {
-        assert!(format_player_register_alert("the road be long this morning").is_none());
-        assert!(format_player_register_alert("").is_none());
     }
 
     #[test]

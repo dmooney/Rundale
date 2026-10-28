@@ -1200,10 +1200,10 @@ fn a_person_named_who_is_elsewhere_gets_no_system_line() {
     }
     assert!(checked_with_peig);
 }
-/// The Endpoint path commits a reply after structural checks only: a reply
+/// The phone path commits a reply after the structural contract only: a reply
 /// naming a person and place the world does not have is not rewritten.
 #[test]
-fn dialogue_content_guards_are_off_on_the_endpoint_path() {
+fn a_reply_naming_a_person_who_does_not_exist_commits_unchanged() {
     let (game, _) = Game::new();
     game.go_to_the_cottage();
     let submitted = game.submit("Mícheál, who keeps the chapel in Tulsk?");
@@ -1591,16 +1591,6 @@ fn panics_are_contained_as_internal_errors() {
     assert_eq!(
         panic_contained(|| panic!("boom")),
         limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
-    );
-}
-
-#[test]
-fn the_endpoint_configuration_turns_every_content_guard_off() {
-    let config = session::endpoint_game_config();
-    assert!(
-        config
-            .flags
-            .is_disabled(limerick_core::npc::DIALOGUE_CONTENT_GUARDS_FLAG)
     );
 }
 

@@ -104,7 +104,6 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "machine": host.get("machine"),
         },
         "reliability_soak": soak.get("reliability_soak"),
-        "guard_observation": soak.get("guard_observation"),
         "request_profile": request_profile,
         "provenance": {
             "created_at": __import__("datetime")
@@ -128,9 +127,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             },
         },
     }
-    if not isinstance(evidence["reliability_soak"], dict) or not isinstance(
-        evidence["guard_observation"], dict
-    ):
+    if not isinstance(evidence["reliability_soak"], dict):
         raise ValueError("soak receipt is missing measurement summaries")
     return evidence
 

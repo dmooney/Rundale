@@ -1049,11 +1049,6 @@ mod tests {
                 encounters: limerick_core::game_mod::EncounterTable {
                     by_time: Default::default(),
                 },
-                anachronisms: limerick_core::game_mod::AnachronismData {
-                    context_alert_prefix: String::new(),
-                    context_alert_suffix: String::new(),
-                    terms: vec![],
-                },
                 validation: ValidationReport::default(),
             });
         }
@@ -1107,11 +1102,6 @@ mod tests {
             festivals: vec![],
             encounters: limerick_core::game_mod::EncounterTable {
                 by_time: Default::default(),
-            },
-            anachronisms: limerick_core::game_mod::AnachronismData {
-                context_alert_prefix: String::new(),
-                context_alert_suffix: String::new(),
-                terms: vec![],
             },
             validation: ValidationReport::default(),
         }

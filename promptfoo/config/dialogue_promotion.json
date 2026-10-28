@@ -45,10 +45,6 @@
     "minimum_soak_calls": 500,
     "minimum_valid_response_rate": 0.995
   },
-  "guards": {
-    "minimum_observed_turns": 500,
-    "maximum_intervention_rate": 0.1
-  },
   "performance": {
     "minimum_measurements": 15,
     "minimum_cold_measurements": 5,

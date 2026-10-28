@@ -796,7 +796,7 @@ mod tests {
     /// `EditorSession` without going to disk.
     fn minimal_snapshot() -> crate::editor::types::EditorModSnapshot {
         use crate::editor::types::{EditorManifest, EditorModSnapshot, ValidationReport};
-        use crate::game_mod::{AnachronismData, EncounterTable};
+        use crate::game_mod::EncounterTable;
         EditorModSnapshot {
             mod_path: std::path::PathBuf::from("/tmp/test_mod"),
             manifest: EditorManifest {
@@ -814,11 +814,6 @@ mod tests {
             festivals: vec![],
             encounters: EncounterTable {
                 by_time: Default::default(),
-            },
-            anachronisms: AnachronismData {
-                context_alert_prefix: String::new(),
-                context_alert_suffix: String::new(),
-                terms: vec![],
             },
             validation: ValidationReport::default(),
         }

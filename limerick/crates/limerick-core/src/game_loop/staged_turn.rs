@@ -583,10 +583,6 @@ mod tests {
             after_failed_conversation.last_player_input,
             before_conversation.last_player_input
         );
-        assert_eq!(
-            after_failed_conversation.seen_openers_this_location,
-            before_conversation.seen_openers_this_location
-        );
 
         let (retry_tx, retry_rx) = tokio::sync::mpsc::channel::<InferenceRequest>(4);
         *inference_queue.lock().await = Some(InferenceQueue::new(

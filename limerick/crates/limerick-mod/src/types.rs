@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use limerick_types::AnachronismEntry;
 use limerick_types::LanguageHint;
 use limerick_types::ThemePalette;
 
@@ -15,17 +14,6 @@ pub struct PromptTemplates {
     pub tier1_context: String,
     /// Tier-2 system prompt text.
     pub tier2_system: String,
-}
-
-/// Anachronism detection data loaded from JSON.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnachronismData {
-    /// Prefix injected into the LLM context alert.
-    pub context_alert_prefix: String,
-    /// Suffix injected into the LLM context alert.
-    pub context_alert_suffix: String,
-    /// Known anachronistic terms.
-    pub terms: Vec<AnachronismEntry>,
 }
 
 /// A festival or holy day definition.

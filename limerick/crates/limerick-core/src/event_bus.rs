@@ -44,7 +44,7 @@ pub struct ServerEvent {
 /// |------------------|-------------------------------------------|
 /// | `TextLog`        | `text-log`                                |
 /// | `WorldUpdate`    | `world-update`                            |
-/// | `InferenceToken` | `stream-token`, `stream-end`, `stream-turn-end`, `dialogue-corrected`, `dialogue-quality` |
+/// | `InferenceToken` | `stream-token`, `stream-end`, `stream-turn-end`, `dialogue-quality` |
 /// | `TravelStart`    | `travel-start`                            |
 /// | `Loading`        | `loading`                                 |
 /// | `NpcReaction`    | `npc-reaction`                            |
@@ -81,8 +81,9 @@ impl Topic {
         match name {
             "text-log" => Some(Self::TextLog),
             "world-update" => Some(Self::WorldUpdate),
-            "stream-token" | "stream-end" | "stream-turn-end" | "dialogue-corrected"
-            | "dialogue-quality" => Some(Self::InferenceToken),
+            "stream-token" | "stream-end" | "stream-turn-end" | "dialogue-quality" => {
+                Some(Self::InferenceToken)
+            }
             "travel-start" => Some(Self::TravelStart),
             "loading" => Some(Self::Loading),
             "npc-reaction" => Some(Self::NpcReaction),
@@ -474,7 +475,6 @@ mod tests {
             "stream-token",
             "stream-end",
             "stream-turn-end",
-            "dialogue-corrected",
             "dialogue-quality",
             "travel-start",
             "loading",

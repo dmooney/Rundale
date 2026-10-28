@@ -4,8 +4,6 @@ use super::*;
 use std::fs;
 use tempfile::TempDir;
 
-use limerick_types::AnachronismEntry;
-
 /// Build a minimal mod directory inside a tempdir and return it.
 fn create_test_mod() -> TempDir {
     let tmp = TempDir::new().unwrap();
@@ -22,19 +20,6 @@ fn create_test_mod() -> TempDir {
 
     // npcs.json
     fs::write(root.join("npcs.json"), "[]").unwrap();
-
-    // anachronisms.json
-    fs::write(
-        root.join("anachronisms.json"),
-        r#"{
-            "context_alert_prefix": "NOTE:",
-            "context_alert_suffix": "END",
-            "terms": [
-                {"term": "internet", "reason": "not invented until the 20th century"}
-            ]
-        }"#,
-    )
-    .unwrap();
 
     // festivals.json
     fs::write(
@@ -95,7 +80,6 @@ period_year = 1820
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"
@@ -218,7 +202,6 @@ fn test_load_mod_from_directory() {
     assert!(gm.manifest.meta.save_root.is_none());
     assert_eq!(gm.manifest.meta.app_name(), "Test Mod");
     assert_eq!(gm.prompts.tier1_system, "You are tier1.");
-    assert_eq!(gm.anachronisms.terms.len(), 1);
     assert_eq!(gm.festivals.len(), 2);
     assert_eq!(gm.loading.spinner_frames.len(), 4);
     // No pronunciations file referenced → empty vec
@@ -388,13 +371,13 @@ fn test_load_rejects_directory_traversal_in_manifest() {
         }
     }
 
-    // Overwrite mod.toml with a malicious anachronisms path. (anachronisms
+    // Overwrite mod.toml with a malicious festivals path. (festivals
     // is read via read_text during load, unlike world/npcs which are
     // resolved lazily by world_path()/npcs_path().)
     let manifest = fs::read_to_string(mod_dir.join("mod.toml")).unwrap();
     let evil = manifest.replace(
-        "anachronisms = \"anachronisms.json\"",
-        "anachronisms = \"../secret.txt\"",
+        "festivals = \"festivals.json\"",
+        "festivals = \"../secret.txt\"",
     );
     fs::write(mod_dir.join("mod.toml"), evil).unwrap();
 
@@ -468,26 +451,6 @@ default_accent = "#112233"
     assert_eq!(ui.theme.resolved_palette().bg, "#18181a");
 }
 
-#[test]
-fn test_anachronism_entry_deserialize() {
-    // JSON with the current format (note, category, origin_year)
-    let json = r#"{"term":"telephone","category":"technology","origin_year":1876,"note":"invented by Bell in 1876"}"#;
-    let e: AnachronismEntry = serde_json::from_str(json).unwrap();
-    assert_eq!(e.term, "telephone");
-    assert_eq!(e.note, "invented by Bell in 1876");
-    assert_eq!(e.category.as_deref(), Some("technology"));
-    assert_eq!(e.origin_year, Some(1876));
-}
-
-#[test]
-fn test_anachronism_entry_deserialize_legacy_reason() {
-    // Backward compatible: accepts "reason" alias for "note"
-    let json = r#"{"term":"telephone","reason":"invented 1876"}"#;
-    let e: AnachronismEntry = serde_json::from_str(json).unwrap();
-    assert_eq!(e.term, "telephone");
-    assert_eq!(e.note, "invented 1876");
-}
-
 // -- Pronunciation tests --------------------------------------------------
 
 /// Build a test mod that includes a pronunciations.json file.
@@ -525,7 +488,6 @@ period_year = 1820
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"
@@ -931,7 +893,6 @@ native_language = "ga-IE"
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"

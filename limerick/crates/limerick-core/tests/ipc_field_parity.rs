@@ -114,10 +114,10 @@ use limerick_core::debug_snapshot::{
     TierSummary, WeatherDebug, WorldDebug,
 };
 use limerick_core::ipc::{
-    BugContext, BugReportRequest, BugReportResult, DialogueCorrectedPayload, LoadingPayload,
-    MapData, MapLocation, NpcInfo, NpcReactionPayload, PlayerTaskSnapshot, ReconnectState,
-    SaveState, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextLogPayload,
-    TileSourceSnapshot, TravelStartPayload, TravelWaypoint, WorldSnapshot,
+    BugContext, BugReportRequest, BugReportResult, LoadingPayload, MapData, MapLocation, NpcInfo,
+    NpcReactionPayload, PlayerTaskSnapshot, ReconnectState, SaveState, StreamEndPayload,
+    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, TileSourceSnapshot,
+    TravelStartPayload, TravelWaypoint, WorldSnapshot,
 };
 
 #[test]
@@ -297,16 +297,6 @@ fn ipc_field_parity() {
             source: Some("Siobhan".into()),
             final_text: Some("Good day to ye.".into()),
             recovery_message: Some("Please try again.".into()),
-        },
-        &manifest,
-    );
-
-    assert_keys_contain_manifest(
-        "DialogueCorrectedPayload",
-        &DialogueCorrectedPayload {
-            turn_id: 1,
-            corrected_text: "Good day to ye.".into(),
-            message_id: Some("msg-1".into()),
         },
         &manifest,
     );

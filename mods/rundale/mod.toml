@@ -24,7 +24,6 @@ native_language = "ga-IE"
 [files]
 world = "world.json"
 npcs = "npcs.json"
-anachronisms = "anachronisms.json"
 festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"

@@ -1,4 +1,5 @@
-//! Real-loop regression proof for the #1834 dialogue candidate quarantine.
+//! Real-loop proof for the dialogue candidate quarantine (#1834): a reply that
+//! fails the structural response contract commits nothing and is never shown.
 //!
 //! Evidence type: game-loop integration test. These tests drive
 //! `execute_via_real_loop`, mocking only the provider completion boundary.
@@ -57,22 +58,19 @@ fn assert_failed_without_candidate_effects(events: &[(String, serde_json::Value)
 }
 
 #[test]
-fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
+fn empty_dialogue_candidate_has_no_metadata_effects() {
     let (mut harness, peig_id, speaker) = harness_with_peig();
     let original_mood = harness.app.npc_manager.get(peig_id).unwrap().mood.clone();
     let original_task_count = harness.app.world.player_progress.tasks().len();
-    let raw_line = "Council says the planning board has set tongues.";
-    let raw_json = format!(
-        r#"{{"dialogue":"{raw_line}","action":"waves the committee notice","mood":"delighted","assigned_task":"Attend the agricultural show committee"}}"#
-    );
-    harness.mock().push_json_for(&speaker, &raw_json);
+    let raw_json = r#"{"dialogue":"  ","action":"waves the committee notice","mood":"delighted","assigned_task":"Attend the agricultural show committee"}"#;
+    harness.mock().push_json_for(&speaker, raw_json);
     let mut game_events = harness.app.world.event_bus.subscribe();
 
     let ui_events = harness.execute_via_real_loop(&format!("@{speaker} Good day to you."));
 
     assert_failed_without_candidate_effects(&ui_events);
     let serialized_ui = serde_json::to_string(&ui_events).unwrap();
-    for forbidden in [raw_line, "committee notice", "Attend the agricultural show"] {
+    for forbidden in ["committee notice", "Attend the agricultural show"] {
         assert!(
             !serialized_ui.contains(forbidden),
             "raw candidate effect escaped: {forbidden}"
@@ -91,18 +89,6 @@ fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
         original_task_count
     );
     assert!(
-        harness
-            .app
-            .npc_manager
-            .get(peig_id)
-            .unwrap()
-            .memory
-            .recent(8)
-            .iter()
-            .all(|memory| !memory.content.contains(raw_line))
-    );
-
-    assert!(
         game_events.try_recv().is_err(),
         "rejected candidate must not publish a canonical dialogue event"
     );
@@ -111,8 +97,8 @@ fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
 #[test]
 fn malformed_and_raw_provider_modes_have_identical_canonical_output() {
     for candidate in [
-        r#"{"dialogue":"The recovered planning board line""#,
-        "The agricultural show committee has very strong opinions.",
+        r#"{"dialogue":"The recovered half-finished line""#,
+        "The committee has very strong opinions.",
     ] {
         let (mut harness, _peig_id, speaker) = harness_with_peig();
         harness.mock().push_json_for(&speaker, candidate);

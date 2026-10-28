@@ -4,7 +4,6 @@
 //! with other NPCs, and short-term memory. Cognition fidelity is determined
 //! by the NpcManager based on distance from the player.
 
-pub mod anachronism;
 pub mod autonomous;
 pub mod banshee;
 pub mod data;
@@ -59,22 +58,20 @@ pub use data::{
 //    Each `pub use module::*` keeps every public path stable
 //    (e.g. `limerick_npc::build_tier1_system_prompt`).
 mod context;
-mod dialogue_obligations;
-mod dialogue_validation;
+mod dialogue_grounding;
+mod dialogue_identity;
 mod language;
 mod names;
 mod npc;
-mod repetition;
 mod response;
 mod tier1_prompt;
 
 pub use context::*;
-pub use dialogue_obligations::*;
-pub use dialogue_validation::*;
+pub use dialogue_grounding::*;
+pub use dialogue_identity::*;
 pub use language::*;
 pub use names::*;
 pub use npc::*;
-pub use repetition::*;
 pub use response::*;
 pub use tier1_prompt::*;
 

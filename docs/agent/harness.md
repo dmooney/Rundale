@@ -14,7 +14,6 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | Create a top-level module under `limerick/crates/limerick-engine/src/` that shadows one in `limerick-core` | Test fails with the canonical fix (extend the leaf crate)                    | `architecture_fitness.rs` → `limerick_engine_does_not_duplicate_limerick_core_modules`                             |
 | Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                                 | Test fails listing the orphan(s)                                             | `architecture_fitness.rs` → `no_orphaned_source_files`                                                             |
 | Change anything that affects gameplay JSON output                                                          | Snapshot baseline test fails with a `live-baseline` diff window              | `limerick/crates/limerick-engine/tests/eval_baselines.rs`                                                          |
-| Introduce an out-of-period word in a fixture                                                               | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_anachronisms_are_empty`                                                              |
 | Accidentally return `Moved { minutes: 0 }` (frozen clock)                                                  | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                       |
 | Silently break the location-description renderer                                                           | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                     |
 | Leave AI partial-completion markers in changed files                                                       | Witness scan fails                                                           | `limerick/justfile` -> `witness-scan` (gates `just check` and `just verify`)                                       |
@@ -84,7 +83,7 @@ human once. Two feeders into "the next sensor":
 1. **LEARNINGS sweep.** When you read or append a `LEARNINGS.md` entry, ask:
    _can this be a `cargo test` or CI check?_ If a failure mode is mechanically
    detectable (a struct-order rule, a "this code path must call X" rule, an
-   anachronism, a banned token), it belongs as a fitness/rubric test, not as
+   a banned token), it belongs as a fitness/rubric test, not as
    prose a future agent has to remember. Prefer a self-correcting failure
    message that names the fix. Entries that resist automation (judgement calls,
    environment quirks) stay as prose.

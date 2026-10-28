@@ -39,23 +39,6 @@ pub struct ConversationRuntimeState {
     /// (#1331). `None` until the player submits their first input. Runtime-only
     /// — never persisted to save state.
     pub last_player_input: Option<String>,
-    /// Normalized first-sentence openers already shown to the player at the
-    /// current location, across all turns (#1492 — cross-NPC opener de-dup).
-    ///
-    /// Populated by [`handle_npc_conversation`] from every NPC reply emitted
-    /// at the current location. Cleared when the player moves (via
-    /// [`Self::sync_location`]). Used to extend the same opener dedup that
-    /// previously only worked within a single multi-NPC turn to also cover
-    /// sequential single-NPC turns — catching "What brings ye to these parts?"
-    /// repeated across 4+ separate conversations at the same location.
-    ///
-    /// Capped at 32 entries so it cannot grow unboundedly during a long stay at
-    /// one location.
-    pub seen_openers_this_location: Vec<String>,
-    /// Typed unresolved person/place referents introduced by the player in the
-    /// current local exchange. This is runtime-only, bounded in `limerick-npc`,
-    /// and cleared with the rest of the location-scoped transcript.
-    pub dialogue_referents: crate::npc::DialogueReferentContext,
 }
 
 impl Default for ConversationRuntimeState {
@@ -75,8 +58,6 @@ impl ConversationRuntimeState {
             last_spoken_at: now,
             conversation_in_progress: false,
             last_player_input: None,
-            seen_openers_this_location: Vec::new(),
-            dialogue_referents: crate::npc::DialogueReferentContext::default(),
         }
     }
 
@@ -117,38 +98,12 @@ impl ConversationRuntimeState {
         }
     }
 
-    /// Clears the transcript and seen-opener set when the player moves to a new
-    /// location (#1492).
+    /// Clears the transcript when the player moves to a new location.
     pub fn sync_location(&mut self, location: LocationId) {
         if self.location != Some(location) {
             self.location = Some(location);
             self.transcript.clear();
-            self.seen_openers_this_location.clear();
-            self.dialogue_referents = crate::npc::DialogueReferentContext::default();
         }
-    }
-
-    /// Records a normalized NPC opener shown to the player at the current
-    /// location, for cross-turn cross-NPC opener de-duplication (#1492).
-    ///
-    /// Ignores empty strings. Caps the set at 32 entries (oldest evicted) so
-    /// long stays at one location do not grow it unboundedly.
-    pub fn record_opener(&mut self, opener: String) {
-        if opener.is_empty() {
-            return;
-        }
-        if let Some(pos) = self
-            .seen_openers_this_location
-            .iter()
-            .position(|x| x == &opener)
-        {
-            // Already present — move to back (LRU refresh) so the eviction order
-            // reflects recency rather than first-seen, and no duplicate is added.
-            self.seen_openers_this_location.remove(pos);
-        } else if self.seen_openers_this_location.len() >= 32 {
-            self.seen_openers_this_location.remove(0);
-        }
-        self.seen_openers_this_location.push(opener);
     }
 
     /// Appends a line to the local transcript, trimming blank lines and
@@ -249,31 +204,6 @@ mod tests {
         assert!(
             state.transcript.is_empty(),
             "moving to a new location should clear stale local transcript"
-        );
-    }
-
-    #[test]
-    fn sync_location_clears_typed_dialogue_referents_only_on_move() {
-        let mut state = ConversationRuntimeState::new();
-        let crossroads = LocationId(1);
-        let chapel = LocationId(2);
-        state.sync_location(crossroads);
-        state
-            .dialogue_referents
-            .observe_player_input("Have you seen Cormac Finn?", &[], &[], None);
-        assert_ne!(
-            state.dialogue_referents,
-            crate::npc::DialogueReferentContext::default()
-        );
-        state.sync_location(crossroads);
-        assert_ne!(
-            state.dialogue_referents,
-            crate::npc::DialogueReferentContext::default()
-        );
-        state.sync_location(chapel);
-        assert_eq!(
-            state.dialogue_referents,
-            crate::npc::DialogueReferentContext::default()
         );
     }
 

@@ -23,7 +23,6 @@ echo "  - npcs.json"
 echo "  - world.json"
 echo "  - festivals.json"
 echo "  - encounters.json"
-echo "  - anachronisms.json"
 echo ""
 read -r -p "Type the full path to confirm: " CONFIRM
 

@@ -187,11 +187,6 @@ function snapshot(): EditorModSnapshot {
 		],
 		festivals: [],
 		encounters: {},
-		anachronisms: {
-			context_alert_prefix: '',
-			context_alert_suffix: '',
-			terms: [],
-		},
 		validation: { errors: [], warnings: [] },
 	};
 }

@@ -2,7 +2,7 @@
 """Run one immutable cloud-dialogue preflight and performance profile.
 
 The live preflight goes through Limerick's canonical NPC turn path. Only a
-structurally valid, low-guard profile advances to the fixed promptfoo perf
+structurally valid profile advances to the fixed promptfoo perf
 panel. Every run uses isolated config/state/output directories, so retries
 cannot overwrite a prior paid response.
 """
@@ -205,11 +205,7 @@ def main(argv: list[str] | None = None) -> int:
 
         preflight_data = json.loads(preflight.read_text(encoding="utf-8"))
         calls = preflight_data["reliability_soak"]
-        guards = preflight_data["guard_observation"]
-        if (
-            calls["valid_responses"] != calls["calls"]
-            or guards["interventions"] / guards["turns"] > 0.10
-        ):
+        if calls["valid_responses"] != calls["calls"]:
             print(f"[cloud-profile] {args.slug}: preflight rejected; performance skipped")
             subprocess.run(
                 [sys.executable, str(PF / "scripts" / "qualification_dashboard.py")],

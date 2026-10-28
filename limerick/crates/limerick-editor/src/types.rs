@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use limerick_npc::NpcFile;
 use limerick_world::graph::LocationData;
 
-use limerick_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use limerick_mod::{EncounterTable, FestivalDef, ModManifest};
 
 /// Lightweight summary of a mod found on disk.
 ///
@@ -53,7 +53,7 @@ pub struct EditorManifest {
     pub start_date: String,
     /// Starting location id.
     pub start_location: u32,
-    /// Anachronism cutoff year.
+    /// Year the setting is set in.
     pub period_year: u16,
 }
 
@@ -90,8 +90,6 @@ pub struct EditorModSnapshot {
     pub festivals: Vec<FestivalDef>,
     /// Encounter flavour text keyed by time-of-day.
     pub encounters: EncounterTable,
-    /// Anachronism detection data.
-    pub anachronisms: AnachronismData,
     /// Validation report computed at load time.
     pub validation: ValidationReport,
 }
@@ -188,6 +186,4 @@ pub enum EditorDoc {
     Festivals,
     /// `encounters.json`.
     Encounters,
-    /// `anachronisms.json`.
-    Anachronisms,
 }

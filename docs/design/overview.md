@@ -57,7 +57,7 @@ Player Input → Command Detection → [System Command OR Game Input]
 
 ## Engine / Game Data Separation (Mod System)
 
-The Limerick engine is generic and knows nothing about any specific setting. All Rundale game content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
+The Limerick engine is generic and knows nothing about any specific setting. All Rundale game content (Irish place names, 1820 historical context, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
 
 A mod is a directory with a `mod.toml` manifest and data files:
 
@@ -70,7 +70,6 @@ mods/rundale/
 │   ├── tier1_system.txt  # Tier 1 system prompt template with {name}, {age}, etc.
 │   ├── tier1_context.txt # Tier 1 context template
 │   └── tier2_system.txt  # Tier 2 background simulation prompt
-├── anachronisms.json     # Period enforcement dictionary
 ├── festivals.json        # Calendar events (Imbolc, Bealtaine, Lughnasa, Samhain)
 ├── encounters.json       # Encounter flavour text keyed by time-of-day
 ├── loading.toml          # Loading spinner frames, phrases, colours
@@ -84,7 +83,6 @@ The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected
 - `LoadingAnimation::from_config(&game_mod.loading)` — configurable spinner
 - `check_encounter_with_table()` — mod-provided encounter text
 - `GameClock::check_festival_data(&game_mod.festivals)` — data-driven festivals
-- `check_input_from_mod_data()` — loaded anachronism dictionary
 - `interpolate_template()` — `{placeholder}` interpolation for prompt templates
 - `get_ui_config` IPC command — sidebar labels and theme from mod
 - `name_hints_for()` — contextual name pronunciation hints matched against NPCs and locations
@@ -122,7 +120,6 @@ src/
 │   ├── conversation.rs  # ConversationLog (per-location exchange history for scene awareness)
 │   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
 │   ├── gossip.rs        # GossipNetwork (probabilistic propagation)
-│   ├── anachronism.rs   # Anachronism detection for player input (1820 period)
 │   ├── mood.rs          # Mood-to-emoji mapping for NPC emotional state display
 │   ├── reactions.rs     # Emoji reaction log for player feedback
 │   ├── transitions.rs   # NPC tier transition summaries (inflate/deflate)
@@ -316,7 +313,7 @@ streaming, and NPC conversation setup across backends.
   inference category, respecting per-category provider/key/URL overrides.
 - **`handlers.rs`** — Pure functions: `snapshot_from_world`, `build_map_data`,
   `build_theme`, `build_npcs_here`, `build_travel_start`, `text_log`,
-  `capitalize_first`, `prepare_npc_conversation` (includes anachronism checking),
+  `capitalize_first`, `prepare_npc_conversation`,
   `compute_name_hints`, `mask_key`, `render_look_text`. Shared constants:
   `IDLE_MESSAGES`, `INFERENCE_FAILURE_MESSAGES` (Irish-themed canned fallbacks).
 - **`streaming.rs`** — `stream_npc_tokens()` extracts the `dialogue` field
@@ -330,7 +327,7 @@ streaming, and NPC conversation setup across backends.
 
 All backends share these features through core:
 
-- NPC conversations with anachronism checking and pronunciation hints
+- NPC conversations with pronunciation hints
 - LLM-based intent parsing (local keywords first, LLM fallback for ambiguous input)
 - Per-category inference client/model resolution (dialogue, simulation, intent, reaction)
 - System command handling via `CommandEffect` dispatch

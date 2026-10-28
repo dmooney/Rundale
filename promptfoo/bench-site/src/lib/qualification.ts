@@ -12,8 +12,6 @@ export interface QualificationRun {
 	preflight: {
 		calls: number;
 		valid: number;
-		guard_interventions: number;
-		guard_rate: number | null;
 		elapsed_min_ms?: number | null;
 		elapsed_max_ms?: number | null;
 		artifact: { path: string; sha256: string };
@@ -84,9 +82,6 @@ export interface QualificationPolicy {
 	preflight: {
 		calls: number;
 		minimum_valid_response_rate: number;
-	};
-	guards: {
-		maximum_intervention_rate: number;
 	};
 	performance: {
 		minimum_measurements: number;

@@ -349,34 +349,6 @@ pub struct StreamEndPayload {
     pub hints: Vec<LanguageHint>,
 }
 
-/// Payload for `dialogue-corrected` events.
-///
-/// Emitted after all post-generation guards run on an NPC turn's `dialogue`
-/// field, but only when at least one guard altered the raw model output
-/// (i.e. the stored/transcript text differs from what was streamed token-by-token).
-/// The UI must replace the accumulated streamed content for `turn_id` with
-/// `corrected_text` so the player sees the post-guard canonical dialogue —
-/// the same text stored in the conversation log and returned by `/api/transcript`
-/// (#1552).
-///
-/// The event is emitted after `stream-turn-end` (so the stream pump has already
-/// seen the raw tokens) and before `stream-end` (so the pump can still be in
-/// progress draining its buffer — the handler must flush/replace immediately).
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct DialogueCorrectedPayload {
-    /// Stable ID matching the `turn_id` from the `stream-token` events for this turn.
-    pub turn_id: u64,
-    /// The post-guard canonical dialogue text.
-    pub corrected_text: String,
-    /// Stable message ID carried through from the original placeholder (`text-log`
-    /// with `stream_turn_id`). Lets the frontend locate the entry by id rather than
-    /// by `stream_turn_id` (which is cleared after finalization), avoiding a missed
-    /// replacement when `dialogue-corrected` arrives after the stream pump has
-    /// already finalized the entry (#1552 parity).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub message_id: Option<String>,
-}
-
 /// Production-path quality measurement for one completed NPC turn.
 ///
 /// This diagnostic event is consumed by the synchronous command drain and
@@ -389,12 +361,6 @@ pub struct DialogueQualityPayload {
     pub parse_disposition: String,
     /// Whether the model satisfied the Tier-1 JSON contract with usable text.
     pub contract_valid: bool,
-    /// Whether canonical guards or the display cap changed the streamed line.
-    pub guard_intervened: bool,
-    /// Content-free guard stages that changed the line (grounding, polish,
-    /// verbosity, identity/intent, repetition, or the final display pipeline).
-    #[serde(default)]
-    pub guard_reasons: Vec<String>,
     /// Model name submitted to the inference queue.
     pub model: String,
     /// Exact generation settings used for this turn.

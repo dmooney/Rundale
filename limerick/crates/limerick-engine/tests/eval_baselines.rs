@@ -7,7 +7,7 @@
 //!    a stored baseline at `testing/evals/baselines/<fixture>.json`. Catches
 //!    silent regressions where output drifts.
 //! 2. **Structural rubric.** Apply invariants every fixture must satisfy
-//!    (anachronisms empty, movement minutes positive, look descriptions
+//!    (movement minutes positive, look descriptions
 //!    non-empty). Catches whole categories of regression at once.
 //!
 //! Run `just baselines` (which sets `UPDATE_BASELINES=1`) to regenerate
@@ -184,26 +184,6 @@ fn baseline_test_address_absent_npc() {
 // ============================================================
 // Structural rubrics — apply to every baselined fixture
 // ============================================================
-
-#[test]
-fn rubric_anachronisms_are_empty() {
-    for name in BASELINED_FIXTURES {
-        let results = capture(name);
-        for (i, r) in results.iter().enumerate() {
-            if let ActionResult::NpcResponse { anachronisms, .. } = &r.result {
-                assert!(
-                    anachronisms.is_empty(),
-                    "{name}.txt step {i} (`{}`): anachronisms detected: {:?}\n\
-                     FIX: rephrase the fixture command to avoid out-of-period \
-                     words. See mods/rundale/anachronisms.json for the active \
-                     dictionary.",
-                    r.command,
-                    anachronisms,
-                );
-            }
-        }
-    }
-}
 
 #[test]
 fn rubric_movement_minutes_are_positive() {

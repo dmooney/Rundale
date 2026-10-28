@@ -16,7 +16,7 @@ use limerick_world::graph::LocationData;
 use super::format::write_json_deterministic;
 use super::types::{EditorDoc, EditorModSnapshot, ValidationReport};
 use super::validate::validate_snapshot;
-use limerick_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use limerick_mod::{EncounterTable, FestivalDef, ModManifest};
 
 /// Result of a save attempt.
 ///
@@ -92,10 +92,6 @@ pub fn save_mod(
                 &snapshot.mod_path.join(&manifest.files.encounters),
                 &snapshot.encounters,
             )?,
-            EditorDoc::Anachronisms => save_anachronisms(
-                &snapshot.mod_path.join(&manifest.files.anachronisms),
-                &snapshot.anachronisms,
-            )?,
             EditorDoc::Manifest => {
                 // Manifest editing is out of Phase 1 scope; silently skip
                 // so callers can pass a "save all" set without errors.
@@ -132,11 +128,6 @@ pub fn save_festivals(path: &Path, festivals: &[FestivalDef]) -> Result<(), Lime
 /// Writes the encounters table to disk deterministically.
 pub fn save_encounters(path: &Path, encounters: &EncounterTable) -> Result<(), LimerickError> {
     write_json_deterministic(path, encounters)
-}
-
-/// Writes the anachronism data to disk deterministically.
-pub fn save_anachronisms(path: &Path, data: &AnachronismData) -> Result<(), LimerickError> {
-    write_json_deterministic(path, data)
 }
 
 fn load_manifest(mod_dir: &Path) -> Result<ModManifest, LimerickError> {
@@ -251,7 +242,6 @@ mod tests {
                 EditorDoc::World,
                 EditorDoc::Festivals,
                 EditorDoc::Encounters,
-                EditorDoc::Anachronisms,
             ],
         )
         .unwrap();
@@ -262,7 +252,6 @@ mod tests {
             "world.json",
             "festivals.json",
             "encounters.json",
-            "anachronisms.json",
         ] {
             let before = fs::read(src.join(file)).unwrap();
             let after = fs::read(root.join(file)).unwrap();

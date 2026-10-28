@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Measure local dialogue reliability and guard use through the live runtime.
+"""Measure local dialogue reliability through the live runtime.
 
 The target model must already be configured on a running Limerick backend. Every
-attempt goes through `/api/command`; the response carries parser and guard
+attempt goes through `/api/command`; the response carries parser
 telemetry emitted by the canonical NPC turn path. This deliberately does not
-reimplement the parser or guards in Python.
+reimplement the parser in Python.
 """
 
 from __future__ import annotations
@@ -202,8 +202,6 @@ def run(args: argparse.Namespace) -> dict:
                 "question": question,
                 "contract_valid": 0,
                 "turns": 0,
-                "guard_interventions": 0,
-                "guard_reasons": [],
                 "parse_dispositions": [],
                 "request_profiles": [],
                 "continuity_retries": 0,
@@ -234,8 +232,6 @@ def run(args: argparse.Namespace) -> dict:
                         "elapsed_ms": response.get("elapsed_ms"),
                         "contract_valid": int(quality.get("contract_valid", 0)),
                         "turns": int(quality.get("turns", 0)),
-                        "guard_interventions": int(quality.get("guard_interventions", 0)),
-                        "guard_reasons": list(quality.get("guard_reasons", [])),
                         "parse_dispositions": list(quality.get("parse_dispositions", [])),
                         "request_profiles": list(quality.get("request_profiles", [])),
                         "response_lines": list(response.get("lines", [])),
@@ -254,7 +250,6 @@ def run(args: argparse.Namespace) -> dict:
         for line in turns_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    total_turns = sum(int(row["turns"]) for row in rows)
     request_profiles = {
         json.dumps(profile, sort_keys=True) for row in rows for profile in row["request_profiles"]
     }
@@ -274,16 +269,6 @@ def run(args: argparse.Namespace) -> dict:
             "valid_responses": sum(
                 1 for row in rows if int(row["turns"]) == 1 and int(row["contract_valid"]) == 1
             ),
-        },
-        "guard_observation": {
-            "turns": total_turns,
-            "interventions": sum(int(row["guard_interventions"]) for row in rows),
-            "reasons": {
-                reason: sum(row.get("guard_reasons", []).count(reason) for row in rows)
-                for reason in sorted(
-                    {reason for row in rows for reason in row.get("guard_reasons", [])}
-                )
-            },
         },
         "parse_dispositions": {
             disposition: sum(row["parse_dispositions"].count(disposition) for row in rows)

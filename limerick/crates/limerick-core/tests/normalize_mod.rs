@@ -20,7 +20,6 @@ fn normalize_mod_source_integration() {
             EditorDoc::World,
             EditorDoc::Festivals,
             EditorDoc::Encounters,
-            EditorDoc::Anachronisms,
         ],
     )
     .unwrap();

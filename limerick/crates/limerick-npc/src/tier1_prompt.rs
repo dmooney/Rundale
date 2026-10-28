@@ -1,7 +1,9 @@
 //! Tier 1 system-prompt and action-line construction.
 
 use super::*;
-use crate::repetition::MAX_DIALOGUE_SENTENCES;
+
+/// Maximum number of spoken sentences the Tier-1 prompt asks for in one reply.
+pub(crate) const MAX_DIALOGUE_SENTENCES: usize = 3;
 
 /// The improv craft guidelines injected into the system prompt when improv mode is enabled.
 ///

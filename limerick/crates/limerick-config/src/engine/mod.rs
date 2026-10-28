@@ -800,76 +800,21 @@ tms = false
         assert!(!osm.tms);
     }
 
-    // ── #1224 — dialogue display cap (AC-5) ──────────────────────────────────
-
-    /// AC-5 (fix-1224-1225): `NpcConfig` must expose `dialogue_display_max_chars`
-    /// with a sensible default, and it must survive round-trip TOML serialisation
-    /// (old configs that omit the field must deserialise to the default).
+    /// Keys retired with the dialogue guards (issue 2295) are accepted and
+    /// ignored, so a config written before the removal still loads.
     #[test]
-    fn npc_config_has_dialogue_display_max_chars_with_sensible_default() {
-        let cfg = NpcConfig::default();
-        // Default should be > 0 (cap enabled) and > typical 2-4 sentence reply.
-        assert!(
-            cfg.dialogue_display_max_chars > 0,
-            "cap must be enabled by default (non-zero)"
-        );
-        assert!(
-            cfg.dialogue_display_max_chars >= 500,
-            "cap must be generous enough not to clip normal 2-4 sentence replies"
-        );
-    }
-
-    /// Old config without `dialogue_display_max_chars` must deserialise cleanly,
-    /// falling back to the default value (serde `default` attribute).
-    #[test]
-    fn npc_config_dialogue_display_max_chars_defaults_when_absent() {
+    fn retired_dialogue_guard_keys_are_accepted_and_ignored() {
         let toml_str = r#"
 [npc]
 memory_capacity = 25
+dialogue_display_max_chars = 800
+dialogue_repetition_threshold = 0.92
+dialogue_sentence_boundary_trim = true
+dialogue_anti_repetition = true
+person_confirmation_guard_enabled = true
+verbosity_guard_enabled = true
 "#;
         let cfg: EngineConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(cfg.npc.memory_capacity, 25);
-        assert_eq!(
-            cfg.npc.dialogue_display_max_chars,
-            NpcConfig::default().dialogue_display_max_chars,
-            "missing field must deserialise to the default"
-        );
-    }
-
-    // ── #1228 — dialogue repetition threshold (AC-5) ─────────────────────────
-
-    /// AC-5 (fix-1228): `NpcConfig` exposes `dialogue_repetition_threshold` with
-    /// a sensible default that enables the cross-turn guard by default.
-    #[test]
-    fn npc_config_has_dialogue_repetition_threshold_enabled_by_default() {
-        let cfg = NpcConfig::default();
-        assert!(
-            cfg.dialogue_repetition_threshold > 0.0,
-            "cross-turn guard must be enabled by default (threshold > 0)"
-        );
-        assert!(
-            cfg.dialogue_repetition_threshold <= 1.0,
-            "threshold is a Jaccard similarity in [0, 1]"
-        );
-        assert!(
-            cfg.dialogue_repetition_threshold >= 0.8,
-            "threshold must be strict enough to avoid flagging normal variation"
-        );
-    }
-
-    /// Old config without `dialogue_repetition_threshold` must deserialise
-    /// cleanly, falling back to the default (serde `default`).
-    #[test]
-    fn npc_config_dialogue_repetition_threshold_defaults_when_absent() {
-        let toml_str = r#"
-[npc]
-memory_capacity = 25
-"#;
-        let cfg: EngineConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(
-            cfg.npc.dialogue_repetition_threshold,
-            NpcConfig::default().dialogue_repetition_threshold,
-            "missing field must deserialise to the default"
-        );
     }
 }

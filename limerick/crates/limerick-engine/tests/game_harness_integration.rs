@@ -247,7 +247,6 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "First line".to_string(),
-            anachronisms: vec![],
         }
     );
     assert_eq!(
@@ -255,7 +254,6 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "Second line".to_string(),
-            anachronisms: vec![],
         }
     );
     assert_eq!(
@@ -263,140 +261,37 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "Third line".to_string(),
-            anachronisms: vec![],
         }
     );
 }
 
-/// #1228 (live, harness end-to-end): a degenerate NPC reply that repeats the
-/// same clause many times must be collapsed to a single clause before it
-/// reaches the player. Drives the real `GameTestHarness` dialogue path
-/// (`limerick_core::game_session::apply_npc_dialogue_turn`), so this is an
-/// integration-level proof, not a unit test of the helper.
+/// The model's reply is committed as written: a degenerate repeated clause and
+/// a near-verbatim echo of the NPC's previous line both reach the player
+/// exactly as the model wrote them. Nothing collapses, varies or replaces model
+/// text.
 #[test]
-fn test_npc_intra_line_repetition_collapsed_at_pub() {
+fn test_npc_replies_are_committed_unchanged_at_pub() {
     let mut h = GameTestHarness::new();
     let clause = "Speak yer mind, and we'll see what be in it, m'friend.";
-    // 20 verbatim repeats — the exact #1228 degenerate-loop shape.
-    h.add_canned_response("Padraig Darcy", &clause.repeat(20));
-
-    h.advance_time(120);
-    h.execute("go to crossroads");
-    h.execute("go to pub");
-
-    let r = h.execute("what be the talk of the town");
-    if let ActionResult::NpcResponse { dialogue, .. } = r {
-        let occurrences = dialogue.matches("Speak yer mind").count();
-        assert_eq!(
-            occurrences, 1,
-            "#1228: runaway clause must collapse to one instance, got {occurrences}:\n{dialogue}"
-        );
-    } else {
-        panic!("Expected NpcResponse, got {r:?}");
-    }
-}
-
-/// #1228 (live, harness end-to-end): when an NPC's fresh line is near-identical
-/// to its own previous line at this location, the guard substitutes a varied
-/// fallback so the player does not see the same line twice in a row.
-#[test]
-fn test_npc_cross_turn_repetition_varied_at_pub() {
-    let mut h = GameTestHarness::new();
+    let runaway = clause.repeat(20);
     let line = "Sure, the talk 'round here be always of the weather and the rents, m'friend.";
+    h.add_canned_response("Padraig Darcy", &runaway);
     h.add_canned_response("Padraig Darcy", line);
-    // Second turn echoes the first near-verbatim (only trailing punctuation).
-    h.add_canned_response(
-        "Padraig Darcy",
-        "Sure, the talk 'round here be always of the weather and the rents, m'friend!",
-    );
+    h.add_canned_response("Padraig Darcy", line);
 
     h.advance_time(120);
     h.execute("go to crossroads");
     h.execute("go to pub");
 
-    let first = h.execute("what be the talk of the town");
-    let ActionResult::NpcResponse {
-        dialogue: first_line,
-        ..
-    } = first
-    else {
-        panic!("Expected NpcResponse on first turn, got {first:?}");
-    };
-
-    let second = h.execute("tell me again, what be the talk");
-    let ActionResult::NpcResponse {
-        dialogue: second_line,
-        ..
-    } = second
-    else {
-        panic!("Expected NpcResponse on second turn, got {second:?}");
-    };
-
-    assert!(!second_line.trim().is_empty(), "#1228: fallback non-empty");
-    assert_ne!(
-        first_line.to_lowercase().trim_end_matches(['.', '!', '?']),
-        second_line.to_lowercase().trim_end_matches(['.', '!', '?']),
-        "#1228: second line must be varied, not a verbatim repeat:\n1: {first_line}\n2: {second_line}"
-    );
-}
-
-/// Regression: when the player's input contains anachronistic terms, the
-/// harness's `NpcResponse` result must surface those terms in its
-/// `anachronisms` field so UI layers can highlight them.
-#[test]
-fn test_npc_response_surfaces_anachronism_terms() {
-    let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig Darcy", "What's that now?");
-
-    h.advance_time(120);
-    h.execute("go to crossroads");
-    h.execute("go to pub");
-
-    // "telephone" and "computer" are in the rundale anachronism list.
-    let r = h.execute("can I borrow your telephone to call the computer shop?");
-    match r {
-        ActionResult::NpcResponse {
-            anachronisms,
-            dialogue,
-            ..
-        } => {
-            assert_eq!(dialogue, "What's that now?");
-            assert!(
-                anachronisms.iter().any(|t| t == "telephone"),
-                "expected 'telephone' in anachronisms, got {:?}",
-                anachronisms
-            );
-            assert!(
-                anachronisms.iter().any(|t| t == "computer"),
-                "expected 'computer' in anachronisms, got {:?}",
-                anachronisms
-            );
+    for (input, expected) in [
+        ("what be the talk of the town", runaway.as_str()),
+        ("tell me about the weather", line),
+        ("tell me again, what be the talk", line),
+    ] {
+        match h.execute(input) {
+            ActionResult::NpcResponse { dialogue, .. } => assert_eq!(dialogue, expected),
+            other => panic!("Expected NpcResponse, got {other:?}"),
         }
-        other => panic!("expected NpcResponse, got {:?}", other),
-    }
-}
-
-/// Regression: period-appropriate input must NOT surface any anachronism
-/// terms — the field must be empty, not merely absent.
-#[test]
-fn test_npc_response_anachronism_field_empty_for_period_input() {
-    let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig Darcy", "Ah, grand.");
-
-    h.advance_time(120);
-    h.execute("go to crossroads");
-    h.execute("go to pub");
-
-    let r = h.execute("good day to you, Padraig");
-    match r {
-        ActionResult::NpcResponse { anachronisms, .. } => {
-            assert!(
-                anachronisms.is_empty(),
-                "period-appropriate input should produce no anachronisms, got {:?}",
-                anachronisms
-            );
-        }
-        other => panic!("expected NpcResponse, got {:?}", other),
     }
 }
 

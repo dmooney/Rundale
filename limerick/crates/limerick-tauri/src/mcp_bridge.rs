@@ -1074,9 +1074,9 @@ mod tests {
         assert_eq!(result.exchanges[0].player_input, "hello");
     }
 
-    /// #1569: the bridge response must surface the post-guard canonical text
-    /// exactly as stored. When the upstream guard preserves a valid place-history
-    /// answer, `exchanges[]` must not substitute an unrelated person denial.
+    /// #1569: the bridge response must surface the committed text exactly as
+    /// stored. A valid place-history answer must reach `exchanges[]` unchanged,
+    /// never swapped for an unrelated person denial.
     #[tokio::test]
     async fn submit_input_result_preserves_known_place_history_exchange() {
         let dir = TempDir::new().unwrap();

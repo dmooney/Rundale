@@ -45,28 +45,6 @@ pub struct NpcConfig {
     /// NPC arrival reaction tuning.
     #[serde(default)]
     pub reactions: ReactionConfig,
-    /// Hard cap on displayed NPC dialogue length in characters.
-    ///
-    /// Applied as a post-generation guard after inference completes. The
-    /// system prompt already asks for "2-4 sentences" but small models
-    /// occasionally ignore the instruction; this cap is the defensive
-    /// backstop that prevents runaway responses reaching the player (#1224).
-    /// Set to 0 to disable (not recommended in production).
-    #[serde(default = "default_dialogue_display_max_chars")]
-    pub dialogue_display_max_chars: usize,
-    /// Word-level Jaccard similarity (0.0–1.0) at or above which a fresh NPC
-    /// line is treated as a near-identical repeat of that NPC's own previous
-    /// line and replaced with a varied fallback (#1228).
-    ///
-    /// Applied as a post-generation guard after inference completes, in the
-    /// shared dialogue path. Small / quantized models occasionally echo their
-    /// previous line or loop a single clause; this deterministic backstop keeps
-    /// the degenerate output from reaching the player regardless of provider.
-    /// Intra-line clause collapse always runs; this threshold only governs the
-    /// cross-turn check. Set to 0.0 to disable the cross-turn check (not
-    /// recommended in production); 1.0 requires an identical word set.
-    #[serde(default = "default_dialogue_repetition_threshold")]
-    pub dialogue_repetition_threshold: f32,
     /// Enable dialogue quality and continuity improvements (#1387, #1388).
     ///
     /// When `true` (the default), the Tier 1 prompt assembler:
@@ -93,55 +71,36 @@ pub struct NpcConfig {
     /// (`flags.is_disabled("npc-dialogue-grounding")` → false).
     #[serde(default = "default_grounding_enabled")]
     pub grounding_enabled: bool,
-    /// Trim the display-length cap back to a sentence boundary (#1400).
-    ///
-    /// When `true` (the default), the post-generation display cap
-    /// (`dialogue_display_max_chars`) rewinds to the last sentence terminator
-    /// (`.`, `!`, `?`, `…`, or a closing quote following one) within the budget
-    /// before appending `…`, so a clipped reply never ends mid-word or
-    /// mid-clause ("...out and about, and…"). When no boundary exists in the
-    /// budget it falls back to the legacy raw char-boundary clip. Set to
-    /// `false` in `[npc]` config (`dialogue_sentence_boundary_trim = false`) to
-    /// kill-switch back to the raw clip. This shares the post-generation
-    /// display-cap seam (`apply_npc_dialogue_turn`), which reads `NpcConfig`
-    /// defaults, so the toggle lives on the config rather than the runtime
-    /// feature-flag layer (matching `dialogue_display_max_chars`).
-    #[serde(default = "default_dialogue_sentence_boundary_trim")]
-    pub dialogue_sentence_boundary_trim: bool,
-    /// Enable cross-NPC opener de-duplication within a single multi-NPC turn (#1422).
-    ///
-    /// When `true` (the default), the shared orchestration layer strips the
-    /// duplicated stock opener sentence from a co-located NPC's reply when it
-    /// near-exactly matches an opener already used by an earlier NPC in the same
-    /// turn. This prevents the "Ye've come to the right place …" tic from
-    /// appearing across three different NPCs in one run. Deterministic and
-    /// provider-agnostic. Controlled at runtime by the `dialogue-anti-repetition`
-    /// feature flag (`flags.is_disabled("dialogue-anti-repetition")` → false).
-    #[serde(default = "default_dialogue_anti_repetition")]
-    pub dialogue_anti_repetition: bool,
-    /// Enable the post-generation fabricated-person confirmation guard (#1459).
-    ///
-    /// When `true` (the default), a post-generation scan checks the finalized
-    /// dialogue for affirmative confirmation of a named person from the player
-    /// input who is NOT in the NPC's known-roster. If the guard fires it
-    /// replaces the entire dialogue with a stock non-recognition decline. The
-    /// 14B model ignores the PEOPLE-YOU-KNOW prompt directive for presupposed
-    /// names; this is the deterministic backstop. Controlled at runtime by the
-    /// `dialogue-person-confirmation-guard` feature flag (default-on).
-    #[serde(default = "default_person_confirmation_guard_enabled")]
-    pub person_confirmation_guard_enabled: bool,
-    /// Enable the post-generation verbosity / run-on guard (#1460).
-    ///
-    /// When `true` (the default), the finalized dialogue passes through three
-    /// structural fixes: (a) strip bare leaked mood-adjective, (b) trim
-    /// mid-sentence truncation ellipsis to the last complete sentence, (c) cap
-    /// trailing question stack to at most one question. These target degenerate
-    /// Qwen2.5-14B outputs where the model emits 5-6 identical questions,
-    /// truncates mid-sentence with "…", or leaks the literal mood word.
-    /// Controlled at runtime by the `dialogue-verbosity-guard` feature flag
-    /// (default-on).
-    #[serde(default = "default_verbosity_guard_enabled")]
-    pub verbosity_guard_enabled: bool,
+    // Keys retired with the post-generation dialogue guards (issue 2295).
+    // Accepted and ignored so a config written before the removal still loads.
+    #[serde(default, skip_serializing, rename = "dialogue_display_max_chars")]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_dialogue_display_max_chars: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_repetition_threshold")]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_dialogue_repetition_threshold: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_sentence_boundary_trim")]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_dialogue_sentence_boundary_trim: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "dialogue_anti_repetition")]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_dialogue_anti_repetition: Option<serde::de::IgnoredAny>,
+    #[serde(
+        default,
+        skip_serializing,
+        rename = "person_confirmation_guard_enabled"
+    )]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_person_confirmation_guard_enabled: Option<serde::de::IgnoredAny>,
+    #[serde(default, skip_serializing, rename = "verbosity_guard_enabled")]
+    #[schemars(skip)]
+    #[doc(hidden)]
+    pub retired_verbosity_guard_enabled: Option<serde::de::IgnoredAny>,
 }
 
 impl Default for NpcConfig {
@@ -158,14 +117,14 @@ impl Default for NpcConfig {
             relationship_labels: RelationshipLabelConfig::default(),
             reaction_context_count: default_reaction_context_count(),
             reactions: ReactionConfig::default(),
-            dialogue_display_max_chars: default_dialogue_display_max_chars(),
-            dialogue_repetition_threshold: default_dialogue_repetition_threshold(),
             dialogue_quality_continuity: default_dialogue_quality_continuity(),
             grounding_enabled: default_grounding_enabled(),
-            dialogue_sentence_boundary_trim: default_dialogue_sentence_boundary_trim(),
-            dialogue_anti_repetition: default_dialogue_anti_repetition(),
-            person_confirmation_guard_enabled: default_person_confirmation_guard_enabled(),
-            verbosity_guard_enabled: default_verbosity_guard_enabled(),
+            retired_dialogue_display_max_chars: None,
+            retired_dialogue_repetition_threshold: None,
+            retired_dialogue_sentence_boundary_trim: None,
+            retired_dialogue_anti_repetition: None,
+            retired_person_confirmation_guard_enabled: None,
+            retired_verbosity_guard_enabled: None,
         }
     }
 }
@@ -205,45 +164,11 @@ fn default_event_summary_truncation() -> usize {
 fn default_event_summary_debug_truncation() -> usize {
     50
 }
-fn default_dialogue_display_max_chars() -> usize {
-    // 800 chars is roughly 5-6 sentences at typical spoken cadence.
-    // The system prompt requests "2-4 sentences"; this cap is the
-    // post-generation backstop that clips runaway model output before
-    // it reaches the player UI (#1224). Replies under ~600 chars
-    // pass through unchanged in normal operation.
-    800
-}
 fn default_dialogue_quality_continuity() -> bool {
     true
 }
 
 fn default_grounding_enabled() -> bool {
-    true
-}
-
-fn default_dialogue_sentence_boundary_trim() -> bool {
-    true
-}
-
-fn default_person_confirmation_guard_enabled() -> bool {
-    true
-}
-
-fn default_verbosity_guard_enabled() -> bool {
-    true
-}
-
-fn default_dialogue_repetition_threshold() -> f32 {
-    // 0.92 word-level Jaccard: two lines must share ~92% of their word set to
-    // count as a near-identical repeat. Exact normalized equality always
-    // triggers regardless of this value. 0.92 catches the #1228 case (an NPC
-    // echoing its prior line near-verbatim) while leaving normal turn-to-turn
-    // variation — which reuses common function words but introduces new content
-    // words — comfortably below the bar. Enabled by default.
-    0.92
-}
-
-fn default_dialogue_anti_repetition() -> bool {
     true
 }
 
