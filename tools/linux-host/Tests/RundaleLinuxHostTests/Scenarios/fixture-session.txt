@@ -1,0 +1,3 @@
+# inference: fixture
+# RundaleKit's deterministic fixture session, with no engine.
+look

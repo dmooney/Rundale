@@ -1,0 +1,6 @@
+# inference: mock
+# Stop while the reply streams: the partial reply is not applied, and Retry
+# is offered.
+go to Connolly Cottage
+:stream Róisín, what do you trade?
+:stop

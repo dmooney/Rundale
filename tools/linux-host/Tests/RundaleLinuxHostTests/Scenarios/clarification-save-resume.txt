@@ -1,0 +1,7 @@
+# inference: mock
+# "Connolly" fits both Connollys, so the game asks which; the answer is
+# applied, then the game is saved, closed and opened again.
+go to Connolly Cottage
+ask Connolly about the household
+2
+:restart

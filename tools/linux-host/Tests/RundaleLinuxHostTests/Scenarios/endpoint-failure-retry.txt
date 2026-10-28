@@ -1,0 +1,5 @@
+# inference: mock
+# The Endpoint connection drops once ("offline once"); Retry recovers.
+go to Connolly Cottage
+Róisín, offline once, what news?
+:retry
