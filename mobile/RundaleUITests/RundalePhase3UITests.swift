@@ -172,9 +172,13 @@ final class RundalePhase3ClarificationUITests: RundalePhase3UITestCase {
         submit("ask Connolly about the household")
 
         XCTAssertTrue(app.otherElements["clarification"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["clarification.option.choose-npc-2"].waitForExistence(timeout: 3))
+        let micheal = app.buttons["clarification.option.choose-npc-2"]
+        XCTAssertTrue(micheal.waitForExistence(timeout: 3))
         let roisin = app.buttons["clarification.option.choose-npc-3"]
         XCTAssertTrue(roisin.waitForExistence(timeout: 3))
+        // Strangers are told apart by short labels (#2128).
+        XCTAssertEqual(micheal.label, "the man")
+        XCTAssertEqual(roisin.label, "the woman")
         let unresolvedPrompt = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", "Which Connolly do you mean?")
         ).firstMatch

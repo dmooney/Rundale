@@ -11,8 +11,8 @@
 
 use crate::endpoint_input::Addressing;
 use crate::intent_decision::{DecidedRecipient, RecipientDecision, reference_candidates};
-use crate::npc::NpcId;
 use crate::npc::manager::{NpcManager, NpcReference};
+use crate::npc::{Npc, NpcId};
 use crate::turn::{ClarificationChoice, ClarificationPrompt};
 use crate::world::WorldState;
 
@@ -292,22 +292,14 @@ pub fn which_prompt(
 ) -> ClarificationPrompt {
     ClarificationPrompt {
         question: format!("Which {} do you mean?", reference.trim()),
-        choices: candidates
-            .iter()
-            .filter_map(|id| npc_manager.get(*id))
-            .map(|npc| person_choice(npc_manager, npc))
-            .collect(),
+        choices: person_choices(npc_manager, candidates),
         reference: Some(reference.to_string()),
     }
 }
 
 /// "Who are you speaking to?": each person present by label, then All.
 pub fn who_prompt(npc_manager: &NpcManager, present: &[NpcId]) -> ClarificationPrompt {
-    let mut choices: Vec<ClarificationChoice> = present
-        .iter()
-        .filter_map(|id| npc_manager.get(*id))
-        .map(|npc| person_choice(npc_manager, npc))
-        .collect();
+    let mut choices = person_choices(npc_manager, present);
     choices.push(ClarificationChoice {
         id: ALL_CHOICE_ID.to_string(),
         label: ALL_LABEL.to_string(),
@@ -321,13 +313,96 @@ pub fn who_prompt(npc_manager: &NpcManager, present: &[NpcId]) -> ClarificationP
     }
 }
 
-fn person_choice(npc_manager: &NpcManager, npc: &crate::npc::Npc) -> ClarificationChoice {
-    ClarificationChoice {
-        id: format!("choose-npc-{}", npc.id.0),
-        label: npc_manager.display_name(npc).to_string(),
-        entity_id: Some(npc.id.0.to_string()),
-        accessibility_label: None,
+fn person_choices(npc_manager: &NpcManager, ids: &[NpcId]) -> Vec<ClarificationChoice> {
+    let npcs: Vec<&Npc> = ids.iter().filter_map(|id| npc_manager.get(*id)).collect();
+    let labels = choice_labels(npc_manager, &npcs);
+    npcs.iter()
+        .zip(labels)
+        .map(|(npc, label)| ClarificationChoice {
+            id: format!("choose-npc-{}", npc.id.0),
+            label,
+            entity_id: Some(npc.id.0.to_string()),
+            accessibility_label: None,
+        })
+        .collect()
+}
+
+/// The label of each person offered in a question (issue 2128). Someone
+/// introduced is named. The others get the shortest phrase from their
+/// authored data that tells them apart from the other strangers offered:
+/// "the man" / "the woman", then "the older woman" / "the younger woman",
+/// then the occupation ("the drover" / "the spinner"), and only then the
+/// full description.
+/// Each step applies to the strangers who share a noun, so three people can
+/// read "the man", "the older woman" and "the younger woman".
+fn choice_labels(npc_manager: &NpcManager, npcs: &[&Npc]) -> Vec<String> {
+    let mut labels: Vec<String> = npcs
+        .iter()
+        .map(|npc| npc_manager.display_name(npc).to_string())
+        .collect();
+    let strangers: Vec<usize> = (0..npcs.len())
+        .filter(|i| !npc_manager.is_introduced(npcs[*i].id))
+        .collect();
+    let mut nouns: Vec<&str> = Vec::new();
+    for i in &strangers {
+        let noun = person_noun(npcs[*i]);
+        if !nouns.contains(&noun) {
+            nouns.push(noun);
+        }
     }
+    for noun in nouns {
+        let group: Vec<usize> = strangers
+            .iter()
+            .copied()
+            .filter(|i| person_noun(npcs[*i]) == noun)
+            .collect();
+        let occupations: Vec<String> = group
+            .iter()
+            .map(|i| npcs[*i].occupation.trim().to_lowercase())
+            .collect();
+        match group.as_slice() {
+            [only] => labels[*only] = format!("the {noun}"),
+            [a, b] if npcs[*a].age != npcs[*b].age => {
+                let (older, younger) = if npcs[*a].age > npcs[*b].age {
+                    (*a, *b)
+                } else {
+                    (*b, *a)
+                };
+                labels[older] = format!("the older {noun}");
+                labels[younger] = format!("the younger {noun}");
+            }
+            _ if all_distinct(&occupations) => {
+                for (i, occupation) in group.iter().zip(occupations) {
+                    labels[*i] = format!("the {occupation}");
+                }
+            }
+            // Nothing shorter tells them apart: the full descriptions stay.
+            _ => {}
+        }
+    }
+    labels
+}
+
+/// "man", "woman", "boy", "girl", or "person" / "child" for anyone whose
+/// pronouns are neither he nor she.
+fn person_noun(npc: &Npc) -> &'static str {
+    let child = npc.age < 16;
+    let subject = npc.pronouns.split('/').next().unwrap_or("").trim();
+    match (subject.to_lowercase().as_str(), child) {
+        ("he", false) => "man",
+        ("he", true) => "boy",
+        ("she", false) => "woman",
+        ("she", true) => "girl",
+        (_, false) => "person",
+        (_, true) => "child",
+    }
+}
+
+fn all_distinct(values: &[String]) -> bool {
+    values
+        .iter()
+        .enumerate()
+        .all(|(i, value)| !value.is_empty() && !values[..i].contains(value))
 }
 
 #[cfg(test)]
@@ -343,6 +418,13 @@ mod tests {
         npc.id = NpcId(id);
         npc.name = name.to_string();
         npc.occupation = occupation.to_string();
+        // As authored in `mods/rundale/npcs.json`.
+        (npc.pronouns, npc.age) = match id {
+            1 => ("she/her".to_string(), 54),
+            2 => ("he/him".to_string(), 38),
+            3 => ("she/her".to_string(), 31),
+            _ => ("he/him".to_string(), 40),
+        };
         npc.brief_description = format!("a person called {name}");
         npc.set_location_and_state(crate::world::LocationId(at), NpcState::Present);
         npc
@@ -500,12 +582,11 @@ mod tests {
         );
         assert_eq!(
             prompt.as_line(),
-            "Who are you speaking to: a person called Mícheál Connolly, a person called \
-             Róisín Connolly or All?"
+            "Who are you speaking to: the man, the woman or All?"
         );
 
         // After the choice, the person mentioned joins unless chosen.
-        let chosen = [("a person called Mícheál Connolly".to_string(), NpcId(2))];
+        let chosen = [("the man".to_string(), NpcId(2))];
         let answers = Answers {
             chosen: &chosen,
             everyone: false,
@@ -554,6 +635,101 @@ mod tests {
         assert_eq!(
             speakers(&resolve_recipients(&world, &npcs, &request, answers, true)),
             [(3, Addressing::SpokenTo)]
+        );
+    }
+
+    fn labels(prompt: &ClarificationPrompt) -> Vec<&str> {
+        prompt.choices.iter().map(|c| c.label.as_str()).collect()
+    }
+
+    fn which(npcs: &NpcManager, ids: &[u32]) -> Vec<String> {
+        let ids: Vec<NpcId> = ids.iter().map(|id| NpcId(*id)).collect();
+        labels(&which_prompt(npcs, "Connolly", &ids))
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn strangers_are_told_apart_by_the_man_and_the_woman_then_by_name() {
+        let (world, mut npcs) = room(HERE);
+        let request = decided(DecidedRecipient::Reference("Connolly".into()), &[]);
+        let Resolution::Ask(prompt) = resolve(&world, &npcs, &request) else {
+            panic!("asks");
+        };
+        assert_eq!(labels(&prompt), ["the man", "the woman"]);
+        assert_eq!(
+            prompt.as_line(),
+            "Which Connolly do you mean: the man or the woman?"
+        );
+
+        // Someone introduced is named; the stranger keeps the short label.
+        npcs.mark_introduced(NpcId(2));
+        assert_eq!(which(&npcs, &[2, 3]), ["Mícheál Connolly", "the woman"]);
+        npcs.mark_introduced(NpcId(3));
+        assert_eq!(
+            which(&npcs, &[2, 3]),
+            ["Mícheál Connolly", "Róisín Connolly"]
+        );
+    }
+
+    #[test]
+    fn two_women_are_told_apart_by_age() {
+        let (_, npcs) = room(HERE);
+        assert_eq!(
+            which(&npcs, &[1, 3]),
+            ["the older woman", "the younger woman"]
+        );
+        assert_eq!(
+            which(&npcs, &[3, 1]),
+            ["the younger woman", "the older woman"]
+        );
+        // Three strangers: one man, and the two women by age.
+        assert_eq!(
+            which(&npcs, &[1, 2, 3]),
+            ["the older woman", "the man", "the younger woman"]
+        );
+    }
+
+    #[test]
+    fn two_men_of_an_age_are_told_apart_by_occupation() {
+        let (_, mut npcs) = room(HERE);
+        npcs.add_npc(person(4, "Mícheál Ó Briain", "Farmer", HERE));
+        npcs.get_mut(NpcId(4)).unwrap().age = 38;
+        assert_eq!(which(&npcs, &[2, 4]), ["the drover", "the farmer"]);
+    }
+
+    #[test]
+    fn the_full_description_stays_when_nothing_shorter_tells_them_apart() {
+        let (_, mut npcs) = room(HERE);
+        npcs.add_npc(person(4, "Seán Connolly", "Drover", HERE));
+        npcs.get_mut(NpcId(4)).unwrap().age = 38;
+        assert_eq!(
+            which(&npcs, &[2, 4]),
+            [
+                "a person called Mícheál Connolly",
+                "a person called Seán Connolly"
+            ]
+        );
+    }
+
+    #[test]
+    fn children_and_people_who_are_neither_he_nor_she_get_their_own_nouns() {
+        let (_, mut npcs) = room(HERE);
+        for (id, pronouns, age) in [
+            (4, "he/him", 9),
+            (5, "she/her", 12),
+            (6, "they/them", 30),
+            (7, "they/them", 8),
+        ] {
+            npcs.add_npc(person(id, &format!("Person {id}"), "", HERE));
+            let npc = npcs.get_mut(NpcId(id)).unwrap();
+            npc.pronouns = pronouns.to_string();
+            npc.age = age;
+        }
+        assert_eq!(
+            which(&npcs, &[4, 5, 6, 7]),
+            ["the boy", "the girl", "the person", "the child"]
         );
     }
 

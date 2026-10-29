@@ -869,6 +869,59 @@ fn a_family_name_shared_at_the_cottage_asks_which_connolly() {
     );
 }
 
+/// The labels of a question's choices, in order.
+fn choice_labels(prompt: &Value) -> Vec<String> {
+    prompt["choices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|choice| choice["label"].as_str().unwrap().to_string())
+        .collect()
+}
+
+/// Issue 2128: "Which Connolly do you mean?" offers "the man" and "the
+/// woman" to a stranger, not the full descriptions, and names once the
+/// player has been introduced, on the canonical world.
+#[test]
+fn which_connolly_offers_the_man_and_the_woman_until_introduced() {
+    let reference = |input: &Value| {
+        input["references"][0]["optionId"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    for (introduced, labels) in [
+        (&[][..], ["the man", "the woman"]),
+        (&[2][..], ["Mícheál Connolly", "the woman"]),
+        (&[2, 3][..], ["Mícheál Connolly", "Róisín Connolly"]),
+    ] {
+        let (_, result) =
+            decide_at_the_cottage("ask Connolly about the household", introduced, reference);
+        let prompt = question(&result);
+        assert_eq!(prompt["question"], "Which Connolly do you mean?");
+        assert_eq!(choice_labels(&prompt), labels, "{introduced:?}: {prompt}");
+    }
+}
+
+/// A stranger chosen by "the woman" who has left is "The woman", capitalised
+/// at the start of the line.
+#[test]
+fn a_stranger_chosen_who_has_left_is_named_by_the_choice() {
+    let (game, result) = decide_at_the_cottage("Hello", &[], |_| "no_one".to_string());
+    assert_eq!(
+        choice_labels(&question(&result)),
+        ["the man", "the woman", "All"]
+    );
+    let request = game.snapshot()["activeRequestID"].clone();
+    game.arrange(3, &[2], &[]);
+    let answered = game.op(json!({
+        "op": "answer_clarification",
+        "logical_request_id": request,
+        "choice_id": "choose-npc-3",
+    }));
+    assert_eq!(narration(&answered), ["The woman is no longer here."]);
+}
+
 /// Design §8 row 21: an unsure answer, or a failed call, with both
 /// Connollys present asks who the line is for (each person, then All);
 /// never a silent default to whoever is listed first.
