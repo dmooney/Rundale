@@ -28,11 +28,12 @@ ignore: |
   node_modules/
   .venv-dev/
   target/
+  # SwiftPM build output (`just linux-host-test`, the mobile packages) is
+  # gitignored, but yamllint does not read .gitignore.
+  .build/
   limerick/apps/ui/
   promptfoo/bench-site/
   **/pnpm-lock.yaml
   limerick/testing/
   mobile/DerivedData/
   mobile/.verification*/
-  mobile/.build/
-  mobile/*/.build/
