@@ -75,8 +75,8 @@ cached between runs. `just testflight-update` keeps the full gate by default.
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
 otherwise. With `RUNDALE_DISTRIBUTION_PROFILE` set to a provisioning profile's
 name, the archive signs manually with that App Store profile and an Apple
-Distribution certificate from the keychain; without it, the archive signs
-automatically. The exports always sign automatically.
+Distribution certificate from the keychain, and both exports sign manually with
+the same profile; without it, the archive and the exports sign automatically.
 
 The workflow archives manually because a hosted runner starts with an empty
 keychain: automatic signing there created a new Apple Development certificate on

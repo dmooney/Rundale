@@ -457,6 +457,21 @@ class ReleaseTests(unittest.TestCase):
     def test_archive_signs_automatically_without_a_distribution_profile(self):
         self.assertEqual(release.archive_signing_args({}), ["CODE_SIGN_STYLE=Automatic"])
 
+    def test_exports_sign_with_the_archives_named_distribution_profile(self):
+        self.assertEqual(release.export_signing_options({}), {"signingStyle": "automatic"})
+        env = {"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}
+        runner = release.Release(self.paths, runner=self.runner)
+        with patch.dict(release.os.environ, env):
+            for upload in (False, True):
+                with self.subTest(upload=upload):
+                    path = runner.write_export_options(upload=upload)
+                    options = plistlib.loads(path.read_bytes())
+                    self.assertEqual(options["signingStyle"], "manual")
+                    self.assertEqual(options["signingCertificate"], "Apple Distribution")
+                    self.assertEqual(
+                        options["provisioningProfiles"], {release.BUNDLE_ID: "CI App Store"}
+                    )
+
     def test_archive_signs_manually_with_a_named_distribution_profile(self):
         self.assertEqual(
             release.archive_signing_args({"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}),
@@ -484,7 +499,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("CODE_SIGN_STYLE=Manual", command)
             self.assertNotIn("CODE_SIGN_STYLE=Automatic", command)
             self.assertIn("RUNDALE_DISTRIBUTION_PROFILE=CI App Store", command)
-        # The exports keep automatic App Store Connect signing.
+        # The exports take their signing from the export options plist (manual
+        # with this profile; see test_exports_sign_with_the_archives_named_
+        # distribution_profile), never from build settings.
         exports = [c for c in self.commands if "-exportArchive" in c]
         self.assertEqual(len(exports), 2)
         for command in exports:

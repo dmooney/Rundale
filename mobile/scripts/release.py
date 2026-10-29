@@ -217,6 +217,25 @@ def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
 DISTRIBUTION_PROFILE_ENV = "RUNDALE_DISTRIBUTION_PROFILE"
 
 
+def export_signing_options(env: dict[str, str] | None = None) -> dict[str, object]:
+    """The export's signing: the archive's named distribution profile, or automatic.
+
+    An automatic export re-resolves a profile through the Xcode account, which
+    the GitHub runner does not have, so it fails with "No profiles for
+    'com.rundale.mobile' were found" after a manually signed archive.
+    """
+
+    env = dict(os.environ) if env is None else env
+    profile = env.get(DISTRIBUTION_PROFILE_ENV, "")
+    if not profile:
+        return {"signingStyle": "automatic"}
+    return {
+        "signingStyle": "manual",
+        "signingCertificate": "Apple Distribution",
+        "provisioningProfiles": {BUNDLE_ID: profile},
+    }
+
+
 def archive_signing_args(env: dict[str, str] | None = None) -> list[str]:
     """The archive's signing style: a named distribution profile, or automatic."""
 
@@ -755,7 +774,7 @@ class Release:
             "method": "app-store-connect",
             "destination": "upload" if upload else "export",
             "teamID": TEAM_ID,
-            "signingStyle": "automatic",
+            **export_signing_options(),
             "testFlightInternalTestingOnly": True,
             # Only the upload may renumber; the local export keeps the
             # archive's build so its number can be checked. A number taken
