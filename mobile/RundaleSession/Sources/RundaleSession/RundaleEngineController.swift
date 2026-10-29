@@ -361,7 +361,13 @@ public final class RundaleEngineController: RundaleSessionControlling {
         historyExhausted = false
         historyWindowShifted = false
         historyBeforeCursor = nil
-        try refreshFromSnapshot(data)
+        // The engine has already switched games, so a snapshot that cannot be
+        // read is a persistence error, not a refusal that invites another /new.
+        do {
+            try refreshFromSnapshot(data)
+        } catch {
+            persistenceError = Self.playerFacingPersistenceError(error)
+        }
         _ = persistSessionState()
     }
 

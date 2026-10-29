@@ -311,10 +311,17 @@ impl Session {
                 Err(error) if !marker_content_unusable(&error) => {
                     return Err(OpError::storage(error));
                 }
+                // The marker moves aside only once its replacement is built,
+                // so a failed build leaves the next launch the same choice.
                 Err(_) => {
-                    set_aside(&dir.join(ACTIVE_IDENTITY_FILENAME), "refused")?;
+                    let marker_path = dir.join(ACTIVE_IDENTITY_FILENAME);
                     let (session, path) =
                         Self::open_fresh_selection(options, Some(lifecycle), None, true)?;
+                    if let Err(error) = set_aside(&marker_path, "refused") {
+                        drop(session);
+                        let _ = remove_with_sidecars(&path);
+                        return Err(error);
+                    }
                     return session.select(&path);
                 }
             }

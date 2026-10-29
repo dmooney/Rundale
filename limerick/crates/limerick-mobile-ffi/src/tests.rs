@@ -2091,6 +2091,16 @@ fn failed_marker_keeps_current_game() {
     let (_, error) = game.dispatch(json!({"op":"new_game"}));
     assert_eq!(error["ok"], false);
     assert_eq!(game.snapshot()["sessionID"], first["sessionID"]);
+    let left: Vec<_> = files_in(&game.dir, "mobile-")
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("mobile-")
+        })
+        .collect();
+    assert!(left.is_empty(), "the unselected game is removed: {left:?}");
 }
 
 /// ADR-025 §4: a selection that names no readable save keeps every save and
