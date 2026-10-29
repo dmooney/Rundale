@@ -51,6 +51,7 @@ final class RundaleCommandsUITests: XCTestCase {
         submit("/NEW-GAME")
         XCTAssertTrue(row(containing: "A muddy road runs between low stone walls").waitForExistence(timeout: 8))
         XCTAssertFalse(row(containing: "You wait for 7 minutes").exists)
+        hold(3)
         submit("/help")
         XCTAssertTrue(row(containing: "/new").waitForExistence(timeout: 8))
         hold(5)
