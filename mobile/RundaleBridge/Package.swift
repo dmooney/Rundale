@@ -9,7 +9,10 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .library(name: "RundaleBridge", targets: ["RundaleBridge"])
+        .library(name: "RundaleBridge", targets: ["RundaleBridge"]),
+        // C stand-ins for the Rust symbols, for test targets of packages that
+        // link RundaleBridge without the Rust library. The app never links it.
+        .library(name: "LimerickMobileFFITestSupport", targets: ["LimerickMobileFFITestSupport"])
     ],
     dependencies: [
         .package(path: "../RundaleKit"),

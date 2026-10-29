@@ -51,6 +51,8 @@ jobs:
       promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      # The golden frames are Markdown, so a change to them is not docs-only.
+      linux_host: ${{ steps.filter.outputs.linux_host == 'false' && 'false' || (steps.nondoc.outputs.nondoc == 'false' && steps.filter.outputs.linux_host_goldens != 'true') && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       # Only pull requests are checked; other events report 'false'.
@@ -85,6 +87,7 @@ jobs:
               - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
+              - '.github/actions/install-tauri-deps/**'
             # Anything compiled into limerick-server / limerick-engine, the
             # content and fixtures they run, and the differential tooling.
             differential:
@@ -107,6 +110,27 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
+            # The Linux host, the session packages and engine it links, and the
+            # world and Endpoint fixtures its golden frames play.
+            linux_host:
+              - 'tools/linux-host/**'
+              - 'mobile/RundaleSession/**'
+              - 'mobile/RundaleKit/**'
+              - 'mobile/RundaleBridge/**'
+              - 'mobile/LimerickEndpointKit/**'
+              - 'mobile/endpoint/**'
+              - 'mobile/.swiftlint.yml'
+              - 'mobile/.swiftformat'
+              - 'mobile/scripts/install-swift-tools.sh'
+              - 'mods/**'
+              - 'limerick/crates/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - '.github/workflows/ci.yml'
+            linux_host_goldens:
+              - 'tools/linux-host/Tests/**'
             # A recorded mobile-verify pass's inputs
             # (mobile/scripts/verify.py ATTESTATION_PATHSPECS).
             mobile_app:
@@ -499,7 +523,7 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
-  # SwiftLint, SwiftFormat, and the three Swift package suites with their
+  # SwiftLint, SwiftFormat, and the four Swift package suites with their
   # coverage floors (`mobile/scripts/verify.py --fast`). The Xcode app build and
   # simulator suites need the Rust XCFramework and run in `just mobile-verify`
   # (docs/agent/swift-quality-gates.md).
@@ -507,7 +531,7 @@ jobs:
     name: Swift quality (lint, format, packages)
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.swift == 'true'
-    # The three Swift packages, SwiftLint and SwiftFormat run on Linux as on
+    # The four Swift packages, SwiftLint and SwiftFormat run on Linux as on
     # macOS, so this lane needs no Mac (#2287). The image pins the Swift
     # release Xcode 26.6 ships (6.3.3), which the coverage baseline was
     # measured with; install-swift-tools.sh pins the Linux tool builds.
@@ -539,6 +563,61 @@ jobs:
             mobile/.verification/summary.txt
             mobile/.verification/logs/
           if-no-files-found: warn
+          retention-days: 14
+
+  # The Linux host (tools/linux-host) plays the app's session logic against
+  # the engine's Linux static library and compares Markdown frames with its
+  # goldens. Frames are not app UI evidence (docs/agent/build-test.md).
+  linux-host:
+    name: Linux host golden frames
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.linux_host == 'true'
+    runs-on: ubuntu-latest
+    container: swift:6.3.3-noble
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The Swift image has no Python, curl, or Rust; Cargo's build scripts
+      # need a C compiler.
+      - name: Install Python, curl, and a C toolchain
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 curl ca-certificates gcc libc6-dev
+
+      # rustup installs rust-toolchain.toml's channel on the first cargo call.
+      - name: Install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: limerick -> target
+
+      - name: SwiftLint and SwiftFormat
+        run: |
+          bash mobile/scripts/install-swift-tools.sh
+          cd tools/linux-host
+          ../../mobile/.build/swift-tools/bin/swiftlint lint --strict --quiet
+          ../../mobile/.build/swift-tools/bin/swiftformat --lint --config ../../mobile/.swiftformat --exclude .build .
+
+      - name: Golden-frame tests
+        run: bash tools/linux-host/run.sh --test
+
+      - name: Upload frames that differ from the goldens
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-host-golden-actual
+          path: tools/linux-host/.build/golden-actual/
+          if-no-files-found: ignore
           retention-days: 14
 
   runtime-suite:
@@ -805,6 +884,7 @@ jobs:
         promptfoo-quality,
         shell-quality,
         swift-quality,
+        linux-host,
         toml-quality,
         workflow-quality,
         runtime-suite,

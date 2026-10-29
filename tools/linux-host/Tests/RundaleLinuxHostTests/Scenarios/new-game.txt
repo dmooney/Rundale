@@ -1,0 +1,3 @@
+# inference: mock
+# A new game on the canonical world, then one command that needs no model.
+look

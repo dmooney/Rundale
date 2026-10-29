@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DebugSnapshot } from '$lib/types';
+	import type { DebugSnapshot } from '#lib/types.ts';
 
 	let { snap }: { snap: DebugSnapshot } = $props();
 </script>

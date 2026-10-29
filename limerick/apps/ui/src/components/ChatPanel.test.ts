@@ -19,13 +19,12 @@ import {
 	worldState,
 	playerSubmittedCount,
 	addReaction,
-	replaceStreamEntryContent,
 } from '../stores/game';
-import type { WorldSnapshot } from '$lib/types';
+import type { WorldSnapshot } from '#lib/types.ts';
 import ChatPanel from './ChatPanel.svelte';
 
 // Mock the IPC layer
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	reactToMessage: vi.fn(() => Promise.resolve()),
 }));
 
@@ -184,12 +183,12 @@ describe('ChatPanel', () => {
 
 	describe('reaction IPC failure rollback', () => {
 		afterEach(async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			(reactToMessage as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 		});
 
 		it('removes optimistic reaction when reactToMessage IPC fails', async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			(reactToMessage as ReturnType<typeof vi.fn>).mockRejectedValue(
 				new Error('Network error'),
 			);
@@ -501,10 +500,9 @@ describe('ChatPanel', () => {
 
 				textLog.update((entries) => [{ ...entries[0], stream_turn_id: 7 }]);
 				await drainScrollEffects();
-				replaceStreamEntryContent(
-					7,
-					'The canonical corrected reply is longer.',
-				);
+				textLog.update((entries) => [
+					{ ...entries[0], content: 'The canonical reply is longer.' },
+				]);
 				await drainScrollEffects();
 
 				addReaction('reply-1', '👍', 'player');
@@ -894,7 +892,7 @@ describe('ChatPanel', () => {
 		});
 
 		it('clicking reaction adds to entry reactions and calls IPC', async () => {
-			const { reactToMessage } = await import('$lib/ipc');
+			const { reactToMessage } = await import('#lib/ipc.ts');
 			textLog.set([
 				{ id: 'msg-1', source: 'Padraig', content: 'The rent was raised.' },
 			]);

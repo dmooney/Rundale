@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import SetupOverlay from './SetupOverlay.svelte';
-import { LONG_WAIT_MESSAGES } from '$lib/setupWaitMessages';
+import { LONG_WAIT_MESSAGES } from '#lib/setupWaitMessages.ts';
 
 const mockIpc = vi.hoisted(() => {
 	type StatusCb = (payload: { message: string }) => void;
@@ -60,7 +60,7 @@ const mockIpc = vi.hoisted(() => {
 	};
 });
 
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	getSetupSnapshot: mockIpc.getSetupSnapshot,
 	isTauri: mockIpc.isTauri,
 	onSetupStatus: mockIpc.onSetupStatus,

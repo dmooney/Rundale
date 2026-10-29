@@ -40,6 +40,8 @@ promptfoo/v2/
 promptfoo/output/
 promptfoo/catalog/
 promptfoo/leaderboard/
+tools/linux-host/Tests/RundaleLinuxHostTests/Goldens/
+tools/linux-host/.build/
 
 # Intentionally-malformed mod content (loader test data)
 mods/

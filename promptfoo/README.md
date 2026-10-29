@@ -128,7 +128,7 @@ content-addressed receipt against the frozen holdout:
 just -f promptfoo/justfile bench-holdout '<target-spec>'
 
 # With the candidate configured on a running Limerick backend, collect 500 live
-# turns through the canonical parser and guard path. The command is resumable.
+# turns through the canonical parser path. The command is resumable.
 just -f promptfoo/justfile soak '<target-spec>' artifacts/soak.json 500
 
 # rundale-bench/local_runner.py supplies the independently sampled peak-memory
@@ -153,7 +153,6 @@ The policy is machine-readable in
 - a 500-call production-parser soak with at least 99.5% complete, non-empty
   Tier-1 JSON responses (heuristic recovery remains a player-safety fallback,
   not a contract-valid success);
-- guard intervention on no more than 10% of at least 500 observed turns;
 - six distinct cold NPC-prefix measurements and at least ten warmed-prefix
   measurements: cold TTFT/completion p95 at most 6s/10s, warmed TTFT/completion
   p95 at most 1s/5s, median throughput at least 15 tok/s, and overall error
@@ -188,8 +187,8 @@ steady-state path players experience during an ongoing conversation.
 `soak_dialogue.py` reads its metrics from a diagnostic event emitted by the
 shared live NPC-turn path. The synchronous command response aggregates that
 event under `kind_detail.dialogue_quality`; the soak does not maintain a
-Python copy of the production parser or guards. Promotion re-hashes the raw
-turn JSONL and local-runner artifact and recomputes every reliability, guard,
+Python copy of the production parser. Promotion re-hashes the raw
+turn JSONL and local-runner artifact and recomputes every reliability
 and memory summary before issuing a receipt.
 
 ## Configurable judge

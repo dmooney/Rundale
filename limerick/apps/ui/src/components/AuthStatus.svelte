@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getAuthStatus } from '$lib/ipc';
-	import type { AuthStatus } from '$lib/types';
+	import { getAuthStatus } from '#lib/ipc.ts';
+	import type { AuthStatus } from '#lib/types.ts';
 
 	let status = $state<AuthStatus | null>(null);
 

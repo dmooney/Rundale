@@ -68,14 +68,14 @@ own cap.
 
 ## Pieces
 
-| Piece                                                    | Role                                                                       |
-| -------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `limerick-diagnostics::mobile_report`                    | Composes the report. The GitHub reporter sits behind the `github` feature. |
-| `limerick-mobile-ffi` `bug_report`                       | Returns the report; keeps the Endpoint exchange log. Read-only.            |
-| `mobile/Rundale/BugReportFiler.swift`                    | Outbox on disk, HTTP transport, screenshot capture.                        |
-| `RundalePresentationModel`                               | `/bug`, shake, notices, sending queued reports at launch and foreground.   |
-| [`bug-report/`](../../bug-report/README.md)              | The `limerick-bug-report` service and its deploy and inbox script.         |
-| [`bug-triage`](../../.agents/skills/bug-triage/SKILL.md) | Turns the inbox into GitHub issues.                                        |
+| Piece                                                                                                       | Role                                                                       |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `limerick-diagnostics::mobile_report`                                                                       | Composes the report. The GitHub reporter sits behind the `github` feature. |
+| `limerick-mobile-ffi` `bug_report`                                                                          | Returns the report; keeps the Endpoint exchange log. Read-only.            |
+| `mobile/RundaleSession/Sources/RundaleSession/BugReports.swift` (was `mobile/Rundale/BugReportFiler.swift`) | Outbox on disk, HTTP transport, screenshot capture.                        |
+| `RundalePresentationModel`                                                                                  | `/bug`, shake, notices, sending queued reports at launch and foreground.   |
+| [`bug-report/`](../../bug-report/README.md)                                                                 | The `limerick-bug-report` service and its deploy and inbox script.         |
+| [`bug-triage`](../../.agents/skills/bug-triage/SKILL.md)                                                    | Turns the inbox into GitHub issues.                                        |
 
 ## Verification
 

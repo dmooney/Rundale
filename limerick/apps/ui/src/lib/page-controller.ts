@@ -64,12 +64,11 @@ import {
 	onNpcReaction,
 	onTravelStart,
 	onReconnect,
-	onDialogueCorrected,
 	submitInput,
-} from '$lib/ipc';
-import { createAutoPauseTracker } from '$lib/auto-pause';
-import { createStreamManager } from '$lib/setup/stream-manager';
-import { applyAppIcon } from '$lib/app-icon';
+} from '#lib/ipc.ts';
+import { createAutoPauseTracker } from '#lib/auto-pause.ts';
+import { createStreamManager } from '#lib/setup/stream-manager.ts';
+import { applyAppIcon } from '#lib/app-icon.ts';
 import type {
 	LanguageHint,
 	MapData,
@@ -77,7 +76,7 @@ import type {
 	PlayerTaskSnapshot,
 	ReconnectState,
 	WorldSnapshot,
-} from '$lib/types';
+} from '#lib/types.ts';
 
 const MOUSEMOVE_THROTTLE_MS = 1000;
 
@@ -759,19 +758,6 @@ export async function createPageController(
 		listeners.push(
 			await onStreamTurnEnd((payload) => {
 				sm.completeTurn(payload);
-			}),
-		);
-
-		listeners.push(
-			await onDialogueCorrected((payload) => {
-				// Compatibility path for a restored older in-flight stream. New turns
-				// already carry canonical terminal text. Keep a parked correction
-				// parked; otherwise atomically replace the paced prefix by stable ID.
-				sm.correctTurn(
-					payload.turn_id,
-					payload.corrected_text,
-					payload.message_id,
-				);
 			}),
 		);
 

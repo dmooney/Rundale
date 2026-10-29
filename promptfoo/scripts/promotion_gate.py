@@ -5,9 +5,8 @@ stricter product question: "may this exact candidate/backend/hardware profile
 become a shipped local-dialogue preset?"
 
 It consumes promptfoo result JSON plus an immutable measurement receipt for the
-parts promptfoo cannot observe itself (memory, production-parser soak, and
-post-generation guard interventions). Missing evidence is a failure, never an
-implicit pass.
+parts promptfoo cannot observe itself (memory and production-parser soak).
+Missing evidence is a failure, never an implicit pass.
 
 Usage:
     python3 promptfoo/scripts/promotion_gate.py OUTPUT_DIR \
@@ -131,14 +130,8 @@ def _validate_provenance(evidence: dict[str, Any], evidence_path: Path) -> None:
             if int(row.get("turns", 0)) == 1 and int(row.get("contract_valid", 0)) == 1
         ),
     }
-    recomputed_guards = {
-        "turns": sum(int(row.get("turns", 0)) for row in rows),
-        "interventions": sum(int(row.get("guard_interventions", 0)) for row in rows),
-    }
     if evidence.get("reliability_soak") != recomputed_soak:
         raise EvidenceError("reliability_soak does not match raw soak turns")
-    if evidence.get("guard_observation") != recomputed_guards:
-        raise EvidenceError("guard_observation does not match raw soak turns")
     request_profiles = {
         json.dumps(profile, sort_keys=True)
         for row in rows
@@ -201,20 +194,17 @@ def _validate_evidence(
         raise EvidenceError(f"unknown hardware_profile_id: {profile_id!r}")
     hardware = evidence.get("hardware")
     soak = evidence.get("reliability_soak")
-    guards = evidence.get("guard_observation")
     if not isinstance(hardware, dict):
         raise EvidenceError("evidence.hardware is required")
     if not isinstance(soak, dict):
         raise EvidenceError("evidence.reliability_soak is required")
-    if not isinstance(guards, dict):
-        raise EvidenceError("evidence.guard_observation is required")
     if not isinstance(evidence.get("request_profile"), dict):
         raise EvidenceError("evidence.request_profile is required")
     if hardware.get("platform") != profile.get("platform"):
         raise EvidenceError("hardware platform does not match the registered profile")
     if hardware.get("memory_kind") != profile.get("memory_kind"):
         raise EvidenceError("hardware memory_kind does not match the registered profile")
-    return profile, {"hardware": hardware, "soak": soak, "guards": guards}
+    return profile, {"hardware": hardware, "soak": soak}
 
 
 def evaluate(
@@ -477,28 +467,6 @@ def evaluate(
         and valid_rate >= rel_cfg["minimum_valid_response_rate"],
     )
 
-    guards = measurements["guards"]
-    observed_turns = int(guards.get("turns", 0))
-    interventions = int(guards.get("interventions", 0))
-    guard_rate = interventions / observed_turns if observed_turns else 1.0
-    guard_cfg = config["guards"]
-    _check(
-        checks,
-        "guards.minimum_observed_turns",
-        observed_turns,
-        f">={guard_cfg['minimum_observed_turns']}",
-        observed_turns >= guard_cfg["minimum_observed_turns"],
-    )
-    _check(
-        checks,
-        "guards.intervention_rate",
-        guard_rate,
-        f"<={guard_cfg['maximum_intervention_rate']}",
-        observed_turns > 0
-        and interventions <= observed_turns
-        and guard_rate <= guard_cfg["maximum_intervention_rate"],
-    )
-
     hardware = measurements["hardware"]
     total_memory = float(hardware.get("total_memory_gb", 0.0))
     peak_memory = float(hardware.get("peak_memory_gb", 0.0))
@@ -549,11 +517,6 @@ def evaluate(
                 "calls": soak_calls,
                 "valid_responses": valid_responses,
                 "valid_response_rate": valid_rate,
-            },
-            "guards": {
-                "turns": observed_turns,
-                "interventions": interventions,
-                "intervention_rate": guard_rate,
             },
             "hardware": {
                 **hardware,

@@ -59,7 +59,6 @@
 		"final_text",
 		"recovery_message"
 	],
-	"DialogueCorrectedPayload": ["turn_id", "corrected_text", "message_id"],
 	"NpcReactionPayload": ["message_id", "emoji", "source"],
 	"LoadingPayload": ["active"],
 	"TravelWaypoint": ["id", "lat", "lon"],

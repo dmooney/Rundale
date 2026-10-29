@@ -13,7 +13,7 @@ async function flush() {
 import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
 import { textLog } from '../stores/game';
 import SavePicker from './SavePicker.svelte';
-import type { SaveBranchDisplay, SaveFileInfo, SaveState } from '$lib/types';
+import type { SaveBranchDisplay, SaveFileInfo, SaveState } from '#lib/types.ts';
 
 // jsdom does not implement Element.scrollIntoView; stub it to avoid unhandled rejections.
 Element.prototype.scrollIntoView = vi.fn();
@@ -40,7 +40,7 @@ const mockSaveGame = vi.fn(() => Promise.resolve('ok'));
 const mockNewSaveFile = vi.fn(() => Promise.resolve());
 const mockNewGame = vi.fn(() => Promise.resolve());
 
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	discoverSaveFiles: () => mockDiscoverSaveFiles(),
 	getSaveState: () => mockGetSaveState(),
 	loadBranch: (filePath: string, branchId: number) =>

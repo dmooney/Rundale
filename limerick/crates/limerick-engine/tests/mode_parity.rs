@@ -290,12 +290,13 @@ fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
 }
 
 #[test]
-fn rejected_anachronistic_candidate_has_zero_effects_across_modes() {
+fn incomplete_candidate_has_zero_effects_across_modes() {
     let mut harness = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "I'll take the work. What would you have me do first?".to_string();
+    // No spoken dialogue: the one reply the structural contract rejects.
     let response = serde_json::json!({
-        "dialogue": "Council says the planning board has set tongues.",
+        "dialogue": "   ",
         "action": "waves a notice",
         "mood": "delighted",
         "assigned_task": "Attend the agricultural show committee"
@@ -329,87 +330,24 @@ fn rejected_anachronistic_candidate_has_zero_effects_across_modes() {
     assert!(
         serde_json::to_string(&ui_events)
             .unwrap()
-            .find("planning board")
+            .find("agricultural show")
             .is_none()
     );
 }
 
+/// A reply naming a person the world does not have is committed as written,
+/// identically in the legacy harness and the real game loop.
 #[test]
-fn authored_landmark_rejection_has_zero_effects_across_modes() {
-    let mut harness = parity_harness();
-    let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let kilteevan = harness
-        .app
-        .world
-        .graph
-        .location_ids()
-        .into_iter()
-        .find(|id| {
-            harness
-                .app
-                .world
-                .graph
-                .get(*id)
-                .is_some_and(|location| location.name == "Kilteevan Village")
-        })
-        .expect("Rundale contains Kilteevan Village");
-    harness.app.world.player_location = kilteevan;
-    harness
-        .app
-        .npc_manager
-        .get_mut(speaker_id)
-        .unwrap()
-        .set_location_and_state(kilteevan, NpcState::Present);
-    let input =
-        format!("talk to {speaker_name} about Is there an old bridge in Kilteevan Village?");
-    let raw = "There is no old bridge in Kilteevan that I have ever heard tell of.";
-    let response = serde_json::json!({
-        "dialogue": raw,
-        "action": "points away from the stream",
-        "mood": "certain",
-        "assigned_task": "Search elsewhere"
-    })
-    .to_string();
-    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
-
-    harness.add_canned_response(&speaker_name, &response);
-    let mut legacy_rx = harness.app.world.event_bus.subscribe();
-    let _ = harness.execute(&input);
-    let legacy = dialogue_events(&drain(&mut legacy_rx));
-
-    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
-    harness
-        .mock()
-        .push_json_for(first_word(&speaker_name), &response);
-    let mut real_rx = harness.app.world.event_bus.subscribe();
-    let ui_events = harness.execute_via_real_loop(&input);
-    let real = dialogue_events(&drain(&mut real_rx));
-
-    assert_eq!(legacy, real);
-    assert!(real.is_empty());
-    for rejected in [raw, "points away", "Search elsewhere"] {
-        assert!(
-            !serde_json::to_string(&ui_events)
-                .unwrap()
-                .contains(rejected)
-        );
-    }
-}
-
-#[test]
-fn incomplete_multifacet_reply_has_zero_effects_across_modes() {
+fn reply_naming_a_nonexistent_person_commits_identically_across_modes() {
     let mut harness = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    // Peig is a known authored parish person even when not co-located.
-    let request =
-        "Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
-    let input = format!("talk to {speaker_name} about {request}");
-    let raw = "'Tis a fine morning indeed. What brings ye here?";
+    let input = "Do you know Tadhg Mulvihill?".to_string();
+    let reply = "Tadhg Mulvihill? Aye, the cartwright from beyond the bridge. A grand man.";
     let response = serde_json::json!({
-        "dialogue": raw,
-        "action": "offers a room key",
-        "mood": "delighted",
-        "assigned_task": "Start work tomorrow"
+        "dialogue": reply,
+        "action": "nods",
+        "mood": "friendly",
+        "assigned_task": null
     })
     .to_string();
     let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
@@ -428,102 +366,9 @@ fn incomplete_multifacet_reply_has_zero_effects_across_modes() {
     let real = dialogue_events(&drain(&mut real_rx));
 
     assert_eq!(legacy, real);
-    assert!(real.is_empty());
-    for rejected in [raw, "room key", "Start work tomorrow"] {
-        assert!(
-            !serde_json::to_string(&ui_events)
-                .unwrap()
-                .contains(rejected)
-        );
-    }
-}
-
-#[test]
-fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
-    let mut legacy_harness = parity_harness();
-    let (legacy_id, legacy_speaker) = isolate_one_speaker(&mut legacy_harness);
-    let mut real_harness = parity_harness();
-    let (real_id, real_speaker) = isolate_one_speaker(&mut real_harness);
-    assert_eq!(legacy_speaker, real_speaker);
-
-    // A failed real-loop turn commits nothing, the player's words included,
-    // so the follow-up's antecedent comes from the committed denial.
-    let turns = [
-        (
-            "Have you seen my cousin Cormac Finn?",
-            "Aye, I've seen yer cousin. He was here earlier.",
-            true,
-        ),
-        (
-            "Have you seen my cousin Cormac Finn?",
-            "I've not laid eyes on any Cormac Finn.",
-            false,
-        ),
-        (
-            "Where did he go?",
-            "He made for the crossroads, as if in a hurry.",
-            true,
-        ),
-    ];
-    let mut legacy_events = BTreeSet::new();
-    let mut real_events = BTreeSet::new();
-    for (input, reply, rejected) in turns {
-        let legacy_location = legacy_harness.app.world.player_location;
-        legacy_harness
-            .app
-            .npc_manager
-            .get_mut(legacy_id)
-            .expect("legacy speaker exists")
-            .set_location_and_state(legacy_location, NpcState::Present);
-        let real_location = real_harness.app.world.player_location;
-        real_harness
-            .app
-            .npc_manager
-            .get_mut(real_id)
-            .expect("real speaker exists")
-            .set_location_and_state(real_location, NpcState::Present);
-        let response = if rejected {
-            serde_json::json!({
-                "dialogue": reply,
-                "action": "points away",
-                "mood": "certain",
-                "assigned_task": "Follow Cormac"
-            })
-        } else {
-            serde_json::json!({
-                "dialogue": reply,
-                "action": "",
-                "mood": "certain",
-                "assigned_task": null
-            })
-        }
-        .to_string();
-
-        legacy_harness.add_canned_response(&legacy_speaker, &response);
-        let mut legacy_rx = legacy_harness.app.world.event_bus.subscribe();
-        let _ = legacy_harness.execute(&format!("talk to {legacy_speaker} about {input}"));
-        let legacy_turn = dialogue_events(&drain(&mut legacy_rx));
-
-        real_harness
-            .mock()
-            .push_json_for(first_word(&real_speaker), &response);
-        let mut real_rx = real_harness.app.world.event_bus.subscribe();
-        let ui_events =
-            real_harness.execute_via_real_loop(&format!("talk to {real_speaker} about {input}"));
-        let real_turn = dialogue_events(&drain(&mut real_rx));
-        if rejected {
-            assert!(!serde_json::to_string(&ui_events).unwrap().contains(reply));
-            legacy_events.extend(legacy_turn);
-            real_events.extend(real_turn);
-        } else {
-            assert!(serde_json::to_string(&ui_events).unwrap().contains(reply));
-            assert_eq!(legacy_turn.len(), 1);
-            assert_eq!(real_turn.len(), 1);
-        }
-    }
-
-    assert_eq!(legacy_events, real_events);
-    assert!(legacy_events.is_empty());
+    assert_eq!(real.len(), 1, "the reply is committed: {real:?}");
+    assert!(real.iter().all(|event| event.contains(reply)));
+    assert!(serde_json::to_string(&ui_events).unwrap().contains(reply));
 }
 
 #[test]
@@ -586,47 +431,6 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
         legacy_events, real_events,
         "legacy harness and real game loop must publish identical task assignment events"
     );
-}
-
-#[test]
-fn grounded_work_referral_rejection_has_zero_effects_across_modes() {
-    let mut harness = parity_harness();
-    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
-    let response = serde_json::json!({
-        "dialogue": "Plainly, then—what brings ye to Kilteevan?",
-        "action": "shrugs",
-        "mood": "curious",
-        "language_hints": [],
-        "assigned_task": "Invent a job",
-        "internal_thought": null
-    })
-    .to_string();
-    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
-
-    harness.add_canned_response(&speaker_name, &response);
-    let mut legacy_rx = harness.app.world.event_bus.subscribe();
-    let _ = harness.execute(input);
-    let legacy_stream = drain(&mut legacy_rx);
-    let legacy = dialogue_events(&legacy_stream);
-    let legacy_tasks = player_task_events(&legacy_stream);
-    assert!(harness.app.world.player_progress.is_empty());
-
-    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
-    harness
-        .mock()
-        .push_json_for(first_word(&speaker_name), &response);
-    let mut real_rx = harness.app.world.event_bus.subscribe();
-    let _ = harness.execute_via_real_loop(input);
-    let real_stream = drain(&mut real_rx);
-    let real = dialogue_events(&real_stream);
-    let real_tasks = player_task_events(&real_stream);
-
-    assert_eq!(legacy, real);
-    assert_eq!(legacy_tasks, real_tasks);
-    assert!(real_tasks.is_empty());
-    assert!(harness.app.world.player_progress.is_empty());
-    assert!(real.is_empty());
 }
 
 /// C6: the comparison the parity test relies on must flag a path that drops the

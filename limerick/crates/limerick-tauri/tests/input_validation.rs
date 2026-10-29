@@ -19,7 +19,7 @@
 use std::sync::Mutex;
 
 use limerick_core::editor::types::{EditorManifest, EditorModSnapshot, ValidationReport};
-use limerick_core::game_mod::{AnachronismData, EncounterTable};
+use limerick_core::game_mod::EncounterTable;
 use limerick_core::ipc::editor::{
     EditorSession, EditorValidationError, LOCATION_DESCRIPTION_MAX, LOCATIONS_PER_FILE_MAX,
     NPC_NAME_MAX, NPC_PERSONALITY_MAX, NPC_RELATIONSHIPS_MAX, NPCS_PER_FILE_MAX,
@@ -51,11 +51,6 @@ fn minimal_snapshot() -> EditorModSnapshot {
         festivals: vec![],
         encounters: EncounterTable {
             by_time: Default::default(),
-        },
-        anachronisms: AnachronismData {
-            context_alert_prefix: String::new(),
-            context_alert_suffix: String::new(),
-            terms: vec![],
         },
         validation: ValidationReport::default(),
     }

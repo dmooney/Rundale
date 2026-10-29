@@ -367,8 +367,15 @@ Answered by the lab, not by this document:
 
 ## Appendix A. Guards and the anachronism alert
 
-Inventory on `main` at `4517fe8`. Desktop and headless run them; the phone runs
-none (`dialogue-content-guards` flag off on the Endpoint path).
+Inventory on `main` at `4517fe8`. Desktop and headless ran them; the phone ran
+none (`dialogue-content-guards` flag off on the Endpoint path). **Removed in
+issue 2295**, along with the flag, `anachronism.rs`, `anachronisms.json` and its
+mod-manifest entry, the `dialogue-corrected` event, and guard fields in
+`dialogue-quality`. The structural contract stays (see
+[inference rules](../agent/inference-rules.md#canonical-semantic-model-apply)).
+The prompt-side blocks that were paired with a checker (the player-request
+obligation list and the modern-register alert) went with them; the authored-facts
+block (calendar, landmarks, session, player objects) stays as supplied facts.
 
 **The anachronism alert worked before generation**, not on the reply.
 `limerick-npc/src/anachronism.rs` scanned the player's line for whole-word

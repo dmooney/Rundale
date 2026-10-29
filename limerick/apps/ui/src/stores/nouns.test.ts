@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 import { knownNouns } from './nouns';
 import { mapData, npcsHere } from './game';
-import type { MapData, MapLocation, NpcInfo } from '$lib/types';
+import type { MapData, MapLocation, NpcInfo } from '#lib/types.ts';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

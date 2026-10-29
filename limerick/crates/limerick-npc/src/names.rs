@@ -1,4 +1,4 @@
-//! Player-name detection and mentioned-people / greeting validation.
+//! Player-name detection, greeting directives, and name folding.
 
 use super::*;
 
@@ -25,50 +25,6 @@ pub fn detect_player_name(input: &str) -> Option<String> {
         }
         Some(name)
     })
-}
-
-/// Validates the people mentioned in an NPC's dialogue against a known roster.
-///
-/// Returns a list of hallucinated names — names that appear in `mentioned`
-/// but don't match any entry in the roster, the player's name, or known
-/// location names.
-pub fn validate_mentioned_people(
-    mentioned: &[String],
-    known_roster: &[(NpcId, String, String)],
-    player_name: Option<&str>,
-) -> Vec<String> {
-    if mentioned.is_empty() {
-        return Vec::new();
-    }
-
-    let mut hallucinated = Vec::new();
-    for name in mentioned {
-        let lower = name.to_lowercase();
-        // Skip empty names
-        if lower.is_empty() {
-            continue;
-        }
-
-        // Check against player name
-        if player_name.is_some_and(|pn| pn.to_lowercase() == lower) {
-            continue;
-        }
-
-        // Check against roster (full name or first name match)
-        let in_roster = known_roster.iter().any(|(_, roster_name, _)| {
-            let roster_lower = roster_name.to_lowercase();
-            roster_lower == lower
-                || roster_lower
-                    .split_whitespace()
-                    .next()
-                    .is_some_and(|first| first == lower)
-        });
-
-        if !in_roster {
-            hallucinated.push(name.clone());
-        }
-    }
-    hallucinated
 }
 
 /// Returns a directive forbidding greetings that are wrong for the current time of day.

@@ -16,13 +16,13 @@
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
 		type ProviderPresetOption,
-	} from '$lib/ipc';
+	} from '#lib/ipc.ts';
 	import {
 		toByokMeta,
 		findProvider,
 		FALLBACK_FEATURED,
 		type ByokProviderMeta,
-	} from '$lib/byokProviders';
+	} from '#lib/byokProviders.ts';
 
 	let {
 		onComplete,

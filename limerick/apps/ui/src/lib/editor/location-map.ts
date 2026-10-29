@@ -8,7 +8,7 @@
  * state machine, and the camera-animation memo. The component drives it
  * through the callback hooks in [`EditorLocationMapHooks`] so no reactive
  * `$state` leaks into the controller and the pure map-data math stays in
- * `$lib/editor-map`.
+ * `#lib/editor-map`.
  */
 
 import {
@@ -21,12 +21,12 @@ import {
 	applyDraggedCoordinates,
 	buildEditorMapData,
 	getEditorMapCenter,
-} from '$lib/editor-map';
-import { getUiConfig } from '$lib/ipc';
-import { buildStyle, readThemeColors } from '$lib/map/style';
-import { configureMapLibreWorker } from '$lib/maplibre-worker';
-import type { LocationData } from '$lib/editor-types';
-import type { TileSource } from '$lib/types';
+} from '#lib/editor-map.ts';
+import { getUiConfig } from '#lib/ipc.ts';
+import { buildStyle, readThemeColors } from '#lib/map/style.ts';
+import { configureMapLibreWorker } from '#lib/maplibre-worker.ts';
+import type { LocationData } from '#lib/editor-types.ts';
+import type { TileSource } from '#lib/types.ts';
 
 /** Callbacks the controller uses to read component state and request actions. */
 export interface EditorLocationMapHooks {

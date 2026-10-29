@@ -773,32 +773,9 @@
           "$ref": "#/$defs/CognitiveTierConfig",
           "description": "Cognitive tier distance thresholds."
         },
-        "dialogue_anti_repetition": {
-          "default": true,
-          "description": "Enable cross-NPC opener de-duplication within a single multi-NPC turn (#1422).\n\nWhen `true` (the default), the shared orchestration layer strips the\nduplicated stock opener sentence from a co-located NPC's reply when it\nnear-exactly matches an opener already used by an earlier NPC in the same\nturn. This prevents the \"Ye've come to the right place …\" tic from\nappearing across three different NPCs in one run. Deterministic and\nprovider-agnostic. Controlled at runtime by the `dialogue-anti-repetition`\nfeature flag (`flags.is_disabled(\"dialogue-anti-repetition\")` → false).",
-          "type": "boolean"
-        },
-        "dialogue_display_max_chars": {
-          "default": 800,
-          "description": "Hard cap on displayed NPC dialogue length in characters.\n\nApplied as a post-generation guard after inference completes. The\nsystem prompt already asks for \"2-4 sentences\" but small models\noccasionally ignore the instruction; this cap is the defensive\nbackstop that prevents runaway responses reaching the player (#1224).\nSet to 0 to disable (not recommended in production).",
-          "format": "uint",
-          "minimum": 0,
-          "type": "integer"
-        },
         "dialogue_quality_continuity": {
           "default": true,
           "description": "Enable dialogue quality and continuity improvements (#1387, #1388).\n\nWhen `true` (the default), the Tier 1 prompt assembler:\n- injects the NPC's own recent dialogue lines as a \"do not repeat\"\n  list (anti-verbatim-recycling, #1387);\n- adds a \"do not re-ask already-answered questions\" continuity directive\n  to the conversation history block (#1388);\n- uses a familiarity-aware interlocutor address that drops \"stranger\"\n  after sufficient prior exchanges (#1388).\n\nSet to `false` to kill-switch back to the pre-fix behaviour. Controlled\nat runtime by the `dialogue-quality-continuity` feature flag\n(`flags.is_disabled(\"dialogue-quality-continuity\")` → false).",
-          "type": "boolean"
-        },
-        "dialogue_repetition_threshold": {
-          "default": 0.9200000166893005,
-          "description": "Word-level Jaccard similarity (0.0–1.0) at or above which a fresh NPC\nline is treated as a near-identical repeat of that NPC's own previous\nline and replaced with a varied fallback (#1228).\n\nApplied as a post-generation guard after inference completes, in the\nshared dialogue path. Small / quantized models occasionally echo their\nprevious line or loop a single clause; this deterministic backstop keeps\nthe degenerate output from reaching the player regardless of provider.\nIntra-line clause collapse always runs; this threshold only governs the\ncross-turn check. Set to 0.0 to disable the cross-turn check (not\nrecommended in production); 1.0 requires an identical word set.",
-          "format": "float",
-          "type": "number"
-        },
-        "dialogue_sentence_boundary_trim": {
-          "default": true,
-          "description": "Trim the display-length cap back to a sentence boundary (#1400).\n\nWhen `true` (the default), the post-generation display cap\n(`dialogue_display_max_chars`) rewinds to the last sentence terminator\n(`.`, `!`, `?`, `…`, or a closing quote following one) within the budget\nbefore appending `…`, so a clipped reply never ends mid-word or\nmid-clause (\"...out and about, and…\"). When no boundary exists in the\nbudget it falls back to the legacy raw char-boundary clip. Set to\n`false` in `[npc]` config (`dialogue_sentence_boundary_trim = false`) to\nkill-switch back to the raw clip. This shares the post-generation\ndisplay-cap seam (`apply_npc_dialogue_turn`), which reads `NpcConfig`\ndefaults, so the toggle lives on the config rather than the runtime\nfeature-flag layer (matching `dialogue_display_max_chars`).",
           "type": "boolean"
         },
         "event_summary_debug_truncation": {
@@ -848,11 +825,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "person_confirmation_guard_enabled": {
-          "default": true,
-          "description": "Enable the post-generation fabricated-person confirmation guard (#1459).\n\nWhen `true` (the default), a post-generation scan checks the finalized\ndialogue for affirmative confirmation of a named person from the player\ninput who is NOT in the NPC's known-roster. If the guard fires it\nreplaces the entire dialogue with a stock non-recognition decline. The\n14B model ignores the PEOPLE-YOU-KNOW prompt directive for presupposed\nnames; this is the deterministic backstop. Controlled at runtime by the\n`dialogue-person-confirmation-guard` feature flag (default-on).",
-          "type": "boolean"
-        },
         "reaction_context_count": {
           "default": 5,
           "description": "Number of recent player reactions included in dialogue context.",
@@ -874,11 +846,6 @@
           "format": "uint",
           "minimum": 0,
           "type": "integer"
-        },
-        "verbosity_guard_enabled": {
-          "default": true,
-          "description": "Enable the post-generation verbosity / run-on guard (#1460).\n\nWhen `true` (the default), the finalized dialogue passes through three\nstructural fixes: (a) strip bare leaked mood-adjective, (b) trim\nmid-sentence truncation ellipsis to the last complete sentence, (c) cap\ntrailing question stack to at most one question. These target degenerate\nQwen2.5-14B outputs where the model emits 5-6 identical questions,\ntruncates mid-sentence with \"…\", or leaks the literal mood word.\nControlled at runtime by the `dialogue-verbosity-guard` feature flag\n(default-on).",
-          "type": "boolean"
         }
       },
       "type": "object"

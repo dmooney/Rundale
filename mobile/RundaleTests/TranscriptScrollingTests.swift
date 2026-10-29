@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import RundaleKit
+import RundaleSession
 @testable import Rundale
 
 @MainActor

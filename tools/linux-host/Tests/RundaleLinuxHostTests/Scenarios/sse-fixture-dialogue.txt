@@ -1,0 +1,4 @@
+# inference: sse
+# The dialogue reply replays mobile/endpoint/fixtures/dialogue-v1.sse.
+go to Connolly Cottage
+Róisín, how is the spinning going?

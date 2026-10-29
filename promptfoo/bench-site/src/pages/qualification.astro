@@ -30,7 +30,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
   <section class="hero">
     <h1>Dialogue qualification funnel</h1>
     <p class="sub">Every cloud profile tested through Rundale's production dialogue path.
-      Structural reliability, guard use, and request reliability are hard gates;
+      Structural reliability and request reliability are hard gates;
       player-facing latency ranks the profiles that survive.</p>
     <div class="provenance">
       <span class="prov-chip"><b>{data.runs.length}</b> runs</span>
@@ -63,7 +63,6 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
       <div class="gates">
         <div class="gate"><span>Preflight</span><strong>{policy.preflight.calls} calls</strong></div>
         <div class="gate"><span>Valid responses</span><strong>{pct(policy.preflight.minimum_valid_response_rate)}</strong></div>
-        <div class="gate"><span>Guard interventions</span><strong>≤ {pct(policy.guards.maximum_intervention_rate)}</strong></div>
         <div class="gate"><span>Error rate</span><strong>≤ {pct(policy.performance.maximum_error_rate)}</strong></div>
         <div class="gate"><span>Performance sample</span><strong>{policy.performance.minimum_measurements}+ total</strong></div>
         <div class="gate"><span>Cold / warm sample</span><strong>{policy.performance.minimum_cold_measurements} / {policy.performance.minimum_warm_measurements}+</strong></div>
@@ -156,7 +155,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Date</th><th>Model</th><th>Status</th><th>Preflight</th><th>Guards</th>
+          <th>Date</th><th>Model</th><th>Status</th><th>Preflight</th>
           <th>Quality</th><th>Speed rank</th><th>Warm TTFT p95</th><th>Warm completion p95</th><th>Decision</th><th></th>
         </tr></thead>
         <tbody>
@@ -166,7 +165,6 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
               <td><code title={run.candidate}>{run.model}</code></td>
               <td><span class={`status ${run.status}`}>{run.status.replace('_', ' ')}</span></td>
               <td class="num">{run.preflight.valid}/{run.preflight.calls}<small>{rate(run.preflight.valid, run.preflight.calls)}</small></td>
-              <td class="num">{pct(run.preflight.guard_rate)}</td>
               <td class="num">{run.judgment?.overall == null ? '—' : run.judgment.overall.toFixed(2)}</td>
               <td class="rank">{run.performance?.speed_rank == null ? '—' : `#${run.performance.speed_rank}`}</td>
               <td class="num">{ms(run.performance?.warm_ttft_p95_ms)}</td>
@@ -193,7 +191,6 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
                     </dl></section>
                     <section><h3>Preflight evidence</h3><dl>
                       <div><dt>Valid responses</dt><dd>{run.preflight.valid}/{run.preflight.calls} ({rate(run.preflight.valid, run.preflight.calls)})</dd></div>
-                      <div><dt>Guard interventions</dt><dd>{run.preflight.guard_interventions} ({pct(run.preflight.guard_rate)})</dd></div>
                       <div><dt>Observed elapsed</dt><dd>{run.preflight.elapsed_min_ms == null ? 'not captured' : `${ms(run.preflight.elapsed_min_ms)}–${ms(run.preflight.elapsed_max_ms)}`}</dd></div>
                     </dl><span class="archive-note">Raw receipt archived outside Git</span><p class="hash"><span>{run.preflight.artifact.path}</span><code title={run.preflight.artifact.sha256}>{run.preflight.artifact.sha256}</code></p></section>
                     <section><h3>Performance evidence</h3>{run.performance ? <><dl>

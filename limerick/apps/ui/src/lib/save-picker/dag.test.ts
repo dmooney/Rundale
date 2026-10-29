@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { layoutTree, NODE_W, NODE_H, GAP_X } from './dag';
-import type { SaveBranchDisplay } from '$lib/types';
+import type { SaveBranchDisplay } from '#lib/types.ts';
 
 function branch(
 	name: string,

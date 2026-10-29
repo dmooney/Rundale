@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
-	import { discoverSaveFiles, loadBranch, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
+	import { discoverSaveFiles, loadBranch, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '#lib/ipc.ts';
 	import {
 		worldState,
 		mapData,
@@ -9,10 +9,10 @@
 		resetTimeRule,
 		textLog,
 	} from '../stores/game';
-	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
-	import { layoutTree } from '$lib/save-picker/dag';
-	import LedgerList from '$lib/save-picker/LedgerList.svelte';
-	import DagTree from '$lib/save-picker/DagTree.svelte';
+	import type { SaveFileInfo, SaveBranchDisplay } from '#lib/types.ts';
+	import { layoutTree } from '#lib/save-picker/dag.ts';
+	import LedgerList from '#lib/save-picker/LedgerList.svelte';
+	import DagTree from '#lib/save-picker/DagTree.svelte';
 
 	let loadingCount = $state(0);
 	const loading = $derived(loadingCount > 0);

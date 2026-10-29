@@ -7,7 +7,7 @@ import {
 	editorDirty,
 	editorValidation,
 } from '../../stores/editor';
-import type { EditorModSnapshot, NpcFileEntry } from '$lib/editor-types';
+import type { EditorModSnapshot, NpcFileEntry } from '#lib/editor-types.ts';
 
 const mocks = vi.hoisted(() => ({
 	editorUpdateNpcs: vi.fn(async () => ({ errors: [], warnings: [] })),
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 	})),
 }));
 
-vi.mock('$lib/editor-ipc', () => ({
+vi.mock('#lib/editor-ipc.ts', () => ({
 	editorUpdateNpcs: mocks.editorUpdateNpcs,
 	editorSave: mocks.editorSave,
 }));
@@ -98,11 +98,6 @@ function makeSnapshot(): EditorModSnapshot {
 		],
 		festivals: [],
 		encounters: {},
-		anachronisms: {
-			context_alert_prefix: '',
-			context_alert_suffix: '',
-			terms: [],
-		},
 		validation: { errors: [], warnings: [] },
 	};
 }

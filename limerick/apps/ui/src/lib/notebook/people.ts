@@ -1,4 +1,4 @@
-import type { NpcInfo } from '$lib/types';
+import type { NpcInfo } from '#lib/types.ts';
 
 const DESCRIPTION_STOP_WORDS = new Set([
 	'with',

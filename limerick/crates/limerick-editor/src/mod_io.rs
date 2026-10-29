@@ -17,7 +17,7 @@ use super::types::{
     ValidationReport, ValidationSeverity,
 };
 use super::validate;
-use limerick_mod::{AnachronismData, EncounterTable, FestivalDef, ModManifest};
+use limerick_mod::{EncounterTable, FestivalDef, ModManifest};
 
 /// Scans `mods_root` for subdirectories containing a `mod.toml` manifest.
 ///
@@ -124,17 +124,6 @@ pub fn load_mod_snapshot(mod_dir: &Path) -> Result<EditorModSnapshot, LimerickEr
         },
     );
 
-    let anachronisms = load_json_or_default::<AnachronismData>(
-        &mod_dir.join(&manifest.files.anachronisms),
-        EditorDoc::Anachronisms,
-        &mut report,
-        || AnachronismData {
-            context_alert_prefix: String::new(),
-            context_alert_suffix: String::new(),
-            terms: Vec::new(),
-        },
-    );
-
     let mut snapshot = EditorModSnapshot {
         mod_path: mod_dir,
         manifest: EditorManifest::from(&manifest),
@@ -142,7 +131,6 @@ pub fn load_mod_snapshot(mod_dir: &Path) -> Result<EditorModSnapshot, LimerickEr
         locations,
         festivals,
         encounters,
-        anachronisms,
         validation: report,
     };
 

@@ -73,7 +73,17 @@ summary, and a passing run closes it. Run workflow uploads only from `main`. The
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
-otherwise.
+otherwise. With `RUNDALE_DISTRIBUTION_PROFILE` set to a provisioning profile's
+name, the archive signs manually with that App Store profile and an Apple
+Distribution certificate from the keychain; without it, the archive signs
+automatically. The exports always sign automatically.
+
+The workflow archives manually because a hosted runner starts with an empty
+keychain: automatic signing there created a new Apple Development certificate on
+every run until the account reached its certificate limit and the archive failed
+("Your account has reached the maximum number of certificates"). It imports one
+stored Apple Distribution certificate into a temporary keychain, installs its App
+Store profile, and deletes the keychain when the job ends.
 
 The workflow reads these secrets from its `testflight` environment:
 
@@ -83,9 +93,23 @@ The workflow reads these secrets from its `testflight` environment:
 | `ASC_KEY_ID`                             | That key's ID                                                            |
 | `ASC_ISSUER_ID`                          | The team's issuer ID (App Store Connect, Users and Access, Integrations) |
 | `FIREBASE_GOOGLE_SERVICE_INFO_PLIST_B64` | `base64 -i mobile/Rundale/Resources/GoogleService-Info.plist`            |
+| `DISTRIBUTION_CERTIFICATE_P12_B64`       | The CI Apple Distribution certificate and private key, as a base64 .p12  |
+| `DISTRIBUTION_CERTIFICATE_PASSWORD`      | That .p12's password                                                     |
+| `DISTRIBUTION_PROFILE_B64`               | The base64 App Store profile for `com.rundale.mobile` that names it      |
 
-Create the key with the **Admin** role: automatic signing on a fresh runner
-creates and fetches the distribution certificate itself. As with a local upload,
+Create the key with the **Admin** role: the exports sign with App Store
+Connect's cloud-managed distribution certificate, which needs it.
+
+The CI certificate is `Apple Distribution: DAVID ANDERSON MOONEY` (App Store
+Connect certificate `675SF3DKS4`, expires 2027-10-25) and its profile is
+`Rundale GitHub TestFlight App Store` (`L7PU3MQUP8`). Before the certificate
+expires, create a new one from a fresh private key and CSR
+(`POST /v1/certificates`, `certificateType` `DISTRIBUTION`), an `IOS_APP_STORE`
+profile for it, and replace the three secrets. Keep the private key only in the
+secret. Do not let the workflow sign automatically again, and if the account
+reaches its certificate limit, list the certificates
+(`GET /v1/certificates`) and revoke only ones a runner created ("Created via
+API"), never the development certificate the owner's Mac signs with. As with a local upload,
 the run ends at "upload requested"; Apple's processing and the Internal Beta
 **Testing** status are confirmed in App Store Connect.
 

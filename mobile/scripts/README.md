@@ -29,9 +29,9 @@ becomes a `<suite>-coverage` gate checked against
 `mobile/coverage-baseline.json`. The policy and the lint exclusions are in
 [Swift quality gates](../../docs/agent/swift-quality-gates.md).
 
-`--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`, and
-`LimerickEndpointKit` suites, with no Rust build, Xcode project, or simulator,
-and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
+`--fast` runs only those checks and the `RundaleKit`, `RundaleBridge`,
+`LimerickEndpointKit`, and `RundaleSession` suites, with no Rust build, Xcode
+project, or simulator, and runs on Linux as on macOS. It is CI's `Swift quality` job, on Linux, and a
 quick local check. The phase gates run the package suites against Apple's
 Foundation but not the style checks, which read only source text; `--smoke`
 leaves out both, since CI's Linux job runs them on every pull request. Run
@@ -295,7 +295,10 @@ Each run emits:
 - `verify.junit.xml`, JUnit-compatible suite and case results;
 - `summary.txt`, a concise human-readable summary that lists each failed simulator
   test's assertion message (file, line, and text) under its suite, so the CI log
-  shows why a test failed without the result bundle; and
+  shows why a test failed without the result bundle;
+- `failures/<run>/`, written when a simulator test fails: per failed test a
+  `failure.md` digest, the failure screenshot, UI hierarchy and screen recording,
+  plus the test runner's logs and crash reports; `summary.txt` names the paths; and
 - `logs/<gate-id>.log`, preserving command output and gate reasons.
 
 The JSON report separates `passed`, `failed`, `skipped`, `unavailable`, and

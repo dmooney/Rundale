@@ -2149,17 +2149,6 @@ mod tests {
         );
     }
 
-    /// Companion: the `dialogue_anti_repetition` config field defaults to true
-    /// so the cross-NPC opener dedup ships enabled by default (#1422).
-    #[test]
-    fn npc_config_dialogue_anti_repetition_defaults_true() {
-        let cfg = NpcConfig::default();
-        assert!(
-            cfg.dialogue_anti_repetition,
-            "dialogue_anti_repetition must default to true (#1422)"
-        );
-    }
-
     // ── #1447: conversation-history paraphrase framing ───────────────────────
 
     /// AC (#1447): conversation_block must carry the paraphrase directive —

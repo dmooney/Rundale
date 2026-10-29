@@ -21,7 +21,6 @@ pub const TRANSCRIPT_EMISSIONS: &[&str] = &[
     "text-log",
     "stream-token",
     "stream-turn-end",
-    "dialogue-corrected",
     "world-update",
 ];
 
@@ -58,7 +57,6 @@ pub fn project_emissions(
 ) -> Vec<PendingEvent> {
     let mut events: Vec<Option<PendingEvent>> = Vec::new();
     let mut streams: HashMap<u64, OpenStream> = HashMap::new();
-    let mut dialogue_by_turn: HashMap<u64, usize> = HashMap::new();
     let mut location = location.map(str::to_string);
     // The latest arrival description (`text-log` subtype `location`).
     let mut described: Option<usize> = None;
@@ -146,16 +144,7 @@ pub fn project_emissions(
                 let mut event = builder.event(kind);
                 event.speaker = text(payload, "source").or(Some(stream.speaker));
                 event.content = Some(content);
-                dialogue_by_turn.insert(turn_id, stream.position);
                 events[stream.position] = Some(event);
-            }
-            "dialogue-corrected" => {
-                if let Some(turn_id) = payload.get("turn_id").and_then(Value::as_u64)
-                    && let Some(&position) = dialogue_by_turn.get(&turn_id)
-                    && let Some(Some(event)) = events.get_mut(position)
-                {
-                    event.content = text(payload, "corrected_text");
-                }
             }
             "world-update" => {
                 let Some(name) = text(payload, "location_name") else {
@@ -258,10 +247,6 @@ mod tests {
                 "stream-turn-end".to_string(),
                 json!({"turn_id":7,"status":"completed","source":"Peig","final_text":"God bless ye."}),
             ),
-            (
-                "dialogue-corrected".to_string(),
-                json!({"turn_id":7,"corrected_text":"God bless ye kindly."}),
-            ),
             ("stream-end".to_string(), json!({"hints":[]})),
         ];
         let events = project_emissions(&emissions, &mut builder(), Some("Kilteevan"), None);
@@ -281,7 +266,7 @@ mod tests {
                 (
                     TranscriptEventKind::NpcDialogue,
                     Some("Peig".to_string()),
-                    Some("God bless ye kindly.".to_string())
+                    Some("God bless ye.".to_string())
                 ),
                 (
                     TranscriptEventKind::Narration,

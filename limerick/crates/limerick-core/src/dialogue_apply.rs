@@ -100,109 +100,27 @@ pub fn is_task_request_input(input: &str) -> bool {
     .any(|phrase| normalized.contains(phrase))
 }
 
-/// Caps NPC dialogue to a maximum character length for display (#1224).
-///
-/// Appends `…` (U+2026) when the string is clipped, matching the single
-/// codepoint used by `truncate_for_memory`. Passes the string through as-is
-/// when it fits within the limit or when the cap is 0 (cap disabled).
-///
-/// Call this on `parsed.dialogue` before constructing the `ConversationLine`
-/// or `DialogueOccurred` event. The in-memory representation (conversation
-/// log, witness memories, tier-1 response memory) is already capped
-/// independently by `memory_truncation_dialogue` in `NpcConfig`.
-pub fn cap_dialogue_for_display(dialogue: &str, max_chars: usize) -> std::borrow::Cow<'_, str> {
-    cap_dialogue_for_display_with_trim(dialogue, max_chars, true)
-}
-
-/// Sentence-boundary terminators a clipped reply is allowed to end on (#1400).
-const SENTENCE_TERMINATORS: [char; 4] = ['.', '!', '?', '\u{2026}'];
-
-/// Length cap with an explicit sentence-boundary-trim toggle (#1400).
-///
-/// When `sentence_boundary_trim` is `true`, a reply that overruns the cap is
-/// rewound to the last sentence terminator (`.`, `!`, `?`, `…`, optionally
-/// followed by a closing quote) within the budget before the `…` marker is
-/// appended, so the player never sees a mid-word / mid-clause cut
-/// ("...out and about, and…"). When no terminator exists in the budget, or the
-/// toggle is `false`, it falls back to the legacy raw char-boundary clip.
-pub fn cap_dialogue_for_display_with_trim(
-    dialogue: &str,
-    max_chars: usize,
-    sentence_boundary_trim: bool,
-) -> std::borrow::Cow<'_, str> {
-    if max_chars == 0 || dialogue.len() <= max_chars {
-        return std::borrow::Cow::Borrowed(dialogue);
-    }
-    // Reserve 3 bytes for the `…` codepoint (U+2026, 3-byte UTF-8).
-    let raw_boundary = crate::npc::floor_char_boundary(dialogue, max_chars.saturating_sub(3));
-    let raw_safe = raw_boundary.min(dialogue.len());
-
-    if sentence_boundary_trim && let Some(end) = last_sentence_boundary(&dialogue[..raw_safe]) {
-        // `end` is a byte index just past a terminator (and any trailing
-        // closing quote) — a clean clause end. Only used when non-empty so
-        // we never collapse a long run-on to a bare "…".
-        return std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..end]));
-    }
-    std::borrow::Cow::Owned(format!("{}\u{2026}", &dialogue[..raw_safe]))
-}
-
-/// Returns the byte index just past the last sentence boundary in `s`, or
-/// `None` if there is no usable boundary (so the caller falls back to the raw
-/// clip). A boundary is a sentence terminator optionally followed by a single
-/// closing quote (`"` / `'` / `\u{201D}` / `\u{2019}`); the index is advanced
-/// past that quote so the clause closes cleanly.
-fn last_sentence_boundary(s: &str) -> Option<usize> {
-    // Scan backward so we short-circuit at the first terminator we find
-    // (which is the last one in forward order) rather than walking the whole
-    // string to track a running `last` pointer.
-    for (idx, ch) in s.char_indices().rev() {
-        if SENTENCE_TERMINATORS.contains(&ch) {
-            let mut end = idx + ch.len_utf8();
-            // Absorb a single trailing closing quote so `"...home."` keeps the quote.
-            if let Some(next) = s[end..].chars().next()
-                && matches!(next, '"' | '\'' | '\u{201D}' | '\u{2019}')
-            {
-                end += next.len_utf8();
-            }
-            // Reject empty (would collapse to a bare ellipsis) or at the very
-            // start.
-            if end == 0 {
-                return None;
-            }
-            // A boundary at exactly `bytes_len` is still a clean clause end —
-            // keep it as long as it leaves real content.
-            return Some(end);
-        }
-    }
-    None
-}
-
 /// Outcome of [`apply_npc_dialogue_turn`].
 ///
 /// Carries the debug-event strings produced by the shared per-turn pipeline
-/// (steps 2 and 4) plus `display_text` — the single, authoritative
-/// player-visible dialogue after the anti-repetition guard (#1228) and the
-/// display-length cap (#1224). Every backend renders `display_text`; none
-/// re-derives a player line from the raw `parsed.dialogue`, which would bypass
-/// both guards.
+/// (steps 2 and 4) plus `display_text`, the player-visible dialogue. The model's
+/// reply is committed exactly as written: `display_text` is the accepted
+/// candidate's dialogue, unchanged. Every backend renders `display_text`, so
+/// what the player sees matches what was stored in the conversation log and the
+/// `DialogueOccurred` event.
 #[derive(Debug, Clone)]
 pub struct DialogueTurnOutcome {
-    /// True only when the original candidate passed the canonical parser and
-    /// semantic validator. False outcomes have no state, memory, event, or
-    /// display effects.
+    /// True only when the candidate met the structural response contract
+    /// (complete JSON, non-empty dialogue). A false outcome has no state,
+    /// memory, event, or display effects.
     pub accepted_candidate: bool,
     /// Debug-event strings from Tier-1 apply (step 2) and witness memories
     /// (step 4). The live loop discards these; headless + harness forward them.
     pub debug_events: Vec<String>,
-    /// The guarded, capped dialogue to show the player. Matches exactly what was
-    /// written to the conversation log and the `DialogueOccurred` event. May be
-    /// empty when the model returned no usable dialogue.
+    /// The dialogue to show the player: the accepted reply, as the model wrote
+    /// it. Matches exactly what was written to the conversation log and the
+    /// `DialogueOccurred` event. Empty when the candidate was rejected.
     pub display_text: String,
-    /// Content-free names of canonical apply-seam constraints that materially
-    /// affected the accepted model dialogue. A constraint remains represented
-    /// when an earlier canonical guard makes its later transformation a no-op;
-    /// benchmark telemetry must not depend on guard ordering.
-    pub guard_reasons: Vec<String>,
     /// Secondary-language hints validated against `display_text` and the active
     /// setting's curated native-language inventory (#1789).
     pub language_hints: Vec<crate::npc::LanguageHint>,
@@ -652,7 +570,7 @@ fn task_grounding_tokens(value: &str) -> HashSet<String> {
         .collect()
 }
 
-/// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
+/// Applies a parsed NPC dialogue response: the per-turn cross-cutting steps
 /// every backend performs identically after a Tier-1 reply (#1172 / #1173).
 ///
 /// Before this existed, four code paths (live `game_loop::npc_turn`, headless
@@ -661,25 +579,30 @@ fn task_grounding_tokens(value: &str) -> HashSet<String> {
 /// these steps, so behaviour silently drifted (#1028, #1035, #1077/#1079). This
 /// is the single definition; all four call it.
 ///
+/// The model's reply is committed as written. The only check on the reply is
+/// the structural response contract (`dialogue_candidate_is_complete`): a
+/// candidate that is not complete JSON with non-empty dialogue fails the turn
+/// with no effects. Nothing inspects, rewrites, or replaces what the model said.
+///
 /// The steps, in order:
-/// 1. **Name detection** — `detect_and_record_player_name`, so a
+/// 1. **Name detection**: `detect_and_record_player_name`, so a
 ///    self-introduction in `player_input` teaches the addressed speaker before
 ///    memory is recorded.
-/// 2. **Tier-1 state update** — `apply_tier1_response_with_config` on the
+/// 2. **Tier-1 state update**: `apply_tier1_response_with_config` on the
 ///    speaker (mood, memory, language drift).
-/// 3. **Conversation-exchange record** — appended to `world.conversation_log`,
+/// 3. **Conversation-exchange record**: appended to `world.conversation_log`,
 ///    which feeds the "What's been said here" prompt block
 ///    (`ticks::conversation_block`).
-/// 4. **Witness memories** — co-located bystanders record an "Overheard" memory.
-/// 5. **`DialogueOccurred` publish** — on `world.event_bus`, so the
+/// 4. **Witness memories**: co-located bystanders record an "Overheard" memory.
+/// 5. **`DialogueOccurred` publish**: on `world.event_bus`, so the
 ///    character-log, location-log and chat-transcript subscribers record a
 ///    verbatim journal entry.
 ///
 /// Operates on plain `&mut` borrows (no runtime I/O), so it needs no
 /// `EventEmitter`: the only event it raises goes to the in-process `event_bus`,
 /// not the UI emitter. Returns the debug-event strings produced by steps 2 and 4
-/// so the caller can forward them to its own debug sink — the headless CLI and
-/// the harness do; the live loop discards them (`let _ = …`).
+/// so the caller can forward them to its own debug sink; the headless CLI and
+/// the harness do, the live loop discards them (`let _ = ...`).
 ///
 /// `player_input` is the raw player utterance used for name detection, memory,
 /// witness records and the conversation log. `player_said_for_journal` is the
@@ -687,13 +610,10 @@ fn task_grounding_tokens(value: &str) -> HashSet<String> {
 /// the same value as `player_input` unless the caller cleans a leading verb.
 ///
 /// Returns a [`DialogueTurnOutcome`] carrying the debug-event strings produced by
-/// steps 2 and 4 **and** the player-visible `display_text` — the dialogue after
-/// the anti-repetition guard (#1228) and length cap (#1224). Callers must show
+/// steps 2 and 4 **and** the player-visible `display_text`. Callers must show
 /// `display_text` to the player (conversation line, `ActionResult`, headless
 /// stdout) so what the player sees matches what was stored in the conversation
-/// log and the `DialogueOccurred` event. Building a player line from
-/// `parsed.dialogue` directly would bypass both guards and re-introduce the
-/// divergence #1224/#1228 closed.
+/// log and the `DialogueOccurred` event.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_npc_dialogue_turn(
     world: &mut WorldState,
@@ -707,7 +627,6 @@ pub fn apply_npc_dialogue_turn(
     speaker_display_name: &str,
     speaker_actual_name: &str,
     request_id: Option<u64>,
-    grounded_person_names: &[String],
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
@@ -724,16 +643,53 @@ pub fn apply_npc_dialogue_turn(
         speaker_display_name,
         speaker_actual_name,
         request_id,
-        grounded_person_names,
         language,
         flags,
     )
 }
 
-/// Compatibility apply entry point for synchronous callers that retain the
-/// parser's actual response disposition. Raw or recovered provider output must
-/// not be upgraded to a fully valid structured response merely because the
-/// caller is headless or test-backed.
+/// Captures the authored facts rendered into one NPC dialogue prompt.
+///
+/// These are prompt inputs only. Nothing compares a model reply against them.
+pub fn dialogue_facts(world: &WorldState, speaker_id: NpcId) -> crate::npc::DialogueFacts {
+    let current_date = world.clock.now().date_naive();
+    // The graph stores locations in a HashMap; sort so the prompt's fact
+    // lines keep one order across runs.
+    let mut location_ids = world.graph.location_ids();
+    location_ids.sort();
+    let landmarks: Vec<crate::npc::LocationLandmarks> = location_ids
+        .into_iter()
+        .filter_map(|id| world.graph.get(id))
+        .filter(|location| !location.landmarks.is_empty())
+        .map(|location| crate::npc::LocationLandmarks {
+            name: location.name.clone(),
+            landmarks: location.landmarks.clone(),
+        })
+        .collect();
+    crate::npc::DialogueFacts {
+        weekday: limerick_types::time::weekday_name(current_date.weekday()).to_string(),
+        day_type: limerick_types::DayType::from_date(current_date),
+        landmarks,
+        active_session: world
+            .active_session
+            .as_ref()
+            .filter(|session| {
+                session.date == current_date && session.location == world.player_location
+            })
+            .cloned(),
+        remembered_objects: world
+            .conversation_log
+            .remembered_object_facts(speaker_id, world.player_location)
+            .into_iter()
+            .cloned()
+            .collect(),
+    }
+}
+
+/// [`apply_npc_dialogue_turn`] for callers that retain the parser's actual
+/// response disposition. Raw or recovered provider output must not be upgraded
+/// to a complete structured response merely because the caller is headless or
+/// test-backed: the structural contract rejects it here.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_npc_dialogue_turn_with_disposition(
     world: &mut WorldState,
@@ -748,364 +704,27 @@ pub fn apply_npc_dialogue_turn_with_disposition(
     speaker_display_name: &str,
     speaker_actual_name: &str,
     request_id: Option<u64>,
-    grounded_person_names: &[String],
-    language: &LanguageSettings,
-    flags: &FeatureFlags,
-) -> DialogueTurnOutcome {
-    let mut grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
-    grounding.dialogue_obligations =
-        crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
-    apply_npc_dialogue_turn_with_validation(
-        world,
-        npc_manager,
-        speaker_id,
-        parsed,
-        parse_disposition,
-        &grounding,
-        crate::npc::DialogueValidationPolicy::default(),
-        player_input,
-        player_said_for_journal,
-        game_time,
-        location,
-        speaker_display_name,
-        speaker_actual_name,
-        request_id,
-        grounded_person_names,
-        language,
-        flags,
-    )
-}
-
-/// Captures the authored facts used to validate one future dialogue result.
-/// Live callers capture this before inference; trusted harness callers use the
-/// compatibility wrapper above, which captures immediately before apply.
-pub fn dialogue_grounding_snapshot(
-    world: &WorldState,
-    npc_manager: &NpcManager,
-    speaker_id: NpcId,
-) -> crate::npc::DialogueGroundingSnapshot {
-    let current_date = world.clock.now().date_naive();
-    let speaker = npc_manager.get(speaker_id);
-    let mut known_person_names: Vec<String> =
-        npc_manager.all_npcs().map(|npc| npc.name.clone()).collect();
-    known_person_names.sort();
-    if let Some(player_name) = world.player_name.as_ref()
-        && !known_person_names.iter().any(|known| known == player_name)
-    {
-        known_person_names.push(player_name.clone());
-    }
-    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
-        .all_npcs()
-        .map(|npc| (npc.name.clone(), npc.occupation.clone()))
-        .collect();
-    roster_names_occupations.sort();
-    let mut known_location_names: Vec<String> = world
-        .graph
-        .location_ids()
-        .into_iter()
-        .filter_map(|id| world.graph.get(id).map(|location| location.name.clone()))
-        .collect();
-    known_location_names.sort();
-    let mut work_roster: Vec<(NpcId, String, String, Option<String>)> = npc_manager
-        .all_npcs()
-        .map(|person| {
-            let workplace = person
-                .workplace
-                .and_then(|id| world.graph.get(id))
-                .map(|location| location.name.clone());
-            (
-                person.id,
-                person.name.clone(),
-                person.occupation.clone(),
-                workplace,
-            )
-        })
-        .collect();
-    work_roster.sort_by_key(|(id, _, _, _)| id.0);
-    let person_facts: Vec<crate::npc::GroundedPersonFact> = npc_manager
-        .all_npcs()
-        .map(|person| crate::npc::GroundedPersonFact {
-            name: person.name.clone(),
-            occupation: person.occupation.clone(),
-            workplace: person
-                .workplace
-                .and_then(|id| world.graph.get(id))
-                .map(|location| location.name.clone()),
-            current_location: world
-                .graph
-                .get(person.location())
-                .map(|location| location.name.clone()),
-        })
-        .collect();
-    // The graph stores locations in a HashMap; sort so the prompt's fact
-    // lines keep one order across runs.
-    let mut location_ids = world.graph.location_ids();
-    location_ids.sort();
-    let location_facts: Vec<crate::npc::GroundedLocationFact> = location_ids
-        .into_iter()
-        .filter_map(|id| world.graph.get(id))
-        .map(|location| {
-            let mut nearby_locations: Vec<String> = location
-                .connections
-                .iter()
-                .filter_map(|connection| world.graph.get(connection.target))
-                .map(|nearby| nearby.name.clone())
-                .collect();
-            if let Some(anchor) = location
-                .relative_to
-                .as_ref()
-                .and_then(|relative| world.graph.get(relative.anchor))
-                .map(|anchor| anchor.name.clone())
-                && !nearby_locations.contains(&anchor)
-            {
-                nearby_locations.push(anchor);
-            }
-            nearby_locations.sort();
-            crate::npc::GroundedLocationFact {
-                name: location.name.clone(),
-                nearby_locations,
-                landmarks: location.landmarks.clone(),
-            }
-        })
-        .collect();
-    let prior_player_inputs = world
-        .conversation_log
-        .recent_at(
-            world.player_location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .filter(|exchange| exchange.speaker_id == speaker_id)
-        .map(|exchange| exchange.player_input.clone())
-        .collect();
-    let mut referent_context = crate::npc::DialogueReferentContext::default();
-    for input in world
-        .conversation_log
-        .recent_at(
-            world.player_location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .map(|exchange| exchange.player_input.as_str())
-    {
-        referent_context.observe_player_input(
-            input,
-            &known_person_names,
-            &known_location_names,
-            world.player_name.as_deref(),
-        );
-    }
-    crate::npc::DialogueGroundingSnapshot {
-        speaker_name: speaker.map(|npc| npc.name.clone()).unwrap_or_default(),
-        speaker_context: speaker.map(|npc| crate::npc::DialogueSpeakerContext {
-            name: npc.name.clone(),
-            occupation: npc.occupation.clone(),
-            mood: npc.mood.clone(),
-        }),
-        canonical_mood: speaker.map(|npc| npc.mood.clone()).unwrap_or_default(),
-        had_prior_exchange: world.conversation_log.has_exchange_with(speaker_id),
-        time_of_day: world.clock.time_of_day(),
-        known_person_names,
-        roster_names_occupations,
-        current_location_name: world
-            .graph
-            .get(world.player_location)
-            .map(|location| location.name.clone())
-            .unwrap_or_default(),
-        known_location_names,
-        player_name: world.player_name.clone(),
-        work_roster: work_roster
-            .into_iter()
-            .map(
-                |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
-                    name,
-                    occupation,
-                    workplace,
-                },
-            )
-            .collect(),
-        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
-        prior_player_inputs,
-        forbidden_output_terms: world
-            .dialogue_anachronisms
-            .iter()
-            .map(|entry| entry.term.clone())
-            .collect(),
-        prior_openers: Vec::new(),
-        current_festival: world
-            .clock
-            .check_festival()
-            .map(|festival| festival.to_string()),
-        current_weekday: limerick_types::time::weekday_name(current_date.weekday()).to_string(),
-        current_day_type: limerick_types::DayType::from_date(current_date),
-        active_session: world
-            .active_session
-            .as_ref()
-            .filter(|session| {
-                session.date == current_date && session.location == world.player_location
-            })
-            .cloned(),
-        remembered_objects: world
-            .conversation_log
-            .remembered_object_facts(speaker_id, world.player_location)
-            .into_iter()
-            .cloned()
-            .collect(),
-        person_facts,
-        location_facts,
-        referent_context,
-        dialogue_obligations: Vec::new(),
-    }
-}
-
-/// Applies one untrusted Tier-1 candidate after the single canonical validation
-/// pass. Rejected candidate text and metadata are replaced before any state,
-/// memory, event, or UI-facing outcome is produced.
-#[allow(clippy::too_many_arguments)]
-pub fn apply_npc_dialogue_turn_with_validation(
-    world: &mut WorldState,
-    npc_manager: &mut NpcManager,
-    speaker_id: NpcId,
-    parsed: &crate::npc::NpcStreamResponse,
-    parse_disposition: crate::npc::NpcResponseParseDisposition,
-    grounding: &crate::npc::DialogueGroundingSnapshot,
-    validation_policy: crate::npc::DialogueValidationPolicy,
-    player_input: &str,
-    player_said_for_journal: &str,
-    game_time: chrono::DateTime<chrono::Utc>,
-    location: LocationId,
-    speaker_display_name: &str,
-    speaker_actual_name: &str,
-    request_id: Option<u64>,
-    grounded_person_names: &[String],
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
-    let npc_cfg = crate::config::NpcConfig::default();
 
-    // Record whether the configured display constraint is material against the
-    // complete accepted candidate, before semantic guards can shorten it. The
-    // final cap still runs below, after all semantic validation. This preserves
-    // the safe validation order while making quality telemetry independent of
-    // overlap with the verbosity guard (#1834).
-    let candidate_requires_display_cap = cap_dialogue_for_display_with_trim(
-        &parsed.dialogue,
-        npc_cfg.dialogue_display_max_chars,
-        npc_cfg.dialogue_sentence_boundary_trim,
-    )
-    .as_ref()
-        != parsed.dialogue;
-
-    let validation = crate::npc::validate_dialogue_candidate(
-        parsed,
-        parse_disposition,
-        player_input,
-        grounding,
-        validation_policy,
-        speaker_id.0 as u64 ^ game_time.timestamp() as u64,
-    );
-    let accepted_candidate = validation.accepted;
-    let mut canonical_response = validation.response;
-    let mut guard_reasons = validation.guard_reasons;
-    if !accepted_candidate {
+    // The structural response contract is the one check on the reply. A
+    // failed candidate has zero canonical side effects.
+    if !crate::npc::dialogue_candidate_is_complete(parsed, parse_disposition) {
         return DialogueTurnOutcome {
             accepted_candidate: false,
             debug_events,
             display_text: String::new(),
-            guard_reasons,
             language_hints: Vec::new(),
             assigned_task: None,
             action: None,
         };
     }
 
-    // Learn the player's name only after the candidate has passed the single
-    // canonical validator, so rejection has zero canonical side effects.
+    // Learn the player's name only after the candidate has met the structural
+    // contract, so rejection has zero canonical side effects.
     detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
-
-    // Complete the canonical text outcome before any memory, mood, task,
-    // identity, event, or UI effect. This repetition guard needs the live
-    // conversation log, so it belongs at the apply boundary alongside the
-    // snapshot-only validator rather than in a runtime caller (#1228, #1834).
-    let previous_line: Option<String> = world
-        .conversation_log
-        .recent_at(
-            location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .rev()
-        .find(|e| e.speaker_id == speaker_id)
-        .map(|e| e.npc_dialogue.clone());
-    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
-    // With the content guards off (the Endpoint path), the accepted reply is
-    // committed as the model wrote it: no repetition rewrite, display cap, or
-    // obligation fallback.
-    let content_guards = validation_policy.content_guards;
-    let deduped_dialogue = if accepted_candidate && content_guards {
-        crate::npc::guard_against_repetition(
-            &canonical_response.dialogue,
-            previous_line.as_deref(),
-            npc_cfg.dialogue_repetition_threshold,
-            repetition_seed,
-            grounded_person_names,
-        )
-    } else {
-        canonical_response.dialogue.clone()
-    };
-    if deduped_dialogue != canonical_response.dialogue {
-        canonical_response.dialogue = deduped_dialogue;
-        guard_reasons.push("canonical_repetition_guard".to_string());
-    }
-
-    let capped_dialogue = if content_guards {
-        cap_dialogue_for_display_with_trim(
-            &canonical_response.dialogue,
-            npc_cfg.dialogue_display_max_chars,
-            npc_cfg.dialogue_sentence_boundary_trim,
-        )
-        .into_owned()
-    } else {
-        canonical_response.dialogue.clone()
-    };
-    let final_dialogue_was_capped = capped_dialogue != canonical_response.dialogue;
-    if final_dialogue_was_capped {
-        canonical_response.dialogue = capped_dialogue;
-    }
-    if accepted_candidate
-        && content_guards
-        && (candidate_requires_display_cap || final_dialogue_was_capped)
-    {
-        guard_reasons.push("display_cap".to_string());
-    }
-
-    // Recheck after repetition and display transforms. The final player-visible
-    // text, not merely the originally accepted model candidate, must fulfill
-    // every explicit current-turn facet before any metadata or state effect.
-    if content_guards
-        && !crate::npc::dialogue_fulfills_obligations(
-            &canonical_response.dialogue,
-            &grounding.dialogue_obligations,
-            player_input,
-            &grounding.work_roster,
-        )
-    {
-        canonical_response = crate::npc::NpcStreamResponse {
-            dialogue: crate::npc::dialogue_obligation_fallback(
-                &grounding.dialogue_obligations,
-                player_input,
-                &grounding.work_roster,
-            ),
-            metadata: None,
-        };
-        if !guard_reasons
-            .iter()
-            .any(|reason| reason == "dialogue_obligation_guard")
-        {
-            guard_reasons.push("dialogue_obligation_guard".to_string());
-        }
-    }
 
     // Player-authored object attributes are durable conversation truth. They
     // are derived exclusively from the input (never candidate text/metadata)
@@ -1127,7 +746,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
     if let Some(npc) = npc_manager.get_mut(speaker_id) {
         debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
             npc,
-            &canonical_response,
+            parsed,
             player_input,
             game_time,
             &Default::default(),
@@ -1135,12 +754,16 @@ pub fn apply_npc_dialogue_turn_with_validation(
         ));
     }
 
-    let capped_dialogue = &canonical_response.dialogue;
-    let language_hints = canonical_response
+    let delivered_dialogue = parsed.dialogue.as_str();
+    let language_hints = parsed
         .metadata
         .as_ref()
         .map(|metadata| {
-            crate::npc::validate_language_hints(&metadata.language_hints, capped_dialogue, language)
+            crate::npc::validate_language_hints(
+                &metadata.language_hints,
+                delivered_dialogue,
+                language,
+            )
         })
         .unwrap_or_default();
     let assigned_task = if flags.is_disabled(PLAYER_TASK_PROGRESSION_FLAG)
@@ -1148,12 +771,13 @@ pub fn apply_npc_dialogue_turn_with_validation(
     {
         None
     } else {
-        canonical_response
+        parsed
             .metadata
             .as_ref()
             .and_then(|metadata| metadata.assigned_task.as_deref())
             .and_then(|proposal| {
-                let grounding_clause = grounded_task_assignment_clause(proposal, capped_dialogue)?;
+                let grounding_clause =
+                    grounded_task_assignment_clause(proposal, delivered_dialogue)?;
                 let authoritative_location = npc_manager.get(speaker_id)?.location();
                 if authoritative_location != world.player_location
                     || task_proposal_names_remote_location(world, proposal, authoritative_location)
@@ -1181,23 +805,26 @@ pub fn apply_npc_dialogue_turn_with_validation(
             })
     };
 
-    // Identity becomes known only when the final delivered line explicitly
-    // establishes the speaker's grounded identity (#1776/#1842). The immutable
-    // pre-inference snapshot supplies the authored occupation and full roster,
-    // so a unique first-name claim cannot be validated against model metadata
-    // or mutable post-generation state. Running after every text transform
-    // prevents a removed claim from leaking through notebook/card state.
-    let speaker_occupation = grounding
-        .speaker_context
-        .as_ref()
-        .map(|speaker| speaker.occupation.as_str())
+    // Identity becomes known only when the delivered line explicitly
+    // establishes the speaker's grounded identity (#1776/#1842). The authored
+    // occupation and full roster come from the NPC manager, so a unique
+    // first-name claim is never validated against model metadata. This is
+    // authoritative state (it reveals the NPC's name in the notebook and UI),
+    // derived from the delivered line and authored data only.
+    let speaker_occupation = npc_manager
+        .get(speaker_id)
+        .map(|speaker| speaker.occupation.clone())
         .unwrap_or_default();
+    let roster_names_occupations: Vec<(String, String)> = npc_manager
+        .all_npcs()
+        .map(|person| (person.name.clone(), person.occupation.clone()))
+        .collect();
     if !npc_manager.is_introduced(speaker_id)
         && crate::npc::dialogue_self_identifies_speaker(
-            capped_dialogue,
+            delivered_dialogue,
             speaker_actual_name,
-            speaker_occupation,
-            &grounding.roster_names_occupations,
+            &speaker_occupation,
+            &roster_names_occupations,
         )
     {
         npc_manager.mark_introduced(speaker_id);
@@ -1219,7 +846,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
             speaker_id,
             speaker_name: speaker_actual_name.to_string(),
             player_input: player_input.to_string(),
-            npc_dialogue: capped_dialogue.to_string(),
+            npc_dialogue: delivered_dialogue.to_string(),
             location,
             witnesses,
         });
@@ -1230,7 +857,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
         speaker_id,
         speaker_display_name,
         player_input,
-        capped_dialogue,
+        delivered_dialogue,
         game_time,
         location,
     ));
@@ -1239,15 +866,15 @@ pub fn apply_npc_dialogue_turn_with_validation(
     //    empty so journal entries line up with the player's prompt, but skip
     //    when both sides are empty (no useful record) — matches the live loop's
     //    original guard.
-    if !player_said_for_journal.trim().is_empty() || !capped_dialogue.trim().is_empty() {
+    if !player_said_for_journal.trim().is_empty() || !delivered_dialogue.trim().is_empty() {
         world
             .event_bus
             .publish(limerick_types::events::GameEvent::DialogueOccurred {
                 npc_id: speaker_id,
                 location,
-                summary: capped_dialogue.to_string(),
+                summary: delivered_dialogue.to_string(),
                 player_said: Some(player_said_for_journal.to_string()),
-                npc_said: Some(capped_dialogue.to_string()),
+                npc_said: Some(delivered_dialogue.to_string()),
                 request_id,
                 timestamp: game_time,
             });
@@ -1261,7 +888,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
             });
     }
 
-    let action = canonical_response
+    let action = parsed
         .metadata
         .as_ref()
         .map(|metadata| metadata.action.trim())
@@ -1271,8 +898,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
     DialogueTurnOutcome {
         accepted_candidate: true,
         debug_events,
-        display_text: capped_dialogue.to_string(),
-        guard_reasons,
+        display_text: delivered_dialogue.to_string(),
         language_hints,
         assigned_task,
         action,

@@ -13,6 +13,8 @@ packages:
     path: RundaleBridge
   LimerickEndpointKit:
     path: LimerickEndpointKit
+  RundaleSession:
+    path: RundaleSession
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     exactVersion: 12.18.0
@@ -37,6 +39,7 @@ targets:
       - package: RundaleKit
       - package: RundaleBridge
       - package: LimerickEndpointKit
+      - package: RundaleSession
       - framework: .build/rust-mobile/LimerickMobileFFI.xcframework
         embed: false
       - package: Firebase
@@ -51,6 +54,10 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "8"
         CODE_SIGN_ENTITLEMENTS: Rundale/Rundale.entitlements
+        # Empty unless release.py names the CI distribution profile; set on
+        # the command line, PROVISIONING_PROFILE_SPECIFIER would also reach the
+        # Swift packages' resource bundles, which reject a profile.
+        PROVISIONING_PROFILE_SPECIFIER: $(RUNDALE_DISTRIBUTION_PROFILE)
         SWIFT_VERSION: "6.0"
         SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
         TARGETED_DEVICE_FAMILY: "1"

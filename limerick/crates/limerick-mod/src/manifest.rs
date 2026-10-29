@@ -123,7 +123,7 @@ pub struct SettingConfig {
     pub start_date: String,
     /// Location id where the player begins.
     pub start_location: u32,
-    /// Year used as cutoff for anachronism detection.
+    /// Year the setting is set in.
     pub period_year: u16,
     /// BCP 47 tag for the language the player and NPCs primarily speak in dialogue.
     /// Defaults to "en" for backward compatibility with mods that omit it.
@@ -145,8 +145,6 @@ pub struct FileRefs {
     pub world: String,
     /// NPC definitions JSON file.
     pub npcs: String,
-    /// Anachronism terms JSON file.
-    pub anachronisms: String,
     /// Festival definitions JSON file.
     pub festivals: String,
     /// Encounter table JSON file.

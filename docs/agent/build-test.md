@@ -21,6 +21,22 @@ gate: build once, then run only the affected class with
 `xcodebuild test-without-building -only-testing:RundaleUITests/<Class>` (or
 `record-ui-test.py`). Run the full `just mobile-verify` once per simulator at the
 end, and never edit a worktree while a gate is building from it.
+When a simulator test fails, the gate reads the `.xcresult` before the next run
+prunes it and keeps the diagnosis under `mobile/.verification/failures/<run>/`:
+`index.md`, one `<Class>.<test>/failure.md` per failed test (failure messages with
+file:line, the activity timeline leading to the failure, result bundle path), the
+test's attachments (failure screenshot, UI hierarchy, a short screen recording;
+files over 3 MB are listed, not copied; the first 20 failed tests get a digest and
+`index.md` counts the rest), and `diagnostics/` (test runner logs and
+any crash reports). `summary.txt` and `verify.json` (`details.failure_evidence`)
+name the paths. The newest three failed runs keep their evidence and `.xcresult`.
+Per-PR CI jobs upload none of it: the agent that ran the gate reads that evidence
+and diagnoses the failure before re-running or calling a test flaky. Only the
+unwatched nightly full gate (`testflight.yml`) uploads `failures/` and the
+`.xcresult` bundles, when it fails, and its "Nightly mobile-verify failed" issue
+links that artifact. UI test classes
+derive from `RundaleUITestCase`, which attaches the app's element hierarchy and a
+screenshot at the moment any assertion fails.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
 
@@ -41,6 +57,26 @@ Endpoint protocol checks. Reports must distinguish pass, fail, skipped,
 unavailable, and human/device gates. Keep real-inference integration opt-in and
 separate from deterministic regression tests. Physical-iPhone interaction and
 VoiceOver judgment require recorded evidence, even when automated checks pass.
+
+### Linux host frames
+
+`just linux-host` plays the app's game on Linux and prints each meaningful
+screen state as a Markdown frame; `just linux-host-test` runs its golden-frame
+tests, which CI's `Linux host golden frames` job runs too
+([tools/linux-host](../../tools/linux-host/README.md)). The host runs the
+app's `RundaleSession` controllers and presenter against the real engine,
+linked from `liblimerick_mobile_ffi.a` built for Linux, on `mods/rundale`,
+with the scripted mock Endpoint, a recorded Endpoint stream, or the fixture
+session.
+
+What frames prove: the session logic the app runs, on the engine and world it
+ships, produces this transcript, composer state, and choices for this input,
+including streaming, Stop, an Endpoint failure and Retry, a clarification, and
+a save and resume. What they do not: anything about the app's UI. Frames show
+no layout, styling, keyboard, scrolling, or accessibility, and run on
+swift-corelibs Foundation rather than Apple's. Every frame is labelled "Linux
+host"; never present one as app UI, simulator, or physical-iPhone evidence,
+or as live gameplay unless it was played against a live Endpoint.
 
 ## Existing engine and client commands
 

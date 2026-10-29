@@ -10,11 +10,11 @@
 	import { toggleSurface } from '../stores/surfaceCoordinator';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
-	import { submitInput } from '$lib/ipc';
-	import { subscribeTileSource } from '$lib/map/tileSync';
-	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
+	import { submitInput } from '#lib/ipc.ts';
+	import { subscribeTileSource } from '#lib/map/tileSync.ts';
+	import { MapController, type LocationHoverInfo } from '#lib/map/controller.ts';
 	import MapTooltip from './MapTooltip.svelte';
-	import type { MapLocation, MapTooltipInfo } from '$lib/types';
+	import type { MapLocation, MapTooltipInfo } from '#lib/types.ts';
 
 	let {
 		fitHalfSpan = 0.008,

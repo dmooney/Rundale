@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { ThemePalette } from '$lib/types';
+import type { ThemePalette } from '#lib/types.ts';
 import {
 	DEFAULT_THEME_PALETTE,
 	SOLARIZED_LIGHT,
@@ -9,7 +9,7 @@ import {
 	DEFAULT_PREFERENCE,
 	loadThemePreference,
 	saveThemePreference,
-} from '$lib/theme';
+} from '#lib/theme.ts';
 
 /** Game hour < 6 or >= 20 is considered night. */
 function isGameNight(hour: number): boolean {

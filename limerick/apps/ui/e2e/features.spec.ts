@@ -80,6 +80,9 @@ test.describe('Coordinated surfaces', () => {
 	test('full map, shortcuts, mod, and bug report each have one destination', async ({
 		page,
 	}) => {
+		// The composer autofocuses on load; bare-key shortcuts only fire
+		// outside a typing context.
+		await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
 		await page.evaluate(() =>
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' })),
 		);

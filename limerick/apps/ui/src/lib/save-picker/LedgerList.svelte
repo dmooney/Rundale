@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { SaveFileInfo, SaveState } from '$lib/types';
+	import type { SaveFileInfo, SaveState } from '#lib/types.ts';
 
 	let {
 		files = [] as SaveFileInfo[],

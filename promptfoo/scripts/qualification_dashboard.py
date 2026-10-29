@@ -131,7 +131,6 @@ def _preflight_calls(
                 "outcome": {
                     "contract_valid": bool(turn.get("contract_valid")),
                     "parse_dispositions": turn.get("parse_dispositions", []),
-                    "guard_reasons": turn.get("guard_reasons", []),
                     "transport_error": turn.get("transport_error"),
                 },
             }
@@ -308,7 +307,6 @@ def _judgment_row(
                     "metrics": {},
                     "outcome": {
                         "contract_valid": not bool((item.get("flags") or {}).get("bench_bug")),
-                        "guard_reasons": [],
                     },
                 }
             )
@@ -405,17 +403,13 @@ def _judgment_row(
 def _preflight_row(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, str]]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     soak = data["reliability_soak"]
-    guards = data["guard_observation"]
     calls = int(soak["calls"])
-    turns = int(guards["turns"])
     calls_payload, sources = _preflight_calls(path, data)
     return (
         {
             "candidate": data["candidate"],
             "calls": calls,
             "valid": int(soak["valid_responses"]),
-            "guard_interventions": int(guards["interventions"]),
-            "guard_rate": int(guards["interventions"]) / turns if turns else None,
             "request_profile": data.get("request_profile"),
             "artifact": _artifact(path),
         },
@@ -430,7 +424,6 @@ def _partial_row(
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     if not rows:
         return None
-    turns = sum(int(row.get("turns", 0)) for row in rows)
     elapsed = [int(row["elapsed_ms"]) for row in rows if row.get("elapsed_ms") is not None]
     calls = [
         {
@@ -451,7 +444,6 @@ def _partial_row(
             "outcome": {
                 "contract_valid": bool(row.get("contract_valid")),
                 "parse_dispositions": row.get("parse_dispositions", []),
-                "guard_reasons": row.get("guard_reasons", []),
                 "transport_error": row.get("transport_error"),
             },
         }
@@ -464,12 +456,6 @@ def _partial_row(
             "valid": sum(
                 int(row.get("turns", 0)) == 1 and int(row.get("contract_valid", 0)) == 1
                 for row in rows
-            ),
-            "guard_interventions": sum(int(row.get("guard_interventions", 0)) for row in rows),
-            "guard_rate": (
-                sum(int(row.get("guard_interventions", 0)) for row in rows) / turns
-                if turns
-                else None
             ),
             "elapsed_min_ms": min(elapsed) if elapsed else None,
             "elapsed_max_ms": max(elapsed) if elapsed else None,
@@ -638,20 +624,14 @@ def _decision(
         return "invalid_profile", "configuration", "superseded: insufficient completion budget"
     if preflight.get("partial"):
         # A partial run may still be a conclusive reject. Preflight requires
-        # 100% validity, so one invalid response can never recover; likewise,
-        # interventions already above 10% of the fixed 12-call denominator
-        # cannot be diluted back under the gate. This is the early-stop rule
-        # used to avoid unnecessary paid calls.
+        # 100% validity, so one invalid response can never recover. This is the
+        # early-stop rule used to avoid unnecessary paid calls.
         if preflight["valid"] != preflight["calls"]:
             return "rejected", "preflight", "structural reliability (early stop)"
-        if preflight["guard_interventions"] / 12 > POLICY["guards"]["maximum_intervention_rate"]:
-            return "rejected", "preflight", "guard intervention rate (early stop)"
         required_calls = POLICY["preflight"]["calls"]
         return "stopped", "preflight", f"stopped after {preflight['calls']}/{required_calls} calls"
     if preflight["valid"] != preflight["calls"]:
         return "rejected", "preflight", "structural reliability"
-    if (preflight["guard_rate"] or 0.0) > POLICY["guards"]["maximum_intervention_rate"]:
-        return "rejected", "preflight", "guard intervention rate"
     if perf is None:
         return "needs_performance", "performance", "preflight passed"
     failures = _performance_failures(perf)

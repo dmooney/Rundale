@@ -1,6 +1,6 @@
-import Combine
 import XCTest
 import RundaleKit
+import RundaleSession
 @testable import Rundale
 
 @MainActor
@@ -19,9 +19,9 @@ final class RundalePhase4Tests: XCTestCase {
             XCTAssertEqual(model.draft, "")
             XCTAssertFalse(model.isStreaming)
         }
-        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/new please"))
-        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/new-game please"))
-        XCTAssertFalse(RundalePresentationModel.isNewGameCommand("/newer"))
+        XCTAssertFalse(RundaleSessionPresenter.isNewGameCommand("/new please"))
+        XCTAssertFalse(RundaleSessionPresenter.isNewGameCommand("/new-game please"))
+        XCTAssertFalse(RundaleSessionPresenter.isNewGameCommand("/newer"))
     }
 
     func testNewGameRefusalPreservesDraftAndCurrentSession() async {
@@ -239,7 +239,7 @@ final class RundalePhase4Tests: XCTestCase {
 @MainActor
 final class Phase4TestSession: RundaleSessionControlling {
     private var presentation: PresentationSession
-    private let subject = CurrentValueSubject<SessionState, Never>(SessionState())
+    private let changes = SessionChangeSignal()
 
     private(set) var state: SessionState
     private(set) var stopCalls = 0
@@ -278,13 +278,13 @@ final class Phase4TestSession: RundaleSessionControlling {
                 RequestRecord(id: LogicalRequestID("failed-\($0)"), originalText: "question \($0)", phase: .failed)
             })
         presentation = PresentationSession(state: state)
-        subject.send(state)
+        changes.send()
     }
 
     var lastEvent: SemanticEvent? { nil }
     var currentHeader: PresentedHeader { PresentedHeader(location: "Test", timeOfDay: "Morning", weather: "Clear") }
     var persistenceError: String? { nil }
-    var statePublisher: AnyPublisher<SessionState, Never> { subject.eraseToAnyPublisher() }
+    func stateChanges() -> AsyncStream<Void> { changes.stream() }
     var initialFollowsNewest: Bool { true }
     var initialUnreadCount: Int { 0 }
 
@@ -294,7 +294,7 @@ final class Phase4TestSession: RundaleSessionControlling {
     func updateDraft(_ text: String) {
         presentation.updateDraft(text)
         state = presentation.state
-        subject.send(state)
+        changes.send()
     }
 
     func restoredDraft() -> Draft? { nil }
@@ -311,7 +311,7 @@ final class Phase4TestSession: RundaleSessionControlling {
         viewport.followNewest()
         state = replacingViewport(viewport)
         presentation = PresentationSession(state: state)
-        subject.send(state)
+        changes.send()
     }
 
     func readHistory(anchor: TranscriptAnchor?) {}
@@ -328,7 +328,7 @@ final class Phase4TestSession: RundaleSessionControlling {
         if acceptedRequestRemainsActive {
             let requestID = LogicalRequestID("request-new")
             state = SessionState(draft: state.draft, activeRequestID: requestID)
-            subject.send(state)
+            changes.send()
         }
         return SubmissionReceipt(
             logicalRequestID: LogicalRequestID("request-new"),
@@ -343,7 +343,7 @@ final class Phase4TestSession: RundaleSessionControlling {
     func setReadingHistory() {
         presentation.readHistory(anchor: TranscriptAnchor(itemID: TranscriptItemID("older"), offset: 0))
         state = presentation.state
-        subject.send(state)
+        changes.send()
     }
 
     private func replacingViewport(_ viewport: TranscriptViewport) -> SessionState {
@@ -381,14 +381,14 @@ final class Phase4TestSession: RundaleSessionControlling {
         newGameCalls += 1
         state = SessionState()
         presentation = PresentationSession(state: state)
-        subject.send(state)
+        changes.send()
     }
 
     func stop() async throws -> StopReceipt {
         stopCalls += 1
         lifecycleEvents.append("stop")
         state = SessionState()
-        subject.send(state)
+        changes.send()
         return StopReceipt(result: .cancelled)
     }
 
@@ -403,7 +403,7 @@ final class Phase4TestSession: RundaleSessionControlling {
             }
         }
         state = SessionState(requests: state.requests, activeRequestID: request.id)
-        subject.send(state)
+        changes.send()
     }
 
     func step() async -> FixtureStepResult { FixtureStepResult(event: nil, isFinished: true) }

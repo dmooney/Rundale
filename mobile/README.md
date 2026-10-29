@@ -85,6 +85,14 @@ one UI test, and frame analysis of a streamed reply. The
 ## Layout
 
 - `Rundale`: SwiftUI rendering, native input, accessibility, and app lifecycle.
+  `RundalePresentationModel` only publishes `RundaleSession`'s presenter to
+  SwiftUI; Firebase credentials, OSLog, and screenshots are wired in here.
+- `RundaleSession`: the session logic the app runs, with no Combine, OSLog,
+  UIKit, or SwiftUI: the engine and fixture controllers (inference loop,
+  Stop and Retry, failure lines, hydration, clarification), the presenter
+  (draft, composer controls, completions, transcript projection), launch
+  configuration, the mock Endpoint the UI suites use, and the bug-report
+  outbox. It builds and tests on Linux (#2272).
 - `RundaleKit`: the semantic presentation contract, reducer, and deterministic
   presentation fixtures, with unit tests (`swift test --package-path mobile/RundaleKit`).
 - `RundaleBridge`: the actor-isolated Swift owner of the C boundary and its

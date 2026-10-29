@@ -351,7 +351,7 @@ pub fn language_directive(lang: &LanguageSettings) -> String {
 /// A hint is accepted only when:
 /// - the active setting configures a supported native language;
 /// - its word/phrase is from that language's curated prompt inventory;
-/// - that phrase appears in the final, post-guard dialogue.
+/// - that phrase appears in the delivered dialogue.
 ///
 /// The returned pronunciation and meaning always come from the canonical
 /// record, never model metadata. Duplicate nominations are collapsed

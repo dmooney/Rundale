@@ -1,4 +1,4 @@
-import type { NpcInfo } from '$lib/types';
+import type { NpcInfo } from '#lib/types.ts';
 
 export type NotebookAction = 'talk' | 'ask' | 'help' | 'observe' | 'leave';
 

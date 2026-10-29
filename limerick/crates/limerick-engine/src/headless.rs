@@ -1067,7 +1067,6 @@ fn apply_npc_response(
     location: limerick_core::world::LocationId,
     npc_display_name: &str,
     npc_actual_name: &str,
-    grounding: &crate::npc::DialogueGroundingSnapshot,
 ) -> (Option<limerick_core::session_store::PlayerTask>, String) {
     let (parsed, parse_disposition) =
         crate::npc::parse_npc_stream_response_with_disposition(response_text);
@@ -1080,14 +1079,12 @@ fn apply_npc_response(
     // publish (headless previously skipped this last step). Forward the returned
     // debug-event strings to the headless debug sink.
     let language = app.language_settings();
-    let outcome = limerick_core::game_session::apply_npc_dialogue_turn_with_validation(
+    let outcome = limerick_core::game_session::apply_npc_dialogue_turn_with_disposition(
         &mut app.world,
         &mut app.npc_manager,
         npc_id,
         &parsed,
         parse_disposition,
-        grounding,
-        crate::npc::DialogueValidationPolicy::default(),
         player_input,
         player_input,
         game_time,
@@ -1095,7 +1092,6 @@ fn apply_npc_response(
         npc_display_name,
         npc_actual_name,
         None,
-        &[],
         &language,
         &app.flags,
     );
@@ -1118,7 +1114,6 @@ async fn stream_headless_npc_dialogue(
     let npc_id = setup.npc_id;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
-    let grounding = setup.grounding.clone();
 
     let mut assigned_task = None;
     if let Some(queue) = &app.inference_queue {
@@ -1207,7 +1202,6 @@ async fn stream_headless_npc_dialogue(
                                 location,
                                 &npc_display_name,
                                 &npc_actual_name,
-                                &grounding,
                             );
                             println!("{canonical_dialogue}");
                             assigned_task = task;
@@ -1557,7 +1551,6 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
     struct TurnText {
         source: String,
         streamed: String,
-        corrected: Option<String>,
     }
 
     let mut turns: HashMap<u64, TurnText> = HashMap::new();
@@ -1583,14 +1576,6 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
                             .and_then(|value| value.as_str())
                             .unwrap_or_default(),
                     );
-                }
-            }
-            "dialogue-corrected" => {
-                if let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) {
-                    turns.entry(turn_id).or_default().corrected = payload
-                        .get("corrected_text")
-                        .and_then(|value| value.as_str())
-                        .map(str::to_string);
                 }
             }
             _ => {}
@@ -1647,7 +1632,6 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
                     .get("final_text")
                     .and_then(|value| value.as_str())
                     .map(str::to_string)
-                    .or_else(|| turn.corrected.clone())
                     .unwrap_or_else(|| {
                         limerick_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
                     });
@@ -2388,10 +2372,6 @@ mod tests {
                 serde_json::json!({"turn_id": 7}),
             ),
             (
-                "dialogue-corrected".to_string(),
-                serde_json::json!({"turn_id": 7, "corrected_text": "guarded answer"}),
-            ),
-            (
                 "text-log".to_string(),
                 serde_json::json!({"source": "system", "content": "*Brigid offers a spade.*"}),
             ),
@@ -2420,7 +2400,7 @@ mod tests {
             committed_headless_lines(&emissions),
             vec![
                 "> Have ye work for me?",
-                "Brigid: guarded answer",
+                "Brigid: raw answer",
                 "*Brigid offers a spade.*",
                 "Máire: fetch water",
             ]

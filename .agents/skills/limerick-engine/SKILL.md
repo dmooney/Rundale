@@ -122,7 +122,6 @@ What this checks:
    is run through `run_script_captured`, serialized to JSON, and diffed against
    `testing/evals/baselines/<fixture>.json`. Any drift fails with a "live | baseline" diff window.
 2. **Structural rubrics** asserted on every baselined fixture:
-   - `rubric_anachronisms_are_empty` — no NpcResponse surfaces anachronistic terms.
    - `rubric_movement_minutes_are_positive` — no Moved with `minutes == 0` (catches a frozen clock).
    - `rubric_look_descriptions_are_non_empty` — no Looked with empty description (catches a silent renderer failure).
 

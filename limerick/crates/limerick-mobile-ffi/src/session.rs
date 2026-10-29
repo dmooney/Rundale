@@ -6,9 +6,8 @@
 //! host as a pending invocation, and the host answers with the Endpoint's
 //! validated terminal output or a failure. Calls without an Endpoint (travel
 //! encounters, arrival reactions) are routed as unavailable, so the pipeline
-//! uses its canned fallbacks and never asks. The dialogue content guards are
-//! off on this path (`DIALOGUE_CONTENT_GUARDS_FLAG`): the reply is committed
-//! after structural checks only.
+//! uses its canned fallbacks and never asks. A reply is committed after the
+//! structural response contract only, the same as on every other path.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -152,7 +151,7 @@ impl Live {
             game_mod,
             world: Mutex::new(world),
             npc_manager: Mutex::new(npc_manager),
-            config: Mutex::new(endpoint_game_config()),
+            config: Mutex::new(GameConfig::default()),
             conversation: Mutex::new(ConversationRuntimeState::new()),
             inference_queue: Mutex::new(None),
             client: Mutex::new(None),
@@ -189,16 +188,6 @@ impl Live {
             reaction_templates: self.game_mod.reactions.clone(),
         }
     }
-}
-
-/// The runtime configuration of the Endpoint path: the default desktop
-/// configuration with the dialogue content guards off.
-pub fn endpoint_game_config() -> GameConfig {
-    let mut config = GameConfig::default();
-    config
-        .flags
-        .disable(limerick_core::npc::DIALOGUE_CONTENT_GUARDS_FLAG);
-    config
 }
 
 /// Model calls the phone has no Endpoint for. The pipeline sees them as

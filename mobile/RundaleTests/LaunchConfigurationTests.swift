@@ -1,4 +1,5 @@
 import XCTest
+import RundaleSession
 @testable import Rundale
 
 final class LaunchConfigurationTests: XCTestCase {

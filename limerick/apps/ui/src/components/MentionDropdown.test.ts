@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import MentionDropdown from './MentionDropdown.svelte';
-import type { NpcInfo } from '$lib/types';
+import type { NpcInfo } from '#lib/types.ts';
 
 function makeNpc(name: string, introduced: boolean): NpcInfo {
 	return {

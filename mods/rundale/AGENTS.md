@@ -17,7 +17,6 @@ cargo test -p limerick-editor   # byte-identical round-trip of this mod
 - **`world.json` coords must follow geo-tool rules.** Use the `/rundale-geo-tool` skill — never hand-edit lat/lon. Real-world locations pin to historical OS maps, not modern Nominatim. Subordinate village clusters via `relative_to`.
 - **`world-sheet.txt` is a test oracle.** `limerick-engine/tests/world_sheet.rs` plays a new game and fails on any contradiction with it; update the sheet with every intentional world change.
 - **Keep JSON in the editor's on-disk format** (4-space indent). Editor round-trip tests re-save this mod and require identical bytes.
-- **`anachronisms.json` is consumed by `limerick-npc::anachronism`.** Adding a banned word/phrase requires checking the dialogue corpus doesn't already use it (would generate spurious flags).
 - **`prompts/` templates** are loaded by `limerick-core::prompts`. Variable names are case-sensitive — `{player_name}` not `{playerName}`.
 - **`endpoints/` holds Limerick Endpoint definitions**, named `<slug>.v<version>.json` and declared in `mod.toml` `[endpoints]` once the engine calls them. Until release, each Endpoint has only a `.v1.json` file: change it in place and republish with `endpoints/deploy/limerick-prod.sh definitions replace`, then `definitions verify` must exit 0; after release, published versions are immutable and a change ships as a new version file. A published file must keep the content hash Limerick Endpoints recorded, so a rename or wording sweep that touches it breaks `definitions verify` (one schema description edit broke `rundale-dialogue` v1 until #2041). `rundale-intent` is a Jev decision Endpoint on TypeSafe; the engine reads its answers in `limerick_core::intent_decision`. See `mobile/endpoint/README.md`.
 - **`festivals.json` + `encounters.json`** trigger by date/location — coordinate names must exist in `world.json`.
@@ -26,4 +25,4 @@ cargo test -p limerick-editor   # byte-identical round-trip of this mod
 
 ## Files
 
-`mod.toml` manifest, `world-sheet.txt` canonical world sheet, `endpoints/` Endpoint definitions, `world.json` geography, `npcs.json` NPC catalog, `prompts/` templates, `loading.toml` boot config, `anachronisms.json`+`festivals.json`+`encounters.json`+`pronunciations.json`+`transport.toml`+`ui.toml` content.
+`mod.toml` manifest, `world-sheet.txt` canonical world sheet, `endpoints/` Endpoint definitions, `world.json` geography, `npcs.json` NPC catalog, `prompts/` templates, `loading.toml` boot config, `festivals.json`+`encounters.json`+`pronunciations.json`+`transport.toml`+`ui.toml` content.

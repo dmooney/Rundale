@@ -11,7 +11,7 @@ import type {
 	EditorModSnapshot,
 	ValidationReport,
 	EditorTab,
-} from '$lib/editor-types';
+} from '#lib/editor-types.ts';
 
 /** Available mods discovered on disk. */
 export const editorMods = writable<ModSummary[]>([]);

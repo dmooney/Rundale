@@ -8,7 +8,7 @@ Game dialogue prompt templates for the Rundale mod. Loaded by `limerick-core::pr
 
 ```sh
 cargo test -p limerick-core                                # unit + arch fitness (prompt loading)
-cargo test -p limerick-npc                                 # NPC manager + anachronism tests
+cargo test -p limerick-npc                                 # NPC manager tests
 cargo run  -p limerick-engine -- --script ...              # live gameplay with this mod's prompts
 ```
 
@@ -18,7 +18,6 @@ cargo run  -p limerick-engine -- --script ...              # live gameplay with 
 - **Tier 1 NPCs receive both prompts.** `tier1_system.txt` is the character definition; `tier1_context.txt` is appended with runtime scene data (location, time, weather, player action). Tier 2 NPCs receive only `tier2_system.txt` — no context injection.
 - **`tier1_system.txt` expects a JSON metadata block** after `---` on every response: `{"action": "...", "mood": "...", "internal_thought": "...", "language_hints": [...]}`. Malformed blocks are rejected or silently dropped.
 - **Adding a variable requires a matching substitution** in `limerick-npc::manager::build_tier1_system_prompt`. Adding a tier requires a new `[prompts]` entry in `mod.toml` and loading logic in `limerick-core::loading::game_mod`.
-- **Anachronism subsystem (`limerick-npc::anachronism`) watches output.** Terms from `anachronisms.json` trigger a corrective context alert into the next prompt. Cross-check the word list when editing period-language guidance in `tier1_system.txt`.
 - **Testbed mod (`mods/testbed/prompts/`) demonstrates the override pattern** — pig Latin versions make the override visible in tests.
 - **Missing files produce `PromptsLoadError` at startup** (read via `std::fs::read_to_string`, not `include_str!`), not a compile-time panic.
 - **`{improv_section}` in `tier1_system.txt`** is pre-rendered by the NPC manager and may be empty; the template appends it with no conditional guard.

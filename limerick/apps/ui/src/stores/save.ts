@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { SaveFileInfo, SaveState } from '$lib/types';
+import type { SaveFileInfo, SaveState } from '#lib/types.ts';
 
 /** Whether the save picker modal is visible. */
 export const savePickerVisible = writable<boolean>(false);

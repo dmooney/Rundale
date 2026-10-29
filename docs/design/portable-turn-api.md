@@ -135,7 +135,7 @@ Deliberate divergences from the oracle:
 
 - Provisional stream text is not shown as dialogue on desktop. `ios-port`
   displayed raw frames; Rule 33 forbids publishing candidate text before the
-  canonical apply validator accepts it. Superseded for mobile on 2026-09-28
+  structural response contract accepts it. Superseded for mobile on 2026-09-28
   (§9): the mobile Endpoint path streams provisional text, as `ios-port` did.
 - No single-location `WorldGraph` exception, no content bundle, no
   `DefaultHasher` fingerprints, no second parser or resolver.
@@ -327,11 +327,13 @@ before the engine ever sees the reply.
 Responsibility split, per Rules 33 and 37:
 
 - The host validates transport and termination.
-- The engine validates meaning: intent output through
+- The engine validates structure: intent output through
   `intent_from_structured_output` / `validated_intent`, dialogue through
   `parse_npc_stream_response_with_disposition` and
-  `apply_npc_dialogue_turn_with_validation`. The host never applies semantic
-  guards and never publishes candidate text.
+  `apply_npc_dialogue_turn_with_disposition`, which checks only the structural
+  response contract and commits the reply as written. Nothing, host or engine,
+  inspects or rewrites what the model said, and the host never publishes
+  candidate text.
 
 Inside the pipeline, call sites use `ctx.inference().complete(call).await`.
 `GameLoopContext::inference()` resolves the seam: its `inference_override:
@@ -673,10 +675,7 @@ kind), and `unreadable_state_save.db`.
 
 Unchanged by design:
 
-- The dialogue validation guards. Their fragility is tracked separately in
-  #2024 and is out of Mobile Phase 1 scope.
-
-- Prompts, generation parameters, audit records, timeouts, guards, and apply
+- Prompts, generation parameters, audit records, timeouts, and apply
   logic (the in-process adapter makes the same calls; #2028 proves request
   equality with a recording client).
 - The wire emission names and payloads, and the ordering within a turn.
@@ -709,7 +708,7 @@ changes; each PR records before/after evidence:
    input cancels the pending request (§5.1). No desktop UI work.
 5. **The headless REPL uses the shared pipeline.** Its output becomes the
    staged renderer's (`committed_headless_lines`), which task-bearing turns
-   already use. It gains full travel, encounters, arrival reactions, guards,
+   already use. It gains full travel, encounters, arrival reactions,
    and the shared resolver, which it lacks today.
 
 Status: changes 1-3 landed with the runtime switch, PR #2073 (issue #2035).
@@ -755,7 +754,8 @@ Decided in review:
 
 - The design in §3-§6 is approved.
 - `ipc::editor` stays desktop-only; mobile bug reporting is #2022; headless
-  drift is #2023; guards stay unchanged, revisit in #2024.
+  drift is #2023; the dialogue guards were left alone here and then removed on
+  every path by the owner's decision of 2026-10-23 (issue 2295, see §9 below).
 - §7 consequences are accepted; desktop gets no UI work (mobile-first reset).
 - The script harness stays on its legacy router (required for unchanged
   `--script` output).
@@ -776,13 +776,19 @@ Decided by the owner on 2026-09-28, for the mobile Endpoint path (#2044):
   uncommitted with no state effects.
 - No post-generation content guards on this path. The engine commits the final
   reply after structural checks only; invented people or places are fixed
-  through the Endpoint definition and model. As built (#2044), the mobile host
-  disables the `dialogue-content-guards` flag
-  (`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`): validation stops after the
-  response contract, and the apply step skips its repetition rewrite, display
-  cap, and obligation fallback. The Endpoint definition, not the
+  through the Endpoint definition and model. The Endpoint definition, not the
   mod's desktop prompt templates, is the prompt source. See the scope note in
-  [inference rules](../agent/inference-rules.md). Desktop is unchanged.
+  [inference rules](../agent/inference-rules.md).
+
+Decided by the owner on 2026-10-23, for every path (issue 2295): the same holds
+on desktop and headless. The `dialogue-content-guards` flag, the
+`DialogueValidationPolicy` and its checks, the repetition rewrite, display cap,
+obligation fallback, the anachronism alert and the `dialogue-corrected` event
+are removed; the `dialogue-quality` event no longer carries guard fields. Only
+the structural contract (complete JSON, non-empty dialogue) and the canonical
+commit boundary remain. `limerick-core/tests/dialogue_commits_unchanged.rs`
+proves a reply naming a person who does not exist commits unchanged through
+`drive_in_process` (desktop) and `TurnEngine::resume` (phone host).
 
 ## 10. Mobile host (#2044)
 

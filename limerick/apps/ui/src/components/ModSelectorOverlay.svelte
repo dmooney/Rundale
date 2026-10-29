@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { getMods, switchMod } from '$lib/ipc';
-	import type { ModEntry } from '$lib/types';
+	import { getMods, switchMod } from '#lib/ipc.ts';
+	import type { ModEntry } from '#lib/types.ts';
 
 	interface Props {
 		onclose: () => void;

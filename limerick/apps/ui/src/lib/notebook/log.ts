@@ -1,4 +1,4 @@
-import type { TextLogEntry } from '$lib/types';
+import type { TextLogEntry } from '#lib/types.ts';
 
 const NON_NOTEBOOK_PATTERNS = [
 	/copyright/i,

@@ -68,8 +68,6 @@ pub struct GameMod {
     pub mod_dir: PathBuf,
     /// Prompt template strings loaded from text files.
     pub prompts: PromptTemplates,
-    /// Anachronism detection data.
-    pub anachronisms: AnachronismData,
     /// Festival definitions.
     pub festivals: Vec<FestivalDef>,
     /// Encounter text table.
@@ -185,15 +183,6 @@ impl GameMod {
         };
 
         // -- JSON data files ------------------------------------------------
-        let anachronisms_json = read_json(&manifest.files.anachronisms)?;
-        let anachronisms: AnachronismData =
-            serde_json::from_str(&anachronisms_json).map_err(|e| {
-                LimerickError::Config(format!(
-                    "failed to parse {}: {e}",
-                    manifest.files.anachronisms
-                ))
-            })?;
-
         let festivals_json = read_json(&manifest.files.festivals)?;
         let festivals: Vec<FestivalDef> = serde_json::from_str(&festivals_json).map_err(|e| {
             LimerickError::Config(format!("failed to parse {}: {e}", manifest.files.festivals))
@@ -274,7 +263,6 @@ impl GameMod {
             manifest,
             mod_dir,
             prompts,
-            anachronisms,
             festivals,
             encounters,
             loading,
@@ -335,7 +323,7 @@ impl GameMod {
         }
     }
 
-    /// Period year used for anachronism detection.
+    /// Year the setting is set in.
     pub fn period_year(&self) -> u16 {
         self.manifest.setting.period_year
     }

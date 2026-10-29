@@ -76,11 +76,6 @@ accent = "#aabbcc"
 "##,
         )
         .unwrap();
-        fs::write(
-            root.join("anachronisms.json"),
-            r#"{ "context_alert_prefix": "", "context_alert_suffix": "", "terms": [] }"#,
-        )
-        .unwrap();
         fs::write(root.join("pronunciations.json"), r#"{ "names": [] }"#).unwrap();
         fs::write(root.join("prompts/tier1_system.txt"), "system").unwrap();
         fs::write(root.join("prompts/tier1_context.txt"), "context").unwrap();
@@ -110,7 +105,6 @@ world = "world.json"
 npcs = "npcs.json"
 encounters = "encounters.json"
 festivals = "festivals.json"
-anachronisms = "anachronisms.json"
 pronunciations = "pronunciations.json"
 loading = "loading.toml"
 ui = "ui.toml"

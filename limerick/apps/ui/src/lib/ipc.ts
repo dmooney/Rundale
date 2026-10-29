@@ -8,7 +8,7 @@
  * This module is a stable barrel (#1200 TD-054): the single transport adapter
  * lives in `ipc/transport.ts` and the command families in `ipc/{game,save,
  * setup,provider,screenshot}.ts`. Everything is re-exported here so existing
- * `import { … } from '$lib/ipc'` paths are unchanged.
+ * `import { … } from '#lib/ipc.ts'` paths are unchanged.
  */
 
 export {

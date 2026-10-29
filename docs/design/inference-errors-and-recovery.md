@@ -87,7 +87,8 @@ Closed in this change:
    the UI. `EndpointFailureClassificationTests` now pins every Endpoint error code
    the server emits, the common HTTP statuses, the URL error codes, the
    missing-terminal, malformed-event and invalid-credential errors, and that
-   the diagnostic carries no server message (simulator). The other
+   the diagnostic carries no server message (RundaleSession package tests,
+   Linux and macOS). The other
    `LimerickEndpointError` cases (size limits, version and correlation
    errors) are not individually pinned. The controller's classifier is made
    visible to the tests.
@@ -108,7 +109,8 @@ Closed in this change:
    `URLError.timedOut` now reports `timed_out` ("the answer wandered off")
    rather than `offline`. With decision 1 a timed-out intent call still fails
    the request, so call volume does not change. Pinned in
-   `EndpointFailureClassificationTests` (simulator).
+   `EndpointFailureClassificationTests` (RundaleSession package tests, Linux
+   and macOS).
 
 Tracked elsewhere, by owner decision:
 

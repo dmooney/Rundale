@@ -6,7 +6,7 @@
 	 * as recommended — copy nudges based on the user's situation.
 	 */
 	import ByokOnboarding from './ByokOnboarding.svelte';
-	import { setProviderConfig } from '$lib/ipc';
+	import { setProviderConfig } from '#lib/ipc.ts';
 
 	let { onComplete }: { onComplete: () => void } = $props();
 

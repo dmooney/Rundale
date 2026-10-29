@@ -27,16 +27,11 @@ reading it end to end. Keep items to 2-3 lines.
 - **Addressed dialogue still makes an intent call first.** `handle_game_input` classifies free text before routing even with `addressed_to` chips, so a scripted host must answer an `Intent` call before the `Dialogue` call. Unmet NPCs are labelled by brief description, not name, in dialogue events.
 - **Only `talk to X` / `speak to X` name an explicit recipient in free text.** `ask X about Y` routes through natural mentions (present people only), so an absent or ambiguous `X` there is not an explicit address. Write addressee tests with `talk to`, a chip, `@Name`, or a leading vocative (`Widow, ...`).
 
-## Dialogue apply seam and guards
+## Dialogue apply seam
 
-- **Interrogative work turns have two distinct contracts.** “Is there work for me?” may admit a direct task assignment, while “who should I ask for work?” requires a grounded occupational referral; do not exempt both from dialogue obligations merely because they end in `?`.
-- **A guard-activation rate is meaningful only with exact reasons and calibrated detectors.** A generic `display_pipeline` counter hid which canonical transform ran, while a narrow mood phrase list rewrote already-sharp local-model dialogue. Emit each apply-seam reason and keep real-output false positives as regression fixtures.
 - **Atmosphere is supplemental intent metadata, not a mutually exclusive action.** Keep the player's main `Talk`/`Move`/`Interact` classification intact, validate model-proposed topics against the raw utterance, and render the cue at the shared game-loop seam so it cannot swallow an addressed NPC turn.
-- **`dialogue-corrected` is too late to be a safety boundary.** A raw provider stream has already reached the player before that replacement event; drain candidate tokens internally and publish only the canonical apply result so rejected text and metadata have no transient UI or persistent effects.
-- **Overlapping canonical guards need order-independent quality telemetry.** Determine whether a configured final display constraint is material against the complete accepted candidate before earlier semantic guards shorten it, but still apply the constraint only once after validation; otherwise coverage and optimization can expose telemetry that varies with guard order.
-- **Dialogue grounding needs typed claims, not longer allow-list prose.** Preserve unresolved player-introduced people/places in a bounded location-scoped context, resolve pronouns only when one typed referent remains, and validate festival/role/workplace/location claims against the pre-inference authored snapshot before any effect.
+- **Provider tokens are quarantined until the structural contract accepts the completed reply.** A raw provider stream that reaches the player before the commit cannot be taken back, so the host drains candidate tokens internally and publishes only the committed reply. There is no later correction event: the committed reply is the model's reply as written (issue 2295).
 - **Task assignment admission and atomic staging share `is_task_request_input`.** Add explicit acceptance/follow-up phrases there, not only at the dialogue apply seam; compound narrated work must also route locally to `Interact`, and matching must score affirmative clause-leading verbs rather than just the sentence's first verb.
-- **Declarative multi-facet dialogue requests need typed completeness, not a question-mark heuristic.** Derive explicit obligations before inference, render them in player order, and recheck the final post-transform line at the canonical apply seam; a partial candidate must be replaced whole with an authored noncommittal answer that covers every facet.
 
 ## Inference routing across runtimes
 

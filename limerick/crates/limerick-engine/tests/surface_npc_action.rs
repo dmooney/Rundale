@@ -213,3 +213,48 @@ fn real_loop_action_narration_suppressed_when_flag_disabled() {
          got: {action_entries:?}"
     );
 }
+
+/// AC-1 (#1531, real-loop): A first-person physical action ("I pick up …")
+/// submitted while an NPC is co-located must produce a `text-log` event with
+/// subtype "action" containing the narrated player action, rather than being
+/// silently dropped.
+///
+/// The `is_interact` branch in `handle_game_input` calls `handle_interact`,
+/// which emits the You-line. This test verifies the full path fires via the
+/// real game loop with a co-located NPC present.
+#[test]
+fn real_loop_physical_action_produces_you_line() {
+    let (mut h, _speaker_name) = harness_with_one_npc();
+
+    // `handle_interact` is synchronous and emits the text-log before any NPC
+    // inference is attempted. No mock model response is needed.
+    let events = h.execute_via_real_loop("I pick up one of the horseshoes from the hook.");
+
+    // We expect at least one `text-log` event with source "action" that says
+    // "You pick up …". (`handle_interact` sets `source = "action"`.)
+    let action_events: Vec<_> = events
+        .iter()
+        .filter(|(name, payload)| {
+            name == "text-log" && payload.get("source").and_then(|s| s.as_str()) == Some("action")
+        })
+        .collect();
+
+    assert!(
+        !action_events.is_empty(),
+        "physical action must produce a text-log event with source='action' (#1531); \
+         got events: {events:?}"
+    );
+
+    // The content must narrate the pick-up.
+    let content = action_events[0]
+        .1
+        .get("content")
+        .and_then(|s| s.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    assert!(
+        content.contains("pick up"),
+        "You-line must narrate the player's pick-up action (#1531); \
+        got content: {content:?}"
+    );
+}

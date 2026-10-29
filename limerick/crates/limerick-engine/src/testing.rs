@@ -84,31 +84,14 @@ fn apply_legacy_canned_turn(
 ) -> limerick_core::game_session::DialogueTurnOutcome {
     let location = app.world.player_location;
     conversation.sync_location(location);
-    let mut grounding = limerick_core::game_session::dialogue_grounding_snapshot(
-        &app.world,
-        &app.npc_manager,
-        speaker_id,
-    );
-    conversation.dialogue_referents.observe_player_input(
-        player_input,
-        &grounding.known_person_names,
-        &grounding.known_location_names,
-        grounding.player_name.as_deref(),
-    );
-    grounding.referent_context = conversation.dialogue_referents.clone();
-    grounding.prior_openers = conversation.seen_openers_this_location.clone();
-    grounding.dialogue_obligations =
-        crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
     let language = app.language_settings();
     let game_time = app.world.clock.now();
-    let outcome = limerick_core::game_session::apply_npc_dialogue_turn_with_validation(
+    limerick_core::game_session::apply_npc_dialogue_turn_with_disposition(
         &mut app.world,
         &mut app.npc_manager,
         speaker_id,
         response,
         parse_disposition,
-        &grounding,
-        crate::npc::DialogueValidationPolicy::default(),
         player_input,
         player_said_for_journal,
         game_time,
@@ -116,14 +99,9 @@ fn apply_legacy_canned_turn(
         speaker_name,
         speaker_name,
         None,
-        &[],
         &language,
         &app.flags,
-    );
-    if outcome.accepted_candidate {
-        conversation.record_opener(crate::npc::extract_normalized_opener(&outcome.display_text));
-    }
-    outcome
+    )
 }
 
 /// The result of executing a command through the test harness.
@@ -166,9 +144,6 @@ pub enum ActionResult {
         npc: String,
         /// The dialogue text.
         dialogue: String,
-        /// Anachronistic terms detected in the player's input.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        anachronisms: Vec<String>,
     },
     /// NPC interaction attempted but no canned response or inference available.
     NpcNotAvailable,
@@ -213,7 +188,7 @@ pub struct GameTestHarness {
     pub(crate) mock: Arc<crate::inference::MockClient>,
     /// Persistent conversation runtime state shared across all
     /// [`Self::execute_via_real_loop`] calls, so session-level state such as
-    /// `seen_openers_this_location` accumulates across turns (#1492).
+    /// the location-scoped transcript accumulates across turns.
     pub(crate) real_loop_conversation:
         std::sync::Arc<tokio::sync::Mutex<limerick_core::ipc::ConversationRuntimeState>>,
     /// Location-scoped dialogue context for the synchronous legacy harness.
@@ -1564,11 +1539,6 @@ impl GameTestHarness {
         text: &str,
         speaker_id: crate::npc::NpcId,
     ) -> ActionResult {
-        // Detect anachronisms in player input — same pipeline as the
-        // first-NPC variant so behaviour stays in lock-step.
-        let detected = crate::npc::anachronism::check_input(text);
-        let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
-
         let speaker_name = self.app.npc_manager.get(speaker_id).map(|n| n.name.clone());
         let Some(name) = speaker_name else {
             return ActionResult::NpcNotAvailable;
@@ -1607,8 +1577,8 @@ impl GameTestHarness {
                 self.app.debug_event(event);
             }
 
-            // Log + surface the guarded (#1228) + capped (#1224) text, identical
-            // to what was stored in the conversation log and event bus.
+            // Log + surface the committed text, identical to what was stored
+            // in the conversation log and event bus.
             if outcome.accepted_candidate {
                 self.app
                     .world
@@ -1617,7 +1587,6 @@ impl GameTestHarness {
             return ActionResult::NpcResponse {
                 npc: name,
                 dialogue: outcome.display_text,
-                anachronisms: anachronism_terms,
             };
         }
 
@@ -1628,7 +1597,6 @@ impl GameTestHarness {
             return ActionResult::NpcResponse {
                 npc: name,
                 dialogue,
-                anachronisms: anachronism_terms,
             };
         }
 
@@ -1638,8 +1606,6 @@ impl GameTestHarness {
     /// Checks NPCs at the current location for canned responses. Free-text
     /// names and `@mentions` use the shared routing resolver; generic
     /// untargeted dialogue keeps the historical first-canned-response fallback.
-    /// Also runs anachronism detection on the player's input and includes any
-    /// detected terms in the result.
     ///
     /// When a canned response is consumed, the interaction is processed
     /// through the same memory pipeline as a real LLM response: the NPC's
@@ -1658,10 +1624,6 @@ impl GameTestHarness {
             self.app.world.log(msg.clone());
             return ActionResult::SystemCommand { response: msg };
         }
-
-        // Detect anachronisms in player input
-        let detected = crate::npc::anachronism::check_input(text);
-        let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
 
         let target_ids = if mentions.names.is_empty() {
             Vec::new()
@@ -1689,9 +1651,7 @@ impl GameTestHarness {
         let allow_multiple = !target_ids.is_empty();
         let mut first_response = None;
         for (npc_id, name, mood) in ordered_npcs.iter().cloned() {
-            let Some(result) =
-                self.consume_canned_npc_response(npc_id, name, mood, text, &anachronism_terms)
-            else {
+            let Some(result) = self.consume_canned_npc_response(npc_id, name, mood, text) else {
                 continue;
             };
 
@@ -1716,7 +1676,6 @@ impl GameTestHarness {
             return ActionResult::NpcResponse {
                 npc: name.clone(),
                 dialogue,
-                anachronisms: anachronism_terms,
             };
         }
 
@@ -1751,7 +1710,6 @@ impl GameTestHarness {
         name: String,
         mood: String,
         text: &str,
-        anachronism_terms: &[String],
     ) -> Option<ActionResult> {
         let key = name.to_lowercase();
         let responses = self.canned_responses.get_mut(&key)?;
@@ -1782,8 +1740,8 @@ impl GameTestHarness {
             self.app.debug_event(event);
         }
 
-        // Log + surface the guarded (#1228) + capped (#1224) text, identical to
-        // what was stored in the conversation log and event bus.
+        // Log + surface the committed text, identical to what was stored in
+        // the conversation log and event bus.
         if outcome.accepted_candidate {
             self.app
                 .world
@@ -1792,7 +1750,6 @@ impl GameTestHarness {
         Some(ActionResult::NpcResponse {
             npc: name,
             dialogue: outcome.display_text,
-            anachronisms: anachronism_terms.to_vec(),
         })
     }
 
@@ -2061,42 +2018,17 @@ mod tests {
     fn successful_new_game_clears_both_conversation_runtime_contexts() {
         let mut h = GameTestHarness::new();
         let location = h.app.world.player_location;
-        let known_people: Vec<String> = h
-            .app
-            .npc_manager
-            .all_npcs()
-            .map(|npc| npc.name.clone())
-            .collect();
-        let known_places: Vec<String> = h
-            .app
-            .world
-            .graph
-            .location_ids()
-            .into_iter()
-            .filter_map(|id| h.app.world.graph.get(id).map(|place| place.name.clone()))
-            .collect();
+        let line = || limerick_core::ipc::ConversationLine {
+            speaker: "Old NPC".to_string(),
+            text: "Old game transcript".to_string(),
+        };
 
         h.legacy_conversation.sync_location(location);
-        h.legacy_conversation
-            .dialogue_referents
-            .observe_player_input(
-                "Have you seen Cormac Finn?",
-                &known_people,
-                &known_places,
-                None,
-            );
-        h.legacy_conversation
-            .record_opener("a stale opener".to_string());
+        h.legacy_conversation.push_line(line());
         {
             let mut real = h.real_loop_conversation.try_lock().unwrap();
             real.sync_location(location);
-            real.dialogue_referents.observe_player_input(
-                "Have you seen Cormac Finn?",
-                &known_people,
-                &known_places,
-                None,
-            );
-            real.record_opener("a stale opener".to_string());
+            real.push_line(line());
         }
 
         assert!(matches!(
@@ -2105,18 +2037,10 @@ mod tests {
         ));
         assert_eq!(h.app.world.player_location, location);
         assert!(h.legacy_conversation.location.is_none());
-        assert!(h.legacy_conversation.seen_openers_this_location.is_empty());
-        assert_eq!(
-            h.legacy_conversation.dialogue_referents,
-            crate::npc::DialogueReferentContext::default()
-        );
+        assert!(h.legacy_conversation.transcript.is_empty());
         let real = h.real_loop_conversation.try_lock().unwrap();
         assert!(real.location.is_none());
-        assert!(real.seen_openers_this_location.is_empty());
-        assert_eq!(
-            real.dialogue_referents,
-            crate::npc::DialogueReferentContext::default()
-        );
+        assert!(real.transcript.is_empty());
     }
 
     #[test]
@@ -2138,7 +2062,7 @@ mod tests {
         h.add_canned_response(
             "Peig Hannigan",
             &serde_json::json!({
-                "dialogue": "Council says the planning board has set tongues.",
+                "dialogue": "   ",
                 "action": "waves a notice",
                 "mood": "delighted",
                 "assigned_task": "Attend the agricultural show committee"
@@ -2147,12 +2071,13 @@ mod tests {
         );
         let text_log_before = h.app.world.text_log.clone();
 
-        let result = h.handle_npc_interaction_for(
-            "talk to Peig Hannigan about the planning board",
-            speaker_id,
-        );
+        let result =
+            h.handle_npc_interaction_for("talk to Peig Hannigan about the tune", speaker_id);
 
-        assert!(matches!(result, ActionResult::NpcResponse { .. }));
+        // An empty reply fails the structural contract: nothing is committed.
+        assert!(
+            matches!(result, ActionResult::NpcResponse { ref dialogue, .. } if dialogue.is_empty())
+        );
         assert_eq!(h.app.world.text_log, text_log_before);
     }
 
@@ -2424,353 +2349,6 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("not here")),
             "no line answers the name"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_strips_stacked_friend_stranger_vocative() {
-        let mut h = GameTestHarness::new();
-        h.advance_time(90);
-        let moved = h.execute("go to Darcy's Pub");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Padraig Darcy",
-            "Do ye have need of him or his guidance, then, friend stranger, or just curious to know the man of God in these parts?",
-        );
-
-        let result = h.execute(
-            "talk to Padraig Darcy about Is Father Declan the man I should speak with about parish matters?",
-        );
-        let ActionResult::NpcResponse { dialogue, .. } = result else {
-            panic!("expected Padraig canned response, got {result:?}");
-        };
-
-        assert!(
-            !dialogue.to_lowercase().contains("friend stranger"),
-            "stacked vocative must be stripped: {dialogue:?}"
-        );
-        assert!(
-            dialogue.contains("friend, or just curious"),
-            "substantive question and one address term must survive: {dialogue:?}"
-        );
-        assert!(
-            dialogue.contains("man of God"),
-            "priest reference must survive: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_polishes_stock_declines_and_midday_morning_tic() {
-        let mut h = GameTestHarness::new();
-        h.advance_time(240);
-        h.execute("go to Darcy's Pub");
-
-        h.add_canned_response(
-            "Padraig Darcy",
-            "Good morning to ye, mo chara. What brings ye in this fine morning?",
-        );
-        let time_result = h.execute("talk to Padraig Darcy about Good day, what is the news?");
-        let ActionResult::NpcResponse {
-            dialogue: time_dialogue,
-            ..
-        } = time_result
-        else {
-            panic!("expected Padraig to answer the time-polish turn, got {time_result:?}");
-        };
-        assert!(
-            !time_dialogue.to_lowercase().contains("morn"),
-            "midday dialogue must not retain morning wording: {time_dialogue}"
-        );
-
-        h.add_canned_response(
-            "Padraig Darcy",
-            "I know no one by that name in these parts.",
-        );
-        let person_result = h.execute(
-            "talk to Padraig Darcy about Have you met Sorcha O'Malley from beyond the parish?",
-        );
-        let ActionResult::NpcResponse {
-            dialogue: person_dialogue,
-            ..
-        } = person_result
-        else {
-            panic!("expected Padraig to answer the stock-person turn, got {person_result:?}");
-        };
-        assert_ne!(
-            person_dialogue,
-            "I know no one by that name in these parts."
-        );
-
-        h.add_canned_response("Padraig Darcy", "Mayhap ye have the wrong parish entirely.");
-        let place_result = h.execute("talk to Padraig Darcy about Where is Silver Bridge?");
-        let ActionResult::NpcResponse {
-            dialogue: place_dialogue,
-            ..
-        } = place_result
-        else {
-            panic!("expected Padraig to answer the stock-place turn, got {place_result:?}");
-        };
-        assert_ne!(place_dialogue, "Mayhap ye have the wrong parish entirely.");
-        assert_ne!(
-            person_dialogue, place_dialogue,
-            "different unknown-entity prompts should not collapse to one reply"
-        );
-    }
-
-    #[test]
-    fn canned_shopkeeper_stock_decline_keeps_nonrecognition_voice() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to Connolly's Shop");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Roisin Connolly",
-            "That name is not known to me hereabouts.",
-        );
-        let result = h.execute("talk to Roisin Connolly about Martin");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
-        };
-
-        assert_eq!(npc, "Roisin Connolly");
-        let lower = dialogue.to_lowercase();
-        assert!(
-            lower.contains("counter")
-                || lower.contains("shop")
-                || lower.contains("account")
-                || lower.contains("goods")
-                || lower.contains("trade"),
-            "shopkeeper decline should carry trade voice: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("aye, i know the name"),
-            "stock non-recognition must not be flipped into an affirmation: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("that name is not known to me hereabouts"),
-            "reported generic stock phrase must not surface unchanged: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_rewrites_presumed_prior_acquaintance() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to Connolly's Shop");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Roisin Connolly",
-            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?",
-        );
-        let result = h.execute("talk to Roisin Connolly about Colm Gallagher");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
-        };
-        let lower = dialogue.to_lowercase();
-
-        assert_eq!(npc, "Roisin Connolly");
-        assert!(
-            lower.contains("have ye met colm gallagher yet"),
-            "guard should ask whether the player has met the target: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("how do ye find him so far"),
-            "presupposing question must not surface unchanged: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_removes_repeated_speaker_name() {
-        let mut h = GameTestHarness::new();
-        h.add_canned_response(
-            "Peig Hannigan",
-            "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.",
-        );
-        let result = h.execute("talk to Peig Hannigan about your name");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
-        };
-        let lower = dialogue.to_lowercase();
-
-        assert_eq!(npc, "Peig Hannigan");
-        assert_eq!(
-            lower.matches("peig hannigan").count(),
-            1,
-            "speaker full name should appear once: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("it's peig hannigan ye're speaking to"),
-            "redundant self-reference phrase must not surface unchanged: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_replaces_invented_place_soft_deflection() {
-        let mut h = GameTestHarness::new();
-        h.add_canned_response(
-            "Peig Hannigan",
-            "And Ballygostick Tower, now? Have ye a reason for asking?",
-        );
-        let result =
-            h.execute("talk to Peig Hannigan about Is there a place called Ballygostick Tower?");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
-        };
-        let lower = dialogue.to_lowercase();
-
-        assert_eq!(npc, "Peig Hannigan");
-        assert!(
-            lower.contains("place") || lower.contains("road i know"),
-            "invented place should become a place non-recognition decline: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("ballygostick tower"),
-            "invented place name must not be repeated as a real referent: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("reason for asking"),
-            "soft deflection must not surface unchanged: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_cools_neutral_rival_target_tone() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to Connolly's Shop");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Roisin Connolly",
-            "Mick Flanagan, aye. He's retired now but still keeps an eye on things.",
-        );
-
-        let result = h.execute("talk to Roisin Connolly about What do you think of Mick Flanagan?");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
-        };
-
-        assert_eq!(npc, "Roisin Connolly");
-        assert!(
-            !dialogue
-                .to_lowercase()
-                .contains("still keeps an eye on things"),
-            "neutral-warm rival line must not surface unchanged: {dialogue:?}"
-        );
-        assert!(
-            dialogue.contains("Mick Flanagan"),
-            "target name should survive the cooled fallback: {dialogue:?}"
-        );
-        assert!(
-            dialogue.to_lowercase().contains("little warmth")
-                || dialogue.to_lowercase().contains("keep my distance"),
-            "cooled fallback should carry a visible rival cue: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_corrects_priest_tenure_drift() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to Connolly's Shop");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Roisin Connolly",
-            "He's been the priest here for nigh on a decade now.",
-        );
-        let result = h.execute("talk to Roisin Connolly about Father Declan Tierney");
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
-        };
-
-        assert_eq!(npc, "Roisin Connolly");
-        let lower = dialogue.to_lowercase();
-        assert!(
-            lower.contains("twenty-five years"),
-            "canonical tenure must be visible: {dialogue:?}"
-        );
-        assert!(
-            !lower.contains("decade"),
-            "incorrect decade-scale tenure must be removed: {dialogue:?}"
-        );
-    }
-
-    #[test]
-    fn canned_npc_response_rejects_invented_titled_landlord_without_display_effect() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to the forge");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Colm Gallagher",
-            "Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most of the land round hereabouts. Ye'll need to be careful with yer words when ye speak of him, 'tis a mighty man he is.",
-        );
-
-        let result = h.execute(
-            "talk to Colm Gallagher about Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the great landlord hereabouts",
-        );
-        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
-            panic!("expected Colm to answer through the canned NPC path, got {result:?}");
-        };
-
-        assert_eq!(npc, "Colm Gallagher");
-        let lower = dialogue.to_lowercase();
-        assert!(
-            dialogue.is_empty(),
-            "rejected candidate must stay quarantined"
-        );
-        assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
-        assert!(!lower.contains("owns most of the land"), "{dialogue}");
-    }
-
-    #[test]
-    fn canned_npc_response_corrects_real_entity_false_denials() {
-        let mut h = GameTestHarness::new();
-        let moved = h.execute("go to the forge");
-        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
-
-        h.add_canned_response(
-            "Seamus Gallagher",
-            "I cannae guide ye to a place that doesn't exist.",
-        );
-        let place_result = h.execute("talk to Seamus Gallagher about Where is Darcy's Pub?");
-        let ActionResult::NpcResponse {
-            dialogue: place_dialogue,
-            ..
-        } = place_result
-        else {
-            panic!("expected Seamus to answer the known-place turn, got {place_result:?}");
-        };
-        let place_lower = place_dialogue.to_lowercase();
-        assert!(!place_lower.contains("doesn't exist"), "{place_dialogue}");
-        assert!(
-            place_lower.contains("place")
-                && (place_lower.contains("know")
-                    || place_lower.contains("known")
-                    || place_lower.contains("real")),
-            "{place_dialogue}"
-        );
-
-        h.add_canned_response(
-            "Seamus Gallagher",
-            "I know no one by that name in these parts.",
-        );
-        let person_result = h.execute("talk to Seamus Gallagher about Where is Padraig Darcy?");
-        let ActionResult::NpcResponse {
-            dialogue: person_dialogue,
-            ..
-        } = person_result
-        else {
-            panic!("expected Seamus to answer the known-person turn, got {person_result:?}");
-        };
-        let person_lower = person_dialogue.to_lowercase();
-        assert!(
-            !person_lower.contains("no one by that name"),
-            "{person_dialogue}"
-        );
-        assert!(
-            person_lower.contains("name") || person_lower.contains("parish"),
-            "{person_dialogue}"
         );
     }
 

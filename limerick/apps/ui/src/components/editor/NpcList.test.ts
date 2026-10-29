@@ -7,7 +7,7 @@ import type {
 	EditorModSnapshot,
 	LocationData,
 	NpcFileEntry,
-} from '$lib/editor-types';
+} from '#lib/editor-types.ts';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -69,11 +69,6 @@ function makeSnapshot(
 		locations,
 		festivals: [],
 		encounters: {},
-		anachronisms: {
-			context_alert_prefix: '',
-			context_alert_suffix: '',
-			terms: [],
-		},
 		validation: { errors: [], warnings: [] },
 	};
 }

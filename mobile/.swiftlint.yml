@@ -9,6 +9,7 @@ included:
   - RundaleKit
   - RundaleBridge
   - LimerickEndpointKit
+  - RundaleSession
   - RundaleTests
   - RundaleUITests
   - scripts
@@ -19,6 +20,7 @@ excluded:
   - RundaleKit/.build
   - RundaleBridge/.build
   - LimerickEndpointKit/.build
+  - RundaleSession/.build
 
 opt_in_rules:
   - empty_count

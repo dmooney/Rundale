@@ -1,7 +1,7 @@
 import { tick } from 'svelte';
 import { get, writable } from 'svelte/store';
-import type { BugContext } from '$lib/types';
-import { getDebugSnapshot } from '$lib/ipc';
+import type { BugContext } from '#lib/types.ts';
+import { getDebugSnapshot } from '#lib/ipc.ts';
 import {
 	bugReportVisible,
 	closeBugReport,

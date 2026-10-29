@@ -3,7 +3,7 @@ import XCTest
 /// Production Rust/SQLite and SwiftUI recovery; only the remote transport is
 /// fault-injected. These run on simulator or device; human acceptance is separate.
 @MainActor
-class RundalePhase4UITestCase: XCTestCase {
+class RundalePhase4UITestCase: RundaleUITestCase {
     var app: XCUIApplication!
 
     override func setUp() async throws {

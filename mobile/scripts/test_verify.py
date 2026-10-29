@@ -70,6 +70,9 @@ XCRESULT_JSON = json.dumps(
 )
 
 
+FIXTURES = Path(__file__).with_name("fixtures")
+
+
 class FakeRunner:
     def __init__(self, results=None):
         self.calls = []
@@ -85,6 +88,8 @@ class FakeRunner:
         self.cargo_tree_output = "limerick-mobile-ffi v0.1.0\n"
         self.simctl_output = SIMCTL_JSON
         self.xcresult_output = XCRESULT_JSON
+        # Makes the exported recording exceed the evidence size bound.
+        self.large_recording = False
         # Per `-only-testing:` selector case results in a combined run's tree.
         self.case_results: dict[str, str] = {}
         # Per selector failure message, as xcresulttool nests it under the case.
@@ -132,6 +137,16 @@ class FakeRunner:
             return CommandResult(0, stdout=self.xcresult_output)
         if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
             return CommandResult(0, stdout=json.dumps(self.xcresult_tree()))
+        if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "test-details"):
+            return CommandResult(0, stdout=(FIXTURES / "xcresult-failed-details.json").read_text())
+        if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "activities"):
+            return CommandResult(
+                0, stdout=(FIXTURES / "xcresult-failed-activities.json").read_text()
+            )
+        if command[:4] == ("xcrun", "xcresulttool", "export", "attachments"):
+            return self.export_attachments(command)
+        if command[:4] == ("xcrun", "xcresulttool", "export", "diagnostics"):
+            return self.export_diagnostics(command)
         if command[:5] == ("xcrun", "devicectl", "list", "devices", "--json-output"):
             return CommandResult(0, stdout=self.device_output)
         if command[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test"):
@@ -145,6 +160,38 @@ class FakeRunner:
                 write_codecov(Path(cwd), command, self.coverage_percent)
             return CommandResult(0, stdout=self.swift_output)
         return CommandResult(0, stdout="ok\n")
+
+    def export_attachments(self, command):
+        """Write `xcresulttool export attachments` output: files plus a manifest.json."""
+
+        out = Path(command[command.index("--output-path") + 1])
+        test_id = command[command.index("--test-id") + 1]
+        manifest = json.loads((FIXTURES / "xcresult-failed-attachments.json").read_text())
+        manifest[0]["testIdentifier"] = test_id
+        for entry in manifest[0]["attachments"]:
+            big = entry["exportedFileName"].endswith(".mp4") and self.large_recording
+            (out / entry["exportedFileName"]).write_bytes(
+                b"x" * (verify_module.EVIDENCE_MAX_FILE_BYTES + 1) if big else b"payload"
+            )
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        return CommandResult(0, stdout="Exported attachments\n")
+
+    def export_diagnostics(self, command):
+        """Write a diagnostics tree: runner logs and a crash report among unrelated logs."""
+
+        out = Path(command[command.index("--output-path") + 1]) / "0_Test_iPhone 17_Diagnostics"
+        runner = out / "RundaleUITests-ABC-Configuration-Iteration-1" / "RundaleUITests-1"
+        runner.mkdir(parents=True)
+        (runner / "StandardOutputAndStandardError.txt").write_text("runner output\n")
+        unit = out / "RundaleTests-DEF-Configuration-Iteration-1"
+        unit.mkdir(parents=True)
+        (unit / "scheduling.log").write_text("unit test runner\n")
+        (out / "simctl_diagnostics" / "DiagnosticReports").mkdir(parents=True)
+        reports = out / "simctl_diagnostics" / "DiagnosticReports"
+        (reports / "RundaleUITests-Runner-2026-10-25.ips").write_text("crash report\n")
+        (reports / "axassetsd-2026-10-23.ips").write_text("unrelated\n")
+        (out / "simctl_diagnostics" / "system.log").write_text("unrelated\n")
+        return CommandResult(0, stdout="Exported 1 object\n")
 
     def xcresult_tree(self):
         """One case per `-only-testing` selector of the last xcodebuild test run."""
@@ -233,7 +280,12 @@ def create_phase1_fixture(root: Path) -> None:
                 "tolerance_percentage_points": 1.0,
                 "packages": {
                     name: {"line_percent": 80.0}
-                    for name in ("RundaleKit", "RundaleBridge", "LimerickEndpointKit")
+                    for name in (
+                        "RundaleKit",
+                        "RundaleBridge",
+                        "LimerickEndpointKit",
+                        "RundaleSession",
+                    )
                 },
             }
         ),
@@ -265,6 +317,12 @@ def create_phase2_fixture(root: Path) -> None:
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests" / "FixtureTests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
+    session = root / "mobile" / "RundaleSession"
+    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
+    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
+    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
     packaging = root / "mobile" / "scripts" / "build-rust-mobile.sh"
@@ -675,7 +733,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["swift-package-tests"]["status"], "failed")
             self.assertIn("no coverage report", by_id["swift-package-tests"]["reason"])
 
-    def test_fast_lane_runs_style_and_all_three_packages_only(self):
+    def test_fast_lane_runs_style_and_all_four_packages_only(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "mobile").mkdir()
@@ -697,6 +755,8 @@ class VerificationRunnerTests(unittest.TestCase):
                     "swift-bridge-tests-coverage",
                     "swift-endpoint-kit-tests",
                     "swift-endpoint-kit-tests-coverage",
+                    "swift-session-tests",
+                    "swift-session-tests-coverage",
                 ],
             )
             self.assertFalse(
@@ -748,6 +808,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 "swift-package-tests",
                 "swift-bridge-tests",
                 "swift-endpoint-kit-tests",
+                "swift-session-tests",
             ):
                 self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
                 self.assertFalse(by_id[identifier]["blocking"], identifier)
@@ -1189,6 +1250,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 "swift-package-tests-phase2",
                 "swift-bridge-tests",
                 "swift-endpoint-kit-tests",
+                "swift-session-tests",
                 "xcodegen",
                 "ios-device-build",
                 "phase2-ios-simulator-tests",
@@ -1809,6 +1871,282 @@ class XcresultTreeTests(unittest.TestCase):
         )
 
 
+class FailureEvidenceTests(unittest.TestCase):
+    """A failed simulator test leaves its diagnosis in the report directory."""
+
+    def load(self, name):
+        return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+    def test_failed_cases_come_from_a_real_tree(self):
+        failed = verify_module._failed_case_nodes(self.load("xcresult-failed-tests.json"))
+        self.assertEqual(
+            [(b, s, n) for b, s, n, _ in failed],
+            [("RundaleUITests", "ZZThrowawayFailUITests", "testDeliberateFailure()")],
+        )
+        self.assertEqual(
+            verify_module._case_messages(failed[0][3]),
+            ["ZZThrowawayFailUITests.swift:9: XCTAssertTrue failed - deliberate failure"],
+        )
+
+    def test_timeline_marks_the_failing_step_and_keeps_the_lead_up(self):
+        lines = verify_module._activity_timeline(self.load("xcresult-failed-activities.json"))
+        self.assertTrue(any(line.endswith("<-- FAILURE") for line in lines))
+        self.assertTrue(
+            any('Waiting 1.0s for "does.not.exist" Button to exist' in line for line in lines)
+        )
+        many = {
+            "testRuns": [
+                {"activities": [{"title": f"step {i}", "startTime": float(i)} for i in range(500)]}
+            ]
+        }
+        bounded = verify_module._activity_timeline(many)
+        self.assertEqual(len(bounded), verify_module.EVIDENCE_TIMELINE_LINES + 1)
+        self.assertIn("step 499", bounded[-1])
+        self.assertIn("earlier step(s) omitted", bounded[0])
+
+    def test_runner_diagnostics_keep_only_runner_logs_and_crash_reports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            exported, target = Path(directory) / "in", Path(directory) / "out"
+            exported.mkdir()
+            FakeRunner().export_diagnostics(("x", "--output-path", str(exported)))
+            copied = verify_module._copy_runner_diagnostics(exported, target)
+            self.assertEqual(len(copied), 3)
+            self.assertTrue(
+                any(name.endswith("StandardOutputAndStandardError.txt") for name in copied)
+            )
+            self.assertTrue(any(name.endswith(".ips") and "Runner" in name for name in copied))
+            self.assertEqual(sorted(p.name for p in target.iterdir()), sorted(copied))
+
+    def test_oversized_logs_keep_their_tail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, target = Path(directory) / "a.log", Path(directory) / "b.log"
+            source.write_bytes(b"A" * 100 + b"END")
+            verify_module._copy_tail(source, target, 10)
+            text = target.read_bytes()
+            self.assertTrue(text.startswith(b"[first 93 bytes omitted]\n"))
+            self.assertTrue(text.endswith(b"AAAAAAAEND"))
+
+    def run_failing(self, root, **setup):
+        create_phase2_fixture(root)
+        fake = FakeRunner()
+        for key, value in setup.items():
+            setattr(fake, key, value)
+        selector = "-only-testing:RundaleUITests/RundalePhase3UITests"
+        fake.case_results[selector] = "Failed"
+        fake.case_failures[selector] = "RundalePhase3UITests.swift:42: XCTAssertTrue failed"
+        report = VerificationRun(root, command_runner=fake).run(4)
+        return fake, report, root / "mobile" / ".verification"
+
+    def test_combined_run_failure_writes_evidence_and_points_summary_at_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake, report, reports = self.run_failing(root)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            evidence = by_id["phase3-ios-simulator-tests"]["details"]["failure_evidence"]
+            self.assertEqual(len(evidence), 1)
+            digest = root / evidence[0]["digest"]
+            self.assertEqual(digest.name, "failure.md")
+            self.assertEqual(digest.parent.parent.parent.name, "failures")
+            text = digest.read_text(encoding="utf-8")
+            self.assertIn("RundalePhase3UITests.swift:42: XCTAssertTrue failed", text)
+            self.assertIn("<-- FAILURE", text)
+            self.assertIn("Failure_screenshot.png", text)
+            self.assertIn("Runner and crash logs", text)
+            for name in evidence[0]["files"]:
+                self.assertTrue((digest.parent / name).is_file(), name)
+            self.assertIn("Failure_UI_hierarchy.txt", evidence[0]["files"])
+            diagnostics = digest.parent.parent / "diagnostics"
+            self.assertEqual(len(list(diagnostics.iterdir())), 3)
+            self.assertTrue((digest.parent.parent / "index.md").is_file())
+            # Only the suite whose case failed carries evidence; the fan-out is exact.
+            self.assertNotIn("failure_evidence", by_id["phase2-ios-simulator-tests"]["details"])
+            summary = (reports / "summary.txt").read_text(encoding="utf-8")
+            self.assertIn(f"evidence: {evidence[0]['digest']}", summary)
+            self.assertIn("FAILURE EVIDENCE", summary)
+            self.assertIn("before re-running or calling a test flaky", summary)
+
+    def test_standalone_phase_run_that_fails_keeps_its_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.case_results["-only-testing:RundaleUITests/RundalePhase2UITests"] = "Failed"
+            fake.case_failures["-only-testing:RundaleUITests/RundalePhase2UITests"] = (
+                "RundalePhase2UITests.swift:9: XCTAssertTrue failed"
+            )
+
+            def failing(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(65, stderr="** TEST FAILED **")
+                return None
+
+            fake.intercept = failing
+            report = VerificationRun(root, command_runner=fake, parallel_workers=1).run(2)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(suite["status"], "failed")
+            digest = root / suite["details"]["failure_evidence"][0]["digest"]
+            self.assertTrue(digest.is_file())
+
+    def test_unreadable_results_still_keep_the_bundle_and_runner_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def unreadable(command):
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+                    (root / command[command.index("--path") + 1]).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(1, stderr="no result bundle")
+                return None
+
+            fake.intercept = unreadable
+            VerificationRun(root, command_runner=fake).run(4)
+            runs = list((root / "mobile" / ".verification" / "failures").iterdir())
+            self.assertEqual(len(runs), 1)
+            self.assertIn("could not list the tests", (runs[0] / "index.md").read_text())
+            self.assertTrue(list((runs[0] / "diagnostics").iterdir()))
+            report = json.loads((root / "mobile/.verification/verify.json").read_text())
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(
+                suite["details"]["failure_evidence_index"],
+                str((runs[0] / "index.md").relative_to(root)),
+            )
+
+    def test_standalone_run_with_unreadable_summary_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def broken(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "summary"):
+                    return CommandResult(0, stdout="not json")
+                if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "tests"):
+                    return CommandResult(1, stderr="unreadable")
+                return None
+
+            fake.intercept = broken
+            report = VerificationRun(root, command_runner=fake, parallel_workers=1).run(1)
+            suite = next(s for s in report["suites"] if s["id"] == "ios-simulator-tests")
+            self.assertEqual(suite["status"], "failed")
+            index = root / suite["details"]["failure_evidence_index"]
+            self.assertTrue(index.is_file())
+
+    def test_overflow_failures_are_counted_in_the_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            for cls in ("RundalePhase2UITests", "RundalePhase3UITests"):
+                fake.case_results[f"-only-testing:RundaleUITests/{cls}"] = "Failed"
+            with patch.object(verify_module, "EVIDENCE_MAX_TESTS", 1):
+                VerificationRun(root, command_runner=fake).run(4)
+            index = next((root / "mobile/.verification/failures").glob("*/index.md"))
+            self.assertIn("1 more failed test(s)", index.read_text())
+
+    def test_validation_that_blocks_a_passing_run_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            real_tree = fake.xcresult_tree
+
+            def empty_tree():
+                tree = real_tree()
+                tree["testNodes"] = []
+                return tree
+
+            def keep_bundle(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+
+            fake.xcresult_tree = empty_tree
+            fake.intercept = keep_bundle
+            report = VerificationRun(root, command_runner=fake).run(4)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            self.assertEqual(suite["status"], "unavailable")
+            self.assertTrue((root / suite["details"]["failure_evidence_index"]).is_file())
+
+    def test_failed_invocation_with_no_failed_case_keeps_the_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+
+            def crashed(command):
+                if command[:1] == ("xcodebuild",) and command[-1] == "test":
+                    bundle = Path(command[command.index("-resultBundlePath") + 1])
+                    (root / bundle).mkdir(parents=True, exist_ok=True)
+                    return CommandResult(65, stderr="runner never started")
+                return None
+
+            fake.intercept = crashed
+            report = VerificationRun(root, command_runner=fake).run(4)
+            suite = next(s for s in report["suites"] if s["id"] == "phase2-ios-simulator-tests")
+            index = root / suite["details"]["failure_evidence_index"]
+            self.assertIn("no failed test case", index.read_text())
+
+    def test_oversized_attachments_are_listed_not_copied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake, report, reports = self.run_failing(root, large_recording=True)
+            digest = next(reports.glob("failures/*/*/failure.md"))
+            self.assertFalse(list(digest.parent.glob("*.mp4")))
+            self.assertIn("over the evidence size bound", digest.read_text(encoding="utf-8"))
+
+    def test_passing_run_writes_no_failure_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            VerificationRun(root, command_runner=FakeRunner()).run(4)
+            self.assertFalse((root / "mobile" / ".verification" / "failures").exists())
+
+    def test_prune_keeps_the_bundles_of_recent_failed_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            reports = Path(directory)
+            stamps = [f"2026100{i}T000000000000Z" for i in range(1, 6)]
+            for stamp in stamps:
+                (reports / "xcresults").mkdir(exist_ok=True)
+                (reports / "xcresults" / f"simulator-{stamp}.xcresult").mkdir()
+                (reports / "failures" / stamp).mkdir(parents=True)
+                (reports / "DerivedData" / f"simulator-{stamp}").mkdir(parents=True)
+            quiet = "20260901T000000000000Z"
+            (reports / "xcresults" / f"simulator-{quiet}.xcresult").mkdir()
+            run = VerificationRun(Path(directory), command_runner=FakeRunner())
+            run.report_dir = reports
+            with patch.object(verify_module, "_running_command_lines", return_value=""):
+                run._prune_previous_runs()
+            kept = sorted(p.name for p in (reports / "xcresults").iterdir())
+            self.assertEqual(kept, [f"simulator-{s}.xcresult" for s in stamps[-3:]])
+            self.assertEqual(sorted(p.name for p in (reports / "failures").iterdir()), stamps[-3:])
+            self.assertFalse(list((reports / "DerivedData").iterdir()))
+
+
+class UiTestBaseClassTests(unittest.TestCase):
+    def test_every_ui_test_class_records_failure_evidence(self):
+        import re
+
+        ui_dir = Path(__file__).resolve().parents[1] / "RundaleUITests"
+        for path in sorted(ui_dir.glob("*.swift")):
+            for name, parent in re.findall(
+                r"^(?:final )?class (\w+): (\w+) \{", path.read_text(encoding="utf-8"), re.M
+            ):
+                if name == "RundaleUITestCase":
+                    self.assertEqual(parent, "XCTestCase")
+                else:
+                    self.assertNotEqual(parent, "XCTestCase", f"{path.name}: {name}")
+        hook = (ui_dir / "FailureEvidence.swift").read_text(encoding="utf-8")
+        self.assertIn("override func record(_ issue: XCTIssue)", hook)
+        self.assertIn("debugDescription", hook)
+        self.assertIn("screenshot", hook)
+
+
 class VerificationCacheTests(unittest.TestCase):
     def run_phase(self, root: Path, phase: int = 2, **options):
         fake = GitBackedRunner()
@@ -1822,12 +2160,12 @@ class VerificationCacheTests(unittest.TestCase):
             first, first_report = self.run_phase(root)
             self.assertEqual(first_report["exit_code"], 0)
             self.assertEqual(first_report["summary"]["reused"], 0)
-            self.assertEqual(len(executed_suites(first)), 6)
+            self.assertEqual(len(executed_suites(first)), 7)
 
             second, report = self.run_phase(root)
             self.assertEqual(report["exit_code"], 0)
             self.assertEqual(executed_suites(second), [])
-            self.assertEqual(report["summary"]["reused"], 7)
+            self.assertEqual(report["summary"]["reused"], 8)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             reused = by_id["phase2-ios-simulator-tests"]["details"]["cache"]
             self.assertTrue(reused["reused"])
@@ -1835,7 +2173,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-test-results"]["status"], "passed")
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
-            self.assertIn("7 passed suite(s) reused", summary)
+            self.assertIn("8 passed suite(s) reused", summary)
 
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1916,11 +2254,11 @@ class VerificationCacheTests(unittest.TestCase):
             tracked = root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift"
             tracked.write_text("// changed\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6, "tracked edit reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 7, "tracked edit reruns every suite")
 
             (root / "mobile" / "Untracked.swift").write_text("// new\n", encoding="utf-8")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6, "untracked source reruns every suite")
+            self.assertEqual(len(executed_suites(fake)), 7, "untracked source reruns every suite")
 
     def test_private_firebase_configuration_and_toolchain_are_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1931,12 +2269,12 @@ class VerificationCacheTests(unittest.TestCase):
             plist.parent.mkdir(parents=True)
             plist.write_bytes(b"private")
             fake, _ = self.run_phase(root)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
 
             fake = GitBackedRunner()
             fake.results[("xcodebuild", "-version")] = CommandResult(0, stdout="Xcode 99.0\n")
             VerificationRun(root, command_runner=fake).run(2)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
 
     def test_failures_are_never_reused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1948,7 +2286,7 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(report["exit_code"], 1)
             fake, _ = self.run_phase(root)
             self.assertEqual(
-                sum(argv[:2] == ("swift", "test") for argv in executed_suites(fake)), 3
+                sum(argv[:2] == ("swift", "test") for argv in executed_suites(fake)), 4
             )
 
     def test_no_cache_reruns_everything(self):
@@ -1957,7 +2295,7 @@ class VerificationCacheTests(unittest.TestCase):
             create_cached_repository(root)
             self.run_phase(root)
             fake, report = self.run_phase(root, use_cache=False)
-            self.assertEqual(len(executed_suites(fake)), 6)
+            self.assertEqual(len(executed_suites(fake)), 7)
             self.assertEqual(report["summary"]["reused"], 0)
             self.assertFalse(report["cache"]["enabled"])
 
@@ -2006,7 +2344,7 @@ class SplitUiClassTests(unittest.TestCase):
                 {f"RundaleUITests/{name}" for name in subclasses}, set(selected), phase
             )
             self.assertIn(f"RundaleUITests/RundalePhase{phase}UITests", selected)
-            base_body = text.split(f"class {base}: XCTestCase {{", 1)[1]
+            base_body = text.split(f"class {base}: RundaleUITestCase {{", 1)[1]
             base_body = base_body.split("\nfinal class ", 1)[0]
             self.assertNotIn("func test", base_body, phase)
 

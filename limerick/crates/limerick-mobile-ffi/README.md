@@ -150,10 +150,10 @@ dialogue call). Stop is `stop`; a result or frame for anything but the awaited
 call, attempt, and base revision is ignored.
 
 Travel encounters and arrival reactions have no Endpoint; the session routes
-them as unavailable, so the pipeline uses its canned lines. Content guards are
-off on this path (`limerick_npc::DIALOGUE_CONTENT_GUARDS_FLAG`): a reply is
+them as unavailable, so the pipeline uses its canned lines. A reply is
 committed after the structural contract only, as the owner decided for the
-Endpoint path (`docs/agent/inference-rules.md`). Background simulation that
+Endpoint path (`docs/agent/inference-rules.md`); no code inspects or rewrites
+what the model said. Background simulation that
 needs inference waits for #2025; before each player action the session runs
 the deterministic world pump (weather, NPC schedules, tiers).
 
@@ -168,8 +168,8 @@ with the toolchain pinned in `rust-toolchain.toml` and packages them as
 `cargo test -p limerick-mobile-ffi` drives the C entry points against the
 canonical world with a scripted Endpoint host: acceptance before any call,
 provisional streaming and in-place commit, Stop and late results, failure and
-retry, restart interruption, clarification across restart, content guards off,
-and bounded paging. `mobile/RundaleTests/RundaleEngineLifecycleTests.swift`
+retry, restart interruption, clarification across restart, a reply committed
+unchanged, and bounded paging. `mobile/RundaleTests/RundaleEngineLifecycleTests.swift`
 runs the RundaleKit lifecycle tests through the same boundary in the
 simulator.
 

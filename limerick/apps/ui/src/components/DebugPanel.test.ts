@@ -8,11 +8,11 @@ import {
 	debugDockLeft,
 	selectedNpcId,
 } from '../stores/debug';
-import type { DebugSnapshot } from '$lib/types';
+import type { DebugSnapshot } from '#lib/types.ts';
 import DebugPanel from './DebugPanel.svelte';
 
 // The Inference tab imports submitInput at module scope.
-vi.mock('$lib/ipc', () => ({
+vi.mock('#lib/ipc.ts', () => ({
 	submitInput: vi.fn(() => Promise.resolve()),
 }));
 

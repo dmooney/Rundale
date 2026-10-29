@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import SlashDropdown from './SlashDropdown.svelte';
-import type { SlashCommand } from '$lib/slash-commands';
+import type { SlashCommand } from '#lib/slash-commands.ts';
 
 const commands: SlashCommand[] = [
 	{ command: '/help', description: 'Show available commands', hasArgs: false },

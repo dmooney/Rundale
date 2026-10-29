@@ -4,7 +4,7 @@ import { focailOpen } from '../stores/game';
 import { resetSurfaceCoordinatorForTests } from '../stores/surfaceCoordinator';
 import ChatGameShell from './ChatGameShell.svelte';
 
-vi.mock('$lib/map/controller', () => ({
+vi.mock('#lib/map/controller.ts', () => ({
 	MapController: class {
 		onLocationClick() {}
 		onLocationHover() {}
