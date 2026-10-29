@@ -1207,10 +1207,10 @@ impl Session {
                 "commands": advertised_commands().map(|command| json!({
                     "name": command.name,
                     "summary": command.summary,
-                })).chain(std::iter::once(json!({"name":"/new", "summary":"Start a new game"}))).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>(),
                 // Completion: every command the phone runs, the words that
                 // may follow each, and every NPC a name may complete to.
-                "commandCompletions": COMMANDS.iter().map(|command| serde_json::to_value(command.completion()).expect("command serializes")).chain(std::iter::once(json!({"word":"/new", "summary":"Start a new game", "next":[], "takesNpc":false}))).collect::<Vec<_>>(),
+                "commandCompletions": COMMANDS.iter().map(|command| serde_json::to_value(command.completion()).expect("command serializes")).collect::<Vec<_>>(),
                 "everyone": everyone.iter().map(|npc| json!({
                     "id": format!("npc-{}", npc.id.0),
                     "name": npc.name,

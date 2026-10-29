@@ -1740,8 +1740,8 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
     assert_eq!(
         words(completions),
         [
-            "/look", "/people", "/exits", "/help", "/wait", "/pause", "/resume", "/debug",
-            "/flags", "/new"
+            "/look", "/people", "/exits", "/help", "/new", "/wait", "/pause", "/resume", "/debug",
+            "/flags"
         ]
     );
     let debug = completions
