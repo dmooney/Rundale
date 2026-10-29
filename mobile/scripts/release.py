@@ -125,6 +125,9 @@ FORBIDDEN_CREDENTIALS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
         "OpenAI-style API key",
         re.compile(rb"sk-(?:proj-)?(?=[A-Za-z_-]*[0-9])(?=[a-z0-9_-]*[A-Z])[A-Za-z0-9_-]{32,}"),
     ),
+    # OpenRouter's body is lowercase hex, which the capital the OpenAI-style
+    # pattern demands would miss.
+    ("OpenRouter API key", re.compile(rb"sk-or-v1-[0-9a-f]{32,}")),
     ("Google API key", re.compile(rb"AIza[0-9A-Za-z_-]{35}")),
     ("private key block", re.compile(rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----")),
     (

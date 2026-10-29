@@ -314,6 +314,7 @@ class ReleaseTests(unittest.TestCase):
             "Limerick Endpoints consumer key": b"sfk_live_0123456789ab_" + b"x" * 43,
             "Anthropic API key": b"sk-ant-" + b"a" * 40,
             "OpenAI-style API key": b"sk-proj-" + b"bQ7x" * 10,
+            "OpenRouter API key": b"sk-or-v1-" + b"0123456789abcdef" * 4,
             "Google API key": b"AIza" + b"G" * 35,
             "provider secret variable": b"OPENAI_API_KEY=abc",
         }
