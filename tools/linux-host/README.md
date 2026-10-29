@@ -35,7 +35,13 @@ Inference modes:
 - `sse`: the engine; dialogue replays a recorded Endpoint stream under the
   call's identities, and intent goes to the mock.
 - `fixture`: `RundaleFixtureController` over RundaleKit's fixture adapter.
-- Live play against `limerick-prod` is #2274.
+- `live`: the real Endpoint client with portable Firebase Auth and App Check
+  REST credentials. See [terminal MCP setup](../../docs/agent/runtime-driving-reference.md#portable-app-session-through-mcp).
+
+The host also runs in a macOS terminal. Frames identify the actual platform.
+`--protocol` starts the private managed-child interface used by the existing
+`limerick-mcp --backend session-host`; it does not open a game until an explicit
+new/resume action. This mode supports asynchronous inspection and Stop.
 
 ## Input
 

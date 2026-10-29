@@ -2333,3 +2333,77 @@ fn new_game_cursors_and_request_positions_survive_resume_and_history_paging() {
         "request positions use the same durable sequence as events"
     );
 }
+
+#[test]
+fn strict_resume_refuses_missing_incompatible_and_unfinished_without_replacement() {
+    let dir = tempfile::tempdir().unwrap();
+    let save = dir.path().join("game.sqlite");
+    let mut request: Value = serde_json::from_str(&Game::request(&dir)).unwrap();
+    request["require_existing"] = json!(true);
+    let open = || {
+        open_raw(
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+            &request.to_string(),
+        )
+    };
+    let (status, _, result) = open();
+    assert_ne!(status, limerick_mobile_status_t::LIMERICK_MOBILE_OK);
+    assert_eq!(result["error"]["code"], "save_missing");
+    assert!(!save.exists());
+
+    let garbage = b"not a save database";
+    std::fs::write(&save, garbage).unwrap();
+    let (status, _, result) = open();
+    assert_ne!(status, limerick_mobile_status_t::LIMERICK_MOBILE_OK);
+    assert_eq!(result["error"]["code"], "save_incompatible");
+    assert_eq!(std::fs::read(&save).unwrap(), garbage);
+    assert!(files_in(&dir, ".refused-").is_empty());
+
+    std::fs::remove_file(&save).unwrap();
+    drop(limerick_core::persistence::Database::open(&save).unwrap());
+    let before = std::fs::read(&save).unwrap();
+    let (status, _, result) = open();
+    assert_ne!(status, limerick_mobile_status_t::LIMERICK_MOBILE_OK);
+    assert_eq!(result["error"]["code"], "save_unfinished");
+    assert_eq!(std::fs::read(&save).unwrap(), before);
+    assert!(files_in(&dir, ".unfinished-").is_empty());
+}
+
+#[test]
+fn strict_resume_validates_option_and_resumes_existing_save() {
+    let (game, opened) = Game::new();
+    close(game.handle);
+    let mut request: Value = serde_json::from_str(&Game::request(&game.dir)).unwrap();
+    request["require_existing"] = json!(true);
+    let (status, handle, result) = open_raw(
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+        &request.to_string(),
+    );
+    assert_eq!(
+        status,
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK,
+        "{result}"
+    );
+    assert_eq!(result["value"]["sessionID"], opened["sessionID"]);
+    close(handle);
+    let (status, _, result) = open_raw(
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
+        &request.to_string(),
+    );
+    assert_eq!(
+        status,
+        limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR
+    );
+    assert_eq!(result["error"]["code"], "protocol_error");
+    request["require_existing"] = json!("true");
+    let (status, _, result) = open_raw(
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+        &request.to_string(),
+    );
+    assert_eq!(
+        status,
+        limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR
+    );
+    assert_eq!(result["error"]["code"], "protocol_error");
+
+}

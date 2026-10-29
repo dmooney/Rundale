@@ -41,7 +41,7 @@ let package = Package(
                 .unsafeFlags(["-L", ffiLibraryDirectory]),
                 .linkedLibrary("limerick_mobile_ffi"),
                 .linkedLibrary("m"),
-                .linkedLibrary("dl"),
+                .linkedLibrary("dl", .when(platforms: [.linux])),
                 .linkedLibrary("pthread")
             ]
         ),

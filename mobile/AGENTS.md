@@ -129,3 +129,8 @@ is set (recording only).
   revision URLs alone.
 - **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
 - **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's Xcode builds and its host Rust test build go to `mobile/.verification/` and its iOS Rust libraries to `mobile/.build/rust-mobile/`, without sccache, so its first run recompiles the engine from scratch.
+
+- **Keep pending controls busy until their receipt arrives.** Session state
+  notifications can precede submit, retry, or clarification receipts. The shared
+  presenter must retain its pending-control busy state during those notifications;
+  otherwise terminal polling and the app can submit again before acceptance.

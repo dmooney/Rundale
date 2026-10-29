@@ -98,6 +98,9 @@ final class GoldenFrameTests: XCTestCase {
         await host.close()
         XCTAssertFalse(host.timedOut, "a turn timed out:\n\(frames)")
 
+        // Existing golden content is platform-neutral except its Linux label.
+        // Runtime evidence still retains the actual platform in all output.
+        frames = frames.replacingOccurrences(of: HostPlatform.label, with: "Linux host")
         let golden = Self.testDirectory.appendingPathComponent("Goldens/\(name).md")
         if ProcessInfo.processInfo.environment["RUNDALE_UPDATE_GOLDENS"] == "1" {
             try frames.write(to: golden, atomically: true, encoding: .utf8)

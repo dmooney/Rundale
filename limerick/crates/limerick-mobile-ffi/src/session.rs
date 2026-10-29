@@ -107,6 +107,8 @@ pub enum OpenMode {
     New,
     /// Continue the save, or start a new game there if it does not exist.
     Resume,
+    /// Continue an existing compatible save without recovery or replacement.
+    StrictResume,
 }
 
 /// What the host supplies to open a session.
@@ -428,6 +430,10 @@ impl Session {
         }
         let lock = SaveFileLock::try_acquire(&options.save_path)
             .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
+        let exists = options.save_path.exists();
+        if mode == OpenMode::StrictResume && !exists {
+            return Err(OpError::new("save_missing", "the save does not exist"));
+        }
         // A save this build cannot read is kept, byte for byte, beside the
         // new game that replaces it at the save path (ADR-025 §4). So is one
         // an earlier build stopped creating before its first snapshot: it
@@ -437,13 +443,15 @@ impl Session {
         let mut replaced = false;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
-                Err(error) if error.code == "save_incompatible" => {
+                Err(error)
+                    if error.code == "save_incompatible" && mode != OpenMode::StrictResume =>
+                {
                     set_aside(&options.save_path, "refused")?;
                     refused = true;
                     replaced = true;
                     None
                 }
-                Err(error) if error.code == "save_unfinished" => {
+                Err(error) if error.code == "save_unfinished" && mode != OpenMode::StrictResume => {
                     set_aside(&options.save_path, "unfinished")?;
                     replaced = true;
                     None

@@ -114,6 +114,7 @@ jobs:
             # world and Endpoint fixtures its golden frames play.
             linux_host:
               - 'tools/linux-host/**'
+              - 'limerick/crates/limerick-mcp/**'
               - 'mobile/RundaleSession/**'
               - 'mobile/RundaleKit/**'
               - 'mobile/RundaleBridge/**'
@@ -616,6 +617,14 @@ jobs:
 
       - name: Golden-frame tests
         run: bash tools/linux-host/run.sh --test
+
+      - name: MCP session protocol tests
+        run: |
+          cd limerick
+          cargo test -p limerick-mcp
+          cargo build -p limerick-mcp
+          cd ..
+          python3 tools/linux-host/test_mcp_session.py
 
       - name: Upload frames that differ from the goldens
         if: failure()

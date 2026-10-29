@@ -294,3 +294,7 @@ The crate ships unit tests for:
 - backend HTTP behaviour (against a `wiremock` mock server)
 - tool argument validation and command translation
 - MCP handshake and `tools/call` dispatch
+
+### Native session host
+
+Use `--backend session-host --host-executable /absolute/path/to/host --mod-dir /absolute/path/to/mod --save-dir /absolute/path/to/saves` to drive the native session host. `--inference` accepts `mock`, `fixture`, `sse`, or `live` and defaults to `mock`; `--sse-fixture` supplies an absolute fixture path when needed. The default backend remains HTTP. The host starts without opening a session; use `limerick_new_game` or `limerick_resume_session` to open one. Host tools return the rendered Markdown and structured session presentation and history.

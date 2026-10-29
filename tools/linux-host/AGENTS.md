@@ -28,3 +28,8 @@ cd tools/linux-host && ../../mobile/.build/swift-tools/bin/swiftlint lint --stri
 - **SwiftLint needs this directory's `.swiftlint.yml`.** Run with the mobile
   config directly, its `included` list skips these sources and reports
   nothing.
+
+- **Pipe reads must return before EOF.** Use available-byte reads for the private
+  command protocol. Foundation `read(upToCount:)` on macOS can wait for the
+  requested buffer to fill, deadlocking an MCP client that waits for a response
+  before writing its next line. The cross-language MCP test keeps stdin open.

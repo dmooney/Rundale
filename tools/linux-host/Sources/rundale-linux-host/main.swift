@@ -1,7 +1,7 @@
 import Foundation
 import RundaleLinuxHostCore
 
-/// `rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse]
+/// `rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
 /// [--sse-fixture FILE] [--resume] [--script FILE]`
 ///
 /// Plays the app's game on Linux and prints each meaningful screen state as
@@ -26,7 +26,7 @@ func runHost() async -> Int32 {
                 return fail("\(argument) needs a value (see --help)")
             }
             index += 2
-        } else if ["--resume", "--help"].contains(argument) {
+        } else if ["--resume", "--help", "--protocol"].contains(argument) {
             index += 1
         } else {
             return fail("unknown argument '\(argument)' (see --help)")
@@ -34,7 +34,7 @@ func runHost() async -> Int32 {
     }
     if arguments.contains("--help") {
         print("""
-        usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse]
+        usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
                                   [--sse-fixture FILE] [--resume] [--script FILE]
 
         \(LinuxHost.help)
@@ -59,10 +59,23 @@ func runHost() async -> Int32 {
         } catch {
             return fail("cannot use --sse-fixture \(fixture): \(error)")
         }
+    case "live":
+        guard let config = FirebaseRESTConfiguration.fromEnvironment() else {
+            return fail("live mode requires RUNDALE_FIREBASE_API_KEY and RUNDALE_APPCHECK_DEBUG_TOKEN")
+        }
+        inference = .live(FirebaseRESTCredentialProvider(configuration: config),
+                          URL(string: "https://limerick-endpoints-877612517009.us-east1.run.app")!)
     case let other:
-        return fail("unknown inference mode '\(other)'; use fixture, mock, or sse")
+        return fail("unknown inference mode '\(other)'; use fixture, mock, sse, or live")
     }
 
+    if arguments.contains("--protocol") {
+        return await HostProtocol.serve(options: HostOptions(
+            inference: inference,
+            modDirectory: URL(fileURLWithPath: modDirectory, isDirectory: true),
+            saveDirectory: URL(fileURLWithPath: saveDirectory, isDirectory: true)
+        ))
+    }
     let lines: AsyncStream<String>
     if let script = value("--script") {
         guard let text = try? String(contentsOfFile: script, encoding: .utf8) else {

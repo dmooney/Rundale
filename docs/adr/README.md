@@ -34,6 +34,7 @@ This directory contains Architecture Decision Records (ADRs) for the Rundale gam
 | [024](024-documentation-reorg-v2.md)                  | Documentation Reorganization v2              | Accepted                                 | 2026-05-25 |
 | [025](025-mobile-runtime-on-shared-engine.md)         | Mobile Runtime on the Shared Limerick Engine | Accepted                                 | 2026-09-25 |
 | [026](026-kernel-save-lock.md)                        | One Save Lock, Held by the Kernel            | Accepted                                 | 2026-09-27 |
+| [028](028-portable-session-mcp-driver.md)             | Portable session MCP driver                  | Accepted                                 | 2026-10-29 |
 
 > Note: ADRs 022 and 023 were previously misnumbered `018` (a three-way
 > collision); they were renumbered to the next free numbers in the 2026-05

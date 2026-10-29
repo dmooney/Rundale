@@ -25,8 +25,9 @@ public enum FrameReason: String, Sendable {
 /// accessibility behaviour.
 @MainActor
 public enum FrameRenderer {
-    public static func render(_ presenter: RundaleSessionPresenter, number: Int, reason: FrameReason) -> String {
-        var blocks = ["## Frame \(number) · \(reason.rawValue) · Linux host"]
+    public static func render(_ presenter: RundaleSessionPresenter, number: Int, reason: FrameReason, inference: String? = nil) -> String {
+        let mode = inference.map { " · \($0)" } ?? ""
+        var blocks = ["## Frame \(number) · \(reason.rawValue) · \(HostPlatform.label)\(mode)"]
         let header = presenter.header
         blocks.append("**\(header.location)** · \(header.timeOfDay) · \(header.weather)")
         blocks.append("---")
@@ -105,5 +106,16 @@ public enum FrameRenderer {
             controls.append("[Retry]")
         }
         return "**Composer:** \(draft) · \(controls.joined(separator: " "))"
+    }
+}
+
+/// Evidence names the process platform rather than implying a Linux run.
+public enum HostPlatform {
+    public static var label: String {
+        #if os(Linux)
+        "Linux host"
+        #else
+        "macOS terminal host"
+        #endif
     }
 }
