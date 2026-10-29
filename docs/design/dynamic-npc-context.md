@@ -76,7 +76,9 @@ place, speaker and both lines, but not who else was present.
   spoken to. A mention never makes someone a recipient on its own; the person
   mentioned joins after the recipients in an unaddressed line (§3.1, step 5).
 - **Label:** how the player knows a person: their name once introduced,
-  otherwise their description (spec §5.3). Short labels belong to #2128.
+  otherwise their description (spec §5.3). A clarification choice gives a
+  stranger the shortest label that tells them apart from the others offered,
+  such as "the man" or "the older woman" (#2128).
 - **Introduced:** `NpcManager::is_introduced`, set when an NPC names themselves
   in dialogue or an arrival reaction introduces them.
 
