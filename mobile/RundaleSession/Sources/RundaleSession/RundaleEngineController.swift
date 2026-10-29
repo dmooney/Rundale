@@ -47,6 +47,7 @@ public final class RundaleEngineController: RundaleSessionControlling {
     private var runtime: (any EngineRuntime)?
     private var bootstrapTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var eventGeneration: UInt64 = 0
     private var endpointTask: Task<Void, Never>?
     private var activeEndpointRequest: EndpointRequest?
     private var didStart = false
@@ -167,6 +168,13 @@ public final class RundaleEngineController: RundaleSessionControlling {
                 self.runtime = runtime
                 let data = try await runtime.snapshotJSON()
                 let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
+                if let restoredID = self.restoredSessionID, restoredID != snapshot.sessionID {
+                    // Selection is authoritative even if the app died before its
+                    // presentation projection was saved after /new.
+                    let fresh = SessionState(draft: Draft())
+                    self.presentation = PresentationSession(state: fresh)
+                    self.state = fresh
+                }
                 var historyPage: LimerickEventPage?
                 if !self.state.viewport.isFollowingNewest,
                    self.restoredSessionID == snapshot.sessionID,
@@ -255,14 +263,16 @@ public final class RundaleEngineController: RundaleSessionControlling {
         state = presentation.state
         _ = persistSessionState()
         guard historyWindowShifted, let runtime else { return }
+        let sessionID = state.sessionID
         Task { [weak self, runtime] in
             do {
                 let data = try await runtime.snapshotJSON()
-                guard let self else { return }
+                guard let self, self.state.sessionID == sessionID else { return }
                 try self.refreshFromSnapshot(data)
                 self.historyWindowShifted = false
             } catch {
-                self?.persistenceError = Self.playerFacingPersistenceError(error)
+                guard let self, self.state.sessionID == sessionID else { return }
+                self.persistenceError = Self.playerFacingPersistenceError(error)
             }
         }
     }
@@ -287,11 +297,13 @@ public final class RundaleEngineController: RundaleSessionControlling {
             state = presentation.state
             return
         }
+        let sessionID = state.sessionID
         do {
             let page = try await runtime.readEventPageBefore(
                 before: historyBeforeCursor ?? EventCursor(oldestSequence),
                 limit: 100
             )
+            guard state.sessionID == sessionID else { return }
             let olderEvents = page.events.filter { $0.sequence.rawValue < oldestSequence }
             guard !olderEvents.isEmpty else {
                 historyExhausted = true
@@ -327,6 +339,36 @@ public final class RundaleEngineController: RundaleSessionControlling {
             startEndpoint(invocation, runtime: runtime)
         }
         return receipt
+    }
+
+    public func newGame() async throws {
+        guard let runtime else { throw LimerickRuntimeError.closed }
+        // Invalidate buffered deliveries before crossing the actor boundary.
+        // A refusal reconnects to the unchanged session from its current cursor.
+        eventGeneration &+= 1
+        eventTask?.cancel()
+        defer { startEventSubscription(runtime: runtime) }
+        let data = try await runtime.newGame()
+        endpointTask?.cancel()
+        endpointTask = nil
+        activeEndpointRequest = nil
+        inferenceGeneration &+= 1
+        lastEvent = nil
+        let fresh = SessionState(draft: Draft())
+        presentation = PresentationSession(state: fresh)
+        state = fresh
+        didHydrateRuntime = false
+        historyExhausted = false
+        historyWindowShifted = false
+        historyBeforeCursor = nil
+        // The engine has already switched games, so a snapshot that cannot be
+        // read is a persistence error, not a refusal that invites another /new.
+        do {
+            try refreshFromSnapshot(data)
+        } catch {
+            persistenceError = Self.playerFacingPersistenceError(error)
+        }
+        _ = persistSessionState()
     }
 
     public func stop() async throws -> StopReceipt {
@@ -396,17 +438,19 @@ public final class RundaleEngineController: RundaleSessionControlling {
 
     private func startEventSubscription(runtime: any EngineRuntime) {
         eventTask?.cancel()
+        eventGeneration &+= 1
+        let generation = eventGeneration
         let cursor = state.eventCursor
         eventTask = Task { [weak self, runtime] in
             let stream = await runtime.events(after: cursor)
             do {
                 for try await event in stream {
                     guard !Task.isCancelled else { return }
-                    guard let self else { return }
+                    guard let self, self.eventGeneration == generation else { return }
                     self.consume(event)
                 }
             } catch {
-                guard !Task.isCancelled, let self else { return }
+                guard !Task.isCancelled, let self, self.eventGeneration == generation else { return }
                 self.persistenceError = Self.playerFacingPersistenceError(error)
                 do {
                     // The runtime journal is authoritative. Rebuild the
@@ -435,6 +479,9 @@ public final class RundaleEngineController: RundaleSessionControlling {
 
     private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: LimerickEventPage? = nil) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
+        // A queued operation can finish after /new published its replacement.
+        // Only bootstrap and the explicit lifecycle path may hydrate an identity.
+        guard !didHydrateRuntime || snapshot.sessionID == state.sessionID else { return }
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
         // The engine's command registry: every command the phone runs and
@@ -460,7 +507,7 @@ public final class RundaleEngineController: RundaleSessionControlling {
         // stable transcript IDs while avoiding the old bug where a tail that
         // no longer contained its PlayerCommand could not reconstruct the
         // request or command history.
-        if !didHydrateRuntime || state.sessionID != snapshot.sessionID {
+        if !didHydrateRuntime {
             hydrateFromSnapshot(snapshot, restoredHistoryPage: restoredHistoryPage)
             didHydrateRuntime = true
             return
@@ -717,7 +764,9 @@ public final class RundaleEngineController: RundaleSessionControlling {
     /// Refreshes the read model after the engine took a result and starts
     /// the next call the same turn is waiting on, if any.
     private func continueInference(runtime: any EngineRuntime, generation: UInt64) async throws {
-        try refreshFromSnapshot(try await runtime.snapshotJSON())
+        let data = try await runtime.snapshotJSON()
+        guard !Task.isCancelled, inferenceGeneration == generation else { return }
+        try refreshFromSnapshot(data)
         _ = persistSessionState()
         guard allowsInference, inferenceGeneration == generation else { return }
         if let next = try await pendingInvocation(runtime: runtime) {
@@ -992,9 +1041,16 @@ private struct Phase2ProjectionStore: Sendable {
     func remove() {
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: url)
-        try? fileManager.removeItem(at: engineURL)
-        try? fileManager.removeItem(atPath: engineURL.path + "-wal")
-        try? fileManager.removeItem(atPath: engineURL.path + "-shm")
+        // Every file the engine keeps beside its launch save: the save and
+        // its sidecars and set-aside copies, games `/new` started, the
+        // selection marker (and set-aside markers) and the lifecycle lock.
+        let savesDirectory = engineURL.deletingLastPathComponent()
+        let prefixes = [engineURL.deletingPathExtension().lastPathComponent + ".",
+                        "mobile-", ".active-save", ".mobile-lifecycle"]
+        let names = (try? fileManager.contentsOfDirectory(atPath: savesDirectory.path)) ?? []
+        for name in names where prefixes.contains(where: { name.hasPrefix($0) }) {
+            try? fileManager.removeItem(at: savesDirectory.appendingPathComponent(name))
+        }
     }
 }
 

@@ -56,6 +56,7 @@ without the refusal notice.
 
 | `op`                     | Fields                                                                               | Result                                             |
 | ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `new_game`               | none                                                                                 | select a fresh game and return its snapshot        |
 | `snapshot`               | none                                                                                 | read model, requests, newest 100 events            |
 | `submit`                 | `text`, optional `draft_id`, `logical_request_id`                                    | operation result                                   |
 | `retry`                  | `logical_request_id`                                                                 | operation result (new attempt)                     |
@@ -171,3 +172,5 @@ retry, restart interruption, clarification across restart, a reply committed
 unchanged, and bounded paging. `mobile/RundaleTests/RundaleEngineLifecycleTests.swift`
 runs the RundaleKit lifecycle tests through the same boundary in the
 simulator.
+
+`new_game` requires no open request (including clarification). It preserves the old save, commits a new active-save marker, and returns the fresh snapshot. Resume follows that marker. A selected save this build cannot open is set aside and replaced the way the launch save is; a marker that names no readable save is itself set aside (`.active-save.refused-<seconds>.json`) and a new game is selected. Both open with the refusal notice and keep every existing save. The host intercepts `/new` and `/new-game` and calls this operation.

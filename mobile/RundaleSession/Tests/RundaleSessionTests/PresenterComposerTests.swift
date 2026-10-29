@@ -30,6 +30,37 @@ final class PresenterComposerTests: XCTestCase {
         )
     }
 
+    /// `/new` is the host's command: it never reaches the session as a turn,
+    /// waits for the current request to stop, and keeps the draft when the
+    /// session cannot start a game (the fixture has only its one session).
+    func testNewGameWaitsForTheRequestAndKeepsTheDraftWhenRefused() async {
+        XCTAssertTrue(RundaleSessionPresenter.isNewGameCommand("  /NEW-GAME "))
+        XCTAssertFalse(RundaleSessionPresenter.isNewGameCommand("/new please"))
+        XCTAssertFalse(RundaleSessionPresenter.isNewGameCommand("/newer"))
+        let presenter = presenter()
+        presenter.start()
+        await waitUntil { !presenter.transcript.isEmpty }
+
+        presenter.draft = "long stream"
+        presenter.submitDraft()
+        await waitUntil { presenter.isStreaming }
+        presenter.draft = "/new"
+        presenter.submitDraft()
+        XCTAssertEqual(presenter.submissionMessage, "Stop the current request before starting a new game.")
+        XCTAssertEqual(presenter.draft, "/new")
+        presenter.stop()
+        await waitUntil { !presenter.isStreaming }
+
+        let transcript = presenter.transcript
+        presenter.submitDraft()
+        await waitUntil {
+            presenter.submissionMessage == "New games need the game engine; the fixture has one session."
+        }
+        XCTAssertEqual(presenter.draft, "/new")
+        XCTAssertFalse(presenter.isStreaming)
+        XCTAssertEqual(presenter.transcript, transcript, "no turn was submitted")
+    }
+
     func testSendStopAndRetryFollowTheRequest() async {
         let presenter = presenter()
         presenter.start()

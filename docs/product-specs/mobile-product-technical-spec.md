@@ -232,10 +232,13 @@ Slash commands provide deterministic access to game information and advanced act
 /resume
 /debug
 /flags
+/new
 /bug   (beta builds)
 ```
 
-**Planned:** `/save`, `/load`, `/fork`, `/branches`, `/log` and `/new-game`, and possibly `/undo` (§12.3).
+**Planned:** `/save`, `/load`, `/fork`, `/branches`, `/log`, and possibly `/undo` (§12.3).
+
+Owner decision (2026-10-26): bring `/new` forward from Milestone 7 for testing. It starts a fresh local game immediately, retains the previous save on disk, and accepts `/new-game` as an alias. Stop any active request or clarification first. Save browsing and loading remain in Milestone 7.
 
 **Possible later additions:**
 

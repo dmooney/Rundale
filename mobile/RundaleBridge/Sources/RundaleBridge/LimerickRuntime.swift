@@ -382,6 +382,14 @@ public actor LimerickRuntime: SessionAdapter {
         return response
     }
 
+    /// Replaces this handle's game after the engine durably selects a fresh save.
+    /// The previous subscriptions belong to the old session and must be renewed.
+    public func newGame() throws -> Data {
+        let snapshot = try dispatch(["op": "new_game"])
+        finishSubscribers()
+        return snapshot
+    }
+
     public func snapshotJSON() throws -> Data {
         try dispatchJSON(Data(#"{"op":"snapshot"}"#.utf8))
     }

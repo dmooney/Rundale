@@ -15,6 +15,7 @@ actor ScriptedEngineRuntime: EngineRuntime {
     enum Call: Equatable {
         case submit(String)
         case stop
+        case newGame
         case retry(String)
         case answer(String)
         case frame(callID: String, sequence: UInt64, text: String)
@@ -78,6 +79,12 @@ actor ScriptedEngineRuntime: EngineRuntime {
     func snapshotJSON() async throws -> Data {
         snapshots += 1
         return try Self.snapshot(sessionID: sessionID)
+    }
+
+    func newGame() async throws -> Data {
+        calls.append(.newGame)
+        pending = []
+        return try Self.snapshot(sessionID: SessionID("scripted-new-game"))
     }
 
     func readEventPageBefore(before cursor: EventCursor, limit: Int) async throws -> LimerickEventPage {

@@ -9,13 +9,14 @@
 //! uses its canned fallbacks and never asks. A reply is committed after the
 //! structural response contract only, the same as on every other path.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Instant;
 
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{EndpointInput, InvocationEnvelope};
+use limerick_core::error::LimerickError;
 use limerick_core::game_loop::world_pump::{AdvanceOptions, GossipMode, WeatherMode};
 use limerick_core::game_loop::{GameLoopContext, advance_world, load_fresh_world_and_npcs};
 use limerick_core::game_mod::{EndpointRole, GameMod};
@@ -24,7 +25,10 @@ use limerick_core::ipc::capitalize_first;
 use limerick_core::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
 use limerick_core::npc::manager::NpcManager;
 use limerick_core::npc::{LanguageSettings, NpcId};
-use limerick_core::persistence::{Database, GameSnapshot, SaveFileLock};
+use limerick_core::persistence::{
+    ACTIVE_IDENTITY_FILENAME, Database, GameSnapshot, SaveFileLock,
+    read_active_save_identity_candidate, write_active_save_identity,
+};
 use limerick_core::portable_look::{render_look_text, render_scene};
 use limerick_core::session_store::RecoveryBundle;
 use limerick_core::turn::commands::advertised as advertised_commands;
@@ -212,6 +216,7 @@ pub struct Session {
     engine: TurnEngine,
     journal: Arc<SqliteTurnJournal>,
     session_id: String,
+    branch_id: i64,
     pending: Option<PendingInference>,
     index: EventIndex,
     /// Provisional rows of each attempt's delivered dialogue replies, in
@@ -225,12 +230,185 @@ pub struct Session {
     pending_since: Option<Instant>,
     cursor: u64,
     _lock: SaveFileLock,
+    lifecycle: Option<LifecycleLock>,
+    launch_options: OpenOptions,
 }
 
+/// Excludes a second open of the same saves directory. `SaveFileLock` only
+/// excludes other processes: within one it is shared, so the set of held
+/// paths is what refuses a second session in this process.
+struct LifecycleLock {
+    path: PathBuf,
+    _lock: Option<SaveFileLock>,
+}
+fn lifecycle_paths() -> &'static StdMutex<HashSet<PathBuf>> {
+    static PATHS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
+    PATHS.get_or_init(Default::default)
+}
+impl LifecycleLock {
+    fn acquire(path: &Path) -> Result<Self, OpError> {
+        // The marker belongs to the directory, not the launch filename.
+        // Canonicalizing the directory also makes symlink and `..` aliases
+        // contend on the same process-local and cross-process lock.
+        let directory = path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))?;
+        let path = std::fs::canonicalize(directory)
+            .map_err(OpError::storage)?
+            .join(".mobile-lifecycle");
+        let mut paths = lifecycle_paths().lock().unwrap_or_else(|e| e.into_inner());
+        if paths.contains(&path) {
+            return Err(OpError::new(
+                "save_locked",
+                "the save is open in another session",
+            ));
+        }
+        let lock = SaveFileLock::try_acquire(&path)
+            .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
+        paths.insert(path.clone());
+        Ok(Self {
+            path,
+            _lock: Some(lock),
+        })
+    }
+}
+impl Drop for LifecycleLock {
+    fn drop(&mut self) {
+        let mut paths = lifecycle_paths().lock().unwrap_or_else(|e| e.into_inner());
+        drop(self._lock.take());
+        paths.remove(&self.path);
+    }
+}
 impl Session {
     /// Opens (or creates) the save and restores the engine from its journal.
     /// A request an earlier process left open ends `Interrupted`.
     pub fn open(mode: OpenMode, options: OpenOptions) -> Result<Self, OpError> {
+        if mode == OpenMode::New && options.save_path.exists() {
+            return Err(OpError::new(
+                "save_exists",
+                "a new game cannot replace an existing save",
+            ));
+        }
+        let lifecycle = LifecycleLock::acquire(&options.save_path)?;
+        let mut selected = options.clone();
+        let mut marker = false;
+        if mode == OpenMode::Resume {
+            let dir = options
+                .save_path
+                .parent()
+                .ok_or_else(|| OpError::storage("save has no parent"))?;
+            match read_active_save_identity_candidate(dir) {
+                Ok(None) => {}
+                Ok(Some(identity)) => {
+                    selected.save_path = identity.save_path;
+                    marker = true;
+                }
+                // A marker that names no save this build can use would
+                // otherwise leave the player stuck (ADR-025 §4). Keep the
+                // marker, and every save, and start a new game with the
+                // refusal notice. Any other failure to read it fails the open
+                // instead of quietly selecting another game.
+                Err(error) if !marker_content_unusable(&error) => {
+                    return Err(OpError::storage(error));
+                }
+                // The marker moves aside only once its replacement is built,
+                // so a failed build leaves the next launch the same choice.
+                Err(_) => {
+                    let marker_path = dir.join(ACTIVE_IDENTITY_FILENAME);
+                    let (session, path) =
+                        Self::open_fresh_selection(options, Some(lifecycle), None, true)?;
+                    if let Err(error) = set_aside(&marker_path, "refused") {
+                        drop(session);
+                        let _ = remove_with_sidecars(&path);
+                        return Err(error);
+                    }
+                    return session.select(&path);
+                }
+            }
+        }
+        Self::open_selected(
+            mode,
+            selected,
+            options,
+            Some(lifecycle),
+            marker,
+            None,
+            false,
+        )
+    }
+
+    /// Builds a new game in a fresh `mobile-*.db` beside the launch save.
+    /// Every existing save stays where it is; [`Self::select`] makes the
+    /// new game the one later launches resume.
+    fn open_fresh_selection(
+        launch_options: OpenOptions,
+        lifecycle: Option<LifecycleLock>,
+        seed_cursor: Option<u64>,
+        refused: bool,
+    ) -> Result<(Self, PathBuf), OpError> {
+        let dir = launch_options
+            .save_path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))?
+            .to_path_buf();
+        let path = loop {
+            let path = dir.join(format!("mobile-{:016x}.db", rand::random::<u64>()));
+            if !path.exists() {
+                break path;
+            }
+        };
+        let options = OpenOptions {
+            save_path: path.clone(),
+            mod_dir: launch_options.mod_dir.clone(),
+        };
+        let built = Self::open_selected(
+            OpenMode::New,
+            options,
+            launch_options,
+            lifecycle,
+            false,
+            seed_cursor,
+            refused,
+        );
+        match built {
+            Ok(session) => Ok((session, path)),
+            Err(error) => {
+                let _ = remove_with_sidecars(&path);
+                let _ = remove_with_sidecars(&sibling(&path, "creating"));
+                Err(error)
+            }
+        }
+    }
+
+    /// Records this game, saved at `path`, as the selected save. On failure
+    /// the game is closed and its save removed, so no save is left behind
+    /// that the selection does not name.
+    fn select(self, path: &Path) -> Result<Self, OpError> {
+        let written = path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))
+            .and_then(|dir| {
+                write_active_save_identity(dir, path, self.branch_id, "main")
+                    .map_err(OpError::storage)
+            });
+        match written {
+            Ok(()) => Ok(self),
+            Err(error) => {
+                drop(self);
+                let _ = remove_with_sidecars(path);
+                Err(error)
+            }
+        }
+    }
+    fn open_selected(
+        mode: OpenMode,
+        options: OpenOptions,
+        launch_options: OpenOptions,
+        lifecycle: Option<LifecycleLock>,
+        marker: bool,
+        seed_cursor: Option<u64>,
+        refused: bool,
+    ) -> Result<Self, OpError> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -254,16 +432,20 @@ impl Session {
         // new game that replaces it at the save path (ADR-025 §4). So is one
         // an earlier build stopped creating before its first snapshot: it
         // holds no game, so the new one starts without a refusal (#2210).
-        let mut refused = false;
+        // This holds for a save `/new` selected as for the launch save.
+        let mut refused = refused;
+        let mut replaced = false;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
                 Err(error) if error.code == "save_incompatible" => {
                     set_aside(&options.save_path, "refused")?;
                     refused = true;
+                    replaced = true;
                     None
                 }
                 Err(error) if error.code == "save_unfinished" => {
                     set_aside(&options.save_path, "unfinished")?;
+                    replaced = true;
                     None
                 }
                 other => Some(other?),
@@ -275,13 +457,41 @@ impl Session {
             Some(restored) => restored,
             None => create_save(&options.save_path, &game_mod)?,
         };
+        if let Some(cursor) = seed_cursor {
+            db.seed_empty_transcript_sequence(cursor)
+                .map_err(OpError::storage)?;
+        }
         // The opening scene is the first event of every game, so a save
         // without events was interrupted before its opening was journaled.
         let fresh = db
             .transcript_events_page(branch_id, 0, 1)
             .map_err(OpError::storage)?
             .is_empty();
-        let session_id = session_identity(&db, branch_id)?;
+        // Point the selection at the game that replaced a save set aside
+        // above; the save it named is gone from that path.
+        if marker && replaced {
+            let dir = options
+                .save_path
+                .parent()
+                .ok_or_else(|| OpError::storage("save has no parent"))?;
+            write_active_save_identity(dir, &options.save_path, branch_id, "main")
+                .map_err(OpError::storage)?;
+        }
+        let mut session_id = session_identity(&db, branch_id)?;
+        // The identity is the branch id and first snapshot time to the
+        // second; every new save's branch is the first, so two games started
+        // within a second share it (`repeated_new_games_have_unique_ids...`).
+        // `/new` saves have unique names, so their name makes it unique.
+        // Legacy saves keep the identity older app projections stored.
+        if options
+            .save_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("mobile-") && name.ends_with(".db"))
+        {
+            session_id.push(':');
+            session_id.push_str(&options.save_path.file_name().unwrap().to_string_lossy());
+        }
         let journal = Arc::new(SqliteTurnJournal::from_database(db, branch_id));
         let live = Live::new(game_mod, world, npc_manager);
 
@@ -325,6 +535,7 @@ impl Session {
             engine,
             journal,
             session_id,
+            branch_id,
             pending: None,
             index: EventIndex::default(),
             streamed: HashMap::new(),
@@ -332,10 +543,40 @@ impl Session {
             pending_since: None,
             cursor: 0,
             _lock: lock,
+            lifecycle,
+            launch_options,
         };
         let history = session.journal.events().map_err(OpError::storage)?;
         session.observe(&history);
         Ok(session)
+    }
+
+    /// Creates and selects a fresh game without replacing the current save.
+    pub fn new_game(&mut self) -> Result<Value, OpError> {
+        if self.engine.open_request().is_some() {
+            return Err(OpError::new(
+                "request_in_progress",
+                "Stop the current request before starting a new game.",
+            ));
+        }
+        let (replacement, path) = Self::open_fresh_selection(
+            self.launch_options.clone(),
+            None,
+            Some(self.cursor),
+            false,
+        )?;
+        let snapshot = match replacement.snapshot() {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                drop(replacement);
+                let _ = remove_with_sidecars(&path);
+                return Err(error);
+            }
+        };
+        let mut replacement = replacement.select(&path)?;
+        replacement.lifecycle = self.lifecycle.take();
+        *self = replacement;
+        Ok(snapshot)
     }
 
     fn observe(&mut self, events: &[TranscriptEvent]) {
@@ -1105,6 +1346,17 @@ fn restore_save(
     }
     .restore(&mut world, &mut npcs);
     Ok((world, npcs, db, branch.id))
+}
+
+/// Whether reading the selection marker failed on what it holds (it is
+/// malformed, of another version, or names no save) rather than on the
+/// storage under it.
+fn marker_content_unusable(error: &LimerickError) -> bool {
+    match error {
+        LimerickError::Serialization(_) | LimerickError::Config(_) => true,
+        LimerickError::Io(error) => error.kind() == std::io::ErrorKind::NotFound,
+        _ => false,
+    }
 }
 
 /// Moves a save this build will not open, and its SQLite sidecars, aside

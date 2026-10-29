@@ -289,6 +289,10 @@ public final class RundaleFixtureController: RundaleSessionControlling {
         return receipt
     }
 
+    public func newGame() async throws {
+        throw FixtureNewGameUnavailable()
+    }
+
     public func retryLastFailed() async throws {
         guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
             throw FixtureAdapterError.requestNotRetryable
@@ -433,4 +437,9 @@ public final class RundaleFixtureController: RundaleSessionControlling {
             streamProgress: state.streamProgress
         )
     }
+}
+
+/// The fixture plays one scripted session, so it has no new game to start.
+private struct FixtureNewGameUnavailable: LocalizedError {
+    var errorDescription: String? { "New games need the game engine; the fixture has one session." }
 }

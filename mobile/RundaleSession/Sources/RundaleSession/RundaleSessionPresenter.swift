@@ -188,6 +188,8 @@ public final class RundaleSessionPresenter {
     private var lastAnnouncedEventID: SemanticEventID?
     private var lifecycleTask: Task<Void, Never>?
     private var presentedCursor = EventCursor(0)
+    private var presentedSessionID: SessionID?
+    private var isReplacingGame = false
 
     public var initialFollowsNewest: Bool { session.initialFollowsNewest }
     public var initialUnreadCount: Int { session.initialUnreadCount }
@@ -213,6 +215,7 @@ public final class RundaleSessionPresenter {
         header = self.session.currentHeader
         transcript = state.transcript.map(Self.presentedItem)
         draft = launch.initialDraft ?? self.session.restoredDraft()?.text ?? ""
+        presentedSessionID = self.session.state.sessionID
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = Self.isWorking(state)
         isFollowingNewest = state.viewport.isFollowingNewest
@@ -315,6 +318,10 @@ public final class RundaleSessionPresenter {
             reportBug(description: description, clearingDraft: draft)
             return
         }
+        if Self.isNewGameCommand(command) {
+            startNewGame()
+            return
+        }
         guard !command.isEmpty, !isStreaming, allowsSubmission else { return }
 
         submissionMessage = nil
@@ -379,6 +386,48 @@ public final class RundaleSessionPresenter {
     }
 
     /// The description after `/bug`, or `nil` when `command` is not `/bug`.
+    public static func isNewGameCommand(_ command: String) -> Bool {
+        ["/new", "/new-game"].contains(command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    private func startNewGame() {
+        guard allowsSubmission else { return }
+        guard !isStreaming, session.state.activeRequestID == nil,
+              session.state.pendingClarification == nil else {
+            submissionMessage = "Stop the current request before starting a new game."
+            return
+        }
+        submissionMessage = nil
+        bugReportNotice = nil
+        let generation = lifecycleGeneration
+        isReplacingGame = true
+        isStreaming = true
+        Task {
+            defer {
+                isReplacingGame = false
+                refreshFromSession()
+            }
+            do {
+                guard allowsSubmission, lifecycleGeneration == generation else {
+                    isStreaming = false
+                    return
+                }
+                try await session.newGame()
+                activeSourceDraftID = nil
+                lastAnnouncedEventID = nil
+                lastComposerReturnEventID = nil
+                draft = ""
+                draftRevision &+= 1
+                accessibilityNotice = "New game started."
+                refreshFromSession()
+            } catch {
+                submissionMessage = error.localizedDescription
+                isStreaming = false
+                refreshFromSession()
+            }
+        }
+    }
+
     public static func bugDescription(in command: String) -> String? {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.lowercased().hasPrefix(bugCommandWord) else { return nil }
@@ -697,6 +746,16 @@ public final class RundaleSessionPresenter {
 
     private func refreshFromSession() {
         let state = session.state
+        if presentedSessionID != state.sessionID {
+            presentedSessionID = state.sessionID
+            draft = state.draft.text
+            draftRevision &+= 1
+            activeSourceDraftID = nil
+            lastAnnouncedEventID = nil
+            lastComposerReturnEventID = nil
+            completionBrowser = nil
+            completions = []
+        }
         let nextHeader = session.currentHeader
         if nextHeader != header { header = nextHeader }
         let previousRevision = streamRevision
@@ -710,7 +769,7 @@ public final class RundaleSessionPresenter {
         }
         presentedCursor = state.eventCursor
         clarification = state.pendingClarification.map(Self.presentedClarification)
-        isStreaming = Self.isWorking(state)
+        isStreaming = isReplacingGame || Self.isWorking(state)
         if state.viewport.isFollowingNewest != isFollowingNewest {
             isFollowingNewest = state.viewport.isFollowingNewest
         }
