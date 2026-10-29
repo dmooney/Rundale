@@ -1006,6 +1006,12 @@ private struct Phase2ProjectionStore: Sendable {
         try? fileManager.removeItem(at: engineURL.deletingLastPathComponent().appendingPathComponent(".active-save.json"))
         try? fileManager.removeItem(atPath: engineURL.path + "-wal")
         try? fileManager.removeItem(atPath: engineURL.path + "-shm")
+        // Games `/new` started, with their sidecars, sit beside the launch save.
+        let savesDirectory = engineURL.deletingLastPathComponent()
+        let names = (try? fileManager.contentsOfDirectory(atPath: savesDirectory.path)) ?? []
+        for name in names where name.hasPrefix("mobile-") {
+            try? fileManager.removeItem(at: savesDirectory.appendingPathComponent(name))
+        }
     }
 }
 
