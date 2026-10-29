@@ -10,8 +10,7 @@
 //! off on this path (`DIALOGUE_CONTENT_GUARDS_FLAG`): the reply is committed
 //! after structural checks only.
 
-use std::collections::HashSet;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Instant;
@@ -1261,7 +1260,7 @@ impl Session {
                 })).collect::<Vec<_>>(),
                 // Completion: every command the phone runs, the words that
                 // may follow each, and every NPC a name may complete to.
-                "commandCompletions": COMMANDS.iter().map(|command| serde_json::to_value(command.completion()).expect("command serializes")).collect::<Vec<_>>(),
+                "commandCompletions": COMMANDS.iter().map(|command| command.completion()).collect::<Vec<_>>(),
                 "everyone": everyone.iter().map(|npc| json!({
                     "id": format!("npc-{}", npc.id.0),
                     "name": npc.name,

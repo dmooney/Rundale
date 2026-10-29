@@ -473,7 +473,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         // stable transcript IDs while avoiding the old bug where a tail that
         // no longer contained its PlayerCommand could not reconstruct the
         // request or command history.
-        if !didHydrateRuntime || state.sessionID != snapshot.sessionID {
+        if !didHydrateRuntime {
             hydrateFromSnapshot(snapshot, restoredHistoryPage: restoredHistoryPage)
             didHydrateRuntime = true
             return
