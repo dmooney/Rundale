@@ -499,7 +499,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("CODE_SIGN_STYLE=Manual", command)
             self.assertNotIn("CODE_SIGN_STYLE=Automatic", command)
             self.assertIn("RUNDALE_DISTRIBUTION_PROFILE=CI App Store", command)
-        # The exports keep automatic App Store Connect signing.
+        # The exports take their signing from the export options plist (manual
+        # with this profile; see test_exports_sign_with_the_archives_named_
+        # distribution_profile), never from build settings.
         exports = [c for c in self.commands if "-exportArchive" in c]
         self.assertEqual(len(exports), 2)
         for command in exports:
