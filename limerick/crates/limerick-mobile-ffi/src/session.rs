@@ -27,7 +27,7 @@ use limerick_core::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
 use limerick_core::npc::manager::NpcManager;
 use limerick_core::npc::{LanguageSettings, NpcId};
 use limerick_core::persistence::{
-    Database, GameSnapshot, SaveFileLock, read_active_save_identity,
+    ACTIVE_IDENTITY_FILENAME, Database, GameSnapshot, SaveFileLock,
     read_active_save_identity_candidate, write_active_save_identity,
 };
 use limerick_core::portable_look::{render_look_text, render_scene};
@@ -305,17 +305,96 @@ impl Session {
                 .save_path
                 .parent()
                 .ok_or_else(|| OpError::storage("save has no parent"))?;
-            if let Some(identity) =
-                read_active_save_identity_candidate(dir).map_err(OpError::storage)?
-            {
-                if !identity.save_path.is_file() {
-                    return Err(OpError::new("save_missing", "the selected save is missing"));
+            match read_active_save_identity_candidate(dir) {
+                Ok(None) => {}
+                Ok(Some(identity)) => {
+                    selected.save_path = identity.save_path;
+                    marker = true;
                 }
-                selected.save_path = identity.save_path;
-                marker = true;
+                // A selection that names no readable save would otherwise
+                // leave the player stuck (ADR-025 §4). Keep the marker, and
+                // every save, and start a new game with the refusal notice.
+                Err(_) => {
+                    set_aside(&dir.join(ACTIVE_IDENTITY_FILENAME), "refused")?;
+                    let (session, path) =
+                        Self::open_fresh_selection(options, Some(lifecycle), None, true)?;
+                    return session.select(&path);
+                }
             }
         }
-        Self::open_selected(mode, selected, options, Some(lifecycle), marker, None)
+        Self::open_selected(
+            mode,
+            selected,
+            options,
+            Some(lifecycle),
+            marker,
+            None,
+            false,
+        )
+    }
+
+    /// Builds a new game in a fresh `mobile-*.db` beside the launch save.
+    /// Every existing save stays where it is; [`Self::select`] makes the
+    /// new game the one later launches resume.
+    fn open_fresh_selection(
+        launch_options: OpenOptions,
+        lifecycle: Option<LifecycleLock>,
+        seed_cursor: Option<u64>,
+        refused: bool,
+    ) -> Result<(Self, PathBuf), OpError> {
+        let dir = launch_options
+            .save_path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))?
+            .to_path_buf();
+        let path = loop {
+            let path = dir.join(format!("mobile-{:016x}.db", rand::random::<u64>()));
+            if !path.exists() {
+                break path;
+            }
+        };
+        let options = OpenOptions {
+            save_path: path.clone(),
+            mod_dir: launch_options.mod_dir.clone(),
+        };
+        let built = Self::open_selected(
+            OpenMode::New,
+            options,
+            launch_options,
+            lifecycle,
+            false,
+            seed_cursor,
+            refused,
+        );
+        match built {
+            Ok(session) => Ok((session, path)),
+            Err(error) => {
+                let _ = remove_with_sidecars(&path);
+                let _ = remove_with_sidecars(&sibling(&path, "creating"));
+                Err(error)
+            }
+        }
+    }
+
+    /// Records this game, saved at `path`, as the selected save. On failure
+    /// the game is closed and its save removed, so no save is left behind
+    /// that the selection does not name.
+    fn select(self, path: &Path) -> Result<Self, OpError> {
+        let written = path
+            .parent()
+            .ok_or_else(|| OpError::storage("save has no parent"))
+            .and_then(|dir| {
+                write_active_save_identity(dir, path, self.branch_id, "main")
+                    .map_err(OpError::storage)
+            });
+        match written {
+            Ok(()) => Ok(self),
+            Err(error) => {
+                drop(self);
+                let _ = remove_with_sidecars(path);
+                Err(error)
+            }
+        }
     }
     fn open_selected(
         mode: OpenMode,
@@ -324,6 +403,7 @@ impl Session {
         lifecycle: Option<LifecycleLock>,
         marker: bool,
         seed_cursor: Option<u64>,
+        refused: bool,
     ) -> Result<Self, OpError> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -344,34 +424,20 @@ impl Session {
         }
         let lock = SaveFileLock::try_acquire(&options.save_path)
             .ok_or_else(|| OpError::new("save_locked", "the save is open in another session"))?;
-        if marker {
-            let dir = options
-                .save_path
-                .parent()
-                .ok_or_else(|| OpError::storage("save has no parent"))?;
-            let identity = read_active_save_identity(dir)
-                .map_err(OpError::storage)?
-                .ok_or_else(|| OpError::storage("active save marker disappeared"))?;
-            if identity.save_path != options.save_path || identity.branch_name != "main" {
-                return Err(OpError::new(
-                    "save_incompatible",
-                    "the selected branch is not supported",
-                ));
-            }
-        }
         // A save this build cannot read is kept, byte for byte, beside the
         // new game that replaces it at the save path (ADR-025 §4). So is one
         // an earlier build stopped creating before its first snapshot: it
         // holds no game, so the new one starts without a refusal (#2210).
-        let mut refused = false;
+        // This holds for a save `/new` selected as for the launch save.
+        let mut refused = refused;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
-                Err(error) if !marker && error.code == "save_incompatible" => {
+                Err(error) if error.code == "save_incompatible" => {
                     set_aside(&options.save_path, "refused")?;
                     refused = true;
                     None
                 }
-                Err(error) if !marker && error.code == "save_unfinished" => {
+                Err(error) if error.code == "save_unfinished" => {
                     set_aside(&options.save_path, "unfinished")?;
                     None
                 }
@@ -394,16 +460,15 @@ impl Session {
             .transcript_events_page(branch_id, 0, 1)
             .map_err(OpError::storage)?
             .is_empty();
+        // Keep the selection naming the game that opened, including one
+        // that just replaced a save set aside above.
         if marker {
-            let identity = read_active_save_identity(options.save_path.parent().unwrap())
-                .map_err(OpError::storage)?
-                .ok_or_else(|| OpError::storage("active save marker disappeared"))?;
-            if identity.branch_id != branch_id {
-                return Err(OpError::new(
-                    "save_incompatible",
-                    "the selected branch does not match the game",
-                ));
-            }
+            let dir = options
+                .save_path
+                .parent()
+                .ok_or_else(|| OpError::storage("save has no parent"))?;
+            write_active_save_identity(dir, &options.save_path, branch_id, "main")
+                .map_err(OpError::storage)?;
         }
         let mut session_id = session_identity(&db, branch_id)?;
         // Explicit new-game saves have unique names. Legacy saves retain the
@@ -484,50 +549,21 @@ impl Session {
                 "Stop the current request before starting a new game.",
             ));
         }
-        let dir = self
-            .launch_options
-            .save_path
-            .parent()
-            .ok_or_else(|| OpError::storage("save has no parent"))?;
-        let path = loop {
-            let path = dir.join(format!("mobile-{:016x}.db", rand::random::<u64>()));
-            if !path.exists() {
-                break path;
-            }
-        };
-        let options = OpenOptions {
-            save_path: path.clone(),
-            mod_dir: self.launch_options.mod_dir.clone(),
-        };
-        let built = Self::open_selected(
-            OpenMode::New,
-            options,
+        let (replacement, path) = Self::open_fresh_selection(
             self.launch_options.clone(),
             None,
-            false,
             Some(self.cursor),
-        );
-        let mut replacement = match built {
-            Ok(session) => session,
-            Err(error) => {
-                let _ = remove_with_sidecars(&path);
-                let _ = remove_with_sidecars(&sibling(&path, "creating"));
-                return Err(error);
-            }
-        };
+            false,
+        )?;
         let snapshot = match replacement.snapshot() {
-            Ok(value) => value,
+            Ok(snapshot) => snapshot,
             Err(error) => {
                 drop(replacement);
                 let _ = remove_with_sidecars(&path);
                 return Err(error);
             }
         };
-        if let Err(error) = write_active_save_identity(dir, &path, replacement.branch_id, "main") {
-            drop(replacement);
-            let _ = remove_with_sidecars(&path);
-            return Err(OpError::storage(error));
-        }
+        let mut replacement = replacement.select(&path)?;
         replacement.lifecycle = self.lifecycle.take();
         *self = replacement;
         Ok(snapshot)

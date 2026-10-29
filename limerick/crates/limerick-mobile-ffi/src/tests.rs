@@ -2103,28 +2103,81 @@ fn failed_marker_keeps_current_game() {
     assert_eq!(game.snapshot()["sessionID"], first["sessionID"]);
 }
 
+/// ADR-025 §4: a selection that names no readable save keeps every save and
+/// the marker itself, and starts a new game with the refusal notice instead
+/// of leaving the player with no game to open.
 #[test]
-fn selected_marker_missing_or_invalid_never_replaces_old_save() {
-    let (game, _) = Game::new();
-    let dir = game.dir.path().to_path_buf();
-    let request = Game::request(&game.dir);
-    assert_eq!(
-        limerick_mobile_close(game.handle),
-        limerick_mobile_status_t::LIMERICK_MOBILE_OK
-    );
-    let original = std::fs::read(dir.join("game.sqlite")).unwrap();
+fn an_unusable_selection_is_kept_aside_and_a_new_game_starts() {
     for marker in [
         "{malformed",
         r#"{"version":1,"save_filename":"missing.db","branch_id":1,"branch_name":"main"}"#,
     ] {
+        let (game, first) = Game::new();
+        let dir = game.dir.path().to_path_buf();
+        let request = Game::request(&game.dir);
+        close(game.handle);
+        let original = std::fs::read(dir.join("game.sqlite")).unwrap();
         std::fs::write(dir.join(".active-save.json"), marker).unwrap();
-        let (_, _, response) = open_raw(
+
+        let (status, handle, envelope) = open_raw(
             limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
             &request,
         );
-        assert_eq!(response["ok"], false, "{response}");
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK,
+            "{envelope}"
+        );
+        let opened = envelope["value"].clone();
+        assert_ne!(opened["sessionID"], first["sessionID"]);
+        assert_eq!(
+            opened["events"].as_array().unwrap().last().unwrap()["content"],
+            limerick_core::save_compat::INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE
+        );
         assert_eq!(std::fs::read(dir.join("game.sqlite")).unwrap(), original);
+        assert_eq!(files_in(&game.dir, ".active-save.refused-").len(), 1);
+        close(handle);
+
+        let (handle, resumed) = resume_in(&game.dir);
+        assert_eq!(resumed["sessionID"], opened["sessionID"]);
+        close(handle);
     }
+}
+
+/// A save `/new` selected is refused the way the launch save is: kept aside
+/// unchanged, with a new game, selected in its place, opened with the notice.
+#[test]
+fn an_unreadable_selected_save_is_kept_aside_and_a_new_game_starts() {
+    let (mut game, _) = Game::new();
+    let selected = game.op(json!({"op":"new_game"}));
+    game.submit("/look");
+    let dir = game.dir.path().to_path_buf();
+    let path = limerick_core::persistence::read_active_save_identity_candidate(&dir)
+        .unwrap()
+        .unwrap()
+        .save_path;
+    close(game.handle);
+    let launch = std::fs::read(dir.join("game.sqlite")).unwrap();
+    let garbage = b"not a save database".to_vec();
+    std::fs::write(&path, &garbage).unwrap();
+
+    let (handle, opened) = resume_in(&game.dir);
+    game.handle = handle;
+    assert_ne!(opened["sessionID"], selected["sessionID"]);
+    let events = opened["events"].as_array().unwrap();
+    assert_eq!(events.len(), 2, "{events:?}");
+    assert_eq!(
+        events[1]["content"],
+        limerick_core::save_compat::INCOMPATIBLE_SAVE_AT_LAUNCH_MESSAGE
+    );
+    let kept = files_in(&game.dir, ".refused-");
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    assert_eq!(std::fs::read(&kept[0]).unwrap(), garbage);
+    assert_eq!(std::fs::read(dir.join("game.sqlite")).unwrap(), launch);
+
+    let resumed = game.relaunch();
+    assert_eq!(resumed["sessionID"], opened["sessionID"]);
+    assert_eq!(game.submit("/look")["terminalOutcome"], "succeeded");
 }
 
 #[test]
