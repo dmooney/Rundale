@@ -116,10 +116,18 @@ EXPECTED_FIREBASE = {
 FORBIDDEN_CREDENTIALS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ("Limerick Endpoints consumer key", re.compile(rb"sfk_live_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}")),
     ("Anthropic API key", re.compile(rb"sk-ant-[A-Za-z0-9_-]{20,}")),
-    # A key is random, so its body has a capital or a digit; the lookahead
-    # demands one. Without it, "ta" + "sk-" + the engine's lowercase string
-    # constants, packed side by side in the binary, read as a key.
-    ("OpenAI-style API key", re.compile(rb"sk-(?:proj-)?(?=[a-z_-]*[A-Z0-9])[A-Za-z0-9_-]{32,}")),
+    # A key is random base62, so its body has both a capital and a digit; the
+    # lookaheads demand both. Without them, "ta" + "sk-" + the engine's string
+    # constants, packed side by side in the binary, read as a key: lowercase
+    # ones (build 1271), and ones that run into a capitalised word such as
+    # "reactions---Local" (the upload after #2325).
+    (
+        "OpenAI-style API key",
+        re.compile(rb"sk-(?:proj-)?(?=[A-Za-z_-]*[0-9])(?=[a-z0-9_-]*[A-Z])[A-Za-z0-9_-]{32,}"),
+    ),
+    # OpenRouter's body is lowercase hex, which the capital the OpenAI-style
+    # pattern demands would miss.
+    ("OpenRouter API key", re.compile(rb"sk-or-v1-[0-9a-f]{32,}")),
     ("Google API key", re.compile(rb"AIza[0-9A-Za-z_-]{35}")),
     ("private key block", re.compile(rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----")),
     (
