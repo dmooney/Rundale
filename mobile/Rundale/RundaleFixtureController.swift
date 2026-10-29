@@ -287,7 +287,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     }
 
     func newGame() async throws {
-        throw CocoaError(.featureUnsupported)
+        throw FixtureNewGameUnavailable()
     }
 
     func retryLastFailed() async throws {
@@ -434,4 +434,9 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
             streamProgress: state.streamProgress
         )
     }
+}
+
+/// The fixture plays one scripted session, so it has no new game to start.
+private struct FixtureNewGameUnavailable: LocalizedError {
+    var errorDescription: String? { "New games need the game engine; the fixture has one session." }
 }

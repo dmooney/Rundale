@@ -1002,14 +1002,14 @@ private struct Phase2ProjectionStore: Sendable {
     func remove() {
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: url)
-        try? fileManager.removeItem(at: engineURL)
-        try? fileManager.removeItem(at: engineURL.deletingLastPathComponent().appendingPathComponent(".active-save.json"))
-        try? fileManager.removeItem(atPath: engineURL.path + "-wal")
-        try? fileManager.removeItem(atPath: engineURL.path + "-shm")
-        // Games `/new` started, with their sidecars, sit beside the launch save.
+        // Every file the engine keeps beside its launch save: the save and
+        // its sidecars and set-aside copies, games `/new` started, the
+        // selection marker (and set-aside markers) and the lifecycle lock.
         let savesDirectory = engineURL.deletingLastPathComponent()
+        let prefixes = [engineURL.deletingPathExtension().lastPathComponent + ".",
+                        "mobile-", ".active-save", ".mobile-lifecycle"]
         let names = (try? fileManager.contentsOfDirectory(atPath: savesDirectory.path)) ?? []
-        for name in names where name.hasPrefix("mobile-") {
+        for name in names where prefixes.contains(where: { name.hasPrefix($0) }) {
             try? fileManager.removeItem(at: savesDirectory.appendingPathComponent(name))
         }
     }
