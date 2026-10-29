@@ -331,8 +331,8 @@ fn person_choices(npc_manager: &NpcManager, ids: &[NpcId]) -> Vec<ClarificationC
 /// introduced is named. The others get the shortest phrase from their
 /// authored data that tells them apart from the other strangers offered:
 /// "the man" / "the woman", then "the older woman" / "the younger woman",
-/// then the occupation as authored, lower-cased ("the drover" / "the
-/// spinner"), and only then the full description.
+/// then the occupation as authored, lower-cased (the canonical world's
+/// "the smallholder and cattle drover"), and only then the full description.
 /// Each step applies to the strangers who share a noun, so three people can
 /// read "the man", "the older woman" and "the younger woman". Age tells
 /// exactly two apart; three or more who share a noun go to occupation.
