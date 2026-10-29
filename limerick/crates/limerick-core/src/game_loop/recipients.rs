@@ -331,10 +331,11 @@ fn person_choices(npc_manager: &NpcManager, ids: &[NpcId]) -> Vec<ClarificationC
 /// introduced is named. The others get the shortest phrase from their
 /// authored data that tells them apart from the other strangers offered:
 /// "the man" / "the woman", then "the older woman" / "the younger woman",
-/// then the occupation ("the drover" / "the spinner"), and only then the
-/// full description.
+/// then the occupation as authored, lower-cased ("the drover" / "the
+/// spinner"), and only then the full description.
 /// Each step applies to the strangers who share a noun, so three people can
-/// read "the man", "the older woman" and "the younger woman".
+/// read "the man", "the older woman" and "the younger woman". Age tells
+/// exactly two apart; three or more who share a noun go to occupation.
 fn choice_labels(npc_manager: &NpcManager, npcs: &[&Npc]) -> Vec<String> {
     let mut labels: Vec<String> = npcs
         .iter()
@@ -379,6 +380,17 @@ fn choice_labels(npc_manager: &NpcManager, npcs: &[&Npc]) -> Vec<String> {
             // Nothing shorter tells them apart: the full descriptions stay.
             _ => {}
         }
+    }
+    // Groups are told apart by their nouns until occupation, which two
+    // groups can share ("the farmer" among the men and the women): anyone
+    // whose label is still not unique keeps the full description.
+    let clashing: Vec<usize> = strangers
+        .iter()
+        .copied()
+        .filter(|i| labels.iter().filter(|l| **l == labels[*i]).count() > 1)
+        .collect();
+    for i in clashing {
+        labels[i] = npc_manager.display_name(npcs[i]).to_string();
     }
     labels
 }
@@ -709,6 +721,31 @@ mod tests {
             [
                 "a person called Mícheál Connolly",
                 "a person called Seán Connolly"
+            ]
+        );
+    }
+
+    #[test]
+    fn an_occupation_shared_across_men_and_women_keeps_the_full_description() {
+        let (_, mut npcs) = room(HERE);
+        for (id, pronouns, age, occupation) in [
+            (4, "he/him", 40, "Farmer"),
+            (5, "he/him", 40, "Drover"),
+            (6, "she/her", 30, "Farmer"),
+            (7, "she/her", 30, "Spinner"),
+        ] {
+            npcs.add_npc(person(id, &format!("Person {id}"), occupation, HERE));
+            let npc = npcs.get_mut(NpcId(id)).unwrap();
+            npc.pronouns = pronouns.to_string();
+            npc.age = age;
+        }
+        assert_eq!(
+            which(&npcs, &[4, 5, 6, 7]),
+            [
+                "a person called Person 4",
+                "the drover",
+                "a person called Person 6",
+                "the spinner"
             ]
         );
     }
