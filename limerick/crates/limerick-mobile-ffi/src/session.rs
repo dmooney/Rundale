@@ -18,6 +18,7 @@ use std::time::Instant;
 
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{EndpointInput, InvocationEnvelope};
+use limerick_core::error::LimerickError;
 use limerick_core::game_loop::world_pump::{AdvanceOptions, GossipMode, WeatherMode};
 use limerick_core::game_loop::{GameLoopContext, advance_world, load_fresh_world_and_npcs};
 use limerick_core::game_mod::{EndpointRole, GameMod};
@@ -245,6 +246,9 @@ pub struct Session {
     launch_options: OpenOptions,
 }
 
+/// Excludes a second open of the same saves directory. `SaveFileLock` only
+/// excludes other processes: within one it is shared, so the set of held
+/// paths is what refuses a second session in this process.
 struct LifecycleLock {
     path: PathBuf,
     _lock: Option<SaveFileLock>,
@@ -311,9 +315,14 @@ impl Session {
                     selected.save_path = identity.save_path;
                     marker = true;
                 }
-                // A selection that names no readable save would otherwise
-                // leave the player stuck (ADR-025 §4). Keep the marker, and
-                // every save, and start a new game with the refusal notice.
+                // A marker that names no save this build can use would
+                // otherwise leave the player stuck (ADR-025 §4). Keep the
+                // marker, and every save, and start a new game with the
+                // refusal notice. Any other failure to read it fails the open
+                // instead of quietly selecting another game.
+                Err(error) if !marker_content_unusable(&error) => {
+                    return Err(OpError::storage(error));
+                }
                 Err(_) => {
                     set_aside(&dir.join(ACTIVE_IDENTITY_FILENAME), "refused")?;
                     let (session, path) =
@@ -430,15 +439,18 @@ impl Session {
         // holds no game, so the new one starts without a refusal (#2210).
         // This holds for a save `/new` selected as for the launch save.
         let mut refused = refused;
+        let mut replaced = false;
         let restored = if exists {
             match restore_save(&options.save_path, &game_mod) {
                 Err(error) if error.code == "save_incompatible" => {
                     set_aside(&options.save_path, "refused")?;
                     refused = true;
+                    replaced = true;
                     None
                 }
                 Err(error) if error.code == "save_unfinished" => {
                     set_aside(&options.save_path, "unfinished")?;
+                    replaced = true;
                     None
                 }
                 other => Some(other?),
@@ -460,9 +472,9 @@ impl Session {
             .transcript_events_page(branch_id, 0, 1)
             .map_err(OpError::storage)?
             .is_empty();
-        // Keep the selection naming the game that opened, including one
-        // that just replaced a save set aside above.
-        if marker {
+        // Point the selection at the game that replaced a save set aside
+        // above; the save it named is gone from that path.
+        if marker && replaced {
             let dir = options
                 .save_path
                 .parent()
@@ -471,8 +483,11 @@ impl Session {
                 .map_err(OpError::storage)?;
         }
         let mut session_id = session_identity(&db, branch_id)?;
-        // Explicit new-game saves have unique names. Legacy saves retain the
-        // identity older app projections already stored.
+        // The identity is the branch id and first snapshot time to the
+        // second; every new save's branch is the first, so two games started
+        // within a second share it (`repeated_new_games_have_unique_ids...`).
+        // `/new` saves have unique names, so their name makes it unique.
+        // Legacy saves keep the identity older app projections stored.
         if options
             .save_path
             .file_name()
@@ -1336,6 +1351,17 @@ fn restore_save(
     }
     .restore(&mut world, &mut npcs);
     Ok((world, npcs, db, branch.id))
+}
+
+/// Whether reading the selection marker failed on what it holds (it is
+/// malformed, of another version, or names no save) rather than on the
+/// storage under it.
+fn marker_content_unusable(error: &LimerickError) -> bool {
+    match error {
+        LimerickError::Serialization(_) | LimerickError::Config(_) => true,
+        LimerickError::Io(error) => error.kind() == std::io::ErrorKind::NotFound,
+        _ => false,
+    }
 }
 
 /// Moves a save this build will not open, and its SQLite sidecars, aside

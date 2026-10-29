@@ -2144,6 +2144,26 @@ fn an_unusable_selection_is_kept_aside_and_a_new_game_starts() {
     }
 }
 
+/// Rule 34: a marker the storage fails to read (here, a directory where the
+/// file belongs) fails the launch rather than quietly selecting another game.
+#[test]
+fn a_marker_the_storage_cannot_read_fails_the_open_and_stays() {
+    let (game, _) = Game::new();
+    let dir = game.dir.path().to_path_buf();
+    let request = Game::request(&game.dir);
+    close(game.handle);
+    std::fs::create_dir(dir.join(".active-save.json")).unwrap();
+
+    let (_, _, response) = open_raw(
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
+        &request,
+    );
+    assert_eq!(response["error"]["code"], "storage_error", "{response}");
+    assert!(dir.join(".active-save.json").is_dir());
+    assert!(files_in(&game.dir, ".refused-").is_empty());
+    assert!(files_in(&game.dir, "mobile-").is_empty());
+}
+
 /// A save `/new` selected is refused the way the launch save is: kept aside
 /// unchanged, with a new game, selected in its place, opened with the notice.
 #[test]
