@@ -2165,7 +2165,7 @@ fn a_marker_the_storage_cannot_read_fails_the_open_and_stays() {
 }
 
 /// A save `/new` selected is refused the way the launch save is: kept aside
-/// unchanged, with a new game, selected in its place, opened with the notice.
+/// as it was, and a new game, selected in its place, opens with the notice.
 #[test]
 fn an_unreadable_selected_save_is_kept_aside_and_a_new_game_starts() {
     let (mut game, _) = Game::new();
