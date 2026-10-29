@@ -341,6 +341,13 @@ class ReleaseTests(unittest.TestCase):
         (app / "Rundale").write_bytes(b"binary " + packed)
         runner.validate_archive(expected_build=8)
 
+        # Nor are ones that run into a capitalised word (the upload after #2325).
+        (app / "Rundale").write_bytes(
+            b"binary ding right here.blocked-weatherplayer-task-progression"
+            b"arrival-reactions---Local time out"
+        )
+        runner.validate_archive(expected_build=8)
+
         (app / "Rundale").write_bytes(b"binary")
         foreign = {**firebase, "PROJECT_ID": "someone-else"}
         (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(foreign))
