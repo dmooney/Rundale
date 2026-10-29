@@ -331,8 +331,9 @@ fn person_choices(npc_manager: &NpcManager, ids: &[NpcId]) -> Vec<ClarificationC
 /// introduced is named. The others get the shortest phrase from their
 /// authored data that tells them apart from the other strangers offered:
 /// "the man" / "the woman", then "the older woman" / "the younger woman",
-/// then the occupation as authored, lower-cased (the canonical world's
-/// "the smallholder and cattle drover"), and only then the full description.
+/// then the occupation as authored, its first letter lower-cased (the
+/// canonical world's "the smallholder and cattle drover"), and only then
+/// the full description.
 /// Each step applies to the strangers who share a noun, so three people can
 /// read "the man", "the older woman" and "the younger woman". Age tells
 /// exactly two apart; three or more who share a noun go to occupation.
@@ -359,7 +360,7 @@ fn choice_labels(npc_manager: &NpcManager, npcs: &[&Npc]) -> Vec<String> {
             .collect();
         let occupations: Vec<String> = group
             .iter()
-            .map(|i| npcs[*i].occupation.trim().to_lowercase())
+            .map(|i| lowercase_first(npcs[*i].occupation.trim()))
             .collect();
         match group.as_slice() {
             [only] => labels[*only] = format!("the {noun}"),
@@ -407,6 +408,16 @@ fn person_noun(npc: &Npc) -> &'static str {
         ("she", true) => "girl",
         (_, false) => "person",
         (_, true) => "child",
+    }
+}
+
+/// "Keeper of the Kilteevan inn" as "keeper of the Kilteevan inn": only the
+/// first letter, so proper nouns keep their capitals.
+fn lowercase_first(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 
@@ -709,6 +720,22 @@ mod tests {
         npcs.add_npc(person(4, "Mícheál Ó Briain", "Farmer", HERE));
         npcs.get_mut(NpcId(4)).unwrap().age = 38;
         assert_eq!(which(&npcs, &[2, 4]), ["the drover", "the farmer"]);
+    }
+
+    #[test]
+    fn an_occupation_keeps_its_proper_nouns() {
+        let (_, mut npcs) = room(HERE);
+        npcs.add_npc(person(
+            4,
+            "Tomás Ó Briain",
+            "Keeper of the Kilteevan inn",
+            HERE,
+        ));
+        npcs.get_mut(NpcId(4)).unwrap().age = 38;
+        assert_eq!(
+            which(&npcs, &[2, 4]),
+            ["the drover", "the keeper of the Kilteevan inn"]
+        );
     }
 
     #[test]
