@@ -25,11 +25,15 @@ Mac. It checks:
 
 It then posts one comment per run to the pinned "Repo health" issue (created
 and pinned the first time, found by a marker afterwards) and mentions the
-owner only when something needs them: a `needs-owner` pull request, a stopped
-routine, or a problem older than its escalation threshold. A quiet day posts
-without a notification.
+owner whenever the summary lists any problem, watcher errors included. A quiet
+day posts without a notification.
 
-    repo_health.py run [--dry-run]
+    repo_health.py run [--dry-run] [--branch BRANCH]
+
+`--branch` (default `main`) points the workflow check at another branch, so a
+deliberately red workflow on a test branch can prove it end to end. Issues for
+a non-default branch carry `workflow=<file>@<branch>` in their marker, so they
+never touch the `main` issues, and only that check runs (no summary).
 
 `--dry-run` only reads: it prints the issue changes and the summary it would
 post. Reads go through `gh api`; text from titles and comments is only ever put
@@ -64,27 +68,27 @@ GATEKEEPER_MARKER = re.compile(
 DEPENDABOT_ISSUE = 2252
 OWNER = "dmooney"
 
-# Failure issues another workflow opens and closes itself, by workflow file.
-MANAGED_TITLES = {"testflight.yml": "Nightly mobile-verify failed"}
+DEFAULT_BRANCH = "main"
+# Failure issues another workflow opens and closes itself: workflow file ->
+# (issue title, the only run event that workflow's issue covers). The TestFlight
+# nightly gate reports scheduled failures there; a failed upload on push is not.
+MANAGED_ISSUES = {"testflight.yml": ("Nightly mobile-verify failed", "schedule")}
 
 RED_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
-VERDICT_EVENTS = {"push", "schedule"}
-FAILED_CHECKS = {"FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ERROR"}
+VERDICT_EVENTS = ("push", "schedule")
+# Only these completed check conclusions are passing; cancelled, blocked, and
+# stale checks do not pass branch protection either.
+PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
+MIN_SHA_PREFIX = 7
+# Severity and theme labels the triage audit requires on every issue.
+CI_RED_LABELS = [CI_RED_LABEL, "infra", "P1"]
+HEALTH_LABELS = [HEALTH_LABEL, "infra", "P3"]
 
 PR_RED_HOURS = 24
 PR_UNREVIEWED_HOURS = 24
 PR_APPROVED_HOURS = 2
 ROUTINE_SILENT_DAYS = 8
 ISSUE_STALE_DAYS = 3
-# A finding older than this many hours mentions the owner.
-ESCALATE_HOURS = {
-    "ci_red": 72,
-    "pr_red": 72,
-    "pr_unreviewed": 72,
-    "pr_approved": 24,
-    "routine": 0,
-    "stale_issue": 168,
-}
 WATCHER_COMMENT_MARKER = "<!-- repo-health-watcher -->"
 
 
@@ -114,10 +118,6 @@ class Finding:
     text: str
     age_hours: float
 
-    @property
-    def escalates(self) -> bool:
-        return self.age_hours >= ESCALATE_HOURS[self.kind]
-
 
 # --- workflows red on main ---------------------------------------------------
 
@@ -140,11 +140,12 @@ def classify_workflows(
     workflows: list[dict[str, Any]],
     runs_by_id: dict[int, list[dict[str, Any]]],
     present: set[str],
+    branch: str = DEFAULT_BRANCH,
 ) -> list[WorkflowState]:
-    """Each active workflow's verdict: its newest completed push/schedule run on main.
+    """Each active workflow's verdict: its newest completed push/schedule run on `branch`.
 
     GitHub keeps listing a deleted workflow file as active, so only files that
-    exist on main (`present`) count.
+    exist on the branch (`present`) count.
     """
     states = []
     for wf in workflows:
@@ -154,7 +155,7 @@ def classify_workflows(
         verdicts = [
             run
             for run in runs_by_id.get(wf["id"], [])
-            if run.get("head_branch") == "main"
+            if run.get("head_branch") == branch
             and run.get("event") in VERDICT_EVENTS
             and run.get("status") == "completed"
             and (run.get("conclusion") == "success" or run.get("conclusion") in RED_CONCLUSIONS)
@@ -193,13 +194,15 @@ def failing_jobs(jobs: list[dict[str, Any]]) -> list[str]:
     return lines[:20]
 
 
-def render_ci_red_body(state: WorkflowState, jobs: list[dict[str, Any]]) -> str:
+def render_ci_red_body(
+    state: WorkflowState, jobs: list[dict[str, Any]], branch: str = DEFAULT_BRANCH
+) -> str:
     run = state.run or {}
     lines = [
-        f"<!-- ci-red: workflow={state.file} -->",
+        f"<!-- ci-red: workflow={issue_key(state.file, branch)} -->",
         f"<!-- ci-red-run: {run.get('id', 0)} -->",
         f"The {span(state.name)} workflow ({span(state.file)}) failed on its latest completed "
-        "run on `main`.",
+        f"run on {span(branch)}.",
         "",
         f"- Run: {run.get('html_url', '')} ({run.get('event', '?')}, "
         f"commit {span(str(run.get('head_sha', ''))[:9])}, {run.get('created_at', '?')})",
@@ -208,7 +211,7 @@ def render_ci_red_body(state: WorkflowState, jobs: list[dict[str, Any]]) -> str:
         "",
         "Opened by the repo health watcher ([`scripts/repo_health.py`]"
         "(../blob/main/scripts/repo_health.py)). It updates this description as the failing "
-        "run changes and closes the issue when the workflow passes on `main`. Fix the cause "
+        f"run changes and closes the issue when the workflow passes on {span(branch)}. Fix the cause "
         "and close the process gap that let it sit, per the AGENTS.md rule.",
     ]
     return "\n".join(lines)
@@ -224,11 +227,17 @@ class IssueAction:
     comment: str = ""
 
 
+def issue_key(file: str, branch: str) -> str:
+    """The marker value naming a workflow on a branch; plain file name for the default."""
+    return file if branch == DEFAULT_BRANCH else f"{file}@{branch}"
+
+
 def plan_ci_red(
     states: list[WorkflowState],
     open_issues: list[dict[str, Any]],
     jobs_for_run: Callable[[int], list[dict[str, Any]]],
     active_files: set[str],
+    branch: str = DEFAULT_BRANCH,
 ) -> list[IssueAction]:
     existing: dict[str, dict[str, Any]] = {}
     for issue in open_issues:
@@ -236,7 +245,9 @@ def plan_ci_red(
             continue
         match = CI_RED_MARKER.search(issue.get("body") or "")
         if match:
-            existing.setdefault(match.group(1), issue)
+            file, _, issue_branch = match.group(1).partition("@")
+            if (issue_branch or DEFAULT_BRANCH) == branch:
+                existing.setdefault(file, issue)
     titles = {issue["title"]: issue for issue in open_issues}
     actions: list[IssueAction] = []
     seen = set()
@@ -244,22 +255,29 @@ def plan_ci_red(
         seen.add(state.file)
         current = existing.get(state.file)
         if state.status == "red":
-            managed = titles.get(MANAGED_TITLES.get(state.file, ""))
+            run = state.run or {}
+            title_event = MANAGED_ISSUES.get(state.file)
+            managed = (
+                titles.get(title_event[0])
+                if title_event and run.get("event") == title_event[1] and branch == DEFAULT_BRANCH
+                else None
+            )
             if current is None and managed is not None:
                 actions.append(IssueAction("tracked", state.file, managed["number"]))
                 continue
-            run = state.run or {}
             body = render_ci_red_body(
-                state, jobs_for_run(run["id"]) if issue_needs(current, run) else []
+                state, jobs_for_run(run["id"]) if issue_needs(current, run) else [], branch
             )
             if current is None:
-                title = f"CI red on main: {state.name} ({state.file})"
+                title = f"CI red on {branch}: {state.name} ({state.file})"
                 actions.append(IssueAction("create", state.file, title=title, body=body))
             elif issue_needs(current, run):
                 actions.append(IssueAction("update", state.file, current["number"], body=body))
         elif state.status == "green" and current is not None:
             run = state.run or {}
-            comment = f"{span(state.name)} passed on `main` again: {run.get('html_url', '')}"
+            comment = (
+                f"{span(state.name)} passed on {span(branch)} again: {run.get('html_url', '')}"
+            )
             actions.append(IssueAction("close", state.file, current["number"], comment=comment))
     for file, issue in existing.items():
         if file not in seen and file not in active_files:
@@ -280,10 +298,13 @@ def label_names(item: dict[str, Any]) -> set[str]:
     return {lab["name"] if isinstance(lab, dict) else lab for lab in item.get("labels", [])}
 
 
-def red_workflow_findings(states: list[WorkflowState], now: datetime) -> list[Finding]:
+def red_workflow_findings(
+    states: list[WorkflowState], now: datetime, tracked_files: set[str] | None = None
+) -> list[Finding]:
+    """Red workflows without an issue of their own; tracked ones are listed apart."""
     findings = []
     for state in states:
-        if state.status != "red" or state.run is None:
+        if state.status != "red" or state.run is None or state.file in (tracked_files or ()):
             continue
         age = hours_between(parse_time(state.since or state.run["created_at"]), now)
         findings.append(
@@ -323,16 +344,17 @@ def check_state(commit: dict[str, Any]) -> tuple[str, datetime]:
                 pending = True
                 continue
             when = parse_time(ctx["completedAt"]) if ctx.get("completedAt") else committed
-            (failed if ctx.get("conclusion") in FAILED_CHECKS else done).append(when)
+            passed = ctx.get("conclusion") in PASSING_CONCLUSIONS
+            (done if passed else failed).append(when)
         else:
             state = ctx.get("state")
             when = parse_time(ctx["createdAt"]) if ctx.get("createdAt") else committed
-            if state in FAILED_CHECKS:
-                failed.append(when)
-            elif state in {"PENDING", "EXPECTED"}:
+            if state in {"PENDING", "EXPECTED"}:
                 pending = True
-            else:
+            elif state == "SUCCESS":
                 done.append(when)
+            else:
+                failed.append(when)
     if failed:
         return "red", min(failed)
     if pending:
@@ -366,12 +388,23 @@ def nodes(pr: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 def sha_matches(marker_sha: str, head: str) -> bool:
     head = head.lower()
-    return bool(marker_sha) and (head.startswith(marker_sha) or marker_sha.startswith(head))
+    if len(marker_sha) < MIN_SHA_PREFIX:
+        return False
+    return head.startswith(marker_sha) or marker_sha.startswith(head)
+
+
+def is_bot(actor: dict[str, Any] | None) -> bool:
+    """True for GitHub Apps and bots; code scanners review as `github-advanced-security`."""
+    actor = actor or {}
+    return actor.get("__typename") == "Bot" or str(actor.get("login", "")).endswith("[bot]")
 
 
 def reviewed_at_head(pr: dict[str, Any], head: str) -> bool:
+    """A non-bot, non-author review at the head commit, or a gatekeeper marker for it."""
     author = (pr.get("author") or {}).get("login")
     for review in nodes(pr, "reviews"):
+        if is_bot(review.get("author")):
+            continue
         reviewer = (review.get("author") or {}).get("login")
         commit = (review.get("commit") or {}).get("oid", "")
         if reviewer != author and review.get("state") != "PENDING" and commit == head:
@@ -425,17 +458,15 @@ def analyze_prs(prs: list[dict[str, Any]], now: datetime) -> PrReport:
 # --- routines and stale issues -----------------------------------------------
 
 
-def first_line(text: str | None) -> str:
-    lines = (text or "").strip().splitlines()
-    return lines[0] if lines else ""
+UPKEEP_HEADING = re.compile(
+    r"^##\s+Dependabot upkeep\b(?!\s+dry run)", re.IGNORECASE | re.MULTILINE
+)
 
 
 def routine_finding(comments: list[dict[str, Any]], now: datetime) -> Finding | None:
     """A finding when no Dependabot upkeep report was posted within ROUTINE_SILENT_DAYS."""
     reports = [
-        parse_time(c["created_at"])
-        for c in comments
-        if "dependabot upkeep" in first_line(c.get("body")).lower()
+        parse_time(c["created_at"]) for c in comments if UPKEEP_HEADING.search(c.get("body") or "")
     ]
     if reports:
         age = hours_between(max(reports), now)
@@ -453,20 +484,29 @@ def routine_finding(comments: list[dict[str, Any]], now: datetime) -> Finding | 
 
 
 def tracking_issues(open_issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    managed = set(MANAGED_TITLES.values())
+    managed = {title for title, _ in MANAGED_ISSUES.values()}
     return [i for i in open_issues if CI_RED_LABEL in label_names(i) or i["title"] in managed]
 
 
 def stale_issue_findings(
     issues: list[dict[str, Any]], comments_by_number: dict[int, list[dict[str, Any]]], now: datetime
 ) -> list[Finding]:
+    """Issues with no human activity for ISSUE_STALE_DAYS.
+
+    Bot comments (the watcher's own, the TestFlight gate's nightly failure dump) are
+    not activity, and an issue whose comments could not be read is skipped.
+    """
     findings = []
     for issue in issues:
+        if issue["number"] not in comments_by_number:
+            continue
         times = [parse_time(issue["created_at"])]
         times += [
             parse_time(c["created_at"])
-            for c in comments_by_number.get(issue["number"], [])
+            for c in comments_by_number[issue["number"]]
             if WATCHER_COMMENT_MARKER not in (c.get("body") or "")
+            and (c.get("user") or {}).get("type") != "Bot"
+            and not str((c.get("user") or {}).get("login", "")).endswith("[bot]")
         ]
         age = hours_between(max(times), now)
         if age >= ISSUE_STALE_DAYS * 24:
@@ -517,10 +557,13 @@ def render_summary(
         *([routine] if routine else []),
         *stale,
     ]
+    # Mention the owner on any problem. Nothing fixes these automatically yet; once
+    # the upkeep routine (issue #2342) repairs some, it can stop mentioning for those.
     reasons = []
     if prs.needs_owner:
         reasons.append(f"{len(prs.needs_owner)} pull request(s) labelled `needs-owner`")
-    reasons += [f.text for f in everything if f.escalates]
+    reasons += [f.text for f in everything]
+    reasons += [f"watcher error: {e}" for e in errors]
     problems = len(everything) + len(prs.needs_owner) + len(errors)
     head = f"## Repo health {now:%Y-%m-%d %H:%M} UTC"
     lines = [WATCHER_COMMENT_MARKER, head, ""]
@@ -548,8 +591,8 @@ def render_summary(
         lines += section("Watcher errors", errors)
     lines.append(
         "Posted by the repo health watcher ([`scripts/repo_health.py`]"
-        "(../blob/main/scripts/repo_health.py)). The owner is mentioned only when something "
-        "needs them."
+        "(../blob/main/scripts/repo_health.py)). The owner is mentioned whenever a problem "
+        "is listed."
     )
     return Summary("\n".join(lines), bool(reasons))
 
@@ -559,8 +602,8 @@ def render_summary(
 
 class Client(Protocol):
     def workflows(self) -> list[dict[str, Any]]: ...
-    def workflow_files(self) -> set[str]: ...
-    def workflow_runs(self, workflow_id: int) -> list[dict[str, Any]]: ...
+    def workflow_files(self, branch: str) -> set[str]: ...
+    def workflow_runs(self, workflow_id: int, branch: str) -> list[dict[str, Any]]: ...
     def run_jobs(self, run_id: int) -> list[dict[str, Any]]: ...
     def open_issues(self) -> list[dict[str, Any]]: ...
     def issue_comments(
@@ -584,8 +627,8 @@ query($owner: String!, $name: String!, $after: String) {
         number title url isDraft createdAt headRefOid
         author { login }
         labels(first: 20) { nodes { name } }
-        reviews(first: 50) { nodes { author { login } body submittedAt state commit { oid } } }
-        comments(last: 50) { nodes { author { login } body createdAt } }
+        reviews(last: 50) { nodes { author { __typename login } body submittedAt state commit { oid } } }
+        comments(last: 50) { nodes { author { __typename login } body createdAt } }
         commits(last: 1) { nodes { commit {
           oid committedDate
           statusCheckRollup { state contexts(first: 100) { nodes {
@@ -620,7 +663,8 @@ class GhClient:
             check=False,
         )
         if proc.returncode != 0:
-            raise RuntimeError(f"{' '.join(cmd[:4])} failed: {proc.stderr.strip()[:300]}")
+            detail = (proc.stderr.strip() or proc.stdout.strip())[:300]
+            raise RuntimeError(f"{' '.join(cmd[:4])} failed: {detail}")
         return json.loads(proc.stdout) if proc.stdout.strip() else None
 
     def _get_pages(self, path: str, key: str | None = None, **params: str) -> list[dict[str, Any]]:
@@ -639,18 +683,24 @@ class GhClient:
     def workflows(self) -> list[dict[str, Any]]:
         return self._get_pages(f"repos/{self.repo}/actions/workflows", "workflows")
 
-    def workflow_files(self) -> set[str]:
+    def workflow_files(self, branch: str) -> set[str]:
         data = self._api(
-            ["-X", "GET", f"repos/{self.repo}/contents/.github/workflows", "-f", "ref=main"]
+            ["-X", "GET", f"repos/{self.repo}/contents/.github/workflows", "-f", f"ref={branch}"]
         )
         return {item["name"] for item in data if item["type"] == "file"}
 
-    def workflow_runs(self, workflow_id: int) -> list[dict[str, Any]]:
-        data = self._api(
-            ["-X", "GET", f"repos/{self.repo}/actions/workflows/{workflow_id}/runs",
-             "-f", "branch=main", "-f", "status=completed", "-f", "per_page=30"]
-        )  # fmt: skip
-        return data["workflow_runs"]
+    def workflow_runs(self, workflow_id: int, branch: str) -> list[dict[str, Any]]:
+        """Completed runs on the branch, fetched per verdict event so that runs from
+        other events (issues, pull requests) cannot push the latest verdict out."""
+        runs: list[dict[str, Any]] = []
+        for event in VERDICT_EVENTS:
+            data = self._api(
+                ["-X", "GET", f"repos/{self.repo}/actions/workflows/{workflow_id}/runs",
+                 "-f", f"branch={branch}", "-f", f"event={event}", "-f", "status=completed",
+                 "-f", "per_page=30"]
+            )  # fmt: skip
+            runs += data["workflow_runs"]
+        return runs
 
     def run_jobs(self, run_id: int) -> list[dict[str, Any]]:
         data = self._api(
@@ -718,7 +768,10 @@ class GhClient:
 
 
 def apply_actions(
-    client: Client, actions: list[IssueAction], dry_run: bool, log: Callable[[str], None]
+    client: Client,
+    actions: list[IssueAction],
+    dry_run: bool,
+    log: Callable[[str], None],
 ) -> list[tuple[str, int]]:
     """Carry out the issue plan; returns (workflow file, issue number) pairs tracked elsewhere."""
     tracked = []
@@ -734,7 +787,7 @@ def apply_actions(
         elif action.op == "create":
             log(f"{action.workflow}: open issue {action.title!r}")
             if not dry_run:
-                client.create_issue(action.title, action.body, [CI_RED_LABEL])
+                client.create_issue(action.title, action.body, CI_RED_LABELS)
         elif action.op == "update":
             assert action.number is not None
             log(f"{action.workflow}: update issue {action.number}")
@@ -764,9 +817,9 @@ def post_summary(
             f"{HEALTH_MARKER}\nOne comment per run from the repo health watcher "
             "([`scripts/repo_health.py`](../blob/main/scripts/repo_health.py)): workflows red on "
             "`main`, stuck pull requests, silent scheduled routines, and stale failure issues. "
-            "The owner is mentioned only when something needs them."
+            "The owner is mentioned whenever a problem is listed."
         )
-        issue = client.create_issue(HEALTH_TITLE, body, [HEALTH_LABEL])
+        issue = client.create_issue(HEALTH_TITLE, body, HEALTH_LABELS)
         try:
             client.pin_issue(issue["node_id"])
         except RuntimeError as err:
@@ -775,7 +828,13 @@ def post_summary(
     log(f"posted the summary to issue {issue['number']}")
 
 
-def run(client: Client, now: datetime, dry_run: bool, log: Callable[[str], None] = print) -> int:
+def run(
+    client: Client,
+    now: datetime,
+    dry_run: bool,
+    log: Callable[[str], None] = print,
+    branch: str = DEFAULT_BRANCH,
+) -> int:
     errors: list[str] = []
 
     def guarded(name: str, fn: Callable[..., Any], default: Any, *args: Any) -> Any:
@@ -785,29 +844,39 @@ def run(client: Client, now: datetime, dry_run: bool, log: Callable[[str], None]
             errors.append(f"{name}: {span(err)}")
             return default
 
-    open_issues = guarded("list open issues", client.open_issues, [])
+    # A failed read is None, never an empty list: "no open issues" would make the
+    # watcher open duplicates of every issue it could not see.
+    open_issues = guarded("list open issues", client.open_issues, None)
     workflows = guarded("list workflows", client.workflows, None)
     red: list[Finding] = []
     tracked: list[tuple[str, int]] = []
-    present = guarded("list workflow files", client.workflow_files, set())
-    if workflows is not None and present:
+    present = guarded("list workflow files", client.workflow_files, set(), branch)
+    if workflows is not None and present and open_issues is not None:
         runs = {}
         for wf in workflows:
             if workflow_file(wf.get("path", "")) and wf.get("state") == "active":
                 runs[wf["id"]] = guarded(
-                    f"runs of {wf['name']}", client.workflow_runs, [], wf["id"]
+                    f"runs of {wf['name']}", client.workflow_runs, [], wf["id"], branch
                 )
-        states = classify_workflows(workflows, runs, present)
+        states = classify_workflows(workflows, runs, present, branch)
         active = {s.file for s in states}
+
+        def jobs_for_run(run_id: int) -> list[dict[str, Any]]:
+            return guarded(f"jobs of run {run_id}", client.run_jobs, [], run_id)
+
         actions = guarded(
             "plan ci-red issues",
-            lambda: plan_ci_red(states, open_issues, client.run_jobs, active),
+            lambda: plan_ci_red(states, open_issues, jobs_for_run, active, branch),
             [],
         )
         tracked = guarded(
             "apply ci-red issues", lambda: apply_actions(client, actions, dry_run, log), []
         )
-        red = red_workflow_findings(states, now)
+        red = red_workflow_findings(states, now, {file for file, _ in tracked})
+
+    if branch != DEFAULT_BRANCH:
+        log(f"checked workflows on {branch} only; no summary posted")
+        return 1 if errors else 0
 
     report = guarded("pull requests", lambda: analyze_prs(client.open_prs(), now), PrReport())
     comments = guarded(
@@ -816,16 +885,20 @@ def run(client: Client, now: datetime, dry_run: bool, log: Callable[[str], None]
         None,
     )
     routine = routine_finding(comments, now) if comments is not None else None
-    tracking = tracking_issues(open_issues)
-    by_number = {
-        i["number"]: guarded(
-            f"comments of issue {i['number']}", client.issue_comments, [], i["number"]
-        )
-        for i in tracking
-    }
+    by_number: dict[int, list[dict[str, Any]]] = {}
+    tracking = tracking_issues(open_issues or [])
+    for i in tracking:
+        got = guarded(f"comments of issue {i['number']}", client.issue_comments, None, i["number"])
+        if got is not None:
+            by_number[i["number"]] = got
     stale = stale_issue_findings(tracking, by_number, now)
 
     summary = render_summary(now, red, tracked, report, routine, stale, errors)
+    if open_issues is None:
+        # Without the issue list the Repo health issue cannot be found; do not create a twin.
+        log("could not list open issues, so the summary was not posted:")
+        log(summary.body)
+        return 1
     post_summary(client, summary, open_issues, dry_run, log)
     return 1 if errors else 0
 
@@ -835,10 +908,16 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run_parser = sub.add_parser("run", help="check the repo and post the summary")
     run_parser.add_argument("--dry-run", action="store_true", help="read only; print the plan")
+    run_parser.add_argument(
+        "--branch",
+        default=DEFAULT_BRANCH,
+        help="branch whose workflow runs are checked (default %(default)s); other values "
+        "check workflows only and post no summary",
+    )
     args = parser.parse_args(argv)
     repo = os.environ.get("GITHUB_REPOSITORY", "dmooney/Rundale")
     dry = args.dry_run or os.environ.get("DRY_RUN", "").lower() == "true"
-    return run(GhClient(repo), datetime.now(timezone.utc), dry)
+    return run(GhClient(repo), datetime.now(timezone.utc), dry, print, args.branch)
 
 
 if __name__ == "__main__":

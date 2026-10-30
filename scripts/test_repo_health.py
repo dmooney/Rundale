@@ -136,10 +136,13 @@ class CiRedPlanTests(unittest.TestCase):
 
     def test_workflow_with_a_managed_issue_is_tracked_not_duplicated(self) -> None:
         existing = [issue(5, "Nightly mobile-verify failed")]
-        (action,) = self.plan([self.red("testflight.yml")], existing)
+        nightly = rh.WorkflowState(
+            "testflight.yml", "TF", "red", run(7, "failure", 3, event="schedule"), ago(3)
+        )
+        (action,) = self.plan([nightly], existing)
         self.assertEqual((action.op, action.number), ("tracked", 5))
         # Without the managed issue the watcher opens its own.
-        (created,) = self.plan([self.red("testflight.yml")], [])
+        (created,) = self.plan([nightly], [])
         self.assertEqual(created.op, "create")
 
     def test_passing_workflow_closes_its_issue_with_a_comment(self) -> None:
@@ -311,7 +314,7 @@ class RoutineAndStaleTests(unittest.TestCase):
         finding = rh.routine_finding([old], NOW)
         self.assertIsNotNone(finding)
         assert finding is not None
-        self.assertTrue(finding.escalates)
+        self.assertEqual(finding.kind, "routine")
         chatter = {"body": "thanks!", "created_at": ago(1)}
         self.assertIsNotNone(rh.routine_finding([chatter], NOW))
         self.assertIsNotNone(rh.routine_finding([], NOW))
@@ -321,6 +324,7 @@ class RoutineAndStaleTests(unittest.TestCase):
         talked = issue(2, "talked", labels=("ci-red",), hours=24 * 4)
         own = issue(3, "own", labels=("ci-red",), hours=24 * 4)
         comments = {
+            1: [],
             2: [{"body": "looking", "created_at": ago(5)}],
             3: [{"body": f"{rh.WATCHER_COMMENT_MARKER} hi", "created_at": ago(5)}],
         }
@@ -355,18 +359,38 @@ class SummaryTests(unittest.TestCase):
         self.assertNotIn("@dmooney", summary.body)
         self.assertIn("All clear.", summary.body)
 
-    def test_young_problems_do_not_notify_old_ones_and_needs_owner_do(self) -> None:
+    def test_any_problem_mentions_the_owner_however_young(self) -> None:
         young = rh.Finding("ci_red", "wf red", 5)
-        self.assertFalse(self.summary(red_workflows=[young]).needs_owner)
-        old = rh.Finding("ci_red", "wf red", 80)
-        self.assertIn("@dmooney", self.summary(red_workflows=[old]).body)
+        summary = self.summary(red_workflows=[young])
+        self.assertTrue(summary.needs_owner)
+        self.assertIn("@dmooney this needs you", summary.body)
+        for field, finding in {
+            "stale": [rh.Finding("stale_issue", "issue 4 stale", 80)],
+            "routine": rh.Finding("routine", "upkeep silent", 200),
+        }.items():
+            self.assertTrue(self.summary(**{field: finding}).needs_owner, field)
+        prs = rh.PrReport(approved=[rh.Finding("pr_approved", "PR 3 approved", 3)])
+        self.assertTrue(self.summary(prs=prs).needs_owner)
         prs = rh.PrReport(needs_owner=[rh.Finding("pr_red", "PR 3 x", 10)])
         self.assertTrue(self.summary(prs=prs).needs_owner)
+
+    def test_watcher_errors_mention_the_owner(self) -> None:
+        summary = self.summary(errors=["list open issues: `boom`"])
+        self.assertTrue(summary.needs_owner)
+        self.assertIn("@dmooney this needs you", summary.body)
+        self.assertIn("watcher error: list open issues", summary.body)
 
     def test_tracked_and_errors_are_listed(self) -> None:
         summary = self.summary(tracked=[("testflight.yml", 5)], errors=["boom"])
         self.assertIn("tracked by issue 5", summary.body)
         self.assertIn("Watcher errors", summary.body)
+
+    def test_a_tracked_workflow_is_not_also_counted_as_red(self) -> None:
+        red = rh.WorkflowState("testflight.yml", "TF", "red", run(3, "failure", 5), ago(5))
+        other = rh.WorkflowState("ci.yml", "CI", "red", run(4, "failure", 5), ago(5))
+        found = rh.red_workflow_findings([red, other], NOW, {"testflight.yml"})
+        self.assertEqual(len(found), 1)
+        self.assertIn("ci.yml", found[0].text)
 
 
 class FakeClient:
@@ -385,6 +409,7 @@ class FakeClient:
         }
         self.data.update(data)
         self.writes: list[tuple[Any, ...]] = []
+        self.branches: list[str] = []
 
     def _maybe_fail(self, name: str) -> None:
         if name in self.data["fail"]:
@@ -393,20 +418,24 @@ class FakeClient:
     def workflows(self) -> Any:
         return self.data["workflows"]
 
-    def workflow_files(self) -> set[str]:
+    def workflow_files(self, branch: str) -> set[str]:
         return {w["path"].split("/")[-1] for w in self.data["workflows"]}
 
-    def workflow_runs(self, workflow_id: int) -> Any:
+    def workflow_runs(self, workflow_id: int, branch: str) -> Any:
         self._maybe_fail("runs")
+        self.branches.append(branch)
         return self.data["runs"][workflow_id]
 
     def run_jobs(self, run_id: int) -> Any:
+        self._maybe_fail("jobs")
         return [{"name": "build", "conclusion": "failure", "html_url": "u", "steps": []}]
 
     def open_issues(self) -> Any:
+        self._maybe_fail("issues")
         return self.data["issues"]
 
     def issue_comments(self, number: int, since: Any = None) -> Any:
+        self._maybe_fail(f"comments{number}")
         return self.data["comments"].get(number, [])
 
     def open_prs(self) -> Any:
@@ -434,16 +463,18 @@ class FakeClient:
 
 
 class RunTests(unittest.TestCase):
-    def go(self, client: FakeClient, dry_run: bool = False) -> int:
+    def go(self, client: FakeClient, dry_run: bool = False, branch: str = "main") -> int:
         self.logs: list[str] = []
-        return rh.run(client, NOW, dry_run, self.logs.append)
+        return rh.run(client, NOW, dry_run, self.logs.append, branch)
 
     def test_first_run_opens_ci_red_issue_creates_pins_and_posts_summary(self) -> None:
         client = FakeClient()
         self.assertEqual(self.go(client), 0)
         kinds = [w[0] for w in client.writes]
-        self.assertIn(("create", "CI red on main: CI (ci.yml)", ("ci-red",)), client.writes)
-        self.assertIn(("create", "Repo health", ("repo-health",)), client.writes)
+        self.assertIn(
+            ("create", "CI red on main: CI (ci.yml)", ("ci-red", "infra", "P1")), client.writes
+        )
+        self.assertIn(("create", "Repo health", ("repo-health", "infra", "P3")), client.writes)
         self.assertIn(("pin", "I_99"), client.writes)
         self.assertEqual(kinds.count("comment"), 1)
 
@@ -474,9 +505,169 @@ class RunTests(unittest.TestCase):
         client = FakeClient(
             issues=[issue(41, "t", "<!-- ci-red: workflow=ok.yml -->", ("ci-red",))]
         )
-        client.workflow_files = lambda: set()  # type: ignore[method-assign]
+        client.workflow_files = lambda branch: set()  # type: ignore[method-assign]
         self.go(client)
         self.assertNotIn(("close", 41), client.writes)
+
+
+class ReviewTests(unittest.TestCase):
+    def review(self, login: str, typename: str = "User", oid: str = "ab12cd34") -> Any:
+        return {
+            "author": {"__typename": typename, "login": login},
+            "body": "",
+            "submittedAt": ago(10),
+            "state": "COMMENTED",
+            "commit": {"oid": oid},
+        }
+
+    def test_bot_reviews_do_not_count_as_a_review(self) -> None:
+        scanner = self.review("github-advanced-security", "Bot")
+        suffixed = self.review("copilot[bot]")
+        for review in (scanner, suffixed):
+            report = rh.analyze_prs([pr(1, reviews={"nodes": [review]})], NOW)
+            self.assertEqual(len(report.unreviewed), 1)
+
+    def test_a_human_review_still_counts_next_to_a_bot_one(self) -> None:
+        nodes = {"nodes": [self.review("github-advanced-security", "Bot"), self.review("rev")]}
+        self.assertEqual(rh.analyze_prs([pr(1, reviews=nodes)], NOW).unreviewed, [])
+
+    def test_the_query_reads_the_newest_reviews(self) -> None:
+        self.assertIn("reviews(last: 50)", rh.PR_QUERY)
+        self.assertNotIn("reviews(first", rh.PR_QUERY)
+
+    def test_short_marker_shas_do_not_prefix_match(self) -> None:
+        self.assertFalse(rh.sha_matches("ab1", "ab12cd34"))
+        self.assertTrue(rh.sha_matches("ab12cd3", "ab12cd34"))
+
+
+class CheckStateTests(unittest.TestCase):
+    def state(self, *checks: Any) -> str:
+        return rh.check_state(commit(list(checks))["nodes"][0]["commit"])[0]
+
+    def test_cancelled_and_blocked_checks_are_not_green(self) -> None:
+        for conclusion in ("CANCELLED", "ACTION_REQUIRED", "STALE", "FAILURE", "TIMED_OUT"):
+            self.assertEqual(self.state(check_run(conclusion, 5)), "red", conclusion)
+
+    def test_success_neutral_and_skipped_are_green(self) -> None:
+        for conclusion in ("SUCCESS", "NEUTRAL", "SKIPPED"):
+            self.assertEqual(self.state(check_run(conclusion, 5)), "green", conclusion)
+
+
+class StaleActivityTests(unittest.TestCase):
+    def test_bot_comments_do_not_reset_the_clock(self) -> None:
+        nightly = issue(1, "Nightly mobile-verify failed", hours=24 * 6)
+        comments = {
+            1: [
+                {
+                    "body": "Failing again",
+                    "created_at": ago(2),
+                    "user": {"login": "github-actions[bot]", "type": "Bot"},
+                }
+            ]
+        }
+        self.assertEqual(len(rh.stale_issue_findings([nightly], comments, NOW)), 1)
+        comments[1][0]["user"] = {"login": "dmooney", "type": "User"}
+        self.assertEqual(rh.stale_issue_findings([nightly], comments, NOW), [])
+
+    def test_an_issue_whose_comments_were_not_read_is_skipped(self) -> None:
+        quiet = issue(1, "quiet", labels=("ci-red",), hours=24 * 9)
+        self.assertEqual(rh.stale_issue_findings([quiet], {}, NOW), [])
+
+
+class UpkeepHeadingTests(unittest.TestCase):
+    def finding(self, body: str) -> Any:
+        return rh.routine_finding([{"body": body, "created_at": ago(24)}], NOW)
+
+    def test_heading_matches_after_a_marker_or_mention(self) -> None:
+        self.assertIsNone(self.finding("<!-- upkeep -->\n@dmooney\n## Dependabot upkeep, 10-26"))
+
+    def test_dry_run_reports_do_not_count(self) -> None:
+        self.assertIsNotNone(self.finding("## Dependabot upkeep dry run, 2026-10-26"))
+
+
+class ManagedIssueTests(unittest.TestCase):
+    def test_nightly_issue_covers_scheduled_failures_only(self) -> None:
+        nightly = [issue(5, "Nightly mobile-verify failed")]
+        push = rh.WorkflowState("testflight.yml", "TF", "red", run(7, "failure", 3), ago(3))
+        scheduled = rh.WorkflowState(
+            "testflight.yml", "TF", "red", run(8, "failure", 3, event="schedule"), ago(3)
+        )
+        (created,) = rh.plan_ci_red([push], nightly, lambda _r: [], {"testflight.yml"})
+        self.assertEqual(created.op, "create")
+        (tracked,) = rh.plan_ci_red([scheduled], nightly, lambda _r: [], {"testflight.yml"})
+        self.assertEqual((tracked.op, tracked.number), ("tracked", 5))
+
+
+class BranchTests(unittest.TestCase):
+    def test_classify_reads_only_the_requested_branch(self) -> None:
+        runs = {1: [run(2, "failure", 1, branch="proof"), run(1, "success", 2)]}
+        (main,) = rh.classify_workflows([wf(1, "ci.yml")], runs, {"ci.yml"})
+        (proof,) = rh.classify_workflows([wf(1, "ci.yml")], runs, {"ci.yml"}, "proof")
+        self.assertEqual((main.status, proof.status), ("green", "red"))
+
+    def test_branch_issues_are_keyed_apart_from_main_issues(self) -> None:
+        state = rh.WorkflowState("ci.yml", "CI", "red", run(7, "failure", 3), ago(3))
+        main_issue = issue(10, "t", "<!-- ci-red: workflow=ci.yml -->", ("ci-red",))
+        (action,) = rh.plan_ci_red([state], [main_issue], lambda _r: [], {"ci.yml"}, "proof")
+        self.assertEqual(action.op, "create")
+        self.assertEqual(action.title, "CI red on proof: CI (ci.yml)")
+        self.assertIn("workflow=ci.yml@proof", action.body)
+        # The branch's own issue is found and closed when the branch goes green; main's is not.
+        green = rh.WorkflowState("ci.yml", "CI", "green", run(9, "success", 1), "")
+        proof_issue = issue(11, "t", action.body, ("ci-red",))
+        actions = rh.plan_ci_red(
+            [green], [main_issue, proof_issue], lambda _r: [], {"ci.yml"}, "proof"
+        )
+        self.assertEqual([(a.op, a.number) for a in actions], [("close", 11)])
+
+    def test_run_passes_the_branch_and_posts_no_summary_off_main(self) -> None:
+        client = FakeClient(
+            runs={1: [run(11, "failure", 3, branch="proof")], 2: [run(21, "success", 3)]}
+        )
+        self.assertEqual(rh.run(client, NOW, False, lambda _m: None, "proof"), 0)
+        self.assertEqual(set(client.branches), {"proof"})
+        titles = [w[1] for w in client.writes if w[0] == "create"]
+        self.assertEqual(titles, ["CI red on proof: CI (ci.yml)"])
+        self.assertFalse([w for w in client.writes if w[0] == "comment"])
+
+    def test_cli_branch_option_defaults_to_main(self) -> None:
+        seen: list[str] = []
+
+        def fake_run(client: Any, now: Any, dry: bool, log: Any, branch: str) -> int:
+            seen.append(branch)
+            return 0
+
+        original = rh.run
+        rh.run = fake_run  # type: ignore[assignment]
+        try:
+            rh.main(["run", "--dry-run"])
+            rh.main(["run", "--dry-run", "--branch", "proof"])
+        finally:
+            rh.run = original
+        self.assertEqual(seen, ["main", "proof"])
+
+
+class PartialFailureTests(unittest.TestCase):
+    def test_unreadable_issue_list_creates_nothing(self) -> None:
+        client = FakeClient(fail={"issues"})
+        logs: list[str] = []
+        self.assertEqual(rh.run(client, NOW, False, logs.append), 1)
+        self.assertEqual(client.writes, [])
+        self.assertTrue(any("@dmooney" in line for line in logs))
+
+    def test_unreadable_comments_do_not_make_an_issue_stale(self) -> None:
+        old = issue(41, "t", "<!-- ci-red: workflow=ci.yml -->", ("ci-red",), hours=24 * 9)
+        health = issue(40, "Repo health", rh.HEALTH_MARKER, ("repo-health",))
+        client = FakeClient(issues=[health, old], fail={"comments41"})
+        rh.run(client, NOW, False, lambda _m: None)
+        summary = [w for w in client.writes if w[0] == "comment"][-1][2]
+        self.assertNotIn("Issue 41", summary)
+
+    def test_a_job_fetch_failure_still_opens_the_issue(self) -> None:
+        client = FakeClient(fail={"jobs"})
+        self.assertEqual(rh.run(client, NOW, False, lambda _m: None), 1)
+        creates = [w for w in client.writes if w[0] == "create"]
+        self.assertIn("CI red on main: CI (ci.yml)", [c[1] for c in creates])
 
 
 if __name__ == "__main__":

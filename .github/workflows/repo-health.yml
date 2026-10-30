@@ -5,7 +5,7 @@ name: Repo health
 # routines that stopped reporting, and failure issues nobody touched. Opens a
 # `ci-red` issue per red workflow (the hand-off point for the upkeep routine)
 # and posts one summary a day to the pinned "Repo health" issue, mentioning the
-# owner only when something needs them. Logic and tests: scripts/repo_health.py.
+# owner whenever it lists a problem. Logic and tests: scripts/repo_health.py.
 
 on:
   schedule:
