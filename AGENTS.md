@@ -83,6 +83,35 @@ finishing, or a gate you skipped for the files you changed. Say which in your re
 Close a missing-gate gap in its own tooling PR straight away, not as a later offer.
 A local gate that failed or did not finish has not passed.
 
+### Close process gaps, not just instances
+
+Treat every failure, stall, or manual workaround you meet as two problems: the
+instance, and the process gap that let it happen or let it sit unnoticed. That
+covers anything you come across, not only your own work: a check red on `main`
+for more than a day, a PR stuck or approved but unmerged, a report nobody was
+notified of, a scheduled job that stopped running, or a fix you made by hand
+that will be needed again. Ask what should have caught it, and why nothing
+fixed it. Then:
+
+- Fix the instance, and close the gap in its own PR in the same session: a
+  check, test, workflow, or rule that makes the whole class fix itself, or at
+  least fail loudly. When the gap is larger than the task at hand, file an issue
+  with the evidence and say so in your report; do not leave it as an offer.
+- Prefer self-repair to escalation. When an agent or workflow can fix the
+  automation itself (update a lockfile, rerun a gate, retry a merge, repair a
+  broken job), build that path, and route the result through the usual review.
+  Bring in the owner only for what automation cannot fix or what is theirs to
+  decide: accepting a risk, spending money, changing a product requirement.
+- Prefer mechanisms to memory. A CI check or scheduled job beats a note to be
+  careful, and a gap closed by a rule only an agent reads will reopen.
+- Never let a failure sit unseen. A red scheduled or `main` workflow opens or
+  updates an issue that a fixing routine picks up, a stalled PR is flagged, and
+  anything left for the owner reaches them as a notification.
+- Give every exception an expiry. An ignored advisory, excluded file, or
+  skipped test carries a written reason and is checked again on a schedule or
+  when what it covers changes, so it cannot outlive its justification.
+- Report the gap you found and how you closed it, separately from the instance.
+
 When instructions conflict (an issue criterion, plan order, a gate, and a delivery
 rule cannot all be satisfied), stop and ask the owner which gives way, naming the
 conflict. Do not circle between them. Standing answers:
