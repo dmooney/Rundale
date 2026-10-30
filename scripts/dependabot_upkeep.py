@@ -94,6 +94,7 @@ SECONDS = {
 }
 POLL = 60
 SUMMARY_WORKFLOW = "upkeep-summary.yml"
+SUMMARY_WAIT = 300  # seconds to wait for the posting workflow to finish
 SUMMARY_DISPATCH_LIMIT = 60000  # characters; a dispatch's inputs share a 65535-character payload
 GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
 
@@ -1117,17 +1118,42 @@ class Upkeep:
         logging why, when the dispatch fails, so the caller can comment directly.
         """
 
+        list_runs = [
+            "run", "list", "-R", self.repo, "--workflow", SUMMARY_WORKFLOW,
+            "--event", "workflow_dispatch", "--json", "databaseId,status,conclusion,url",
+            "--limit", "20",
+        ]  # fmt: skip
+        try:
+            before = {r["databaseId"] for r in self.gh(*list_runs) or []}
+        except RECOVERABLE as error:
+            return self.dispatch_failed(f"it could not list earlier runs: {error}")
         cmd = [
             "gh", "workflow", "run", SUMMARY_WORKFLOW, "-R", self.repo, "--ref", "main",
             "-f", f"issue={number}",
             "-f", f"summary={cap_body(summary, SUMMARY_DISPATCH_LIMIT)}",
         ]  # fmt: skip
         dispatched = self.sh.run(cmd, mutating=True)
-        if dispatched.ok:
-            return True
+        if not dispatched.ok:
+            return self.dispatch_failed("GitHub refused the dispatch")
+        # An accepted dispatch only queues the run; wait for its result.
+        deadline = self.clock() + SUMMARY_WAIT
+        while self.clock() < deadline:
+            self.sleep(POLL)
+            try:
+                runs = self.gh(*list_runs) or []
+            except RECOVERABLE:
+                continue
+            run = next((r for r in runs if r["databaseId"] not in before), None)
+            if run and run["status"] == "completed":
+                if run["conclusion"] == "success":
+                    return True
+                return self.dispatch_failed(f"the run ended {run['conclusion']} ({run['url']})")
+        return self.dispatch_failed("the run did not finish in time")
+
+    def dispatch_failed(self, reason: str) -> bool:
         self.sh.say(
-            f"the {SUMMARY_WORKFLOW} dispatch failed; commenting the summary directly "
-            "(the owner will not be notified)"
+            f"the {SUMMARY_WORKFLOW} dispatch failed ({reason}); commenting the summary "
+            "directly (the owner will not be notified)"
         )
         return False
 

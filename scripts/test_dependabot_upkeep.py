@@ -96,6 +96,8 @@ class FakeWorld:
         self.ls_tree_fails = False
         self.pinned = True
         self.dispatch_fails = False
+        self.summary_status = "completed"
+        self.summary_conclusion = "success"
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
@@ -204,7 +206,18 @@ class FakeWorld:
         if args[:2] == ("issue", "create"):
             return Result(0, f"https://github.com/{REPO}/issues/77\n")
         if args[:2] == ("workflow", "run"):
-            return Result(1, "", "HTTP 422") if self.dispatch_fails else self.ok()
+            if self.dispatch_fails:
+                return Result(1, "", "HTTP 422")
+            if args[2] == "upkeep-summary.yml":  # the dispatched run appears and finishes
+                self.runs.append(
+                    {
+                        "databaseId": 500 + len(self.runs),
+                        "status": self.summary_status,
+                        "conclusion": self.summary_conclusion,
+                        "url": "https://github.com/run/500",
+                    }
+                )
+            return self.ok()
         if args[:2] == ("run", "list"):
             return self.ok(self.runs)
         if args[:2] == ("run", "rerun"):
@@ -798,6 +811,21 @@ class SweepAndSummaryTests(UpkeepCase):
         routine.post_summary("hello")
         self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
         self.assertIn("dispatch failed", self.log.getvalue())
+
+    def test_dispatch_accepted_but_run_failed_falls_back_and_logs_it(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.summary_conclusion = "failure"
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("ended failure", self.log.getvalue())
+
+    def test_dispatch_accepted_but_run_never_finishes_falls_back(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.summary_status = "in_progress"
+        self.world.summary_conclusion = None
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("did not finish in time", self.log.getvalue())
 
     def test_undelivered_summary_fails_the_run(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
