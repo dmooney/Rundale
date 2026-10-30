@@ -88,7 +88,7 @@ It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first
 run. The comment is posted by the `upkeep-summary.yml` workflow (dispatched on
 `main`) as github-actions[bot] with an `@dmooney` mention, because GitHub does not
-notify you of your own comments; if the dispatch fails the routine logs it and
+notify you of your own comments; if the dispatch is refused or its run fails or times out the routine logs it and
 comments directly, without a notification. Logs are under `~/Library/Application Support/rundale-dependabot-upkeep/logs/`.
 
 ```sh

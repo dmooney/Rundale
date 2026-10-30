@@ -1120,19 +1120,23 @@ class Upkeep:
 
         list_runs = [
             "run", "list", "-R", self.repo, "--workflow", SUMMARY_WORKFLOW,
-            "--event", "workflow_dispatch", "--json", "databaseId,status,conclusion,url",
-            "--limit", "20",
+            "--branch", "main", "--event", "workflow_dispatch",
+            "--json", "databaseId,status,conclusion,url", "--limit", "20",
         ]  # fmt: skip
-        try:
-            before = {r["databaseId"] for r in self.gh(*list_runs) or []}
-        except RECOVERABLE as error:
-            return self.dispatch_failed(f"it could not list earlier runs: {error}")
+        before: set[int] = set()
+        if not self.sh.dry_run:  # a dry run dispatches nothing, so there is nothing to tell apart
+            try:
+                before = {r["databaseId"] for r in self.gh(*list_runs) or []}
+            except RECOVERABLE as error:
+                return self.dispatch_failed(f"it could not list earlier runs: {error}")
         cmd = [
             "gh", "workflow", "run", SUMMARY_WORKFLOW, "-R", self.repo, "--ref", "main",
             "-f", f"issue={number}",
             "-f", f"summary={cap_body(summary, SUMMARY_DISPATCH_LIMIT)}",
         ]  # fmt: skip
         dispatched = self.sh.run(cmd, mutating=True)
+        if dispatched.skipped:
+            return True
         if not dispatched.ok:
             return self.dispatch_failed("GitHub refused the dispatch")
         # An accepted dispatch only queues the run; wait for its result.

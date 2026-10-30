@@ -796,6 +796,15 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertIn("summary=hello", cmd)
         self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
 
+    def test_dry_run_plans_the_dispatch_without_polling_or_falling_back(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        routine = self.make(dry_run=True)
+        routine.post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "run", "list"), [])
+        self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
+        self.assertIn("would run: gh workflow run upkeep-summary.yml", self.log.getvalue())
+        self.assertNotIn("dispatch failed", self.log.getvalue())
+
     def test_dispatched_summary_is_capped_below_the_input_limit(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
         self.make().post_summary("x" * 100_000)
