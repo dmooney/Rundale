@@ -13,7 +13,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-HOST = ROOT / "tools/linux-host/.build/debug/rundale-linux-host"
+HOST = Path(
+    os.environ.get("HOST_BINARY", ROOT / "tools/linux-host/.build/debug/rundale-linux-host")
+).resolve()
 
 
 class TerminalOutputTests(unittest.TestCase):
@@ -102,7 +104,7 @@ class TerminalOutputTests(unittest.TestCase):
                 self.assertNotIn("**Composer", rendered)
 
     def test_no_color_retains_rendered_layout(self):
-        rendered = self.run_host(terminal=True, environment={"NO_COLOR": ""})
+        rendered = self.run_host(terminal=True, environment={"NO_COLOR": "1"})
         self.assertIn("Composer", rendered)
         self.assertNotIn("**Composer", rendered)
         self.assertNotIn("\x1b", rendered)

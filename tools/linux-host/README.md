@@ -50,7 +50,7 @@ and wrapping when stdout is a terminal. Piped output stays raw Markdown.
 Use `--format markdown` to force raw frames, or `--format ansi` to force
 styling even through a pipe. The default is `--format auto`.
 
-In auto mode, `NO_COLOR` disables ANSI styles while retaining rendered layout;
+In auto mode, a non-empty `NO_COLOR` disables ANSI styles while retaining rendered layout;
 `TERM=dumb` keeps raw Markdown. Explicit `--format ansi` overrides both.
 The private `--protocol` interface always returns its original JSON and Markdown.
 

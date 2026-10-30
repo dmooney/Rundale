@@ -20,7 +20,7 @@ struct TerminalOutput {
         rendersMarkdown = format == .ansi || (
             format == .auto && isatty(STDOUT_FILENO) != 0 && environment["TERM"] != "dumb"
         )
-        usesColor = format == .ansi || environment["NO_COLOR"] == nil
+        usesColor = format == .ansi || (environment["NO_COLOR"] ?? "").isEmpty
     }
 
     func render(_ frame: String) -> String {
