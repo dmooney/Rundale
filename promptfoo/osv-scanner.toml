@@ -1,3 +1,7 @@
 [[IgnoredVulns]]
 id = "GHSA-86w9-cpqp-85rv"
 reason = "OSV lists no fixed node-forge release. The sole dependency is jks-js in the development-only promptfoo benchmark toolchain; node-forge is not shipped in the iPhone app or production Endpoints. Reassess when upstream publishes a fix."
+
+[[IgnoredVulns]]
+id = "GHSA-xcx6-jx8p-x3h5"
+reason = "The only fix is @azure/msal-node 7.x, a breaking major. 6.0.1 is pulled by @azure/identity 4.14.0 (it requires ^6.0.0) under promptfoo, the development-only benchmark runner; promptfoo's own @azure/msal-node dependency is already 7.1.0. The flaw is in the auth_code flow (acquireTokenByCode), and no Rundale benchmark configuration uses an Azure provider or any Azure credential. It is not shipped in the iPhone app or production Endpoints. Reassess when @azure/identity moves to msal-node 7."

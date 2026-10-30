@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+reason = "No fixed deepmerge release exists (4.3.1 is the latest). In bench-site it is pulled only by @sveltejs/vite-plugin-svelte through @astrojs/svelte, which merges its own build-time config objects while the static benchmark site is built; the site is a development and reporting artifact, not shipped in the iPhone app or production Endpoints, and no attacker-controlled objects reach mergeObject(). Reassess when upstream publishes a fix."

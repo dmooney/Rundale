@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@opencode-ai/plugin": "1.15.10"
+    "@opencode-ai/plugin": "1.19.5"
   },
   "devDependencies": {
     "detect-terminal": "2.0.0",
@@ -15,6 +15,8 @@
   "overrides": {
     "node-notifier": {
       "uuid": "11.1.1"
-    }
+    },
+    "zod": "4.6.6",
+    "toml": "5.0.1"
   }
 }

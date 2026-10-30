@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+reason = "No fixed deepmerge release exists (4.3.1 is the latest). In limerick/apps/ui it is a development-only dependency of @sveltejs/vite-plugin-svelte, which merges its own build-time config objects when the desktop Svelte UI is built; it is not bundled into the iPhone app, and no attacker-controlled objects reach mergeObject(). Reassess when upstream publishes a fix."
