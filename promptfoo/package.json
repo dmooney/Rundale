@@ -13,7 +13,7 @@
     "test:keyless": "python3 scripts/test_keyless_e2e.py"
   },
   "devDependencies": {
-    "promptfoo": "^0.124.1"
+    "promptfoo": "^0.125.1"
   },
   "overrides": {
     "@hono/node-server": "2.1.3",
