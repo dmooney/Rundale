@@ -98,6 +98,40 @@ updates:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
+  # Endpoints (pnpm workspace), the bug-report service (pnpm) and the opencode
+  # plugins (npm lockfile). Same grouping as the entry above; scripts/
+  # check_dependabot_coverage.py fails CI when a tracked lockfile has no entry.
+  - package-ecosystem: "npm"
+    directories: ["/endpoints", "/bug-report", "/.opencode"]
+    schedule:
+      { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 2
+    commit-message:
+      { prefix: "chore(deps)", prefix-development: "chore(deps-dev)" }
+    labels: ["dependencies", "infra"]
+    groups:
+      services-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      services-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      services-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
+    ignore:
+      # Endpoints and bug-report pin TypeScript 5.9 exactly and share the
+      # root entry's reasons: a major bump waits for the tooling that checks
+      # against it, not for Dependabot.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # @types/node must match the Node 24 runtime (.nvmrc); bump its major
+      # together with .nvmrc and `engines.node`, not on its own.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
   # promptfoo is the only direct dependency; Dependabot transitive bumps of
   # nested packages (hono, csv-parse, …) repeatedly left package-lock.json out
   # of sync so `npm ci` failed CI. Bump promptfoo itself (full lock regenerate)

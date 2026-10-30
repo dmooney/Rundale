@@ -291,6 +291,12 @@ jobs:
       - name: Pytest
         run: pytest
 
+      # Every tracked lockfile needs a dependabot.yml entry or a reasoned exclusion.
+      # Runs on every pull request, so a new lockfile or an edited dependabot.yml
+      # cannot skip it.
+      - name: Dependabot lockfile coverage
+        run: python3 scripts/check_dependabot_coverage.py
+
   promptfoo-quality:
     name: Promptfoo keyless end-to-end
     needs: changes

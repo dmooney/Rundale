@@ -52,8 +52,11 @@ ready if repository ownership changes.
 ## Dependency updates
 
 Dependabot opens its weekly pull requests on Monday at 06:17 UTC
-([`.github/dependabot.yml`](../../.github/dependabot.yml)). No workflow merges
-them. A LaunchAgent on the owner's Mac runs
+([`.github/dependabot.yml`](../../.github/dependabot.yml)). Every tracked
+lockfile must have an entry there or a reasoned exclusion in
+[`scripts/check_dependabot_coverage.py`](../../scripts/check_dependabot_coverage.py);
+CI's `python-quality` job and `just dependabot-coverage` fail otherwise. No
+workflow merges them. A LaunchAgent on the owner's Mac runs
 [`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py) every
 Monday at about 09:00 UTC (issue #2098). For each open Dependabot pull request
 it:
