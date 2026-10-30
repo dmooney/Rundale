@@ -156,12 +156,12 @@ class FakeWorld:
             return Result(self.verify_rc)
         if cmd[:2] == ("just", "mobile-verify-record"):
             return Result(0)
-        if cmd[0] in ("claude", "codex"):
-            if cwd == self.work:  # a fix attempt
-                assert self.work_pr is not None
-                return Result(0)
+        if cmd[0] == "claude":  # a fix attempt; the gatekeeper runs through agy
+            assert cwd == self.work and self.work_pr is not None
+            return Result(0)
+        if cmd[0] == "env" and "agy" in cmd:
             number = int(cmd[-1].rsplit(" ", 1)[1].rstrip("."))
-            self.gatekeeper[number]("codex" if cmd[0] == "codex" else "claude")
+            self.gatekeeper[number]("agy")
             return Result(0)
         raise AssertionError(f"unexpected command {cmd}")
 
@@ -281,7 +281,7 @@ MUTATING = (
     ("git", "reset"),
     ("just",),
     ("claude",),
-    ("codex",),
+    ("env",),
 )
 
 
@@ -318,15 +318,6 @@ class UpkeepCase(unittest.TestCase):
 
 
 class PureLogicTests(unittest.TestCase):
-    def test_gatekeeper_is_never_the_author_family(self) -> None:
-        bump = {"dependabot[bot]"}
-        self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=False), "claude")
-        self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=True), "codex")
-        # A fix from an earlier run has a non-Dependabot author, possibly one
-        # GitHub cannot match to a login.
-        self.assertEqual(upkeep.gatekeeper_family({*bump, ""}, routine_fixed=False), "codex")
-        self.assertEqual(upkeep.gatekeeper_family({*bump, "dmooney"}, routine_fixed=False), "codex")
-
     def test_latest_verdict_takes_the_newest_marker(self) -> None:
         reviews = [
             {"body": "<!-- gatekeeper: sha=aaa verdict=changes round=1 -->"},
@@ -408,16 +399,22 @@ class PureLogicTests(unittest.TestCase):
 
 
 class FlowTests(UpkeepCase):
-    def test_green_pr_behind_main_is_updated_then_gatekept_by_claude(self) -> None:
+    def test_green_pr_behind_main_is_updated_then_gatekept_by_agy(self) -> None:
         self.world.add(10, behind=3)
         self.world.gatekeeper[10] = self.world.approve_and_merge(10)
         outcome = self.outcome(10)
         self.assertEqual(outcome.status, "merged")
         self.assertFalse(outcome.app_input)
         self.assertEqual(len(self.world.ran("gh", "api", "-X", "PUT")), 1)
-        self.assertEqual(self.world.ran("claude")[0][-1], "Run the gatekeeper skill on PR 10.")
+        gatekeeper = self.world.ran("env")[0]
+        self.assertEqual(gatekeeper[-1], "Run the gatekeeper skill on PR 10.")
+        self.assertIn(
+            ("--model", upkeep.AGY_MODEL), list(zip(gatekeeper, gatekeeper[1:], strict=False))
+        )
+        for name in upkeep.AGY_ENV_UNSET:  # subscription sign-in, never an API key
+            self.assertIn(("-u", name), list(zip(gatekeeper, gatekeeper[1:], strict=False)))
         self.assertEqual(self.world.ran("just"), [])
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertEqual(self.world.ran("claude"), [])
 
     def test_current_green_pr_is_not_updated(self) -> None:
         self.world.add(11)
@@ -509,7 +506,7 @@ class FlowTests(UpkeepCase):
         self.assertEqual(outcome.status, "error")
         self.assertEqual(self.world.ran("just"), [])
 
-    def test_red_pr_gets_one_fix_then_a_codex_gatekeeper(self) -> None:
+    def test_red_pr_gets_one_fix_then_the_agy_gatekeeper(self) -> None:
         self.world.add(30)
         red = [{"name": "CI gate", "bucket": "fail", "link": "l"}]
         green = [{"name": "CI gate", "bucket": "pass", "link": "l"}]
@@ -518,10 +515,9 @@ class FlowTests(UpkeepCase):
         self.world.gatekeeper[30] = self.world.approve_and_merge(30)
         outcome = self.outcome(30)
         self.assertEqual(outcome.status, "merged")
-        self.assertIn("(codex)", outcome.detail)
+        self.assertIn("(agy)", outcome.detail)
         self.assertEqual(len(self.world.ran("claude", "-p")), 1)  # the fix, not a gatekeeper
-        codex = self.world.ran("codex")[0]
-        self.assertEqual(codex[:3], ("codex", "exec", "-C"))
+        self.assertEqual(len(self.world.ran("env")), 1)  # one agy gatekeeper
         self.assertEqual(len(self.world.ran("git", "push")), 1)
 
     def test_a_fix_that_touches_app_inputs_is_verified_and_recorded(self) -> None:
@@ -547,7 +543,7 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(31)
         self.assertEqual(outcome.status, "red")
         self.assertIn("the fix attempt made no commit", outcome.notes)
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertEqual(self.world.ran("env"), [])
         self.assertEqual(self.world.ran("git", "push"), [])
         self.assertEqual(len(self.world.ran("claude")), 1)  # only the fix attempt
 
@@ -556,6 +552,7 @@ class FlowTests(UpkeepCase):
         self.world.checks[32] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
         self.assertEqual(self.outcome(32, fix=False).status, "red")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_checks_not_yet_registered_count_as_pending(self) -> None:
         self.world.add(35)
@@ -572,12 +569,14 @@ class FlowTests(UpkeepCase):
             self.assertEqual(outcome.status, "error", failure)
             self.assertIn("gh pr checks", outcome.detail)
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_checks_that_never_finish_time_out(self) -> None:
         self.world.add(33)
         self.world.checks[33] = [[{"name": "CI gate", "bucket": "pending", "link": "l"}]]
         self.assertEqual(self.outcome(33).status, "timeout")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_a_base_merge_keeps_the_claude_gatekeeper(self) -> None:
         self.world.add(42)
@@ -587,8 +586,7 @@ class FlowTests(UpkeepCase):
         self.world.gatekeeper[42] = self.world.approve_and_merge(42)
         outcome = self.outcome(42)
         self.assertEqual(outcome.status, "merged")
-        self.assertIn("(claude)", outcome.detail)
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertIn("(agy)", outcome.detail)
 
     def test_conflict_asks_dependabot_to_rebase_or_recreate(self) -> None:
         self.world.add(40, behind=1)
@@ -653,6 +651,7 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(73)
         self.assertEqual(outcome.status, "error")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_unreadable_workflows_are_an_error_not_a_skipped_probe(self) -> None:
         self.world.add(72)
@@ -664,6 +663,7 @@ class FlowTests(UpkeepCase):
         self.assertIn("ls-tree", outcome.detail)
         self.assertEqual(self.world.ran("gh", "workflow", "run"), [])
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_failed_release_dry_run_blocks_the_gatekeeper(self) -> None:
         self.world.add(71)
@@ -682,6 +682,7 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(71)
         self.assertEqual(outcome.status, "red")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_summary_goes_to_an_existing_tracking_issue(self) -> None:
         self.world.issues = [{"number": 5, "body": f"{upkeep.TRACKING_MARKER}\nreports"}]

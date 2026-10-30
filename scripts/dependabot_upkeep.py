@@ -21,9 +21,9 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
 5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
 6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
-   hands it to the owner. The gatekeeper is never the author's model family:
-   Claude for Dependabot's own commits, Codex once this routine (Claude) has
-   added a fix.
+   hands it to the owner. The gatekeeper is always Gemini 4 Argon through agy
+   on the owner's Google subscription (AGENTS.md, Gatekeeper review), whether
+   the commits are Dependabot's or this routine's own (Claude) fix.
 
 It then comments a summary on the pinned "Dependabot upkeep reports" issue,
 creating and pinning that issue the first time. Nothing here merges a PR;
@@ -68,7 +68,9 @@ TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
 CLAUDE_MODEL = "claude-opus-5-5"
-CODEX_MODEL = "gpt-6.1-sol"
+AGY_MODEL = "gemini-4-argon-high"
+# agy reviews run on the owner's subscription sign-in, never an API key or ADC.
+AGY_ENV_UNSET = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "AGY_ADC_AUTH", "GOOGLE_GENAI_USE_VERTEXAI")
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
 VERIFY_PROCESS = r"just mobile-verify( |$)|mobile/scripts/verify\.py"
 VERDICT = re.compile(r"<!--\s*gatekeeper:\s*sha=([0-9a-f]+)\s+verdict=([a-z-]+)")
@@ -184,7 +186,7 @@ def subprocess_executor(
 ) -> Result:
     """Run a command in its own process group with stdin closed.
 
-    `claude -p` and `codex exec` wait forever on an open stdin. On a timeout
+    `claude -p` and `agy -p` wait forever on an open stdin. On a timeout
     the whole group is stopped, not just the direct child.
     """
 
@@ -306,17 +308,6 @@ class Outcome:
     detail: str
     app_input: bool | None = None
     notes: list[str] = field(default_factory=list)
-
-
-def gatekeeper_family(authors: set[str], *, routine_fixed: bool) -> str:
-    """The reviewer family for a PR: never the family that wrote any of its commits.
-
-    Only this routine adds commits to a Dependabot branch, and its fixer is Claude,
-    so any commit not from Dependabot means Claude wrote code and Codex reviews.
-    """
-
-    fixed = routine_fixed or bool(authors - {"dependabot[bot]"})
-    return "codex" if fixed else "claude"
 
 
 def latest_verdict(reviews: Sequence[dict[str, Any]]) -> tuple[str, str] | None:
@@ -857,22 +848,16 @@ class Upkeep:
         outcome.notes.append(f"{name} dry run did not finish within an hour")
         return False
 
-    def gatekeeper(self, pr: PullRequest, family: str) -> Result:
+    def gatekeeper(self, pr: PullRequest) -> Result:
         self.read(["git", "fetch", "-q", "origin"], self.review)
         reset = ["git", "reset", "-q", "--hard", "origin/main"]
         moved = self.sh.run(reset, cwd=self.review, mutating=True)
         if not moved.ok:
             raise CommandError(reset, moved)
         prompt = f"Run the gatekeeper skill on PR {pr.number}."
-        output = self.logs / f"pr-{pr.number}-gatekeeper-{family}.log"
-        if family == "codex":
-            report = self.logs / f"pr-{pr.number}-gatekeeper-report.md"
-            cmd = [
-                "codex", "exec", "-C", str(self.review), "-m", CODEX_MODEL,
-                "-c", "model_reasoning_effort=high", "-o", str(report), prompt,
-            ]  # fmt: skip
-        else:
-            cmd = ["claude", "-p", "--model", CLAUDE_MODEL, prompt]
+        output = self.logs / f"pr-{pr.number}-gatekeeper.log"
+        unset = [arg for name in AGY_ENV_UNSET for arg in ("-u", name)]
+        cmd = ["env", *unset, "agy", "--model", AGY_MODEL, "--output-format", "text", "-p", prompt]
         return self.sh.run(
             cmd, cwd=self.review, timeout=SECONDS["gatekeeper"], mutating=True, output=output
         )
@@ -985,19 +970,15 @@ class Upkeep:
         if not self.probe_workflows(pr, outcome):
             outcome.status, outcome.detail = "red", "a workflow dry run failed"
             return outcome
-        # A base merge (GitHub's update-branch) writes no code, so it does not count.
-        family = gatekeeper_family(self.commit_authors(pr, merges=False), routine_fixed=fixed)
-        ran = self.gatekeeper(pr, family)
+        ran = self.gatekeeper(pr)
         if ran.skipped:
-            outcome.detail = f"would run the {family} gatekeeper"
+            outcome.detail = "would run the gatekeeper (agy)"
             return outcome
-        outcome.notes.append(
-            f"gatekeeper log: {self.logs / f'pr-{pr.number}-gatekeeper-{family}.log'}"
-        )
+        outcome.notes.append(f"gatekeeper log: {self.logs / f'pr-{pr.number}-gatekeeper.log'}")
         if not ran.ok:
-            outcome.notes.append(f"{family} gatekeeper exited {ran.returncode}")
+            outcome.notes.append(f"agy gatekeeper exited {ran.returncode}")
         outcome.status, outcome.detail = self.verdict(pr)
-        outcome.detail += f" ({family})"
+        outcome.detail += " (agy)"
         return outcome
 
     # Summary ------------------------------------------------------------------

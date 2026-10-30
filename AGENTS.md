@@ -213,44 +213,45 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is a different model from the author, and the agent that calls it
-chooses which, since commits do not record their author model. Claude- or
-Gemini-authored work is reviewed by GPT through Codex, which reads the same skill
-(`.codex/skills` links to `.agents/skills`); read its report from the `-o` file:
+The gatekeeper is Gemini 4 Argon through **agy using the owner's Google
+subscription**, whoever wrote the code (Claude or Codex). Run it from the review
+checkout (your worktree, or a clean detached worktree of `origin/main` for a PR):
+
+```sh
+env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
+  agy --model gemini-4-argon-high --output-format text \
+  -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+```
+
+Use agy's personal Google-account sign-in, without an API-key provider override.
+Do not use Gemini CLI (`gemini`) or paid APIs for reviews. Headless agy runs only
+the shell commands its allow rules in `~/.gemini/antigravity-cli/settings.json`
+permit; when it ends with "no output produced" because a command was refused,
+report the refused command as the blocker. Never pass
+`--dangerously-skip-permissions`, and never widen those rules without the owner.
+If subscription authentication or quota fails, report the blocker; a paid API
+fallback requires explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
+
+Close stdin (`</dev/null`): from a background shell, agy otherwise waits for input
+forever. Run a local review in its own worktree so branch switches in the main
+checkout cannot change what it reads, and check its output within a few minutes
+of starting it.
+
+The one exception is Gemini-authored work, which a reviewer from its own family
+may not judge: review it with GPT through Codex, under the owner's ChatGPT sign-in
+only (never `OPENAI_API_KEY` or another key from the environment), reading the
+report from the `-o` file:
 
 ```sh
 codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
   -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
-Run Codex reviews only under the owner's ChatGPT sign-in, never an API key: do not
-log Codex in with `OPENAI_API_KEY` or any other key found in the environment. If
-Codex is not signed in, report the blocker.
-
-Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
-for input forever. Run a local review in its own worktree so branch switches in
-the main checkout cannot change what it reads, and check its output within a few
-minutes of starting it.
-
 **Exemption: Claude Code in the cloud.** A Claude Code cloud session
-(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) has its own work reviewed by a
-regular Claude subagent instead of a cross-model reviewer. Spawn a fresh-context
-subagent (never a fork of your session) and give it only the checkout path or PR
-number and the instruction to run the gatekeeper skill.
-
-Codex-authored changes are cross-reviewed by Gemini through **agy using the
-owner's Google subscription**, run from the review checkout:
-
-```sh
-env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-3.8-flash-high --output-format text \
-  -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
-```
-
-Use agy's personal Google-account sign-in, without an API-key provider override.
-Do not use Gemini CLI (`gemini`) or paid APIs for cross-reviews. If subscription
-authentication or quota fails, report the blocker; a paid API fallback requires
-explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
+(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) cannot use the owner's agy
+sign-in, so it has its own work reviewed by a regular Claude subagent instead.
+Spawn a fresh-context subagent (never a fork of your session) and give it only the
+checkout path or PR number and the instruction to run the gatekeeper skill.
 
 ### Keep the iPhone beta current
 

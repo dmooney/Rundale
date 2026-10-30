@@ -43,25 +43,31 @@ use whatever equivalent GitHub tool your harness provides.
 
 ## Gemini cross-reviews: agy and subscription only
 
-Run Gemini cross-reviews through **agy using the owner's personal Google-account
-subscription**. Do not use Gemini CLI (`gemini`), a paid Gemini API key, or Google
-Cloud/Vertex ADC authentication for reviews. Never fall back to paid APIs when
-subscription login or quota fails; report the blocker. A paid API fallback needs
-the owner's explicit approval.
+The gatekeeper runs as Gemini 4 Argon through **agy using the owner's personal
+Google-account subscription**, for Claude- and Codex-authored work alike
+([AGENTS.md, Gatekeeper review](../../../AGENTS.md#gatekeeper-review)). Do not use
+Gemini CLI (`gemini`), a paid Gemini API key, or Google Cloud/Vertex ADC
+authentication for reviews. Never fall back to paid APIs when subscription login
+or quota fails; report the blocker. A paid API fallback needs the owner's explicit
+approval.
 
 Use agy's account sign-in, with no `modelProvider: "gemini"` API-key override.
-Remove API-key and ADC environment overrides from the review process. For example,
-from the review checkout:
+Remove API-key and ADC environment overrides from the review process. From the
+review checkout:
 
 ```sh
 env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-3.8-flash-high --output-format text \
+  agy --model gemini-4-argon-high --output-format text \
   -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
-Codex reviews follow the same rule: run them only under the owner's ChatGPT
-sign-in, never with `OPENAI_API_KEY` or another API key from the environment.
-If Codex is not signed in, report the blocker.
+Running headless, agy executes only the shell commands its allow rules permit.
+Prefer simple read-only commands, one per call, over long chains with `2>&1`,
+`|| true`, `$(...)` or `@{u}`, which those rules may not cover.
+
+Gemini-authored work is the exception: it goes to GPT through Codex, run only
+under the owner's ChatGPT sign-in, never with `OPENAI_API_KEY` or another API key
+from the environment. If Codex is not signed in, report the blocker.
 
 Keep normal tool permissions enabled. This authentication policy does not change
 review independence, review-only mode, hand-off triggers, or merge conditions.
