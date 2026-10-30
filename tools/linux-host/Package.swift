@@ -25,7 +25,8 @@ let package = Package(
         .package(path: "../../mobile/RundaleSession"),
         .package(path: "../../mobile/RundaleKit"),
         .package(path: "../../mobile/RundaleBridge"),
-        .package(path: "../../mobile/LimerickEndpointKit")
+        .package(path: "../../mobile/LimerickEndpointKit"),
+        .package(url: "https://github.com/steipete/Swiftdansi.git", exact: "0.3.1")
     ],
     targets: [
         .target(
@@ -47,7 +48,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "rundale-linux-host",
-            dependencies: ["RundaleLinuxHostCore"],
+            dependencies: [
+                "RundaleLinuxHostCore",
+                .product(name: "Swiftdansi", package: "Swiftdansi")
+            ],
             path: "Sources/rundale-linux-host"
         ),
         .testTarget(

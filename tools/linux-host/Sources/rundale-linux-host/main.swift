@@ -17,7 +17,7 @@ func runHost() async -> Int32 {
         FileHandle.standardError.write(Data("rundale-linux-host: \(message)\n".utf8))
         return 2
     }
-    let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script"]
+    let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script", "--format"]
     var index = 0
     while index < arguments.count {
         let argument = arguments[index]
@@ -35,7 +35,7 @@ func runHost() async -> Int32 {
     if arguments.contains("--help") {
         print("""
         usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
-                                  [--sse-fixture FILE] [--resume] [--script FILE]
+                                  [--sse-fixture FILE] [--resume] [--script FILE] [--format auto|ansi|markdown]
 
         \(LinuxHost.help)
         """)
@@ -43,6 +43,9 @@ func runHost() async -> Int32 {
     }
     guard let modDirectory = value("--mod-dir"), let saveDirectory = value("--save-dir") else {
         return fail("--mod-dir and --save-dir are required (see --help)")
+    }
+    guard let format = TerminalOutputFormat(rawValue: value("--format") ?? "auto") else {
+        return fail("--format must be auto, ansi, or markdown")
     }
     let inference: HostInference
     switch value("--inference") ?? "mock" {
@@ -100,6 +103,7 @@ func runHost() async -> Int32 {
         }
     }
 
+    let output = TerminalOutput(format: format)
     let host = LinuxHost(
         options: HostOptions(
             inference: inference,
@@ -107,7 +111,7 @@ func runHost() async -> Int32 {
             saveDirectory: URL(fileURLWithPath: saveDirectory, isDirectory: true),
             resume: arguments.contains("--resume")
         ),
-        output: { print($0) }
+        output: { print(output.render($0)) }
     )
     await host.open()
     var quit = false

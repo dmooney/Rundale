@@ -33,3 +33,7 @@ cd tools/linux-host && ../../mobile/.build/swift-tools/bin/swiftlint lint --stri
   command protocol. Foundation `read(upToCount:)` on macOS can wait for the
   requested buffer to fill, deadlocking an MCP client that waits for a response
   before writing its next line. The cross-language MCP test keeps stdin open.
+
+- **Swiftdansi 0.3.1 does not apply `NO_COLOR` to text styles itself.** Pass
+  `RenderOptions.color` explicitly at the executable boundary; keep protocol and
+  golden-frame rendering as raw Markdown. The real PTY tests cover both paths.

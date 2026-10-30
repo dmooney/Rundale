@@ -43,6 +43,17 @@ The host also runs in a macOS terminal. Frames identify the actual platform.
 `limerick-mcp --backend session-host`; it does not open a game until an explicit
 new/resume action. This mode supports asynchronous inspection and Stop.
 
+## Terminal formatting
+
+Frames use [Swiftdansi](https://github.com/steipete/Swiftdansi) for ANSI styling
+and wrapping when stdout is a terminal. Piped output stays raw Markdown.
+Use `--format markdown` to force raw frames, or `--format ansi` to force
+styling even through a pipe. The default is `--format auto`.
+
+In auto mode, `NO_COLOR` disables ANSI styles while retaining rendered layout;
+`TERM=dumb` keeps raw Markdown. Explicit `--format ansi` overrides both.
+The private `--protocol` interface always returns its original JSON and Markdown.
+
 ## Input
 
 A line is typed into the composer and sent. Host commands stand in for taps:

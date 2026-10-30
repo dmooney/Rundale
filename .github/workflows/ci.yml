@@ -625,6 +625,7 @@ jobs:
           cargo build -p limerick-mcp
           cd ..
           python3 tools/linux-host/test_mcp_session.py
+          python3 tools/linux-host/test_terminal_output.py
 
       - name: Upload frames that differ from the goldens
         if: failure()
