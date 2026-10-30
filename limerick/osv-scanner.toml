@@ -13,3 +13,19 @@ reason = "The RSA advisory has no fixed release. The server uses rsa only to ver
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0387"
 reason = "crypto-bigint 0.5.5 has no fix on its 0.5 line (fixed in 0.7.6 and later, which need elliptic-curve 0.14). jsonwebtoken 11 pulls it through p256/p384 0.13 only for ES256/ES384 JWT verification in limerick-server, which handles public keys and signatures, no secret scalars, so the timing variability reveals nothing. It is absent from the iOS mobile dependency tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0449"
+reason = "unsafe-libyaml 0.2.11 is unmaintained with no fixed release. It is reached through the deprecated serde_yaml 0.9.34 used by limerick-core (embedded .prompt.yml files, compiled into the binary and included in the iPhone app) and limerick-scenario (repository scenario scripts used by test and harness tooling). Both parse repository-controlled YAML, never player or network input. Reassess when serde_yaml is replaced."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "zvariant is unmaintained (merged into zbus 6) with no fixed release. zvariant 5.15.0 is a Linux-only dependency of zbus 5.19.0 via xcap 0.9.8; limerick-tauri takes xcap only on macOS and Windows, so cargo tree resolves it on no real target (checked: aarch64-apple-ios, aarch64-apple-darwin, x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc). zvariant 4.2.0 comes from zbus 4.4.0 via secret-service 4.0.0, keyring's async-secret-service feature, which the workspace does not enable (it uses sync-secret-service). Both are Cargo.lock entries that are never compiled and are absent from the iOS tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "zbus_names is unmaintained (merged into zbus 6) with no fixed release. zbus_names 4.3.4 is a Linux-only dependency of zbus 5.19.0 via xcap 0.9.8, which limerick-tauri takes only on macOS and Windows. zbus_names 3.0.0 comes from zbus 4.4.0 via secret-service 4.0.0, keyring's async-secret-service feature, which the workspace does not enable. cargo tree resolves neither on any real target, so they are never compiled and are absent from the iOS tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "zvariant_derive is unmaintained (merged into zbus 6) with no fixed release. zvariant_derive 5.15.0 belongs to zbus 5.19.0 via xcap 0.9.8, which limerick-tauri takes only on macOS and Windows; zvariant_derive 4.2.0 belongs to zbus 4.4.0 via secret-service 4.0.0, keyring's async-secret-service feature, which the workspace does not enable. cargo tree resolves neither on any real target, so they are never compiled and are absent from the iOS tree."
