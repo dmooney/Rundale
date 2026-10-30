@@ -57,7 +57,7 @@ use crate::game_loop::{
 };
 use crate::game_mod::{EndpointCatalog, PronunciationEntry};
 use crate::inference::{AnyClient, DeferredInferenceAudit, InferenceQueue};
-use crate::ipc::{GameConfig, StreamEndPayload, text_log};
+use crate::ipc::{GameConfig, StreamEndPayload, capitalize_first, text_log};
 use crate::npc::reactions::ReactionTemplates;
 use crate::npc::{LanguageSettings, NpcId};
 use crate::portable_look::{SceneText, render_return_scene, render_scene};
@@ -715,7 +715,10 @@ impl TurnEngine {
         };
         let unanswerable = match chosen {
             Some(id) if present.contains(&id) => None,
-            Some(_) => Some(Some(format!("{} is no longer here.", choice.label))),
+            Some(_) => Some(Some(format!(
+                "{} is no longer here.",
+                capitalize_first(&choice.label)
+            ))),
             None if choice.id == ALL_CHOICE_ID && !present.is_empty() => None,
             None => Some(None),
         };
