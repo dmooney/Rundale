@@ -53,6 +53,7 @@ private final class SuspendedSubmitSession: RundaleSessionControlling {
 
     func stateChanges() -> AsyncStream<Void> { changes.stream() }
     func start() {}
+    func newGame() async throws {}
     func setInferenceAllowed(_ allowed: Bool) {}
     func updateDraft(_ text: String) {}
     func restoredDraft() -> Draft? { nil }

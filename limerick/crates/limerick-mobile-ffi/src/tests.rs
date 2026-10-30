@@ -2405,5 +2405,4 @@ fn strict_resume_validates_option_and_resumes_existing_save() {
         limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR
     );
     assert_eq!(result["error"]["code"], "protocol_error");
-
 }
