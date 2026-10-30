@@ -122,6 +122,34 @@ final class FirebaseRESTCredentialsTests: XCTestCase {
         XCTAssertTrue(String(data: later.httpBody!, encoding: .utf8)!.contains("refresh_token=refresh-2"))
     }
 
+    func testCredentialRequestsUseHTTPSAndEncodeAPIKey() async throws {
+        let fixture = Fixture()
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let apiKey = "key&other=value+#"
+        let config = FirebaseRESTConfiguration(apiKey: apiKey, appCheckDebugToken: "debug-token")
+        let provider = FirebaseRESTCredentialProvider(configuration: config, transport: fixture.transport, clock: { clock.now })
+        _ = try await provider.credentials()
+        clock.advance(by: 3_550)
+        _ = try await provider.credentials()
+
+        let requests = fixture.allRequests()
+        XCTAssertEqual(requests.count, 4)
+        XCTAssertEqual(requests.map { $0.url?.host }, [
+            "identitytoolkit.googleapis.com", "firebaseappcheck.googleapis.com",
+            "securetoken.googleapis.com", "firebaseappcheck.googleapis.com"
+        ])
+        for request in requests {
+            let url = try XCTUnwrap(request.url)
+            XCTAssertEqual(url.scheme, "https")
+            XCTAssertTrue(url.absoluteString.contains("%2B"))
+            XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems, [
+                URLQueryItem(name: "key", value: apiKey)
+            ])
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"), config.bundleID)
+        }
+        XCTAssertEqual(requests[1].url?.path, "/v1/projects/\(config.projectID)/apps/\(config.appID):exchangeDebugToken")
+    }
+
     func testConcurrentCallsShareInitialIdentityCreation() async throws {
         let fixture = Fixture()
         fixture.delay = 20_000_000

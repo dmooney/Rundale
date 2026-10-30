@@ -98,7 +98,7 @@ public actor FirebaseRESTCredentialProvider: EndpointCredentialProvider {
 
     private func signUp() async throws -> Identity {
         let data = try await sendJSON(
-            url: "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=\(configuration.apiKey)",
+            url: urlWithAPIKey(URL(string: "https://identitytoolkit.googleapis.com/v1/accounts:signUp")!),
             method: "POST",
             body: ["returnSecureToken": true]
         )
@@ -112,7 +112,7 @@ public actor FirebaseRESTCredentialProvider: EndpointCredentialProvider {
     }
 
     private func refresh(_ previous: Identity) async throws -> Identity {
-        var request = URLRequest(url: URL(string: "https://securetoken.googleapis.com/v1/token?key=\(configuration.apiKey)")!)
+        var request = URLRequest(url: urlWithAPIKey(URL(string: "https://securetoken.googleapis.com/v1/token")!))
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue(configuration.bundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
@@ -142,7 +142,12 @@ public actor FirebaseRESTCredentialProvider: EndpointCredentialProvider {
         let data: [String: Any]
         do {
             data = try await sendJSON(
-                url: "https://firebaseappcheck.googleapis.com/v1/projects/\(configuration.projectID)/apps/\(configuration.appID):exchangeDebugToken?key=\(configuration.apiKey)",
+                url: urlWithAPIKey(
+                    URL(string: "https://firebaseappcheck.googleapis.com/v1/projects")!
+                        .appendingPathComponent(configuration.projectID)
+                        .appendingPathComponent("apps")
+                        .appendingPathComponent("\(configuration.appID):exchangeDebugToken")
+                ),
                 method: "POST",
                 body: ["debugToken": configuration.appCheckDebugToken]
             )
@@ -171,8 +176,16 @@ public actor FirebaseRESTCredentialProvider: EndpointCredentialProvider {
         return seconds
     }
 
-    private func sendJSON(url: String, method: String, body: [String: Any]) async throws -> [String: Any] {
-        var request = URLRequest(url: URL(string: url)!)
+    private func urlWithAPIKey(_ url: URL) -> URL {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "key", value: configuration.apiKey)]
+        // Some servers decode a literal plus in a query as a space.
+        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        return components.url!
+    }
+
+    private func sendJSON(url: URL, method: String, body: [String: Any]) async throws -> [String: Any] {
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(configuration.bundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
