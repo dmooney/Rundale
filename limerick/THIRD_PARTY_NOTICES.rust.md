@@ -8154,7 +8154,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [ctutils 0.4.2](https://github.com/RustCrypto/utils)
+- [ctutils 0.4.7](https://github.com/RustCrypto/utils)
 
 ```
 Copyright (c) 2025-2026 The RustCrypto Project Developers
