@@ -137,9 +137,10 @@ dependabot-upkeep *ARGS: setup-py
 mobile-build *ARGS:
     python3 mobile/scripts/release.py build {{ARGS}}
 
-# Verify, sign, and upload an internal TestFlight build (mobile/testflight.md)
+# Verify, sign, and upload an internal TestFlight build (mobile/testflight.md).
+# Takes the App Store Connect API key from .env when the environment lacks it.
 testflight-update *ARGS:
-    python3 mobile/scripts/release.py testflight {{ARGS}}
+    bash limerick/scripts/testflight-update.sh {{ARGS}}
 
 # Run the save-lock tests on the iOS Simulator (macOS + Xcode)
 ios-sim-save-lock:

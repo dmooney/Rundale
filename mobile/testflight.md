@@ -73,7 +73,9 @@ summary, and a passing run closes it. Run workflow uploads only from `main`. The
 cached between runs. `just testflight-update` keeps the full gate by default.
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
-otherwise. With `RUNDALE_DISTRIBUTION_PROFILE` set to a provisioning profile's
+otherwise. `just testflight-update` takes those three from the repository's
+gitignored `.env` when the environment does not set them (see `.env.example`),
+and exports nothing else from it. With `RUNDALE_DISTRIBUTION_PROFILE` set to a provisioning profile's
 name, the archive signs manually with that App Store profile and an Apple
 Distribution certificate from the keychain, and both exports sign manually with
 the same profile; without it, the archive and the exports sign automatically.
