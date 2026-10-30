@@ -685,6 +685,7 @@ class FlowTests(UpkeepCase):
         self.assertEqual(self.world.ran("env"), [])  # no agy gatekeeper
 
     def test_summary_goes_to_an_existing_tracking_issue(self) -> None:
+        self.world.dispatch_fails = True
         self.world.issues = [{"number": 5, "body": f"{upkeep.TRACKING_MARKER}\nreports"}]
         self.make().post_summary("hello")
         self.assertEqual(self.world.ran("gh", "issue", "create"), [])
@@ -699,6 +700,7 @@ class FlowTests(UpkeepCase):
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "5")
 
     def test_tracking_issue_is_created_and_pinned_once(self) -> None:
+        self.world.dispatch_fails = True
         self.make().post_summary("hello")
         self.assertEqual(len(self.world.ran("gh", "issue", "create")), 1)
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "77")
@@ -753,7 +755,7 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertEqual([o.status for o in outcomes], ["error", "error", "merged"])
         self.assertIn("could not ask Dependabot to rebuild it", outcomes[0].detail)
         self.assertIn("could not ask Dependabot to rebuild it", outcomes[1].detail)
-        self.assertEqual(len(self.world.ran("gh", "issue", "comment")), 1)
+        self.assertEqual(len(self.world.ran("gh", "workflow", "run")), 1)
 
     def test_github_failures_outside_a_pr_are_reported_in_the_summary(self) -> None:
         self.world.add(92)
@@ -771,13 +773,41 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertEqual(outcomes, [])
         self.assertIn("could not list the open Dependabot pull requests", summary)
 
+    def test_summary_is_dispatched_to_the_posting_workflow(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("hello")
+        (cmd,) = self.world.ran("gh", "workflow", "run")
+        self.assertEqual(cmd[3], "upkeep-summary.yml")
+        self.assertEqual(cmd[cmd.index("--ref") + 1], "main")
+        self.assertIn("issue=5", cmd)
+        self.assertIn("summary=hello", cmd)
+        self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
+
+    def test_dispatched_summary_is_capped_below_the_input_limit(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("x" * 100_000)
+        (cmd,) = self.world.ran("gh", "workflow", "run")
+        value = next(a for a in cmd if a.startswith("summary="))[len("summary=") :]
+        self.assertLessEqual(len(value), upkeep.SUMMARY_DISPATCH_LIMIT)
+        self.assertTrue(value.endswith("chars]"))
+
+    def test_failed_dispatch_falls_back_to_a_direct_comment_and_logs_it(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.dispatch_fails = True
+        routine = self.make()
+        routine.post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("dispatch failed", self.log.getvalue())
+
     def test_undelivered_summary_fails_the_run(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.dispatch_fails = True
         self.world.comment_rc = 1
         with self.assertRaises(upkeep.CommandError):
             self.make().post_summary("hello")
 
     def test_summary_is_capped_below_githubs_body_limit(self) -> None:
+        self.world.dispatch_fails = True
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
         self.make().post_summary("x" * 100_000)
         body = self.world.ran("gh", "issue", "comment")[0][-1]

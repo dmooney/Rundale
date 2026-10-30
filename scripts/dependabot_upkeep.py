@@ -25,8 +25,11 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    on the owner's Google subscription (AGENTS.md, Gatekeeper review), whether
    the commits are Dependabot's or this routine's own (Claude) fix.
 
-It then comments a summary on the pinned "Dependabot upkeep reports" issue,
-creating and pinning that issue the first time. Nothing here merges a PR;
+It then posts a summary on the pinned "Dependabot upkeep reports" issue,
+creating and pinning that issue the first time. The summary goes through the
+`upkeep-summary.yml` workflow so github-actions[bot] posts it and mentions the
+owner; if the dispatch fails the routine comments directly, without a
+notification. Nothing here merges a PR;
 merging is the gatekeeper's decision alone.
 
     dependabot_upkeep.py run --dry-run            # plan only: no pushes, runs, comments
@@ -90,6 +93,8 @@ SECONDS = {
     "verify_wait": 6 * 3600,
 }
 POLL = 60
+SUMMARY_WORKFLOW = "upkeep-summary.yml"
+SUMMARY_DISPATCH_LIMIT = 60000  # characters; a dispatch's inputs share a 65535-character payload
 GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
 
 # verify_record.py check exit statuses.
@@ -1096,10 +1101,35 @@ class Upkeep:
         if number is None:  # dry run, no tracking issue yet
             self.sh.say(f"[dry-run] would comment the summary on a new '{TRACKING_TITLE}' issue")
             return
+        if self.dispatch_summary(number, summary):
+            return
         cmd = ["gh", "issue", "comment", str(number), "-R", self.repo, "--body", cap_body(summary)]
         posted = self.sh.run(cmd, mutating=True)
         if not posted.ok:
             raise CommandError(cmd[:4], posted)
+
+    def dispatch_summary(self, number: int, summary: str) -> bool:
+        """Have the posting workflow comment the summary as github-actions[bot].
+
+        GitHub does not notify an account of its own activity, so a comment the
+        owner's `gh` login makes never reaches the owner. The workflow comments
+        with its `GITHUB_TOKEN` and mentions the owner. Returns False, after
+        logging why, when the dispatch fails, so the caller can comment directly.
+        """
+
+        cmd = [
+            "gh", "workflow", "run", SUMMARY_WORKFLOW, "-R", self.repo, "--ref", "main",
+            "-f", f"issue={number}",
+            "-f", f"summary={cap_body(summary, SUMMARY_DISPATCH_LIMIT)}",
+        ]  # fmt: skip
+        dispatched = self.sh.run(cmd, mutating=True)
+        if dispatched.ok:
+            return True
+        self.sh.say(
+            f"the {SUMMARY_WORKFLOW} dispatch failed; commenting the summary directly "
+            "(the owner will not be notified)"
+        )
+        return False
 
 
 # Install / uninstall ------------------------------------------------------------
