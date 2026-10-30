@@ -161,9 +161,11 @@ in their checkout with the same independence, standards, and
    - your latest verdict marker names the current head SHA **and** no
      non-gatekeeper comment, review, or thread reply has been posted since
      that review (a reply without a push re-opens the conversation). If that
-     verdict is a review-only `approve` and nothing has been posted since, go
+     verdict is `approve` (review-only or not) and the PR is still open, go
      straight to [Merging](#merging) instead of skipping; its conditions
-     recheck draft state and checks;
+     recheck draft state and checks. An earlier merge may have been refused
+     only because a non-required check had not passed yet (`UNSTABLE`), and
+     skipping would leave the approved PR unmerged for good;
    - required checks on the head are still pending (look again next pass).
 
 3. **Cheap gates before a full review.** If the head has failing required
@@ -374,6 +376,11 @@ gh pr merge $PR --squash --delete-branch --match-head-commit <reviewed head sha>
 
 `--match-head-commit` prevents merging a commit you did not review. If the
 merge is refused, report why and leave it for the next pass. When it is
+refused only because a non-required check has not passed
+(`mergeStateStatus` `UNSTABLE`, every required check passed), name that
+check and its state. If it is still running, say the PR is approved and
+waiting on it, so whoever spawned you runs the gatekeeper again once it
+finishes; the next pass merges it if all merge conditions still hold. When it is
 refused because the head is behind `main` (`mergeStateStatus` `BEHIND`), ask
 the author to update the branch. The one exception to never changing a PR:
 for an approved Dependabot PR, use GitHub's update-branch (it merges `main`
