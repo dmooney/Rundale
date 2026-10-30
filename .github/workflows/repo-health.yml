@@ -1,0 +1,46 @@
+name: Repo health
+
+# Finds failures and stalls that have no path to a person: workflows red on
+# main, pull requests stuck red / unreviewed / approved-but-unmerged, scheduled
+# routines that stopped reporting, and failure issues nobody touched. Opens a
+# `ci-red` issue per red workflow (the hand-off point for the upkeep routine)
+# and posts one summary a day to the pinned "Repo health" issue, mentioning the
+# owner only when something needs them. Logic and tests: scripts/repo_health.py.
+
+on:
+  schedule:
+    - cron: "23 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Read only: print the plan and summary, change nothing"
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: repo-health
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check repo health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+
+      - name: Check and report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python3 scripts/repo_health.py run

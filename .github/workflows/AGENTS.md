@@ -149,6 +149,13 @@ just act-pr         # simulate the pull_request fast lane
 - Marks issues/PRs stale after 90 days, closes after 14 more. Labels: `no-issue-activity`, `no-pr-activity`.
 - **Permissions:** `issues: write`, `pull-requests: write`.
 
+### `repo-health.yml` — Repo health watcher
+
+- **Triggers:** `schedule` (daily 13:23 UTC), `workflow_dispatch` (`dry_run` input reads only and prints the plan).
+- Runs [`scripts/repo_health.py`](../../scripts/repo_health.py) (stdlib Python over `gh api`; tests in `scripts/test_repo_health.py`, run by the CI pytest gate). It opens one issue per workflow whose latest completed push/schedule run on `main` failed, labelled `ci-red` and carrying `<!-- ci-red: workflow=<file> -->` (the hand-off point for the upkeep routine); it updates the issue as the failing run changes and closes it when the workflow passes or its file is gone. A workflow with a failure issue of its own (the TestFlight nightly "Nightly mobile-verify failed") is listed as tracked, not duplicated. It also reports non-draft PRs red or green-and-unreviewed over 24 hours and gatekeeper-approved (marker at the current head) but unmerged over 2 hours, lists `needs-owner` PRs apart, flags a Dependabot upkeep routine silent for 8 days (issue 2252), and failure issues with no activity for 3 days.
+- Posts one comment per run to the pinned "Repo health" issue (created and pinned on first run, found by its `<!-- repo-health-summary -->` marker), and mentions `@dmooney` only for `needs-owner` PRs, a silent routine, or a problem older than its threshold (`ESCALATE_HOURS`). Untrusted titles and job names appear only in JSON bodies and Markdown code spans.
+- **Permissions:** `issues: write`, `actions: read`, `pull-requests: read`, `contents: read`.
+
 ### `triage-audit.yml` — Portfolio and issue triage audit
 
 - **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue creation, lifecycle, and label changes, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
