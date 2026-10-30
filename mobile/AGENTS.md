@@ -134,3 +134,8 @@ is set (recording only).
   notifications can precede submit, retry, or clarification receipts. The shared
   presenter must retain its pending-control busy state during those notifications;
   otherwise terminal polling and the app can submit again before acceptance.
+
+- **Reuse a captured ID for streaming-row visibility checks.** XCUITest can
+  observe a chunk, then lose its label query when the next chunk arrives.
+  Capture the row ID once and pass that ID to later geometry assertions; do
+  not re-read it through the old text-label query.

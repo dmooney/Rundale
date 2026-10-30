@@ -49,10 +49,13 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
     /// streaming row keeps its identifier while each chunk replaces its
     /// label, so a label query can stop resolving between the existence and
     /// frame reads.
-    private func assertVisible(_ element: XCUIElement) {
-        let stable = app.descendants(matching: .any).matching(identifier: element.identifier).firstMatch
-        XCTAssertTrue(wait { stable.exists && stable.frame.minY >= self.scroll.frame.minY - 2
-                && stable.frame.maxY <= self.scroll.frame.maxY + 2
+    private func assertVisible(_ identifier: String) {
+        let stable = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        let viewport = scroll.frame
+        XCTAssertTrue(wait {
+            guard let snapshot = try? stable.snapshot() else { return false }
+            let frame = snapshot.frame
+            return frame.minY >= viewport.minY - 2 && frame.maxY <= viewport.maxY + 2
         })
     }
 
@@ -63,16 +66,16 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
         XCTAssertTrue(firstRow.waitForExistence(timeout: 8))
         let identity = firstRow.identifier
         let firstTime = Date()
-        assertVisible(firstRow)
+        assertVisible(identity)
         let secondRow = row("Dialogue. Peig. \(second). In progress")
         XCTAssertTrue(secondRow.waitForExistence(timeout: 5))
         XCTAssertEqual(secondRow.identifier, identity)
         let secondTime = Date()
-        assertVisible(secondRow)
+        assertVisible(identity)
         let finalRow = row("Dialogue. Peig. \(final). In progress")
         XCTAssertTrue(finalRow.waitForExistence(timeout: 5))
         XCTAssertEqual(finalRow.identifier, identity)
-        assertVisible(finalRow)
+        assertVisible(identity)
         XCTAssertGreaterThan(secondTime.timeIntervalSince(firstTime), 1)
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["composer.stop"].exists)
@@ -101,11 +104,11 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
 
         let firstRow = row("Dialogue. Peig. \(first). In progress")
         XCTAssertTrue(firstRow.waitForExistence(timeout: 8))
-        assertVisible(firstRow)
+        assertVisible(firstRow.identifier)
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         let completed = row("Dialogue. Peig. \(final)")
         XCTAssertTrue(completed.waitForExistence(timeout: 3))
-        assertVisible(completed)
+        assertVisible(completed.identifier)
     }
 
     func testAutomaticOutputPreservesHistoryAndNewTextReturnsToFinalReply() {
@@ -129,7 +132,7 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
         XCTAssertTrue(wait { !newest.exists })
         let completed = row("Dialogue. Peig. \(final)")
         XCTAssertTrue(completed.waitForExistence(timeout: 3))
-        assertVisible(completed)
+        assertVisible(completed.identifier)
     }
 
     func testAutomaticStopRetainsExactPartialBeyondNextTimerTicks() {
