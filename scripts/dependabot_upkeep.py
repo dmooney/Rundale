@@ -25,8 +25,11 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    on the owner's Google subscription (AGENTS.md, Gatekeeper review), whether
    the commits are Dependabot's or this routine's own (Claude) fix.
 
-It then comments a summary on the pinned "Dependabot upkeep reports" issue,
-creating and pinning that issue the first time. Nothing here merges a PR;
+It then posts a summary on the pinned "Dependabot upkeep reports" issue,
+creating and pinning that issue the first time. The summary goes through the
+`upkeep-summary.yml` workflow so github-actions[bot] posts it and mentions the
+owner; if the dispatch fails the routine comments directly, without a
+notification. Nothing here merges a PR;
 merging is the gatekeeper's decision alone.
 
     dependabot_upkeep.py run --dry-run            # plan only: no pushes, runs, comments
@@ -90,6 +93,9 @@ SECONDS = {
     "verify_wait": 6 * 3600,
 }
 POLL = 60
+SUMMARY_WORKFLOW = "upkeep-summary.yml"
+SUMMARY_WAIT = 300  # seconds to wait for the posting workflow to finish
+SUMMARY_DISPATCH_LIMIT = 60000  # characters; a dispatch's inputs share a 65535-character payload
 GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
 
 # verify_record.py check exit statuses.
@@ -1096,10 +1102,64 @@ class Upkeep:
         if number is None:  # dry run, no tracking issue yet
             self.sh.say(f"[dry-run] would comment the summary on a new '{TRACKING_TITLE}' issue")
             return
+        if self.dispatch_summary(number, summary):
+            return
         cmd = ["gh", "issue", "comment", str(number), "-R", self.repo, "--body", cap_body(summary)]
         posted = self.sh.run(cmd, mutating=True)
         if not posted.ok:
             raise CommandError(cmd[:4], posted)
+
+    def dispatch_summary(self, number: int, summary: str) -> bool:
+        """Have the posting workflow comment the summary as github-actions[bot].
+
+        GitHub does not notify an account of its own activity, so a comment the
+        owner's `gh` login makes never reaches the owner. The workflow comments
+        with its `GITHUB_TOKEN` and mentions the owner. Returns False, after
+        logging why, when the dispatch fails, so the caller can comment directly.
+        """
+
+        list_runs = [
+            "run", "list", "-R", self.repo, "--workflow", SUMMARY_WORKFLOW,
+            "--branch", "main", "--event", "workflow_dispatch",
+            "--json", "databaseId,status,conclusion,url", "--limit", "20",
+        ]  # fmt: skip
+        before: set[int] = set()
+        if not self.sh.dry_run:  # a dry run dispatches nothing, so there is nothing to tell apart
+            try:
+                before = {r["databaseId"] for r in self.gh(*list_runs) or []}
+            except RECOVERABLE as error:
+                return self.dispatch_failed(f"it could not list earlier runs: {error}")
+        cmd = [
+            "gh", "workflow", "run", SUMMARY_WORKFLOW, "-R", self.repo, "--ref", "main",
+            "-f", f"issue={number}",
+            "-f", f"summary={cap_body(summary, SUMMARY_DISPATCH_LIMIT)}",
+        ]  # fmt: skip
+        dispatched = self.sh.run(cmd, mutating=True)
+        if dispatched.skipped:
+            return True
+        if not dispatched.ok:
+            return self.dispatch_failed("GitHub refused the dispatch")
+        # An accepted dispatch only queues the run; wait for its result.
+        deadline = self.clock() + SUMMARY_WAIT
+        while self.clock() < deadline:
+            self.sleep(POLL)
+            try:
+                runs = self.gh(*list_runs) or []
+            except RECOVERABLE:
+                continue
+            run = next((r for r in runs if r["databaseId"] not in before), None)
+            if run and run["status"] == "completed":
+                if run["conclusion"] == "success":
+                    return True
+                return self.dispatch_failed(f"the run ended {run['conclusion']} ({run['url']})")
+        return self.dispatch_failed("the run did not finish in time")
+
+    def dispatch_failed(self, reason: str) -> bool:
+        self.sh.say(
+            f"the {SUMMARY_WORKFLOW} dispatch failed ({reason}); commenting the summary "
+            "directly (the owner will not be notified)"
+        )
+        return False
 
 
 # Install / uninstall ------------------------------------------------------------
