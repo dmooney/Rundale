@@ -52,7 +52,7 @@ jobs:
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       # The golden frames are Markdown, so a change to them is not docs-only.
-      linux_host: ${{ steps.filter.outputs.linux_host == 'false' && 'false' || (steps.nondoc.outputs.nondoc == 'false' && steps.filter.outputs.linux_host_goldens != 'true') && 'false' || 'true' }}
+      rundale_cli: ${{ steps.filter.outputs.rundale_cli == 'false' && 'false' || (steps.nondoc.outputs.nondoc == 'false' && steps.filter.outputs.rundale_cli_goldens != 'true') && 'false' || 'true' }}
       bug_report: ${{ steps.filter.outputs.bug_report == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       endpoints: ${{ steps.filter.outputs.endpoints == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       # Only pull requests are checked; other events report 'false'.
@@ -110,10 +110,11 @@ jobs:
             swift:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
-            # The Linux host, the session packages and engine it links, and the
+            # The Rundale CLI, the session packages and engine it links, and the
             # world and Endpoint fixtures its golden frames play.
-            linux_host:
-              - 'tools/linux-host/**'
+            rundale_cli:
+              - 'tools/rundale-cli/**'
+              - 'limerick/crates/limerick-mcp/**'
               - 'mobile/RundaleSession/**'
               - 'mobile/RundaleKit/**'
               - 'mobile/RundaleBridge/**'
@@ -129,8 +130,8 @@ jobs:
               - 'rust-toolchain.toml'
               - '.cargo/**'
               - '.github/workflows/ci.yml'
-            linux_host_goldens:
-              - 'tools/linux-host/Tests/**'
+            rundale_cli_goldens:
+              - 'tools/rundale-cli/Tests/**'
             # A recorded mobile-verify pass's inputs
             # (mobile/scripts/verify.py ATTESTATION_PATHSPECS).
             mobile_app:
@@ -572,13 +573,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The Linux host (tools/linux-host) plays the app's session logic against
-  # the engine's Linux static library and compares Markdown frames with its
+  # The Rundale CLI (tools/rundale-cli) plays the app's session logic against
+  # the engine's native static library and compares Markdown frames with its
   # goldens. Frames are not app UI evidence (docs/agent/build-test.md).
-  linux-host:
-    name: Linux host golden frames
+  rundale-cli:
+    name: Rundale CLI tests (Linux)
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.linux_host == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rundale_cli == 'true'
     runs-on: ubuntu-latest
     container: swift:6.3.3-noble
     timeout-minutes: 30
@@ -611,19 +612,28 @@ jobs:
       - name: SwiftLint and SwiftFormat
         run: |
           bash mobile/scripts/install-swift-tools.sh
-          cd tools/linux-host
+          cd tools/rundale-cli
           ../../mobile/.build/swift-tools/bin/swiftlint lint --strict --quiet
           ../../mobile/.build/swift-tools/bin/swiftformat --lint --config ../../mobile/.swiftformat --exclude .build .
 
       - name: Golden-frame tests
-        run: bash tools/linux-host/run.sh --test
+        run: bash tools/rundale-cli/run.sh --test
+
+      - name: MCP session protocol tests
+        run: |
+          cd limerick
+          cargo test -p limerick-mcp
+          cargo build -p limerick-mcp
+          cd ..
+          python3 tools/rundale-cli/test_mcp_session.py
+          python3 tools/rundale-cli/test_terminal_output.py
 
       - name: Upload frames that differ from the goldens
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: linux-host-golden-actual
-          path: tools/linux-host/.build/golden-actual/
+          name: rundale-cli-golden-actual
+          path: tools/rundale-cli/.build/golden-actual/
           if-no-files-found: ignore
           retention-days: 14
 
@@ -892,7 +902,7 @@ jobs:
         promptfoo-quality,
         shell-quality,
         swift-quality,
-        linux-host,
+        rundale-cli,
         toml-quality,
         workflow-quality,
         runtime-suite,

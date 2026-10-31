@@ -337,7 +337,9 @@ fn run_operation(session: &mut Session, object: &Map<String, Value>) -> Result<V
 ///
 /// The request is `{"save_path": ..., "mod_dir": ...}`. `OPEN_NEW` refuses a
 /// save that already exists; `OPEN_RESUME` continues the save, or starts a
-/// new game there when it does not exist.
+/// new game there when it does not exist. Set `require_existing: true` on
+/// `OPEN_RESUME` to reject missing, incompatible, and unfinished saves without
+/// replacing them. The option defaults to false.
 #[unsafe(no_mangle)]
 pub extern "C" fn limerick_mobile_open(
     kind: limerick_mobile_open_kind_t,
@@ -380,9 +382,28 @@ pub extern "C" fn limerick_mobile_open(
             },
             (Err(error), _) | (_, Err(error)) => return fail_op(out_response, &error),
         };
-        let mode = match kind {
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW => OpenMode::New,
-            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME => OpenMode::Resume,
+        let require_existing = match object.get("require_existing") {
+            None => false,
+            Some(Value::Bool(value)) => *value,
+            Some(_) => {
+                return fail_op(
+                    out_response,
+                    &OpError::new("protocol_error", "require_existing must be a boolean"),
+                );
+            }
+        };
+        let mode = match (kind, require_existing) {
+            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW, false) => OpenMode::New,
+            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW, true) => {
+                return fail_op(
+                    out_response,
+                    &OpError::new("protocol_error", "require_existing requires OPEN_RESUME"),
+                );
+            }
+            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME, false) => OpenMode::Resume,
+            (limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME, true) => {
+                OpenMode::StrictResume
+            }
         };
         let session = match Session::open(mode, options) {
             Ok(session) => session,

@@ -11,7 +11,7 @@
 
 use crate::backend::{BackendError, TauriBackend};
 use crate::jsonrpc::{HandlerResult, MethodHandler, RpcError};
-use crate::tools::{ToolDef, registry};
+use crate::tools::ToolDef;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub struct McpServer {
 impl McpServer {
     pub fn new(backend: Arc<dyn TauriBackend>) -> Self {
         Self {
-            tools: registry(),
+            tools: backend.tools(),
             backend,
         }
     }
@@ -79,6 +79,10 @@ impl McpServer {
 
         let (command, args) = (tool.translate)(&arguments).map_err(RpcError::invalid_params)?;
         match self.backend.invoke(&command, args).await {
+            Ok(value) if self.backend.structured_results() => Ok(json!({
+                "content": [{"type": "text", "text": value["markdown"].as_str().unwrap_or("")}],
+                "structuredContent": value, "isError": false
+            })),
             Ok(value) => Ok(tool_call_result(&value, false)),
             Err(BackendError::Unimplemented(msg)) => Err(RpcError::internal(msg)),
             // Backend rejection / transport error is reported as `isError: true`
