@@ -213,15 +213,18 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is Gemini 4 Argon through **agy using the owner's Google
+The gatekeeper is Gemini 3.8 Flash through **agy using the owner's Google
 subscription**, whoever wrote the code (Claude or Codex). Run it from the review
 checkout (your worktree, or a clean detached worktree of `origin/main` for a PR):
 
 ```sh
 env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-4-argon-high --output-format text \
+  agy --model gemini-3.8-flash-high --output-format text \
   -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
+
+Do not switch reviews to a Gemini 4 Argon model: Argon has its own small weekly
+quota on the subscription, and running out of it stalls every review for days.
 
 Use agy's personal Google-account sign-in, without an API-key provider override.
 Do not use Gemini CLI (`gemini`) or paid APIs for reviews. Headless agy runs only

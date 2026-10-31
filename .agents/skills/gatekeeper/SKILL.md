@@ -43,7 +43,7 @@ use whatever equivalent GitHub tool your harness provides.
 
 ## Gemini cross-reviews: agy and subscription only
 
-The gatekeeper runs as Gemini 4 Argon through **agy using the owner's personal
+The gatekeeper runs as Gemini 3.8 Flash through **agy using the owner's personal
 Google-account subscription**, for Claude- and Codex-authored work alike
 ([AGENTS.md, Gatekeeper review](../../../AGENTS.md#gatekeeper-review)). Do not use
 Gemini CLI (`gemini`), a paid Gemini API key, or Google Cloud/Vertex ADC
@@ -57,7 +57,7 @@ review checkout:
 
 ```sh
 env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-4-argon-high --output-format text \
+  agy --model gemini-3.8-flash-high --output-format text \
   -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
