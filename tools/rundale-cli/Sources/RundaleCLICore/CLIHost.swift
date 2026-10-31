@@ -67,7 +67,7 @@ public final class CLIHost {
       :retry           tap Retry
       :restart         save, close the game, and open it again
       :frame           print the current frame
-      :quit            save and close
+      :quit, /exit     save and close (/quit also works)
     Lines starting with # are comments.
     """
 
@@ -95,7 +95,7 @@ public final class CLIHost {
         await open(reset: !options.resume)
     }
 
-    /// Runs one input line. Returns false after `:quit`.
+    /// Runs one input line. Returns false after `:quit`, `/exit`, or `/quit`.
     @discardableResult
     public func perform(_ line: String) async -> Bool {
         let line = line.trimmingCharacters(in: .whitespaces)
@@ -106,7 +106,8 @@ public final class CLIHost {
             await choose(choice, presenter: presenter)
             return true
         }
-        switch line {
+        // Slash spellings ignore case, as the engine's parser does.
+        switch line.hasPrefix("/") ? line.lowercased() : line {
         case ":stop":
             guard presenter.showsStop else {
                 output("_Stop is not offered._\n")
@@ -126,7 +127,9 @@ public final class CLIHost {
             await open(reset: false)
         case ":frame":
             emit(.current, presenter: presenter)
-        case ":quit":
+        // `/exit` and `/quit` match the engine CLIs' spellings. The app has no
+        // quit, so the host takes them before they reach the composer.
+        case ":quit", "/exit", "/quit":
             await close()
             return false
         case ":help":

@@ -1,0 +1,4 @@
+# inference: mock
+# /exit, in any case, saves and closes; the line after it never runs.
+/EXIT
+look
