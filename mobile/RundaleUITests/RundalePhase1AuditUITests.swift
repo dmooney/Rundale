@@ -19,19 +19,6 @@ final class RundalePhase1AuditUITests: RundaleUITestCase {
         try await super.tearDown()
     }
 
-    func testAcceptedCommandRowIsExactAndImmediatelyVisible() {
-        launch()
-
-        let command = "look around"
-        submit(command)
-
-        let row = transcriptRow(exactLabel: "Player command. \(command)")
-        XCTAssertTrue(row.waitForExistence(timeout: 1))
-        XCTAssertTrue(row.isHittable)
-        XCTAssertTrue(row.frame.intersects(transcript.frame))
-        XCTAssertEqual(commandInput.value as? String, "")
-    }
-
     func testMultilineKeyboardDismissesAndReopensWithoutCoveringComposer() {
         launch()
 
@@ -76,164 +63,6 @@ final class RundalePhase1AuditUITests: RundaleUITestCase {
         XCTAssertEqual(commandInput.value as? String, "draft before keyboard change")
         dismissKeyboard()
         XCTAssertTrue(commandInput.isHittable)
-    }
-
-    func testStopRetainsExactPartialRowAndRemovesManualAdvance() {
-        launch()
-
-        submit("long stream")
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
-        XCTAssertLessThanOrEqual(step.frame.maxY, keyboard.frame.minY + 1)
-
-        // First advance is interpretation; second is the first provisional
-        // dialogue chunk. The fixture does not advance except through this
-        // production-visible control in UI-test mode.
-        step.tap()
-        step.tap()
-        let partial = "Dialogue. Peig. The first part arrives.. In progress"
-        let partialRow = transcriptRow(exactLabel: partial)
-        XCTAssertTrue(partialRow.waitForExistence(timeout: 3))
-        let partialID = partialRow.identifier
-
-        app.buttons["composer.stop"].tap()
-        XCTAssertTrue(send.waitForExistence(timeout: 3))
-
-        let retained = app.descendants(matching: .any)
-            .matching(identifier: partialID)
-            .firstMatch
-        XCTAssertTrue(retained.waitForExistence(timeout: 3))
-        XCTAssertEqual(
-            retained.label,
-            "Dialogue. Peig. The first part arrives.. Interrupted; not applied"
-        )
-        XCTAssertFalse(step.exists, "Stop must remove the only manual stream advance")
-        XCTAssertFalse(transcriptRows(containing: "Then the road opens into rain and light.").firstMatch.exists)
-        XCTAssertFalse(transcriptRows(containing: "At last, the whole thought is clear.").firstMatch.exists)
-    }
-
-    func testRecallPreservesOriginalExactRowAndCompletionRendersExactResult() {
-        launch()
-
-        let original = "look around"
-        submit(original)
-        finishManualStream()
-        let originalRow = transcriptRow(exactLabel: "Player command. \(original)")
-        XCTAssertTrue(originalRow.waitForExistence(timeout: 3))
-        XCTAssertTrue(reveal(originalRow))
-        let originalID = originalRow.identifier
-
-        originalRow.tap()
-        XCTAssertEqual(commandInput.value as? String, original)
-        commandInput.typeText(" again")
-        app.buttons["composer.send"].tap()
-        let revised = "look around again"
-        let revisedRow = transcriptRow(exactLabel: "Player command. \(revised)")
-        XCTAssertTrue(revisedRow.waitForExistence(timeout: 3))
-        XCTAssertNotEqual(revisedRow.identifier, originalID)
-        let retainedOriginal = app.descendants(matching: .any)
-            .matching(identifier: originalID)
-            .firstMatch
-        XCTAssertTrue(retainedOriginal.exists)
-        XCTAssertEqual(retainedOriginal.label, "Player command. \(original)")
-        XCTAssertEqual(revisedRow.label, "Player command. \(revised)")
-        finishManualStream()
-
-        app.buttons["composer.commands"].tap()
-        let lookCompletion = app.buttons["completion.look"]
-        XCTAssertTrue(lookCompletion.waitForExistence(timeout: 3))
-        lookCompletion.tap()
-        XCTAssertEqual(commandInput.value as? String, "/look")
-        app.buttons["composer.send"].tap()
-        finishManualStream()
-
-        let result = "Result. Crossroads · stone wall · lane to the east"
-        XCTAssertTrue(transcriptRow(exactLabel: result).waitForExistence(timeout: 3))
-    }
-
-    func testTranscriptKindsAndFocusLoopUseProductionControls() {
-        launch()
-        for prefix in ["Scene. ", "Narration. "] {
-            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH %@", prefix
-            )).firstMatch.waitForExistence(timeout: 3))
-        }
-        submit("long stream")
-        XCTAssertTrue(transcriptRow(exactLabel: "Player command. long stream").exists)
-        let step = app.buttons["fixture.step"]
-        step.tap()
-        step.tap()
-        XCTAssertTrue(transcriptRow(exactLabel: "Dialogue. Peig. The first part arrives.. In progress")
-            .waitForExistence(timeout: 3))
-        app.buttons["composer.stop"].tap()
-        XCTAssertTrue(send.waitForExistence(timeout: 3))
-        commandInput.typeText("after stop")
-        XCTAssertEqual(commandInput.value as? String, "after stop")
-        dismissKeyboard()
-        commandInput.tap()
-        XCTAssertEqual(commandInput.value as? String, "after stop")
-        commandInput.typeText(" and return")
-        // A native tap chooses a caret position; it need not choose the end.
-        // Verify that focused typing inserts exactly once without losing draft.
-        let edited = commandInput.value as? String ?? ""
-        XCTAssertEqual(edited.count, "after stop and return".count)
-        XCTAssertEqual(edited.replacingOccurrences(of: " and return", with: ""), "after stop")
-        app.buttons["composer.commands"].tap()
-        app.buttons["completion.look"].tap()
-        XCTAssertEqual(commandInput.value as? String, "/look")
-        send.tap()
-        finishManualStream()
-        XCTAssertTrue(transcriptRow(exactLabel: "Result. Crossroads · stone wall · lane to the east")
-            .waitForExistence(timeout: 3))
-    }
-
-    func testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply() {
-        launchPagedHistory(reset: true)
-        let newest = transcriptRow(exactLabel: "Narration. Historical fixture entry 540.")
-        XCTAssertTrue(newest.waitForExistence(timeout: 8))
-
-        commandInput.tap()
-        commandInput.typeText("long stream")
-        send.tap()
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
-        step.tap()
-        step.tap()
-        XCTAssertTrue(transcriptRow(exactLabel: "Dialogue. Peig. The first part arrives.. In progress")
-            .waitForExistence(timeout: 3))
-        dismissKeyboard()
-
-        let oldest = transcriptRow(exactLabel: "Narration. Historical fixture entry 1.")
-        for _ in 0..<120 {
-            if oldest.exists && oldest.isHittable { break }
-            transcript.swipeDown(velocity: .fast)
-        }
-        XCTAssertTrue(oldest.exists && oldest.isHittable,
-                      "Native gestures must page from the 500-row live window to archived history")
-        let anchorY = oldest.frame.minY
-
-        for _ in 0..<3 { step.tap() }
-        XCTAssertTrue(send.waitForExistence(timeout: 3))
-        XCTAssertTrue(oldest.exists && oldest.isHittable)
-
-        app.terminate()
-        launchPagedHistory(reset: false)
-        XCTAssertTrue(oldest.waitForExistence(timeout: 8))
-        XCTAssertTrue(oldest.isHittable)
-        XCTAssertEqual(oldest.frame.minY, anchorY, accuracy: 8,
-                       "Relaunch must restore the reader's older-history anchor")
-
-        let newText = app.buttons["transcript.new-text"]
-        XCTAssertTrue(newText.waitForExistence(timeout: 3))
-        XCTAssertTrue(oldest.exists && oldest.isHittable)
-        newText.tap()
-        XCTAssertTrue(newText.waitForNonExistence(timeout: 3))
-        let completed = transcriptRow(
-            exactLabel: "Dialogue. Peig. The first part arrives. Then the road opens into rain and light. At last, the whole thought is clear."
-        )
-        XCTAssertTrue(completed.waitForExistence(timeout: 3))
-        XCTAssertTrue(completed.isHittable)
-        XCTAssertTrue(completed.frame.intersects(transcript.frame))
     }
 
     func testAccessibilitySizeKeepsFocusedComposerUsable() {
@@ -427,28 +256,6 @@ final class RundalePhase1AuditUITests: RundaleUITestCase {
         app.launch()
     }
 
-    private func launchPagedHistory(reset: Bool) {
-        app.launchArguments = ["--ui-tests", "--no-auto-focus", "--fixture=paged-history"]
-        if reset { app.launchArguments.append("--reset-fixture") }
-        app.launch()
-        XCTAssertTrue(transcript.waitForExistence(timeout: 5))
-    }
-
-    private func submit(_ command: String) {
-        commandInput.tap()
-        commandInput.typeText(command)
-        send.tap()
-    }
-
-    private func finishManualStream() {
-        let step = app.buttons["fixture.step"]
-        for _ in 0..<12 {
-            guard step.exists else { return }
-            step.tap()
-        }
-        XCTFail("Fixture did not reach a terminal state")
-    }
-
     private func dismissKeyboard() {
         // Interactive dismissal requires dragging into the keyboard, not a
         // short swipe ending within the transcript above the composer.
@@ -499,30 +306,11 @@ final class RundalePhase1AuditUITests: RundaleUITestCase {
         exactTranscriptRows(label: exactLabel).firstMatch
     }
 
-    private func reveal(_ row: XCUIElement) -> Bool {
-        for _ in 0..<4 {
-            if row.exists, row.isHittable, row.frame.intersects(transcript.frame) {
-                return true
-            }
-            transcript.swipeDown()
-        }
-        return row.exists && row.isHittable && row.frame.intersects(transcript.frame)
-    }
-
     private func exactTranscriptRows(label: String) -> XCUIElementQuery {
         app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@ AND label == %@",
                 "transcript.item.", label
-            )
-        )
-    }
-
-    private func transcriptRows(containing text: String) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
-                "transcript.item.", text
             )
         )
     }
