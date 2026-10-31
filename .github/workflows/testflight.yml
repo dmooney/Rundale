@@ -401,8 +401,9 @@ jobs:
             rust-mobile-${{ runner.os }}-
 
       # --journeys only exits 0 whatever the tests do; the result is in
-      # verify.json. The fast suites are skipped or reused from the gate job's
-      # cache key, so this run is the journeys alone plus the app build.
+      # verify.json. It skips the package, persistence and device-build suites
+      # (the gate job runs them); the Rust packaging and the app build remain
+      # because the journeys need the app.
       - name: Run the XCUITest journeys (report only)
         id: journeys
         env:

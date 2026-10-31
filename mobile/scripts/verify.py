@@ -1568,6 +1568,9 @@ class VerificationRun:
         phase: int,
         required: bool = True,
     ) -> None:
+        if self.journeys == "only":
+            self._skip(identifier, name, phase, "--journeys only runs just the UI journeys")
+            return
         if self.smoke:
             # CI's Linux Swift lane (`--fast`) runs every package suite on each
             # pull request; the full gate runs them against Apple's Foundation.
@@ -1861,6 +1864,9 @@ class VerificationRun:
         cargo_args: Sequence[str] = (),
         phase: int = 2,
     ) -> None:
+        if self.journeys == "only":
+            self._skip(identifier, name, phase, "--journeys only runs just the UI journeys")
+            return
         command = [
             "rustup",
             "run",
@@ -1897,6 +1903,14 @@ class VerificationRun:
             self._validate_rust_result(record)
 
     def _mobile_dependency_graph(self) -> None:
+        if self.journeys == "only":
+            self._skip(
+                "mobile-dependency-graph",
+                "Mobile FFI dependency graph",
+                2,
+                "--journeys only runs just the UI journeys",
+            )
+            return
         command = [
             "rustup",
             "run",
@@ -2597,6 +2611,14 @@ class VerificationRun:
             )
 
     def _device(self, xcodegen_ok: bool, *, phase: int = 1) -> None:
+        if self.journeys == "only":
+            self._skip(
+                "ios-device-build",
+                "Unsigned iOS device build",
+                phase,
+                "--journeys only runs just the UI journeys",
+            )
+            return
         if not xcodegen_ok:
             self._skip(
                 "ios-device-build",

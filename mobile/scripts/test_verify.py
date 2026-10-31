@@ -931,6 +931,9 @@ class VerificationRunnerTests(unittest.TestCase):
         self.assertTrue(selectors)
         self.assertTrue(all(s.startswith("RundaleUITests") for s in selectors), selectors)
         self.assertEqual(passes, {})
+        by_id = {suite["id"]: suite for suite in report["suites"]}
+        for identifier in ("swift-session-tests", "ios-device-build", "limerick-persistence-tests"):
+            self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
 
     def test_journeys_on_runs_both_and_the_pass_says_what_ran(self):
         with patch.object(VerificationRun, "_attestation_tree", return_value="a" * 40):
