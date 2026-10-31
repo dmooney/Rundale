@@ -30,6 +30,52 @@ public struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     public var unappliedReplyNote: String? {
         kind == .npcDialogue && isInterrupted ? "Not applied" : nil
     }
+
+    /// The row's kind as VoiceOver and UI tests name it.
+    public var kindLabel: String {
+        switch kind {
+        case .playerCommand: return "Player command"
+        case .commandInterpreted: return "Interpretation"
+        case .npcDialogue: return "Dialogue"
+        case .actionResult: return "Result"
+        case .sceneChanged: return "Scene"
+        case .error: return "Error"
+        case .progress: return "Progress"
+        case .responseCompleted: return "Response"
+        case .clarificationRequired: return "Clarification"
+        case .clarificationSelected: return "Direction"
+        default: return "Narration"
+        }
+    }
+
+    /// The text the row shows. A clarification choice reads as a direction.
+    public var displayText: String {
+        switch kind {
+        case .clarificationSelected: return "Directed to \(text)."
+        default: return text
+        }
+    }
+
+    /// The row's spoken label: kind, scene name, speaker, text, then whether
+    /// the reply is still arriving or was not applied.
+    public var accessibilityLabel: String {
+        var parts = [kindLabel]
+        if kind == .sceneChanged, let sceneName = metadata["sceneName"], !sceneName.isEmpty {
+            parts.append(sceneName)
+        }
+        if let speaker, !speaker.isEmpty {
+            parts.append(speaker)
+        }
+        if !displayText.isEmpty {
+            parts.append(displayText)
+        }
+        if isInterrupted {
+            parts.append("Interrupted; not applied")
+        } else if isProvisional {
+            parts.append("In progress")
+        }
+        return parts.joined(separator: ". ")
+    }
 }
 
 public struct PresentedHeader: Equatable, Sendable {
@@ -41,6 +87,11 @@ public struct PresentedHeader: Equatable, Sendable {
         self.location = location
         self.timeOfDay = timeOfDay
         self.weather = weather
+    }
+
+    /// The header region's spoken summary.
+    public var accessibilityLabel: String {
+        "Current place, \(location). \(timeOfDay). \(weather)."
     }
 }
 
@@ -570,6 +621,18 @@ public final class RundaleSessionPresenter {
     /// The draft has something to send.
     public var canSubmitDraft: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// What VoiceOver reads on Send: whether tapping it would do anything.
+    public var sendAccessibilityValue: String {
+        canSubmitDraft ? "Ready to send" : "Enter a command to enable"
+    }
+
+    /// The Celtic knot beside the composer shows while the engine works. A
+    /// compact layout (an accessibility size or a short screen) drops it to
+    /// keep the room for the transcript.
+    public func showsWaitingKnot(compactLayout: Bool) -> Bool {
+        isStreaming && !compactLayout
     }
 
     /// The composer offers Stop in place of Send while the engine works.
