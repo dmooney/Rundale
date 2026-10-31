@@ -66,7 +66,7 @@ A line is typed into the composer and sent. Host commands stand in for taps:
 | `:retry`         | Taps Retry.                                             |
 | `:restart`       | Saves, closes the engine, and opens the save again.     |
 | `:frame`         | Prints the current frame.                               |
-| `:quit`          | Saves and exits.                                        |
+| `:quit`, `/exit` | Saves and exits. `/quit` also works.                    |
 | `:help`          | Lists these commands.                                   |
 
 Lines starting with `#` are comments. Each command waits until the turn

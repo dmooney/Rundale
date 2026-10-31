@@ -49,6 +49,10 @@ final class GoldenFrameTests: XCTestCase {
         try await check("fixture-session")
     }
 
+    func testExitStopsBeforeLaterLines() async throws {
+        try await check("exit")
+    }
+
     func testRejectsAFileThatIsNotARecordedStream() async throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("not-a-stream-\(UUID()).sse")
         try Data("event: text_delta\ndata: {\"type\":\"text_delta\",\"text\":\"hi\"}\n\n".utf8).write(to: file)
@@ -67,7 +71,7 @@ final class GoldenFrameTests: XCTestCase {
             .map { String($0.dropLast(".txt".count)) }
         let tested: Set = [
             "new-game", "dialogue-streaming", "clarification-save-resume", "stop-during-streaming",
-            "endpoint-failure-retry", "sse-fixture-dialogue", "fixture-session"
+            "endpoint-failure-retry", "sse-fixture-dialogue", "fixture-session", "exit"
         ]
         XCTAssertEqual(Set(scenarios), tested)
         await Task.yield()
