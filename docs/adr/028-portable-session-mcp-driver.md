@@ -46,5 +46,6 @@ deterministic integration compatibility. Evidence records the actual platform
 and inference mode. It proves neither app layout, accessibility, iOS lifecycle,
 device attestation, simulator behavior, nor physical-iPhone acceptance.
 
-The driver remains a development tool outside the iOS application. Package names
-and game scope are unchanged; accepting a mod path does not prove game independence.
+The driver remains a development tool outside the iOS application. Its portable
+runner is named `rundale-cli`; engine package names and game scope are unchanged.
+Accepting a mod path does not prove game independence.

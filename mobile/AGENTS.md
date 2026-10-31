@@ -50,6 +50,9 @@ is set (recording only).
   SwiftUI), and the Firebase, OSLog, and UIKit wiring
   (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule the app CLI
   must share goes in the package, or the two drift (#2272).
+- **Do not retain a session controller across its event-stream wait.** A
+  controller-owned task must keep only a weak reference while awaiting the
+  next event, or the task and controller retain each other and prevent teardown.
 - **A synchronous test in a `@MainActor` XCTestCase crashes Linux test
   discovery** (`swift_dynamicCastFailure` in `__allTests`, before any test
   runs). Make the test `async` with a real `await`; SwiftFormat's
