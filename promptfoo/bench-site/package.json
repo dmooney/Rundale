@@ -13,15 +13,15 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/svelte": "^9.0.1",
-    "astro": "^7.3.5",
+    "@astrojs/svelte": "^9.1.2",
+    "astro": "^7.4.3",
     "cookie": "^2.0.1",
-    "simple-icons": "^16.33.0",
-    "svelte": "^5.57.1"
+    "simple-icons": "^16.36.0",
+    "svelte": "^5.57.3"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "@types/node": "^24.19.1",
+    "@astrojs/check": "^0.9.12",
+    "@types/node": "^24.19.2",
     "typescript": "^6.0.3"
   },
   "pnpm": {
