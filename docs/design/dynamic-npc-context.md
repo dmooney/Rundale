@@ -552,7 +552,7 @@ candidate from anyone who is not. This section changes with it.
 Each case runs on the canonical world unless it says otherwise. "Core" is a
 `limerick-core` test on the production turn path with scripted Endpoint
 transport (`tests/turn_lifecycle.rs`, `tests/endpoint_calls.rs`); "FFI" is a
-`limerick-mobile-ffi` test; "UI" is `RundalePhase3UITests`; "Live" is
+`limerick-mobile-ffi` test; "UI" is `EngineScenarioTests` (the real engine and presenter, app-hosted); "Live" is
 `RundaleLiveEndpointUITests` against `limerick-prod` on the simulator.
 
 | #   | Case                                                                                                      | Expected                                                                                      | Shown by                   |
@@ -595,7 +595,7 @@ transport (`tests/turn_lifecycle.rs`, `tests/endpoint_calls.rs`); "FFI" is a
 
 Rows 27, 28 and 35 keep the assertions of four shipped tests:
 `testAmbiguousConnollyRequiresSelectionBeforeEndpointWork`
-(`RundalePhase3UITests`), `test04LiveIntentAddresseeSharedByTwoPeopleAsksWhichConnolly`
+(`EngineScenarioTests`), `test04LiveIntentAddresseeSharedByTwoPeopleAsksWhichConnolly`
 (`RundaleLiveEndpointUITests`),
 `an_ambiguous_addressee_asks_survives_restart_and_the_answer_continues_the_request`
 (`limerick-core/tests/turn_lifecycle.rs`) and
