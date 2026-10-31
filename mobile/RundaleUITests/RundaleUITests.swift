@@ -282,7 +282,6 @@ final class RundaleUITests: RundaleUITestCase {
         ).firstMatch
         return matching.waitForExistence(timeout: timeout)
     }
-
 }
 
 private extension XCUIElement {
