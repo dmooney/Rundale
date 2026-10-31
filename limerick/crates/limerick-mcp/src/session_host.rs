@@ -52,6 +52,10 @@ impl SessionHostBackend {
         if let Some(path) = fixture {
             command.arg("--sse-fixture").arg(path);
         }
+        Self::spawn_command(command).await
+    }
+
+    async fn spawn_command(mut command: Command) -> Result<Self, BackendError> {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -372,9 +376,17 @@ for line in sys.stdin:
     }
     async fn host(mode: &str) -> (PathBuf, SessionHostBackend) {
         let (dir, script) = fixture(mode);
-        let backend = SessionHostBackend::spawn(script, dir.clone(), dir.clone(), "mock", None)
-            .await
-            .unwrap();
+        let mut command = Command::new("/usr/bin/python3");
+        command
+            .arg(script)
+            .arg("--protocol")
+            .arg("--mod-dir")
+            .arg(&dir)
+            .arg("--save-dir")
+            .arg(&dir)
+            .arg("--inference")
+            .arg("mock");
+        let backend = SessionHostBackend::spawn_command(command).await.unwrap();
         (dir, backend)
     }
     #[tokio::test]
@@ -450,11 +462,17 @@ for line in sys.stdin:
     #[tokio::test]
     async fn startup_failures_and_bounded_shutdown() {
         let (dir, script) = fixture("bad_handshake");
-        assert!(
-            SessionHostBackend::spawn(script, dir.clone(), dir.clone(), "mock", None)
-                .await
-                .is_err()
-        );
+        let mut command = Command::new("/usr/bin/python3");
+        command
+            .arg(script)
+            .arg("--protocol")
+            .arg("--mod-dir")
+            .arg(&dir)
+            .arg("--save-dir")
+            .arg(&dir)
+            .arg("--inference")
+            .arg("mock");
+        assert!(SessionHostBackend::spawn_command(command).await.is_err());
         assert!(
             SessionHostBackend::spawn(dir.join("missing"), dir.clone(), dir.clone(), "mock", None)
                 .await

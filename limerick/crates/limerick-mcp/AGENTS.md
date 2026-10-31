@@ -25,3 +25,8 @@ Backend must be up on `127.0.0.1:3030` — run `bash limerick/scripts/limerick-m
 ## Module map
 
 `jsonrpc/` JSON-RPC 2.0 framing (`dispatch.rs`, `message.rs`) (transport layer), `mcp.rs` MCP handshake + tool registry (protocol layer), `backend.rs` `TauriBackend` trait + `LimerickHttpBackend` impl (adapter layer), `tools.rs` tool definitions and JSON Schema parameter shapes.
+
+- **Launch generated Python fixtures through the interpreter.** Parallel fork/exec
+  can inherit a sibling test's open write descriptor before close-on-exec takes
+  effect; directly executing that script can fail with Linux `ETXTBSY`. Keep the
+  production executable launch covered by the real session-host integration test.
