@@ -1,3 +1,14 @@
 [[IgnoredVulns]]
 id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-01-28T00:00:00Z
 reason = "No fixed deepmerge release exists (4.3.1 is the latest). In limerick/apps/ui it is a development-only dependency of @sveltejs/vite-plugin-svelte, which merges its own build-time config objects when the desktop Svelte UI is built; it is not bundled into the iPhone app, and no attacker-controlled objects reach mergeObject(). Reassess when upstream publishes a fix."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "Every glob release from 9.0.0 up to 14.0.2 is affected and the fix is glob 14, a new major; the dev-only license-checker-rseidelsohn 5.0.1 (the latest) pulls glob 13.0.6 through @npmcli/package-json 7, @npmcli/arborist and cacache. They run only when the desktop UI license check runs, not in the iPhone app. The flaw is that an aborted walk keeps reading directories, so it needs a caller to pass an AbortSignal; none of those consumers passes one (checked in the installed packages), and their patterns come from package.json and the npm cache. Reassess when license-checker moves to glob 14."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "Every minimatch release is listed as affected and the fix is minimatch 11, a new major; the latest eslint (10.14.0), typescript-eslint and license-checker-rseidelsohn 5.0.1 all still require minimatch 10. minimatch 10.2.6 is a devDependency pulled by eslint, @typescript-eslint/typescript-estree and the npm tooling under license-checker; none ships in the iPhone app. The flaw is in firstPhasePreProcess(), reached only with optimizationLevel >= 2 (the default is 1), and no installed package sets that option for minimatch. Patterns come from repository lint configuration. Reassess when those consumers move to minimatch 11."

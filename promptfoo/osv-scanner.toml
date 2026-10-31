@@ -1,7 +1,14 @@
 [[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
-reason = "OSV lists no fixed node-forge release. The sole dependency is jks-js in the development-only promptfoo benchmark toolchain; node-forge is not shipped in the iPhone app or production Endpoints. Reassess when upstream publishes a fix."
+id = "GHSA-xcx6-jx8p-x3h5"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "The only fix is @azure/msal-node 7.x, a breaking major. 6.0.1 is pulled by @azure/identity 4.14.0 (it requires ^6.0.0) under promptfoo, the development-only benchmark runner; promptfoo's own @azure/msal-node dependency is already 7.1.0. The flaw is in the auth_code flow (acquireTokenByCode), and no Rundale benchmark configuration uses an Azure provider or any Azure credential. It is not shipped in the iPhone app or production Endpoints. Reassess when @azure/identity moves to msal-node 7."
 
 [[IgnoredVulns]]
-id = "GHSA-xcx6-jx8p-x3h5"
-reason = "The only fix is @azure/msal-node 7.x, a breaking major. 6.0.1 is pulled by @azure/identity 4.14.0 (it requires ^6.0.0) under promptfoo, the development-only benchmark runner; promptfoo's own @azure/msal-node dependency is already 7.1.0. The flaw is in the auth_code flow (acquireTokenByCode), and no Rundale benchmark configuration uses an Azure provider or any Azure credential. It is not shipped in the iPhone app or production Endpoints. Reassess when @azure/identity moves to msal-node 7."
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "Every glob release from 9.0.0 up to 14.0.2 is affected and the fix is glob 14, a new major; the latest promptfoo (0.125.1) still requires glob ^13.0.6. glob 13.0.6 is used by promptfoo 0.124.1 and @modelcontextprotocol/server-filesystem, in the development-only benchmark runner (not shipped in the iPhone app or production Endpoints). The flaw is that an aborted walk keeps reading directories, so it needs a caller to pass an AbortSignal; promptfoo calls only globSync/hasMagic/escape and passes no signal (checked in its installed dist). Patterns come from repository benchmark configuration. Reassess when promptfoo moves to glob 14."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "Every minimatch release is listed as affected and the fix is minimatch 11, a new major; the latest promptfoo (0.125.1) still requires minimatch ^10.2.4. minimatch 10.2.5 is used by promptfoo 0.124.1 and @modelcontextprotocol/server-filesystem in the development-only benchmark runner (not shipped in the iPhone app or production Endpoints). The flaw is in firstPhasePreProcess(), reached only with optimizationLevel >= 2 (the default is 1), and no installed package sets that option for minimatch. Patterns come from repository benchmark configuration. Reassess when promptfoo moves to minimatch 11."
