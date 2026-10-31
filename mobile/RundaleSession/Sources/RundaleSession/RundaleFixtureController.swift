@@ -162,17 +162,16 @@ public final class RundaleFixtureController: RundaleSessionControlling {
 
     private func applyInitialEvents(_ events: [SemanticEvent]) async -> EventCursor {
         let cursor = presentation.state.eventCursor
-        var appliedAny = false
+        let previousState = presentation.state
         for event in events where event.sequence.rawValue > cursor.rawValue {
             let result = presentation.apply(event)
             guard result == .applied else { continue }
             _ = historyPresentation.apply(event)
             lastEvent = event
-            appliedAny = true
             // Keep state publication to the end of the batch. Both reducers
             // still process every event through the canonical apply boundary.
         }
-        if appliedAny {
+        if presentation.state != previousState {
             state = presentation.state
             await persistSessionStateAndWait()
         }
