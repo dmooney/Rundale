@@ -21,7 +21,7 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
 5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
 6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
-   hands it to the owner. The gatekeeper is always Gemini 4 Argon through agy
+   hands it to the owner. The gatekeeper is always Gemini 3.8 Flash through agy
    on the owner's Google subscription (AGENTS.md, Gatekeeper review), whether
    the commits are Dependabot's or this routine's own (Claude) fix.
 
@@ -71,7 +71,7 @@ TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
 CLAUDE_MODEL = "claude-opus-5-5"
-AGY_MODEL = "gemini-4-argon-high"
+AGY_MODEL = "gemini-3.8-flash-high"
 # agy reviews run on the owner's subscription sign-in, never an API key or ADC.
 AGY_ENV_UNSET = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "AGY_ADC_AUTH", "GOOGLE_GENAI_USE_VERTEXAI")
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
