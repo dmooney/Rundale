@@ -437,7 +437,9 @@ def analyze_prs(prs: list[dict[str, Any]], now: datetime) -> PrReport:
         ref = f"PR {number} {span(pr['title'])} {pr['url']}"
         age = hours_between(parse_time(pr["createdAt"]), now)
         if NEEDS_OWNER_LABEL in {lab["name"] for lab in nodes(pr, "labels")}:
-            report.needs_owner.append(Finding("pr_red", f"{ref}, open {age_text(age)}", age))
+            report.needs_owner.append(
+                Finding("pr_needs_owner", f"{ref}, open {age_text(age)}", age)
+            )
             continue
         commits = nodes(pr, "commits")
         if not commits:
@@ -670,7 +672,8 @@ def cap_body(text: str) -> str:
     if len(text) <= BODY_CAP:
         return text
     note = f"\n\n[truncated {len(text) - BODY_CAP + 40} chars]"
-    return text[: BODY_CAP - len(note)] + note
+    kept = BODY_CAP - len(note)
+    return text[:kept] + f"\n\n[truncated {len(text) - kept} chars]"
 
 
 class GhClient:
@@ -804,33 +807,46 @@ def apply_actions(
     actions: list[IssueAction],
     dry_run: bool,
     log: Callable[[str], None],
+    on_error: Callable[[str, Exception], None] = lambda name, err: None,
 ) -> list[tuple[str, int]]:
-    """Carry out the issue plan; returns (workflow file, issue number) pairs tracked elsewhere."""
+    """Carry out the issue plan; returns (workflow file, issue number) pairs tracked elsewhere.
+
+    Each change is guarded on its own so one failed call does not skip the rest.
+    """
     tracked = []
     if any(a.op == "create" for a in actions) and not dry_run:
-        client.ensure_label(
-            CI_RED_LABEL, "B60205", "A workflow is red on main; managed by the repo health watcher"
-        )
+        try:
+            client.ensure_label(
+                CI_RED_LABEL,
+                "B60205",
+                "A workflow is red on main; managed by the repo health watcher",
+            )
+        except RuntimeError as err:
+            on_error("create the ci-red label", err)
     for action in actions:
         if action.op == "tracked":
             assert action.number is not None
             tracked.append((action.workflow, action.number))
             log(f"{action.workflow}: red, already tracked by issue {action.number}")
-        elif action.op == "create":
-            log(f"{action.workflow}: open issue {action.title!r}")
-            if not dry_run:
-                client.create_issue(action.title, action.body, CI_RED_LABELS)
-        elif action.op == "update":
-            assert action.number is not None
-            log(f"{action.workflow}: update issue {action.number}")
-            if not dry_run:
-                client.update_issue(action.number, action.body)
-        elif action.op == "close":
-            assert action.number is not None
-            log(f"{action.workflow}: close issue {action.number}")
-            if not dry_run:
-                client.comment(action.number, f"{WATCHER_COMMENT_MARKER}\n{action.comment}")
-                client.close_issue(action.number)
+            continue
+        try:
+            if action.op == "create":
+                log(f"{action.workflow}: open issue {action.title!r}")
+                if not dry_run:
+                    client.create_issue(action.title, action.body, CI_RED_LABELS)
+            elif action.op == "update":
+                assert action.number is not None
+                log(f"{action.workflow}: update issue {action.number}")
+                if not dry_run:
+                    client.update_issue(action.number, action.body)
+            elif action.op == "close":
+                assert action.number is not None
+                log(f"{action.workflow}: close issue {action.number}")
+                if not dry_run:
+                    client.comment(action.number, f"{WATCHER_COMMENT_MARKER}\n{action.comment}")
+                    client.close_issue(action.number)
+        except RuntimeError as err:
+            on_error(f"{action.op} issue for {action.workflow}", err)
     return tracked
 
 
@@ -888,6 +904,7 @@ def run(
     open_issues = guarded("list open issues", client.open_issues, None)
     workflows = guarded("list workflows", client.workflows, None)
     red: list[Finding] = []
+    closing: set[int | None] = set()
     tracked: list[tuple[str, int]] = []
     present = guarded("list workflow files", client.workflow_files, set(), branch)
     if workflows is not None and present and open_issues is not None:
@@ -909,8 +926,13 @@ def run(
             [],
         )
         tracked = guarded(
-            "apply ci-red issues", lambda: apply_actions(client, actions, dry_run, log), []
+            "apply ci-red issues",
+            lambda: apply_actions(
+                client, actions, dry_run, log, lambda n, e: errors.append(f"{n}: {span(e)}")
+            ),
+            [],
         )
+        closing = {a.number for a in actions if a.op == "close"}
         red = red_workflow_findings(states, now, {file for file, _ in tracked})
 
     if branch != DEFAULT_BRANCH:
@@ -925,7 +947,8 @@ def run(
     )
     routine = routine_finding(comments, now) if comments is not None else None
     by_number: dict[int, list[dict[str, Any]]] = {}
-    tracking = tracking_issues(open_issues or [])
+    # Issues just closed (or planned to close in a dry run) are no longer stale.
+    tracking = [i for i in tracking_issues(open_issues or []) if i["number"] not in closing]
     for i in tracking:
         got = guarded(f"comments of issue {i['number']}", client.issue_comments, None, i["number"])
         if got is not None:

@@ -753,5 +753,35 @@ class HealthIssueTests(unittest.TestCase):
         self.assertEqual(posted, {40})
 
 
+class RecoveryTests(unittest.TestCase):
+    def test_a_recovered_old_ci_red_issue_is_not_reported_stale(self) -> None:
+        health = issue(40, "Repo health", rh.HEALTH_MARKER, ("repo-health",))
+        old = issue(41, "t", "<!-- ci-red: workflow=ok.yml -->", ("ci-red",), hours=24 * 5)
+        for dry in (False, True):
+            client = FakeClient(issues=[health, old])
+            logs: list[str] = []
+            rh.run(client, NOW, dry, logs.append)
+            text = "\n".join(logs) + "".join(str(w) for w in client.writes)
+            self.assertNotIn("Issue 41", text)
+
+    def test_one_failed_issue_write_does_not_skip_the_rest(self) -> None:
+        client = FakeClient(
+            workflows=[wf(1, "ci.yml", "CI"), wf(2, "ok.yml", "OK")],
+            runs={1: [run(11, "failure", 3)], 2: [run(21, "failure", 3)]},
+        )
+        original = client.create_issue
+
+        def flaky(title: str, body: str, labels: list[str]) -> Any:
+            if "ci.yml" in title:
+                raise RuntimeError("422")
+            return original(title, body, labels)
+
+        client.create_issue = flaky  # type: ignore[method-assign]
+        self.assertEqual(rh.run(client, NOW, False, lambda _m: None), 1)
+        self.assertIn(
+            ("create", "CI red on main: OK (ok.yml)", ("ci-red", "infra", "P1")), client.writes
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
