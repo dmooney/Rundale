@@ -564,7 +564,7 @@ public final class RundaleSessionPresenter {
     }
 
     public var canRetry: Bool {
-        session.state.requests.contains { $0.phase.canRetry }
+        session.state.retryableRequest != nil
     }
 
     /// The draft has something to send.
@@ -584,9 +584,11 @@ public final class RundaleSessionPresenter {
     public var showsFixtureStep: Bool { launch.isUITesting && launch.manualStream && isStreaming }
 
     public func retryLastFailed() {
-        guard !isStreaming, allowsSubmission else { return }
+        // With no retryable failure (it recovered, or a newer request
+        // replaced it) a stale tap does nothing: no attempt, no error.
+        guard !isStreaming, allowsSubmission, canRetry else { return }
         let retryGeneration = lifecycleGeneration
-        let retryRequestID = session.state.requests.last(where: { $0.phase.canRetry })?.id
+        let retryRequestID = session.state.retryableRequest?.id
         isStreaming = true
         Task {
             do {

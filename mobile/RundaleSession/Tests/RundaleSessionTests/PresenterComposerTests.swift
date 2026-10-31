@@ -98,4 +98,41 @@ final class PresenterComposerTests: XCTestCase {
         XCTAssertTrue(presenter.showsStop)
         XCTAssertFalse(presenter.showsRetry)
     }
+
+    /// #2329: a Retry tap with no retryable failure (the request recovered, or a
+    /// newer one replaced it) is a no-op: no attempt starts and no error shows.
+    func testRetryIsGoneAfterRecoveryAndAStaleTapDoesNothing() async {
+        let presenter = presenter()
+        presenter.start()
+        await waitUntil { !presenter.transcript.isEmpty }
+
+        presenter.draft = "long stream"
+        presenter.noteDraftMutation()
+        presenter.submitDraft()
+        await waitUntil { presenter.isStreaming && presenter.draft.isEmpty }
+        presenter.advanceFixture()
+        await waitUntil { presenter.transcript.contains { $0.kind == .commandInterpreted } }
+        presenter.advanceFixture()
+        await waitUntil { presenter.transcript.contains { $0.isProvisional } }
+        presenter.stop()
+        await waitUntil { !presenter.isStreaming }
+        XCTAssertTrue(presenter.showsRetry)
+
+        // Retry, then let the fixture stream finish.
+        presenter.retryLastFailed()
+        await waitUntil { presenter.isStreaming }
+        while presenter.isStreaming {
+            presenter.advanceFixture()
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertFalse(presenter.showsRetry, "the recovered reply leaves nothing to retry")
+        XCTAssertFalse(presenter.canRetry)
+
+        let transcript = presenter.transcript
+        presenter.retryLastFailed()
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertFalse(presenter.isStreaming, "a stale tap starts no attempt")
+        XCTAssertNil(presenter.submissionMessage, "a stale tap reports no error")
+        XCTAssertEqual(presenter.transcript, transcript)
+    }
 }

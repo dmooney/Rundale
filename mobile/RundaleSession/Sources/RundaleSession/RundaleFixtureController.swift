@@ -294,7 +294,7 @@ public final class RundaleFixtureController: RundaleSessionControlling {
     }
 
     public func retryLastFailed() async throws {
-        guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
+        guard let request = state.retryableRequest else {
             throw FixtureAdapterError.requestNotRetryable
         }
         _ = try await adapter.retry(logicalRequestID: request.id)

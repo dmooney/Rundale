@@ -106,6 +106,12 @@ is set (recording only).
   executable (`Rundale.app/rundale`) breaks the macOS link on a
   case-insensitive file system (`errno=21`). `project.yml` uses a `copyFiles`
   subpath.
+- **Retry is for the newest request only.** `SessionState.retryableRequest` is the
+  newest request, and only while it ended failed, cancelled, or interrupted
+  uncommitted. Asking "does any request in history `canRetry`" leaves Retry up
+  after the stopped question recovers or a newer one succeeds, and a tap then
+  re-runs an old request against the Endpoint (#2329). A Retry tap with nothing
+  retryable is a no-op in the presenter, not an error.
 - **XCUITest cannot see rows scrolled out of the lazy transcript.** Assert on
   what a command produced, not on a command row a long narration pushed
   off-screen.
