@@ -21,9 +21,9 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
 5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
 6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
-   hands it to the owner. The gatekeeper is always Gemini 3.8 Flash through agy
-   on the owner's Google subscription (AGENTS.md, Gatekeeper review), whether
-   the commits are Dependabot's or this routine's own (Claude) fix.
+   hands it to the owner. The gatekeeper is a headless Claude run in a fresh
+   context (AGENTS.md, Gatekeeper review), whether the commits are
+   Dependabot's or this routine's own fix.
 
 It then posts a summary on the pinned "Dependabot upkeep reports" issue,
 creating and pinning that issue the first time. The summary goes through the
@@ -71,9 +71,6 @@ TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
 CLAUDE_MODEL = "claude-opus-5-5"
-AGY_MODEL = "gemini-3.8-flash-high"
-# agy reviews run on the owner's subscription sign-in, never an API key or ADC.
-AGY_ENV_UNSET = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "AGY_ADC_AUTH", "GOOGLE_GENAI_USE_VERTEXAI")
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
 VERIFY_PROCESS = r"just mobile-verify( |$)|mobile/scripts/verify\.py"
 VERDICT = re.compile(r"<!--\s*gatekeeper:\s*sha=([0-9a-f]+)\s+verdict=([a-z-]+)")
@@ -192,7 +189,7 @@ def subprocess_executor(
 ) -> Result:
     """Run a command in its own process group with stdin closed.
 
-    `claude -p` and `agy -p` wait forever on an open stdin. On a timeout
+    `claude -p` waits forever on an open stdin. On a timeout
     the whole group is stopped, not just the direct child.
     """
 
@@ -862,8 +859,7 @@ class Upkeep:
             raise CommandError(reset, moved)
         prompt = f"Run the gatekeeper skill on PR {pr.number}."
         output = self.logs / f"pr-{pr.number}-gatekeeper.log"
-        unset = [arg for name in AGY_ENV_UNSET for arg in ("-u", name)]
-        cmd = ["env", *unset, "agy", "--model", AGY_MODEL, "--output-format", "text", "-p", prompt]
+        cmd = ["claude", "-p", "--model", CLAUDE_MODEL, prompt]
         return self.sh.run(
             cmd, cwd=self.review, timeout=SECONDS["gatekeeper"], mutating=True, output=output
         )
@@ -978,13 +974,13 @@ class Upkeep:
             return outcome
         ran = self.gatekeeper(pr)
         if ran.skipped:
-            outcome.detail = "would run the gatekeeper (agy)"
+            outcome.detail = "would run the gatekeeper"
             return outcome
         outcome.notes.append(f"gatekeeper log: {self.logs / f'pr-{pr.number}-gatekeeper.log'}")
         if not ran.ok:
-            outcome.notes.append(f"agy gatekeeper exited {ran.returncode}")
+            outcome.notes.append(f"gatekeeper exited {ran.returncode}")
         outcome.status, outcome.detail = self.verdict(pr)
-        outcome.detail += " (agy)"
+        outcome.detail += " (gatekeeper)"
         return outcome
 
     # Summary ------------------------------------------------------------------

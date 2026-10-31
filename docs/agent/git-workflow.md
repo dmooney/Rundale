@@ -81,8 +81,8 @@ it:
    checks every workflow's action inputs statically);
 5. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
    merges it, sends it back, or hands it to the owner. The gatekeeper is
-   always Gemini 3.8 Flash through agy on the owner's Google subscription,
-   whether the commits are Dependabot's or the routine's own (Claude) fix.
+   a headless Claude run (`claude -p`) in a fresh context, whether the
+   commits are Dependabot's or the routine's own fix.
 
 It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first

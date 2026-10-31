@@ -213,48 +213,26 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is Gemini 3.8 Flash through **agy using the owner's Google
-subscription**, whoever wrote the code (Claude or Codex). Run it from the review
-checkout (your worktree, or a clean detached worktree of `origin/main` for a PR):
+The gatekeeper is a fresh-context Claude subagent, whoever wrote the code. Spawn
+it as a new subagent (never a fork of your session) and give it only the checkout
+path or PR number and the instruction to run the gatekeeper skill; it must not
+see your session. Its independence comes from that fresh context: it judges the
+repository, the issue and the PR alone. A tool that cannot spawn a subagent (a
+scheduled routine, a Codex session) runs it headless from the review checkout
+(your worktree, or a clean detached worktree of `origin/main` for a PR):
 
 ```sh
-env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-3.8-flash-high --output-format text \
-  -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+claude -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
-Do not switch reviews to a Gemini 4 Argon model: Argon has its own small weekly
-quota on the subscription, and running out of it stalls every review for days.
+Close stdin (`</dev/null`): from a background shell, `claude -p` otherwise waits
+for input forever. Run a local review in its own worktree so branch switches in
+the main checkout cannot change what it reads, and check its output within a few
+minutes of starting it.
 
-Use agy's personal Google-account sign-in, without an API-key provider override.
-Do not use Gemini CLI (`gemini`) or paid APIs for reviews. Headless agy runs only
-the shell commands its allow rules in `~/.gemini/antigravity-cli/settings.json`
-permit; when it ends with "no output produced" because a command was refused,
-report the refused command as the blocker. Never pass
-`--dangerously-skip-permissions`, and never widen those rules without the owner.
-If subscription authentication or quota fails, report the blocker; a paid API
-fallback requires explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
-
-Close stdin (`</dev/null`): from a background shell, agy otherwise waits for input
-forever. Run a local review in its own worktree so branch switches in the main
-checkout cannot change what it reads, and check its output within a few minutes
-of starting it.
-
-The one exception is Gemini-authored work, which a reviewer from its own family
-may not judge: review it with GPT through Codex, under the owner's ChatGPT sign-in
-only (never `OPENAI_API_KEY` or another key from the environment), reading the
-report from the `-o` file:
-
-```sh
-codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
-  -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
-```
-
-**Exemption: Claude Code in the cloud.** A Claude Code cloud session
-(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) cannot use the owner's agy
-sign-in, so it has its own work reviewed by a regular Claude subagent instead.
-Spawn a fresh-context subagent (never a fork of your session) and give it only the
-checkout path or PR number and the instruction to run the gatekeeper skill.
+Earlier cross-model reviewers (Codex, then Gemini through agy) were dropped: each
+depended on one account's usage limit or on headless permission rules, and
+stalled every review when those ran out or refused a command.
 
 ### Keep the iPhone beta current
 
