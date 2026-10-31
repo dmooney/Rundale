@@ -7,3 +7,6 @@
 - Transcript rows are combined accessibility elements. Query their
   `transcript.item.*` identifiers through `.any`, then assert their visible
   geometry rather than depending on a `staticTexts` classification.
+- Read changing transcript rows and their viewport from one app accessibility
+  snapshot. Live element queries can retain a stale row as streaming replaces
+  its label; noninteractive text can also throw when asked for `isHittable`.

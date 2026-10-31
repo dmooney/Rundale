@@ -50,11 +50,19 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
     /// label, so a label query can stop resolving between the existence and
     /// frame reads.
     private func assertVisible(_ identifier: String) {
-        let stable = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
-        let viewport = scroll.frame
         XCTAssertTrue(wait {
-            guard let snapshot = try? stable.snapshot() else { return false }
-            let frame = snapshot.frame
+            guard let snapshot = try? self.app.snapshot() else { return false }
+            @MainActor func find(_ identifier: String, in node: XCUIElementSnapshot) -> XCUIElementSnapshot? {
+                if node.identifier == identifier { return node }
+                for child in node.children {
+                    if let match = find(identifier, in: child) { return match }
+                }
+                return nil
+            }
+            guard let row = find(identifier, in: snapshot),
+                  let transcript = find("transcript", in: snapshot) else { return false }
+            let frame = row.frame
+            let viewport = transcript.frame
             return frame.minY >= viewport.minY - 2 && frame.maxY <= viewport.maxY + 2
         })
     }
