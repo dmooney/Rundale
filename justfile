@@ -117,13 +117,13 @@ test:
 mobile-verify *ARGS:
     python3 mobile/scripts/verify.py {{ARGS}}
 
-# Play the app's game on Linux as Markdown frames; not app UI evidence (tools/linux-host/README.md)
-linux-host *ARGS:
-    bash tools/linux-host/run.sh {{ARGS}}
+# Play the app's game from the command line as Markdown frames; not app UI evidence (tools/rundale-cli/README.md)
+rundale-cli *ARGS:
+    bash tools/rundale-cli/run.sh {{ARGS}}
 
-# Run the Linux host's golden-frame tests (tools/linux-host/README.md)
-linux-host-test *ARGS:
-    bash tools/linux-host/run.sh --test {{ARGS}}
+# Run the Rundale CLI's golden-frame tests (tools/rundale-cli/README.md)
+rundale-cli-test *ARGS:
+    bash tools/rundale-cli/run.sh --test {{ARGS}}
 
 # Post HEAD's full mobile-verify pass to GitHub after pushing (CI checks for it)
 mobile-verify-record:

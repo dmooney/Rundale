@@ -1,4 +1,4 @@
-## Frame 1 · new game · Linux host
+## Frame 1 · new game · Rundale CLI
 
 **Kilteevan Village** · Morning · Clear
 
@@ -13,7 +13,7 @@ _A muddy road runs between low stone walls and a handful of whitewashed cottages
 
 > **Input:** `go to Connolly Cottage`
 
-## Frame 2 · submitted · Linux host
+## Frame 2 · submitted · Rundale CLI
 
 **Kilteevan Village** · Morning · Clear
 
@@ -26,7 +26,7 @@ _A muddy road runs between low stone walls and a handful of whitewashed cottages
 
 **Composer:** `go to Connolly Cottage` · [Stop]
 
-## Frame 3 · committed · Linux host
+## Frame 3 · committed · Rundale CLI
 
 **Connolly Cottage** · Morning · Clear
 
@@ -50,7 +50,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 > **Input:** `:stream Róisín, what do you trade?`
 
-## Frame 4 · submitted · Linux host
+## Frame 4 · submitted · Rundale CLI
 
 **Connolly Cottage** · Morning · Clear
 
@@ -72,7 +72,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 **Composer:** `Róisín, what do you trade?` · [Stop]
 
-## Frame 5 · streaming · Linux host
+## Frame 5 · streaming · Rundale CLI
 
 **Connolly Cottage** · Morning · Clear
 
@@ -100,7 +100,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 > **Input:** `:stop`
 
-## Frame 6 · stopped · Linux host
+## Frame 6 · stopped · Rundale CLI
 
 **Connolly Cottage** · Morning · Clear
 

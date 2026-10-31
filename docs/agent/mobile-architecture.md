@@ -58,47 +58,24 @@ Phase 2 requires authenticated, mobile-safe inference through a real Limerick En
 
 ### Agent driving of the mobile app (`limerick-mcp`)
 
-**Status: open.** No milestone or ADR covers it yet.
+**Decision: ADR-028.** The existing `limerick-mcp` server can select a managed
+Swift terminal host backend. The host runs `RundaleSession`'s controller and
+presenter, the Rust engine through FFI, and the Endpoint client, without Xcode,
+a simulator, an iOS GUI, or Apple Firebase SDK dependencies. Desktop/server
+HTTP driving remains the default and retains its existing contracts.
 
-`limerick-mcp` is a stdio JSON-RPC bridge that attaches over HTTP to a running desktop
-process (`limerick-tauri --mcp-port 3030` or `limerick-server --port 3030`) and drives
-it with tools such as `limerick_submit_input`, `limerick_world_snapshot`, and
-`limerick_npcs_here`. The `/limerick-engine` skill builds its live-proof workflows on
-that bridge. The mobile runtime is an embedded Rust engine under a Swift host with no
-HTTP server, so the bridge cannot attach to it today. The mobile plan verifies through
-`just mobile-verify`, simulator XCTest/XCUITest suites, Swift/Rust binding contract tests, and
-physical-iPhone acceptance. None of those give an agent an interactive, MCP-style view
-of a running mobile session.
+A private versioned command protocol carries immediate action receipts and
+presentation snapshots. Submit does not wait for inference to finish, so agents
+can inspect provisional output and Stop an active turn. All gameplay and
+inference behavior stays in the shared session package.
 
-Decision needed: how an agent drives and inspects the mobile app, and how much of the
-existing tool surface it keeps.
+Live mode uses Firebase anonymous authentication and App Check debug exchange
+through REST. Credentials remain in memory, and refresh preserves the identity
+for the host's lifetime. A restart creates a new identity independently of the
+local save. See [ADR-028](../adr/028-portable-session-mcp-driver.md) and
+[runtime driving](runtime-driving-reference.md#portable-app-session-through-mcp).
 
-Candidate approaches, none chosen:
-
-1. **Desktop only (status quo).** Agents drive the shared engine through the desktop
-   bridge. This proves shared Rust behavior but not SwiftUI, the FFI boundary, iOS
-   lifecycle, or host-supplied inference on device.
-2. **Debug-only loopback shim in the Swift host.** A debug build exposes the same tool
-   surface over localhost. This is the closest tool parity, but it adds a listener that
-   must be compiled out of release builds and must not move game authority into Swift.
-3. **XCUITest / `simctl` adapter.** MCP tools wrap the simulator and UI tests: launch,
-   type into the composer, read the accessibility tree, screenshot. It exercises the real
-   UI and adds no listener to the app, but it exposes only what the UI shows, not
-   `world_snapshot`-style engine projections.
-4. **Desktop test host over the FFI turn API.** A host links the same portable turn API
-   the app uses, with fixture or Endpoint inference, and exposes it over the existing
-   bridge. It covers the boundary contract without a device but not SwiftUI.
-
-Constraints any option must respect:
-
-- No provider credentials or shared invocation secrets in the app or the bridge
-  (see [Endpoint capability](#endpoint-capability)).
-- No mobile-only turn loop or read-model duplicate (see
-  [Rules for mobile engine work](#rules-for-mobile-engine-work)).
-- Debug drivers must not ship in release builds.
-- Desktop `limerick-mcp` keeps working while this is decided.
-- Do not claim physical-iPhone validation from a simulator or desktop-host run.
-
-Related: `just mobile-verify` is the phase-selectable gate in the
-[technical vision](../product-specs/software-technical-vision.md). Record the
-choice above in an ADR before writing driver code.
+A live Mac-terminal run is sufficient integration evidence; Linux CI supplies
+build and deterministic test coverage. Label the actual platform and inference
+mode. Host frames are not app layout, accessibility, iOS lifecycle, device
+attestation, simulator, or physical-iPhone evidence.

@@ -53,8 +53,8 @@
     "mobile/.verification*/**",
     "mobile/.build/**",
     "mobile/**/.build/**",
-    // Linux host frames, compared byte for byte with the host's output.
-    "tools/linux-host/Tests/RundaleLinuxHostTests/Goldens/**",
-    "tools/linux-host/.build/**",
+    // Rundale CLI frames, compared byte for byte with the host's output.
+    "tools/rundale-cli/Tests/RundaleCLITests/Goldens/**",
+    "tools/rundale-cli/.build/**",
   ],
 }

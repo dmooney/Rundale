@@ -127,8 +127,14 @@ public final class RundaleFixtureController: RundaleSessionControlling {
     public func start() {
         guard eventTask == nil else { return }
         let adapter = self.adapter
-        let cursor = state.eventCursor
         eventTask = Task { [weak self, adapter] in
+            // Opening fixtures are already present in the adapter journal.
+            // Apply them as one canonical reducer batch before subscribing to
+            // live events; replaying hundreds of rows through the bounded live
+            // stream performs one full-history save and UI publication per row.
+            let initialEvents = await adapter.allEvents()
+            guard !Task.isCancelled,
+                  let cursor = await self?.applyInitialEvents(initialEvents) else { return }
             let stream = await adapter.events(after: cursor)
             do {
                 for try await event in stream {
@@ -152,6 +158,24 @@ public final class RundaleFixtureController: RundaleSessionControlling {
                 }
             }
         }
+    }
+
+    private func applyInitialEvents(_ events: [SemanticEvent]) async -> EventCursor {
+        let cursor = presentation.state.eventCursor
+        let previousState = presentation.state
+        for event in events where event.sequence.rawValue > cursor.rawValue {
+            let result = presentation.apply(event)
+            guard result == .applied else { continue }
+            _ = historyPresentation.apply(event)
+            lastEvent = event
+            // Keep state publication to the end of the batch. Both reducers
+            // still process every event through the canonical apply boundary.
+        }
+        if presentation.state != previousState {
+            state = presentation.state
+            await persistSessionStateAndWait()
+        }
+        return presentation.state.eventCursor
     }
 
     public func setInferenceAllowed(_ allowed: Bool) {}

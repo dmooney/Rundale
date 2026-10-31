@@ -235,6 +235,22 @@ public final class RundaleSessionPresenter {
     private var activeSourceDraftID: DraftID?
     private var lifecycleGeneration: UInt64 = 0
     private var allowsSubmission = true
+    private var pendingControlCount = 0
+
+    /// A submitted control has not yet received its shared-session receipt.
+    /// Snapshot notifications during that interval must not advertise idle.
+    public var isDispatching: Bool { pendingControlCount > 0 }
+
+    private func beginControl() {
+        pendingControlCount += 1
+        isStreaming = true
+    }
+
+    private func finishControl() {
+        pendingControlCount -= 1
+        refreshFromSession()
+    }
+
     private var isLoadingOlderTranscript = false
     private var lastAnnouncedEventID: SemanticEventID?
     private var lifecycleTask: Task<Void, Never>?
@@ -382,9 +398,10 @@ public final class RundaleSessionPresenter {
         let sourceDraftRevision = draftRevision
         let sourceDraft = draft
         let submissionGeneration = lifecycleGeneration
-        isStreaming = true
+        beginControl()
 
         Task {
+            defer { finishControl() }
             do {
                 // A scene transition can happen after the button callback but
                 // before the actor call starts. Do not begin new inference
@@ -652,8 +669,9 @@ public final class RundaleSessionPresenter {
         guard !isStreaming, allowsSubmission, canRetry else { return }
         let retryGeneration = lifecycleGeneration
         let retryRequestID = session.state.retryableRequest?.id
-        isStreaming = true
+        beginControl()
         Task {
+            defer { finishControl() }
             do {
                 guard allowsSubmission, lifecycleGeneration == retryGeneration else {
                     isStreaming = false
@@ -779,10 +797,12 @@ public final class RundaleSessionPresenter {
     }
 
     public func selectClarification(_ option: PresentedClarification.Option) {
-        guard allowsSubmission else { return }
+        guard !isStreaming, allowsSubmission else { return }
         let clarificationGeneration = lifecycleGeneration
         let clarificationRequestID = session.state.pendingClarification?.requestID
+        beginControl()
         Task {
+            defer { finishControl() }
             do {
                 guard allowsSubmission, lifecycleGeneration == clarificationGeneration else { return }
                 try await session.answerClarification(choiceID: option.id)
@@ -834,7 +854,7 @@ public final class RundaleSessionPresenter {
         }
         presentedCursor = state.eventCursor
         clarification = state.pendingClarification.map(Self.presentedClarification)
-        isStreaming = isReplacingGame || Self.isWorking(state)
+        isStreaming = isReplacingGame || isDispatching || Self.isWorking(state)
         if state.viewport.isFollowingNewest != isFollowingNewest {
             isFollowingNewest = state.viewport.isFollowingNewest
         }

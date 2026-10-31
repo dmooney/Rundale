@@ -293,13 +293,15 @@ jobs:
             mobile/.verification/verify.junit.xml
             mobile/.verification/summary.txt
             mobile/.verification/logs/
+            mobile/.verification/failures/
           if-no-files-found: warn
           retention-days: 14
 
       # Nobody watches the nightly runner, so a failed gate also uploads the
       # failed tests' evidence (failures/: digests, screenshots, UI hierarchy,
-      # runner and crash logs) and the .xcresult bundles behind it. Per-PR
-      # jobs upload none: the agent that ran those reads it locally.
+      # runner and crash logs) and the .xcresult bundles behind it. The report
+      # artifact already carries exported failures; only this unwatched gate needs
+      # the large result bundles for offline diagnosis.
       - name: Upload the failure evidence
         id: evidence
         if: failure() && steps.recorded.outputs.run == 'true'

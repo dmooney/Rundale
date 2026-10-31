@@ -1,10 +1,10 @@
 import Foundation
-import RundaleLinuxHostCore
+import RundaleCLICore
 
-/// `rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse]
+/// `rundale-cli --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
 /// [--sse-fixture FILE] [--resume] [--script FILE]`
 ///
-/// Plays the app's game on Linux and prints each meaningful screen state as
+/// Plays the app's game from the command line and prints each meaningful screen state as
 /// a Markdown frame on standard output. Input lines come from `--script` or
 /// standard input; `:help` lists the host commands.
 @MainActor
@@ -14,10 +14,10 @@ func runHost() async -> Int32 {
         arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
     }
     func fail(_ message: String) -> Int32 {
-        FileHandle.standardError.write(Data("rundale-linux-host: \(message)\n".utf8))
+        FileHandle.standardError.write(Data("rundale-cli: \(message)\n".utf8))
         return 2
     }
-    let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script"]
+    let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script", "--format"]
     var index = 0
     while index < arguments.count {
         let argument = arguments[index]
@@ -26,7 +26,7 @@ func runHost() async -> Int32 {
                 return fail("\(argument) needs a value (see --help)")
             }
             index += 2
-        } else if ["--resume", "--help"].contains(argument) {
+        } else if ["--resume", "--help", "--protocol"].contains(argument) {
             index += 1
         } else {
             return fail("unknown argument '\(argument)' (see --help)")
@@ -34,15 +34,18 @@ func runHost() async -> Int32 {
     }
     if arguments.contains("--help") {
         print("""
-        usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse]
-                                  [--sse-fixture FILE] [--resume] [--script FILE]
+        usage: rundale-cli --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
+                                  [--sse-fixture FILE] [--resume] [--script FILE] [--format auto|ansi|markdown]
 
-        \(LinuxHost.help)
+        \(CLIHost.help)
         """)
         return 0
     }
     guard let modDirectory = value("--mod-dir"), let saveDirectory = value("--save-dir") else {
         return fail("--mod-dir and --save-dir are required (see --help)")
+    }
+    guard let format = TerminalOutputFormat(rawValue: value("--format") ?? "auto") else {
+        return fail("--format must be auto, ansi, or markdown")
     }
     let inference: HostInference
     switch value("--inference") ?? "mock" {
@@ -59,10 +62,23 @@ func runHost() async -> Int32 {
         } catch {
             return fail("cannot use --sse-fixture \(fixture): \(error)")
         }
+    case "live":
+        guard let config = FirebaseRESTConfiguration.fromEnvironment() else {
+            return fail("live mode requires RUNDALE_FIREBASE_API_KEY and RUNDALE_APPCHECK_DEBUG_TOKEN")
+        }
+        inference = .live(FirebaseRESTCredentialProvider(configuration: config),
+                          URL(string: "https://limerick-endpoints-877612517009.us-east1.run.app")!)
     case let other:
-        return fail("unknown inference mode '\(other)'; use fixture, mock, or sse")
+        return fail("unknown inference mode '\(other)'; use fixture, mock, sse, or live")
     }
 
+    if arguments.contains("--protocol") {
+        return await HostProtocol.serve(options: HostOptions(
+            inference: inference,
+            modDirectory: URL(fileURLWithPath: modDirectory, isDirectory: true),
+            saveDirectory: URL(fileURLWithPath: saveDirectory, isDirectory: true)
+        ))
+    }
     let lines: AsyncStream<String>
     if let script = value("--script") {
         guard let text = try? String(contentsOfFile: script, encoding: .utf8) else {
@@ -87,14 +103,15 @@ func runHost() async -> Int32 {
         }
     }
 
-    let host = LinuxHost(
+    let output = TerminalOutput(format: format)
+    let host = CLIHost(
         options: HostOptions(
             inference: inference,
             modDirectory: URL(fileURLWithPath: modDirectory, isDirectory: true),
             saveDirectory: URL(fileURLWithPath: saveDirectory, isDirectory: true),
             resume: arguments.contains("--resume")
         ),
-        output: { print($0) }
+        output: { print(output.render($0)) }
     )
     await host.open()
     var quit = false

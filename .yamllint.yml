@@ -28,7 +28,7 @@ ignore: |
   node_modules/
   .venv-dev/
   target/
-  # SwiftPM build output (`just linux-host-test`, the mobile packages) is
+  # SwiftPM build output (`just rundale-cli-test`, the mobile packages) is
   # gitignored, but yamllint does not read .gitignore.
   .build/
   limerick/apps/ui/

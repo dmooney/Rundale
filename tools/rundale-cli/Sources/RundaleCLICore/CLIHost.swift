@@ -8,6 +8,8 @@ import RundaleSession
 public enum HostInference: Sendable {
     /// RundaleKit's deterministic fixture session; no engine.
     case fixture
+    /// The production Endpoint transport with portable, host-supplied credentials.
+    case live(any EndpointCredentialProvider, URL)
     /// The embedded engine with the scripted mock Endpoint the phase UI
     /// suites play against.
     case mock
@@ -22,6 +24,7 @@ public struct HostOptions: Sendable {
     /// Holds the save and the presentation projection.
     public var saveDirectory: URL
     /// Continue the game saved in `saveDirectory` instead of starting anew.
+    public var requireExistingSave = false
     public var resume: Bool
     /// How long a reply's text must stay unchanged to be shown as a
     /// streaming frame. A delta replaced sooner is not printed.
@@ -49,13 +52,13 @@ public struct HostOptions: Sendable {
     }
 }
 
-/// Runs the app's session on Linux and prints the screen as Markdown frames.
+/// Runs the app's session from the command line and prints the screen as Markdown frames.
 ///
 /// It drives `RundaleSessionPresenter` the way the app's views do (setting
 /// the draft, Send, Stop, Retry, a clarification choice) and reads frames
 /// from the presenter only. It decides no game or session behaviour.
 @MainActor
-public final class LinuxHost {
+public final class CLIHost {
     public static let help = """
     Type a line to send it, as the composer does. Host commands:
       N or :choose N   pick choice N
@@ -70,7 +73,9 @@ public final class LinuxHost {
 
     private let options: HostOptions
     private let output: (String) -> Void
-    private var presenter: RundaleSessionPresenter?
+    var presenter: RundaleSessionPresenter?
+    var sessionController: (any RundaleSessionControlling)?
+    var presentationChanged: (@MainActor () -> Void)?
     private var runtime: RuntimeHandle?
     private var frameNumber = 0
     private var lastChange = DispatchTime.now().uptimeNanoseconds
@@ -78,6 +83,7 @@ public final class LinuxHost {
 
     /// Whether a turn ran past `turnTimeoutNanoseconds`.
     public private(set) var timedOut = false
+    var lastCloseError: String?
 
     public init(options: HostOptions, output: @escaping (String) -> Void) {
         self.options = options
@@ -148,52 +154,70 @@ public final class LinuxHost {
             await settle(after: .stopped)
         }
         await presenter.persistLifecycleSnapshot()
+        lastCloseError = sessionController?.persistenceError
         self.presenter = nil
+        sessionController = nil
         do {
             try await runtime?.close()
         } catch {
-            output("_The engine did not close cleanly: \(error)_\n")
+            lastCloseError = "The engine did not close cleanly."
+            output("_The engine did not close cleanly._\n")
         }
         runtime = nil
     }
 
-    private func open(reset: Bool) async {
+    func open(reset: Bool) async {
         let launch = launchConfiguration(reset: reset)
         let session: any RundaleSessionControlling
         switch options.inference {
         case .fixture:
             session = RundaleFixtureController(configuration: launch)
-        case .mock, .sseFixture:
+        case .mock, .sseFixture, .live:
             let handle = RuntimeHandle()
+            let requireExistingSave = options.requireExistingSave
             runtime = handle
             session = RundaleEngineController(
                 configuration: launch,
                 credentials: {
-                    StaticEndpointCredentialProvider(EndpointCredentials(
-                        authorizationToken: "linux-host", appCheckToken: "linux-host"
+                    if case let .live(credentials, _) = self.options.inference { return credentials }
+                    return StaticEndpointCredentialProvider(EndpointCredentials(
+                        authorizationToken: "rundale-cli", appCheckToken: "rundale-cli"
                     ))
                 },
                 modDirectory: options.modDirectory,
                 log: { _ in },
                 transport: transport(),
                 openRuntime: { payload in
-                    let runtime = try LimerickRuntime.openResume(payload: payload)
+                    var openPayload = payload
+                    if requireExistingSave {
+                        var object = try JSONSerialization.jsonObject(with: payload) as? [String: Any] ?? [:]
+                        object["require_existing"] = true
+                        openPayload = try JSONSerialization.data(withJSONObject: object)
+                    }
+                    let runtime = try LimerickRuntime.openResume(payload: openPayload)
                     handle.set(runtime)
                     return runtime
                 }
             )
         }
+        sessionController = session
         let presenter = RundaleSessionPresenter(
             launch: launch,
             session: session,
             bugReports: nil,
             captureScreenshot: { nil },
-            deviceDescription: "Linux host"
+            deviceDescription: HostPlatform.label
         )
         presenter.willChange = { [weak self] in
             self?.lastChange = DispatchTime.now().uptimeNanoseconds
+            // Presenter notifications precede mutation. Read only after this
+            // main-actor update has completed, never a half-updated value.
+            Task { @MainActor [weak self] in self?.presentationChanged?() }
         }
         self.presenter = presenter
+        // Let the shared projection reader reject a corrupt projection before
+        // the engine opens or any recovery policy can change the save.
+        if options.requireExistingSave, session.persistenceError != nil { return }
         presenter.start()
         // The engine opens off the main actor. Opening runs no model call,
         // so the game is ready once its first snapshot (or an error) shows.
@@ -212,7 +236,7 @@ public final class LinuxHost {
 
     private func launchConfiguration(reset: Bool) -> LaunchConfiguration {
         let projection = options.saveDirectory.appendingPathComponent("projection.json")
-        var arguments = ["rundale-linux-host", "--draft-file=\(projection.path)"]
+        var arguments = ["rundale-cli", "--draft-file=\(projection.path)"]
         var environment: [String: String] = [:]
         if case .fixture = options.inference {
             arguments.append("--fixture=standard")
@@ -220,7 +244,12 @@ public final class LinuxHost {
             arguments.append("--phase2")
             // Every Endpoint call goes to the injected transport; the origin
             // only has to be a valid HTTPS URL.
-            environment["RUNDALE_ENDPOINT_BASE_URL"] = "https://endpoints.linux-host.invalid"
+            if case let .live(_, url) = options.inference {
+                environment["RUNDALE_ENDPOINT_BASE_URL"] = url.absoluteString
+                environment["RUNDALE_ENDPOINT_ORGANIZATION"] = "limerick-demo"
+            } else {
+                environment["RUNDALE_ENDPOINT_BASE_URL"] = "https://endpoints.rundale-cli.invalid"
+            }
         }
         if reset {
             arguments.append("--reset-fixture")
@@ -229,6 +258,7 @@ public final class LinuxHost {
     }
 
     private func transport() -> any EndpointTransport {
+        if case .live = options.inference { return URLSessionEndpointTransport() }
         if case let .sseFixture(transport) = options.inference {
             return transport
         }

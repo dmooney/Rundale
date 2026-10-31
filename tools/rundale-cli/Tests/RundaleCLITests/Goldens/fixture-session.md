@@ -1,4 +1,4 @@
-## Frame 1 · new game · Linux host
+## Frame 1 · new game · Rundale CLI
 
 **The crossroads** · Late evening · Rain easing
 
@@ -15,7 +15,7 @@ Rain darkens the road while the village settles into evening.
 
 > **Input:** `look`
 
-## Frame 2 · submitted · Linux host
+## Frame 2 · submitted · Rundale CLI
 
 **The crossroads** · Late evening · Rain easing
 
@@ -30,7 +30,7 @@ Rain darkens the road while the village settles into evening.
 
 **Composer:** `look` · [Stop]
 
-## Frame 3 · committed · Linux host
+## Frame 3 · committed · Rundale CLI
 
 **The crossroads** · Late evening · Rain easing
 
