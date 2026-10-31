@@ -99,6 +99,62 @@ final class MachineHostTests: XCTestCase {
         _ = try await resumed.command("close_session")
     }
 
+    func testFixtureSessionResumesWithoutDraftProjection() async throws {
+        let directory = try makeSaveDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = makeHost(directory, inference: .fixture)
+        _ = try await first.command("new_game")
+        let original = try await transcriptTexts(first)
+        _ = try await first.command("close_session")
+
+        // Fixture projection.json is a draft file, not evidence of a save.
+        let projection = directory.appendingPathComponent("projection.json")
+        if FileManager.default.fileExists(atPath: projection.path) {
+            try FileManager.default.removeItem(at: projection)
+        }
+        let resumed = makeHost(directory, inference: .fixture)
+        _ = try await resumed.command("resume_session")
+        let restored = try await transcriptTexts(resumed)
+        XCTAssertEqual(restored, original)
+        _ = try await resumed.command("close_session")
+    }
+
+    func testFixtureResumeRejectsDraftWithoutAuthoritativeSession() async throws {
+        let directory = try makeSaveDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let projection = directory.appendingPathComponent("projection.json")
+        let draft = Data("{\"text\":\"unsent draft\"}".utf8)
+        try draft.write(to: projection)
+        let host = makeHost(directory, inference: .fixture)
+        do {
+            _ = try await host.command("resume_session")
+            XCTFail("Expected fixture resume without a session snapshot to be rejected")
+        } catch {
+            XCTAssertEqual((error as? HostCommandError)?.rawValue, HostCommandError.missingSave.rawValue)
+        }
+        XCTAssertEqual(try Data(contentsOf: projection), draft)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("phase1-session.json").path))
+    }
+
+    func testFixtureResumeRejectsCorruptAuthoritativeSessionWithoutReplacingIt() async throws {
+        let directory = try makeSaveDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let projection = directory.appendingPathComponent("projection.json")
+        try Data("draft".utf8).write(to: projection)
+        let session = directory.appendingPathComponent("phase1-session.json")
+        let corrupt = Data("not a session snapshot".utf8)
+        try corrupt.write(to: session)
+        let host = makeHost(directory, inference: .fixture)
+        do {
+            _ = try await host.command("resume_session")
+            XCTFail("Expected corrupt fixture session snapshot to be rejected")
+        } catch {
+            XCTAssertEqual((error as? HostCommandError)?.rawValue, HostCommandError.openFailed.rawValue)
+        }
+        XCTAssertEqual(try Data(contentsOf: projection), Data("draft".utf8))
+        XCTAssertEqual(try Data(contentsOf: session), corrupt)
+    }
+
     func testPersistenceFailureIsReportedWhenSaveCannotBeReplaced() async throws {
         let directory = try makeSaveDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -185,9 +241,9 @@ final class MachineHostTests: XCTestCase {
         _ = try await host.command("close_session")
     }
 
-    private func makeHost(_ directory: URL) -> MachineHost {
+    private func makeHost(_ directory: URL, inference: HostInference = .mock) -> MachineHost {
         MachineHost(options: HostOptions(
-            inference: .mock,
+            inference: inference,
             modDirectory: Self.repositoryRoot.appendingPathComponent("mods/rundale"),
             saveDirectory: directory,
             turnTimeoutNanoseconds: 45_000_000_000

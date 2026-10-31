@@ -13,6 +13,9 @@ cd tools/rundale-cli && ../../mobile/.build/swift-tools/bin/swiftlint lint --str
 
 ## Traps
 
+- **Fixture resume validates the session, not the draft.** Its authoritative
+  snapshot is `phase1-session.json`; `projection.json` stores only the draft.
+  Validate the snapshot before controller recovery can create fresh state.
 - **A behaviour change belongs in `mobile/RundaleSession`, not here.** The
   host only sets the draft and taps what a view would, then renders the
   presenter. Logic added here would drift from the app (#2272).

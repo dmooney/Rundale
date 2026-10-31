@@ -1,4 +1,5 @@
 import Foundation
+import RundaleKit
 import RundaleSession
 
 /// The private command adapter. All player actions go through the shared
@@ -89,11 +90,21 @@ public final class MachineHost {
             .filter { $0 != ".session-host.lock" }
         guard !reset || replace || files.isEmpty else { throw HostCommandError.existingSave }
         let projection = options.saveDirectory.appendingPathComponent("projection.json")
-        guard reset || FileManager.default.fileExists(atPath: projection.path) else { throw HostCommandError.missingSave }
         if !reset, case .fixture = options.inference {
-            // A fixture has only a projection; engine modes require both files.
-        } else if !reset, !FileManager.default.fileExists(atPath: options.saveDirectory.appendingPathComponent("phase2.sqlite").path) {
-            throw HostCommandError.missingSave
+            // The projection is only the fixture draft store. The session snapshot
+            // is authoritative and must be valid before CLIHost can restore.
+            let sessionURL = options.saveDirectory.appendingPathComponent("phase1-session.json")
+            guard FileManager.default.fileExists(atPath: sessionURL.path) else { throw HostCommandError.missingSave }
+            do {
+                _ = try FixtureSessionStore(fileURL: sessionURL).restoreSnapshot()
+            } catch {
+                throw HostCommandError.openFailed
+            }
+        } else if !reset {
+            guard FileManager.default.fileExists(atPath: projection.path),
+                  FileManager.default.fileExists(atPath: options.saveDirectory.appendingPathComponent("phase2.sqlite").path) else {
+                throw HostCommandError.missingSave
+            }
         }
         var candidateOptions = options
         candidateOptions.requireExistingSave = !reset
