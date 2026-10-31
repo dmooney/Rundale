@@ -97,7 +97,7 @@ class FakeWorld:
         self.pinned = True
         self.dispatch_fails = False
         self.summary_status = "completed"
-        self.summary_conclusion = "success"
+        self.summary_conclusion: str | None = "success"
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
