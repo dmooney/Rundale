@@ -30,11 +30,10 @@ files over 3 MB are listed, not copied; the first 20 failed tests get a digest a
 `index.md` counts the rest), and `diagnostics/` (test runner logs and
 any crash reports). `summary.txt` and `verify.json` (`details.failure_evidence`)
 name the paths. The newest three failed runs keep their evidence and `.xcresult`.
-Per-PR CI jobs upload none of it: the agent that ran the gate reads that evidence
-and diagnoses the failure before re-running or calling a test flaky. Only the
-unwatched nightly full gate (`testflight.yml`) uploads `failures/` and the
-`.xcresult` bundles, when it fails, and its "Nightly mobile-verify failed" issue
-links that artifact. UI test classes
+CI report artifacts include the bounded exported `failures/` tree for diagnosis;
+they omit `.xcresult` bundles. The unwatched nightly full gate (`testflight.yml`)
+also uploads the `.xcresult` bundles when it fails, and its "Nightly mobile-verify
+failed" issue links that artifact. UI test classes
 derive from `RundaleUITestCase`, which attaches the app's element hierarchy and a
 screenshot at the moment any assertion fails.
 The engine's `just verify` below is a different gate; it is not an iPhone

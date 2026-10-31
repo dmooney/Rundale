@@ -568,6 +568,7 @@ jobs:
             mobile/.verification/verify.junit.xml
             mobile/.verification/summary.txt
             mobile/.verification/logs/
+            mobile/.verification/failures/
           if-no-files-found: warn
           retention-days: 14
 
@@ -871,6 +872,7 @@ jobs:
             mobile/.verification/verify.junit.xml
             mobile/.verification/summary.txt
             mobile/.verification/logs/
+            mobile/.verification/failures/
           if-no-files-found: warn
           retention-days: 14
 
