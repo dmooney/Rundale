@@ -267,10 +267,12 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         stop.tap()
         let retry = app.buttons["composer.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 8))
+        hold(4)
         retry.tap()
         XCTAssertTrue(waitForDialogue(containing: "difficult this week", timeout: 20))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(retry.exists, "A recovered reply leaves nothing to retry")
+        hold(5)
         XCTAssertFalse(waitForTranscriptText("could not be completed", timeout: 1))
 
         // A stopped question that is then replaced by a new one is not
