@@ -69,10 +69,12 @@ DEPENDABOT_ISSUE = 2252
 OWNER = "dmooney"
 
 DEFAULT_BRANCH = "main"
-# Failure issues another workflow opens and closes itself: workflow file ->
-# (issue title, the only run event that workflow's issue covers). The TestFlight
-# nightly gate reports scheduled failures there; a failed upload on push is not.
-MANAGED_ISSUES = {"testflight.yml": ("Nightly mobile-verify failed", "schedule")}
+# Workflows whose events run different jobs: file -> the event that gets its own
+# track (key `<file>#<event>`). TestFlight uploads on push and runs the nightly
+# gate on schedule.
+EVENT_SPLIT = {"testflight.yml": "schedule"}
+# Failure issues another workflow opens and closes itself, by track key.
+MANAGED_ISSUES = {"testflight.yml#schedule": "Nightly mobile-verify failed"}
 
 RED_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 VERDICT_EVENTS = ("push", "schedule")
@@ -160,40 +162,33 @@ def classify_workflows(
             and run.get("status") == "completed"
             and (run.get("conclusion") == "success" or run.get("conclusion") in RED_CONCLUSIONS)
         ]
-        # One verdict per event: a workflow that splits its jobs by event (TestFlight's
-        # push upload and scheduled gate) must not have one event's pass hide or close
-        # the other's failure.
-        latest: list[dict[str, Any]] = []
-        for event in VERDICT_EVENTS:
-            of_event = sorted(
-                (r for r in verdicts if r["event"] == event),
-                key=lambda r: r["created_at"],
-                reverse=True,
-            )
-            if of_event:
-                latest.append(of_event[0])
-        if not latest:
-            states.append(WorkflowState(file, wf["name"], "unknown", None))
+        split = EVENT_SPLIT.get(file)
+        if split is None:
+            states.append(verdict_state(file, wf["name"], verdicts))
             continue
-        reds = [r for r in latest if r["conclusion"] != "success"]
-        if not reds:
-            newest = max(latest, key=lambda r: r["created_at"])
-            states.append(WorkflowState(file, wf["name"], "green", newest))
-            continue
-        # Prefer a failure the workflow's own managed issue does not already cover.
-        managed_event = MANAGED_ISSUES.get(file, ("", ""))[1]
-        run = max(reds, key=lambda r: (r["event"] != managed_event, r["created_at"]))
-        streak = []
-        for older in sorted(
-            (r for r in verdicts if r["event"] == run["event"]),
-            key=lambda r: r["created_at"],
-            reverse=True,
-        ):
-            if older["conclusion"] == "success":
-                break
-            streak.append(older)
-        states.append(WorkflowState(file, wf["name"], "red", run, streak[-1]["created_at"]))
+        # A workflow whose events run different jobs gets one track per side, so a
+        # pass on one side never hides or closes a failure on the other.
+        own = [r for r in verdicts if r["event"] == split]
+        rest = [r for r in verdicts if r["event"] != split]
+        states.append(verdict_state(file, wf["name"], rest))
+        states.append(verdict_state(f"{file}#{split}", f"{wf['name']} ({split})", own))
     return states
+
+
+def verdict_state(file: str, name: str, verdicts: list[dict[str, Any]]) -> WorkflowState:
+    """The verdict of the newest run in `verdicts` and the start of its red streak."""
+    ordered = sorted(verdicts, key=lambda run: run["created_at"], reverse=True)
+    if not ordered:
+        return WorkflowState(file, name, "unknown", None)
+    run = ordered[0]
+    if run["conclusion"] == "success":
+        return WorkflowState(file, name, "green", run)
+    streak = []
+    for older in ordered:
+        if older["conclusion"] == "success":
+            break
+        streak.append(older)
+    return WorkflowState(file, name, "red", run, streak[-1]["created_at"])
 
 
 def failing_jobs(jobs: list[dict[str, Any]]) -> list[str]:
@@ -273,11 +268,9 @@ def plan_ci_red(
         current = existing.get(state.file)
         if state.status == "red":
             run = state.run or {}
-            title_event = MANAGED_ISSUES.get(state.file)
+            managed_title = MANAGED_ISSUES.get(state.file)
             managed = (
-                titles.get(title_event[0])
-                if title_event and run.get("event") == title_event[1] and branch == DEFAULT_BRANCH
-                else None
+                titles.get(managed_title) if managed_title and branch == DEFAULT_BRANCH else None
             )
             if current is None and managed is not None:
                 actions.append(IssueAction("tracked", state.file, managed["number"]))
@@ -376,6 +369,8 @@ def check_state(commit: dict[str, Any]) -> tuple[str, datetime]:
         return "red", min(failed)
     if pending:
         return "pending", committed
+    if not done:
+        return "none", committed
     return "green", max([committed, *done])
 
 
@@ -505,7 +500,7 @@ def routine_finding(comments: list[dict[str, Any]], now: datetime) -> Finding | 
 
 
 def tracking_issues(open_issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    managed = {title for title, _ in MANAGED_ISSUES.values()}
+    managed = set(MANAGED_ISSUES.values())
     return [i for i in open_issues if CI_RED_LABEL in label_names(i) or i["title"] in managed]
 
 
@@ -666,6 +661,18 @@ query($owner: String!, $name: String!, $after: String) {
 """
 
 
+BODY_CAP = int(65536 * 0.9)
+
+
+def cap_body(text: str) -> str:
+    """Keep an outgoing issue or comment body within GitHub's limit; the head (and its
+    HTML markers) survives, the tail is cut."""
+    if len(text) <= BODY_CAP:
+        return text
+    note = f"\n\n[truncated {len(text) - BODY_CAP + 40} chars]"
+    return text[: BODY_CAP - len(note)] + note
+
+
 class GhClient:
     """The `gh api` implementation of `Client`; arguments are passed as a list, never a shell."""
 
@@ -683,6 +690,7 @@ class GhClient:
             capture_output=True,
             text=True,
             check=False,
+            timeout=120,
         )
         if proc.returncode != 0:
             detail = (proc.stderr.strip() or proc.stdout.strip())[:300]
@@ -766,14 +774,16 @@ class GhClient:
     def create_issue(self, title: str, body: str, labels: list[str]) -> dict[str, Any]:
         return self._api(
             ["-X", "POST", f"repos/{self.repo}/issues"],
-            {"title": title, "body": body, "labels": labels},
+            {"title": title, "body": cap_body(body), "labels": labels},
         )
 
     def update_issue(self, number: int, body: str) -> None:
-        self._api(["-X", "PATCH", f"repos/{self.repo}/issues/{number}"], {"body": body})
+        self._api(["-X", "PATCH", f"repos/{self.repo}/issues/{number}"], {"body": cap_body(body)})
 
     def comment(self, number: int, body: str) -> None:
-        self._api(["-X", "POST", f"repos/{self.repo}/issues/{number}/comments"], {"body": body})
+        self._api(
+            ["-X", "POST", f"repos/{self.repo}/issues/{number}/comments"], {"body": cap_body(body)}
+        )
 
     def close_issue(self, number: int) -> None:
         self._api(
@@ -883,7 +893,7 @@ def run(
     if workflows is not None and present and open_issues is not None:
         runs = {}
         for wf in workflows:
-            if workflow_file(wf.get("path", "")) and wf.get("state") == "active":
+            if workflow_file(wf.get("path", "")) in present and wf.get("state") == "active":
                 runs[wf["id"]] = guarded(
                     f"runs of {wf['name']}", client.workflow_runs, [], wf["id"], branch
                 )

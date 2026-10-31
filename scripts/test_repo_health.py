@@ -137,7 +137,7 @@ class CiRedPlanTests(unittest.TestCase):
     def test_workflow_with_a_managed_issue_is_tracked_not_duplicated(self) -> None:
         existing = [issue(5, "Nightly mobile-verify failed")]
         nightly = rh.WorkflowState(
-            "testflight.yml", "TF", "red", run(7, "failure", 3, event="schedule"), ago(3)
+            "testflight.yml#schedule", "TF", "red", run(7, "failure", 3, "schedule"), ago(3)
         )
         (action,) = self.plan([nightly], existing)
         self.assertEqual((action.op, action.number), ("tracked", 5))
@@ -392,9 +392,9 @@ class SummaryTests(unittest.TestCase):
         self.assertIn("tracked by issue 5", summary.body.split("### ")[0])
 
     def test_a_tracked_workflow_is_not_also_counted_as_red(self) -> None:
-        red = rh.WorkflowState("testflight.yml", "TF", "red", run(3, "failure", 5), ago(5))
+        red = rh.WorkflowState("testflight.yml#schedule", "TF", "red", run(3, "failure", 5), ago(5))
         other = rh.WorkflowState("ci.yml", "CI", "red", run(4, "failure", 5), ago(5))
-        found = rh.red_workflow_findings([red, other], NOW, {"testflight.yml"})
+        found = rh.red_workflow_findings([red, other], NOW, {"testflight.yml#schedule"})
         self.assertEqual(len(found), 1)
         self.assertIn("ci.yml", found[0].text)
 
@@ -591,19 +591,6 @@ class UpkeepHeadingTests(unittest.TestCase):
         self.assertIsNotNone(self.finding("## Dependabot upkeep dry run, 2026-10-26"))
 
 
-class ManagedIssueTests(unittest.TestCase):
-    def test_nightly_issue_covers_scheduled_failures_only(self) -> None:
-        nightly = [issue(5, "Nightly mobile-verify failed")]
-        push = rh.WorkflowState("testflight.yml", "TF", "red", run(7, "failure", 3), ago(3))
-        scheduled = rh.WorkflowState(
-            "testflight.yml", "TF", "red", run(8, "failure", 3, event="schedule"), ago(3)
-        )
-        (created,) = rh.plan_ci_red([push], nightly, lambda _r: [], {"testflight.yml"})
-        self.assertEqual(created.op, "create")
-        (tracked,) = rh.plan_ci_red([scheduled], nightly, lambda _r: [], {"testflight.yml"})
-        self.assertEqual((tracked.op, tracked.number), ("tracked", 5))
-
-
 class BranchTests(unittest.TestCase):
     def test_classify_reads_only_the_requested_branch(self) -> None:
         runs = {1: [run(2, "failure", 1, branch="proof"), run(1, "success", 2)]}
@@ -677,25 +664,67 @@ class PartialFailureTests(unittest.TestCase):
 
 
 class EventVerdictTests(unittest.TestCase):
-    def state(self, runs: Any) -> Any:
-        (state,) = rh.classify_workflows([wf(1, "testflight.yml")], {1: runs}, {"testflight.yml"})
-        return state
+    def states(self, file: str, runs: Any) -> Any:
+        found = rh.classify_workflows([wf(1, file)], {1: runs}, {file})
+        return {s.file: s for s in found}
 
-    def test_a_passing_schedule_does_not_hide_a_failed_push(self) -> None:
-        state = self.state([run(2, "success", 1, event="schedule"), run(1, "failure", 5)])
-        self.assertEqual((state.status, state.run["id"]), ("red", 1))
+    def test_unified_workflow_uses_its_newest_run_whatever_the_event(self) -> None:
+        # A nightly failure fixed by a later push is green, and the reverse is red.
+        fixed = self.states("ci.yml", [run(2, "success", 1), run(1, "failure", 5, "schedule")])
+        self.assertEqual(fixed["ci.yml"].status, "green")
+        broken = self.states("ci.yml", [run(2, "failure", 1, "schedule"), run(1, "success", 5)])
+        self.assertEqual(broken["ci.yml"].status, "red")
 
-    def test_a_passing_push_does_not_hide_a_failed_schedule(self) -> None:
-        state = self.state([run(2, "success", 1), run(1, "failure", 5, event="schedule")])
-        self.assertEqual((state.status, state.run["id"]), ("red", 1))
+    def test_testflight_push_and_schedule_are_independent_tracks(self) -> None:
+        states = self.states(
+            "testflight.yml", [run(2, "success", 1, "schedule"), run(1, "failure", 5)]
+        )
+        self.assertEqual(states["testflight.yml"].status, "red")
+        self.assertEqual(states["testflight.yml#schedule"].status, "green")
+        states = self.states(
+            "testflight.yml", [run(2, "success", 1), run(1, "failure", 5, "schedule")]
+        )
+        self.assertEqual(states["testflight.yml"].status, "green")
+        self.assertEqual(states["testflight.yml#schedule"].status, "red")
 
-    def test_green_only_when_every_event_passed(self) -> None:
-        state = self.state([run(2, "success", 1), run(1, "success", 5, event="schedule")])
-        self.assertEqual(state.status, "green")
+    def test_a_passing_push_closes_its_issue_and_leaves_the_nightly_issue_tracked(self) -> None:
+        states = self.states(
+            "testflight.yml", [run(3, "success", 1), run(2, "failure", 5, "schedule")]
+        )
+        push_issue = issue(
+            10, "CI red on main: x", "<!-- ci-red: workflow=testflight.yml -->", ("ci-red",)
+        )
+        nightly = issue(5, "Nightly mobile-verify failed")
+        actions = rh.plan_ci_red(
+            list(states.values()), [push_issue, nightly], lambda _r: [], set(states)
+        )
+        self.assertEqual(sorted((a.op, a.number) for a in actions), [("close", 10), ("tracked", 5)])
 
-    def test_a_failure_the_managed_issue_does_not_cover_is_preferred(self) -> None:
-        state = self.state([run(2, "failure", 1, event="schedule"), run(1, "failure", 9)])
-        self.assertEqual(state.run["event"], "push")
+
+class BodyCapTests(unittest.TestCase):
+    def test_oversized_bodies_are_truncated_keeping_the_head_marker(self) -> None:
+        big = "<!-- ci-red: workflow=ci.yml -->\n" + "x" * 100_000
+        capped = rh.cap_body(big)
+        self.assertLessEqual(len(capped), int(65536 * 0.9))
+        self.assertTrue(capped.startswith("<!-- ci-red: workflow=ci.yml -->"))
+        self.assertIn("[truncated", capped)
+        self.assertEqual(rh.cap_body("short"), "short")
+
+    def test_every_write_is_capped(self) -> None:
+        sent: list[Any] = []
+        client = rh.GhClient("o/r")
+
+        def record(args: Any, payload: Any = None) -> Any:
+            sent.append(payload)
+            return {}
+
+        client._api = record  # type: ignore[method-assign]
+        client.create_issue("t", "x" * 100_000, [])
+        client.update_issue(1, "x" * 100_000)
+        client.comment(1, "x" * 100_000)
+        self.assertEqual(len(sent), 3)
+        for payload in sent:
+            self.assertLessEqual(len(payload["body"]), int(65536 * 0.9))
 
 
 class GatekeeperReviewTests(unittest.TestCase):
