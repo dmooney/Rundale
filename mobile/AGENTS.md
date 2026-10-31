@@ -30,6 +30,16 @@ per simulator at the end. Never edit a worktree while a gate is building from it
 Demo `hold(_:)` pauses are no-ops unless `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>`
 is set (recording only).
 
+## Which layer tests a UI behaviour
+
+Test a rule about state in `RundaleKit` or `RundaleSession` (move the decision
+out of the view into a value type or the presenter, then `swift test`), an
+engine scenario in `RundaleTests/EngineScenarioTests`, and only layout,
+gestures and the process lifecycle in `RundaleUITests` (#2319). The table is in
+[build-test.md](../docs/agent/build-test.md#which-layer-tests-a-ui-behaviour-2319).
+Delete the XCUITest when you move its rule down; add to
+`TIME_SENSITIVE_TESTS` only for a test that fails alone on the hosted runner.
+
 ## Evidence
 
 - The simulator is not a physical iPhone. Report simulator runs as simulator
@@ -59,6 +69,12 @@ is set (recording only).
   `redundantAsync` strips an `async` with none. Pure helpers can be
   `nonisolated` instead, declared in a `nonisolated extension`: SwiftLint and
   SwiftFormat disagree on the order of `nonisolated` beside an access modifier.
+- **Hosted simulator runs are serial.** `verify.py` runs one worker when
+  `GITHUB_ACTIONS=true` and errors on more: parallel simulator clones on the
+  hosted VM raced the UI suites' fixed waits (#2301). An app-hosted test that
+  reopens a save must wait for the old `RundaleEngineController` to deallocate
+  (not just the presenter), or the engine answers `save_locked`
+  (`EngineScenarioTests.Game.relaunch`).
 - **A failed gate leaves evidence; read it before re-running.** On a simulator
   test failure `verify.py` writes `mobile/.verification/failures/<run>/`
   (`failure.md`, screenshot, UI hierarchy, runner and crash logs) and prints the

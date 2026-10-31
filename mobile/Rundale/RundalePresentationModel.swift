@@ -72,6 +72,8 @@ final class RundalePresentationModel: ObservableObject {
     var showsRetry: Bool { presenter.showsRetry }
     var showsFixtureStep: Bool { presenter.showsFixtureStep }
     var offersCommands: Bool { presenter.offersCommands }
+    var sendAccessibilityValue: String { presenter.sendAccessibilityValue }
+    func showsWaitingKnot(compactLayout: Bool) -> Bool { presenter.showsWaitingKnot(compactLayout: compactLayout) }
 
     func start() { presenter.start() }
     func stop() { presenter.stop() }

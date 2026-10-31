@@ -203,7 +203,7 @@ private struct StatusHeader: View {
             // Keep one stable host element for UI automation and VoiceOver while
             // retaining the compact semantic summary for the header region.
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Current place, \(model.header.location). \(model.header.timeOfDay). \(model.header.weather).")
+            .accessibilityLabel(model.header.accessibilityLabel)
             .accessibilityIdentifier("status.header")
     }
 
@@ -846,7 +846,7 @@ private struct TranscriptEntry: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(item.accessibilityLabel)
         .accessibilityIdentifier("transcript.item.\(item.id)")
     }
 
@@ -880,50 +880,6 @@ private struct TranscriptEntry: View {
             default:
                 narration
             }
-        }
-    }
-
-    private var accessibilityLabel: String {
-        var parts = [kindLabel]
-        if item.kind == .sceneChanged, let sceneName = item.metadata["sceneName"], !sceneName.isEmpty {
-            parts.append(sceneName)
-        }
-        if let speaker = item.speaker, !speaker.isEmpty {
-            parts.append(speaker)
-        }
-        if !displayText.isEmpty {
-            parts.append(displayText)
-        }
-        if item.isInterrupted {
-            parts.append("Interrupted; not applied")
-        } else if item.isProvisional {
-            parts.append("In progress")
-        }
-        return parts.joined(separator: ". ")
-    }
-
-    private var kindLabel: String {
-        switch item.kind {
-        case .playerCommand: return "Player command"
-        case .commandInterpreted: return "Interpretation"
-        case .npcDialogue: return "Dialogue"
-        case .actionResult: return "Result"
-        case .sceneChanged: return "Scene"
-        case .error: return "Error"
-        case .progress: return "Progress"
-        case .responseCompleted: return "Response"
-        case .clarificationRequired: return "Clarification"
-        case .clarificationSelected: return "Direction"
-        default: return "Narration"
-        }
-    }
-
-    private var displayText: String {
-        switch item.kind {
-        case .clarificationSelected:
-            return "Directed to \(item.text)."
-        default:
-            return item.text
         }
     }
 
@@ -1031,7 +987,7 @@ private struct TranscriptEntry: View {
     }
 
     private var clarificationSelection: some View {
-        Text(displayText)
+        Text(item.displayText)
             .font(.system(.subheadline, design: .serif))
             .italic()
             .foregroundStyle(RundaleTheme.secondaryInk)
@@ -1178,7 +1134,7 @@ private struct Composer: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if model.isStreaming && !compactLayout {
+            if model.showsWaitingKnot(compactLayout: compactLayout) {
                 WaitingAnimation()
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -1235,7 +1191,7 @@ private struct Composer: View {
                         .buttonStyle(ComposerActionButtonStyle())
                         .disabled(!canSubmitDraft)
                         .accessibilityLabel("Send command")
-                        .accessibilityValue(canSubmitDraft ? "Ready to send" : "Enter a command to enable")
+                        .accessibilityValue(model.sendAccessibilityValue)
                         .accessibilityIdentifier("composer.send")
                     }
                 }

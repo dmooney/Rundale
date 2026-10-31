@@ -18,36 +18,6 @@ class RundalePhase4UITestCase: RundaleUITestCase {
         try await super.tearDown()
     }
 
-    func assertNetworkRecovery(command: String, partialExpected: Bool) {
-        launch(reset: true)
-        hold(3)
-        goToTheCottage()
-        hold(3)
-        submit(command)
-        let retry = app.buttons["composer.retry"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 12))
-        XCTAssertEqual(completedDialogue.count, 0)
-        if partialExpected {
-            XCTAssertTrue(rows(containing: "The wet ground").firstMatch.exists)
-            XCTAssertTrue(rows(containing: "The wet ground").firstMatch.label.contains("not applied"))
-            attach("Partial reply marked not applied")
-        }
-        XCTAssertTrue(rows(containing: "The road out of the parish is washed away").firstMatch.exists)
-        XCTAssertFalse(app.buttons["composer.stop"].exists)
-        hold(6)
-        retry.tap()
-        waitForCompletedDialogue()
-        hold(4)
-        assertSingleCommand(command)
-        XCTAssertEqual(completedDialogue.count, 1)
-        XCTAssertFalse(retry.exists)
-        relaunch()
-        XCTAssertEqual(completedDialogue.count, 1)
-        assertSingleCommand(command)
-        attach("Connection recovered without duplicate action")
-        hold(5)
-    }
-
     func launch(reset: Bool, extra: [String] = []) {
         app.launchArguments = ["--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus"] + extra
         if reset { app.launchArguments.append("--reset-fixture") }
@@ -303,18 +273,6 @@ final class RundalePhase4RecoveryUITests: RundalePhase4UITestCase {
         assertSingleCommand(command)
         XCTAssertEqual(app.committedDialogueRows().count, 1)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
-    }
-}
-
-/// Connection loss recovery.
-@MainActor
-final class RundalePhase4NetworkUITests: RundalePhase4UITestCase {
-    func testConnectionLossBeforeResponseCanRetryWithoutRestart() {
-        assertNetworkRecovery(command: "ask Mícheál offline once", partialExpected: false)
-    }
-
-    func testConnectionLossDuringStreamCanRetryWithoutDuplicatingDialogue() {
-        assertNetworkRecovery(command: "ask Mícheál disconnect once", partialExpected: true)
     }
 }
 

@@ -118,9 +118,13 @@ The runner accepts these options:
 --command-timeout MINUTES
 ```
 
-Simulator suites run with Xcode parallel testing: `xcodebuild` clones the
-selected simulator into `N` workers (default 6, `RUNDALE_PARALLEL_WORKERS` or
-`--parallel-workers N`). `--parallel-workers 1` restores the serial run. The UI
+Simulator suites run with Xcode parallel testing on a developer Mac:
+`xcodebuild` clones the selected simulator into `N` workers (default 6,
+`RUNDALE_PARALLEL_WORKERS` or `--parallel-workers N`). `--parallel-workers 1`
+runs serially (`-parallel-testing-enabled NO`). On a GitHub-hosted runner
+(`GITHUB_ACTIONS=true`) the default is one worker and asking for more is an
+error: parallel clones on that small shared VM raced the suites' fixed waits and
+flaked a different test every night (#2301). The UI
 tests share no state: each launches the app with its own launch arguments and a
 fresh app container. Xcode distributes whole test classes across workers, so one
 slow class sets a floor; split it to speed the run up. Physical-device runs are
@@ -129,7 +133,7 @@ never parallel.
 Each build or test command stops after 30 minutes (`--command-timeout MINUTES`
 or `RUNDALE_COMMAND_TIMEOUT_MINUTES`), and its failure starts with "timed out
 after". GitHub's hosted macOS runner has far fewer cores than the Macs the
-defaults were measured on, so CI's hosted gate and TestFlight's nightly gate use 2 workers
+defaults were measured on, so CI's hosted gate and TestFlight's nightly gate use one worker
 and a 100-minute limit.
 
 A full or Phase 4 run (`--phase all` or `--phase 4`) does not run each phase's
