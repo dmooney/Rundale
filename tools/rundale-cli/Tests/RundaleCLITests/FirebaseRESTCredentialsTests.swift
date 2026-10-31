@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import XCTest
-@testable import RundaleLinuxHostCore
+@testable import RundaleCLICore
 
 final class FirebaseRESTCredentialsTests: XCTestCase {
     private final class TestClock: @unchecked Sendable {

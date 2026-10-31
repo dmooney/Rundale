@@ -48,7 +48,7 @@ is set (recording only).
 - **Session logic lives in `RundaleSession`, not the app target.** The app
   keeps views, `RundalePresentationModel` (it forwards the presenter to
   SwiftUI), and the Firebase, OSLog, and UIKit wiring
-  (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule a Linux host
+  (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule the app CLI
   must share goes in the package, or the two drift (#2272).
 - **A synchronous test in a `@MainActor` XCTestCase crashes Linux test
   discovery** (`swift_dynamicCastFailure` in `__allTests`, before any test

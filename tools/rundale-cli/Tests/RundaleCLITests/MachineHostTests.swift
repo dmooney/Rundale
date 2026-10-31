@@ -1,5 +1,5 @@
 import Foundation
-import RundaleLinuxHostCore
+import RundaleCLICore
 import XCTest
 
 @MainActor

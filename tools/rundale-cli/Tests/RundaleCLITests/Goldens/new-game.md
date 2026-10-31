@@ -1,4 +1,4 @@
-## Frame 1 · new game · Linux host
+## Frame 1 · new game · Rundale CLI
 
 **Kilteevan Village** · Morning · Clear
 
@@ -13,7 +13,7 @@ _A muddy road runs between low stone walls and a handful of whitewashed cottages
 
 > **Input:** `look`
 
-## Frame 2 · submitted · Linux host
+## Frame 2 · submitted · Rundale CLI
 
 **Kilteevan Village** · Morning · Clear
 
@@ -26,7 +26,7 @@ _A muddy road runs between low stone walls and a handful of whitewashed cottages
 
 **Composer:** `look` · [Stop]
 
-## Frame 3 · committed · Linux host
+## Frame 3 · committed · Rundale CLI
 
 **Kilteevan Village** · Morning · Clear
 

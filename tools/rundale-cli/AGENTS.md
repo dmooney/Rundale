@@ -1,14 +1,14 @@
-# tools/linux-host — agent scope
+# tools/rundale-cli — agent scope
 
-The Linux host that plays the app's session as Markdown frames. Start with
+The Rundale CLI that plays the app's session as Markdown frames. Start with
 [README.md](README.md).
 
 ## Commands
 
 ```sh
-just linux-host-test                              # golden frames (CI: Linux host golden frames)
-RUNDALE_UPDATE_GOLDENS=1 just linux-host-test     # rewrite goldens, then review the diff
-cd tools/linux-host && ../../mobile/.build/swift-tools/bin/swiftlint lint --strict
+just rundale-cli-test                              # golden frames (CI: Rundale CLI golden frames)
+RUNDALE_UPDATE_GOLDENS=1 just rundale-cli-test     # rewrite goldens, then review the diff
+cd tools/rundale-cli && ../../mobile/.build/swift-tools/bin/swiftlint lint --strict
 ```
 
 ## Traps

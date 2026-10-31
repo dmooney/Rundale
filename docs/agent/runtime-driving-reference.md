@@ -92,10 +92,10 @@ See [ADR-028](../adr/028-portable-session-mcp-driver.md).
 Build once, then launch MCP with explicit absolute paths:
 
 ```sh
-just linux-host --help
+just rundale-cli --help
 (cd limerick && cargo build -p limerick-mcp)
 limerick/target/debug/limerick-mcp --backend session-host \
-  --host-executable "$PWD/tools/linux-host/.build/debug/rundale-linux-host" \
+  --host-executable "$PWD/tools/rundale-cli/.build/debug/rundale-cli" \
   --mod-dir "$PWD/mods/rundale" --save-dir /absolute/path/to/session-save \
   --inference mock
 ```
@@ -176,8 +176,8 @@ again to conceal a refresh failure.
 
 ### Verification and evidence
 
-Run `just linux-host-test`, `cargo test -p limerick-mcp` from `limerick/`, and
-`python3 tools/linux-host/test_mcp_session.py` after building both binaries.
+Run `just rundale-cli-test`, `cargo test -p limerick-mcp` from `limerick/`, and
+`python3 tools/rundale-cli/test_mcp_session.py` after building both binaries.
 Linux CI runs the host suites and cross-language MCP test with mock inference.
 A live terminal playthrough on macOS or Linux must additionally show streamed
 output, committed replies, and persist/close/resume continuity. Missing live

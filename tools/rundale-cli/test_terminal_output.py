@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HOST = Path(
-    os.environ.get("HOST_BINARY", ROOT / "tools/linux-host/.build/debug/rundale-linux-host")
+    os.environ.get("HOST_BINARY", ROOT / "tools/rundale-cli/.build/debug/rundale-cli")
 ).resolve()
 
 

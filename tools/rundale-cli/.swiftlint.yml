@@ -1,4 +1,4 @@
-# The mobile rules (mobile/.swiftlint.yml), over the Linux host's sources.
+# The mobile rules (mobile/.swiftlint.yml), over the Rundale CLI's sources.
 parent_config: ../../mobile/.swiftlint.yml
 
 included:

@@ -24,7 +24,7 @@ for the frontend. The generated output is written alongside this file as
 
 The terminal host uses [Swiftdansi](https://github.com/steipete/Swiftdansi) 0.3.1
 (MIT, © 2025 Peter Steinberger). Its linked Swift dependencies and full license
-texts are in [the terminal host notices](tools/linux-host/THIRD_PARTY_NOTICES.md).
+texts are in [the terminal host notices](tools/rundale-cli/THIRD_PARTY_NOTICES.md).
 The Rust/frontend generator below does not cover Swift packages.
 
 ## Map data and tiles

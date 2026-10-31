@@ -1,10 +1,10 @@
 import Foundation
-import RundaleLinuxHostCore
+import RundaleCLICore
 
-/// `rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
+/// `rundale-cli --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
 /// [--sse-fixture FILE] [--resume] [--script FILE]`
 ///
-/// Plays the app's game on Linux and prints each meaningful screen state as
+/// Plays the app's game from the command line and prints each meaningful screen state as
 /// a Markdown frame on standard output. Input lines come from `--script` or
 /// standard input; `:help` lists the host commands.
 @MainActor
@@ -14,7 +14,7 @@ func runHost() async -> Int32 {
         arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
     }
     func fail(_ message: String) -> Int32 {
-        FileHandle.standardError.write(Data("rundale-linux-host: \(message)\n".utf8))
+        FileHandle.standardError.write(Data("rundale-cli: \(message)\n".utf8))
         return 2
     }
     let valued: Set = ["--mod-dir", "--save-dir", "--inference", "--sse-fixture", "--script", "--format"]
@@ -34,10 +34,10 @@ func runHost() async -> Int32 {
     }
     if arguments.contains("--help") {
         print("""
-        usage: rundale-linux-host --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
+        usage: rundale-cli --mod-dir DIR --save-dir DIR [--inference fixture|mock|sse|live]
                                   [--sse-fixture FILE] [--resume] [--script FILE] [--format auto|ansi|markdown]
 
-        \(LinuxHost.help)
+        \(CLIHost.help)
         """)
         return 0
     }
@@ -104,7 +104,7 @@ func runHost() async -> Int32 {
     }
 
     let output = TerminalOutput(format: format)
-    let host = LinuxHost(
+    let host = CLIHost(
         options: HostOptions(
             inference: inference,
             modDirectory: URL(fileURLWithPath: modDirectory, isDirectory: true),

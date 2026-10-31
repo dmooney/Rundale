@@ -181,7 +181,7 @@ updates:
         update-types: ["major"]
 
   - package-ecosystem: "swift"
-    directory: "/tools/linux-host"
+    directory: "/tools/rundale-cli"
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 2

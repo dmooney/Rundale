@@ -52,13 +52,13 @@ public struct HostOptions: Sendable {
     }
 }
 
-/// Runs the app's session on Linux and prints the screen as Markdown frames.
+/// Runs the app's session from the command line and prints the screen as Markdown frames.
 ///
 /// It drives `RundaleSessionPresenter` the way the app's views do (setting
 /// the draft, Send, Stop, Retry, a clarification choice) and reads frames
 /// from the presenter only. It decides no game or session behaviour.
 @MainActor
-public final class LinuxHost {
+public final class CLIHost {
     public static let help = """
     Type a line to send it, as the composer does. Host commands:
       N or :choose N   pick choice N
@@ -181,7 +181,7 @@ public final class LinuxHost {
                 credentials: {
                     if case let .live(credentials, _) = self.options.inference { return credentials }
                     return StaticEndpointCredentialProvider(EndpointCredentials(
-                        authorizationToken: "linux-host", appCheckToken: "linux-host"
+                        authorizationToken: "rundale-cli", appCheckToken: "rundale-cli"
                     ))
                 },
                 modDirectory: options.modDirectory,
@@ -236,7 +236,7 @@ public final class LinuxHost {
 
     private func launchConfiguration(reset: Bool) -> LaunchConfiguration {
         let projection = options.saveDirectory.appendingPathComponent("projection.json")
-        var arguments = ["rundale-linux-host", "--draft-file=\(projection.path)"]
+        var arguments = ["rundale-cli", "--draft-file=\(projection.path)"]
         var environment: [String: String] = [:]
         if case .fixture = options.inference {
             arguments.append("--fixture=standard")
@@ -248,7 +248,7 @@ public final class LinuxHost {
                 environment["RUNDALE_ENDPOINT_BASE_URL"] = url.absoluteString
                 environment["RUNDALE_ENDPOINT_ORGANIZATION"] = "limerick-demo"
             } else {
-                environment["RUNDALE_ENDPOINT_BASE_URL"] = "https://endpoints.linux-host.invalid"
+                environment["RUNDALE_ENDPOINT_BASE_URL"] = "https://endpoints.rundale-cli.invalid"
             }
         }
         if reset {

@@ -58,12 +58,12 @@ unavailable, and human/device gates. Keep real-inference integration opt-in and
 separate from deterministic regression tests. Physical-iPhone interaction and
 VoiceOver judgment require recorded evidence, even when automated checks pass.
 
-### Linux host frames
+### Rundale CLI frames
 
-`just linux-host` plays the app's game on Linux and prints each meaningful
-screen state as a Markdown frame; `just linux-host-test` runs its golden-frame
-tests, which CI's `Linux host golden frames` job runs too
-([tools/linux-host](../../tools/linux-host/README.md)). The host runs the
+`just rundale-cli` plays the app's game from the command line and prints each meaningful
+screen state as a Markdown frame; `just rundale-cli-test` runs its golden-frame
+tests, which CI's `Rundale CLI tests (Linux)` job runs too
+([tools/rundale-cli](../../tools/rundale-cli/README.md)). The host runs the
 app's `RundaleSession` controllers and presenter against the real engine,
 linked from `liblimerick_mobile_ffi.a` built for Linux, on `mods/rundale`,
 with the scripted mock Endpoint, a recorded Endpoint stream, or the fixture
@@ -335,5 +335,5 @@ Run `just coverage` to generate the Tarpaulin HTML/JSON report. Run `just covera
 The same host supports macOS terminal runs and a managed MCP backend; see
 [portable app-session MCP setup](runtime-driving-reference.md#portable-app-session-through-mcp).
 The private protocol and real MCP adapter are tested together by
-`python3 tools/linux-host/test_mcp_session.py` after both binaries are built.
+`python3 tools/rundale-cli/test_mcp_session.py` after both binaries are built.
 Linux CI runs this deterministic test in addition to the golden frames.

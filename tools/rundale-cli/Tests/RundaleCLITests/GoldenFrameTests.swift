@@ -1,9 +1,9 @@
 import Foundation
-import RundaleLinuxHostCore
+import RundaleCLICore
 import XCTest
 
-/// Plays each script in `Scenarios/` through the Linux host and compares the
-/// frames with `Goldens/`. The engine is the real one, linked from its Linux
+/// Plays each script in `Scenarios/` through the Rundale CLI and compares the
+/// frames with `Goldens/`. The engine is the real one, linked from its native
 /// static library, on the canonical mod; Endpoint answers come from the
 /// scripted mock, a recorded stream, or the fixture session, as the
 /// script's `# inference:` line says.
@@ -79,11 +79,11 @@ final class GoldenFrameTests: XCTestCase {
         )
         let lines = script.components(separatedBy: "\n")
         let saveDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("rundale-linux-host-\(UUID().uuidString)")
+            .appendingPathComponent("rundale-cli-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: saveDirectory) }
 
         var frames = ""
-        let host = LinuxHost(
+        let host = CLIHost(
             options: HostOptions(
                 inference: try inference(lines),
                 modDirectory: Self.repositoryRoot.appendingPathComponent("mods/rundale"),
@@ -98,9 +98,9 @@ final class GoldenFrameTests: XCTestCase {
         await host.close()
         XCTAssertFalse(host.timedOut, "a turn timed out:\n\(frames)")
 
-        // Existing golden content is platform-neutral except its Linux label.
+        // Golden frames use a platform-neutral label.
         // Runtime evidence still retains the actual platform in all output.
-        frames = frames.replacingOccurrences(of: HostPlatform.label, with: "Linux host")
+        frames = frames.replacingOccurrences(of: HostPlatform.label, with: "Rundale CLI")
         let golden = Self.testDirectory.appendingPathComponent("Goldens/\(name).md")
         if ProcessInfo.processInfo.environment["RUNDALE_UPDATE_GOLDENS"] == "1" {
             try frames.write(to: golden, atomically: true, encoding: .utf8)

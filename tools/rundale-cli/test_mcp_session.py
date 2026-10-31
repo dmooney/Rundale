@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MCP = Path(os.environ.get("MCP_BINARY", ROOT / "limerick/target/debug/limerick-mcp")).resolve()
 HOST = Path(
-    os.environ.get("HOST_BINARY", ROOT / "tools/linux-host/.build/debug/rundale-linux-host")
+    os.environ.get("HOST_BINARY", ROOT / "tools/rundale-cli/.build/debug/rundale-cli")
 ).resolve()
 MOD = ROOT / "mods/rundale"
 

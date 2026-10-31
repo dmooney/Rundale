@@ -6,7 +6,7 @@ import RundaleSession
 @MainActor
 public final class MachineHost {
     private let options: HostOptions
-    private var host: LinuxHost?
+    private var host: CLIHost?
     private var saveLock: HostSaveLock?
     private var history: [[String: Any]] = []
     private var lastSnapshot: Data?
@@ -97,7 +97,7 @@ public final class MachineHost {
         }
         var candidateOptions = options
         candidateOptions.requireExistingSave = !reset
-        let candidate = LinuxHost(options: candidateOptions, output: { _ in })
+        let candidate = CLIHost(options: candidateOptions, output: { _ in })
         saveLock = lock
         host = candidate
         history = []

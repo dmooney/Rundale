@@ -113,9 +113,9 @@ public enum FrameRenderer {
 public enum HostPlatform {
     public static var label: String {
         #if os(Linux)
-        "Linux host"
+        "Rundale CLI on Linux"
         #else
-        "macOS terminal host"
+        "Rundale CLI on macOS"
         #endif
     }
 }
