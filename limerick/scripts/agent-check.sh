@@ -12,7 +12,8 @@
 #                               `gh` and read access to the PR.
 #
 # In both modes the script:
-#   - Diffs the working tree against the base ref.
+#   - Diffs the working tree against the base ref: AGENT_CHECK_BASE_REF, else
+#     (PR mode) the PR's base branch, else origin/main.
 #   - Classifies changed files as runtime-shipping or not.
 #   - Rejects any `.proofs/` path appearing in the diff (the retired proof
 #     bundles were never meant to be committed).
@@ -69,6 +70,15 @@ if [[ "$source_mode" == "pr" && ! "$pr_number" =~ ^[0-9]+$ ]]; then
 fi
 
 base_ref="${AGENT_CHECK_BASE_REF:-}"
+# A stacked PR targets another PR's branch, so compare against the PR's own
+# base: against main, the lower PR's files would count as this one's. When the
+# base cannot be read, origin/main below can only demand more evidence.
+if [[ -z "$base_ref" && "$source_mode" == "pr" ]] && command -v gh >/dev/null 2>&1; then
+    pr_base="$(gh pr view "$pr_number" --json baseRefName --jq '.baseRefName // empty' 2>/dev/null || true)"
+    if [[ -n "$pr_base" ]] && git rev-parse --verify --quiet "origin/$pr_base" >/dev/null; then
+        base_ref="origin/$pr_base"
+    fi
+fi
 if [[ -z "$base_ref" ]]; then
     if git rev-parse --verify --quiet origin/main >/dev/null; then
         base_ref="origin/main"
