@@ -322,8 +322,16 @@ final class RundaleUITests: RundaleUITestCase {
 
         let scroll = transcriptScroll
         XCTAssertTrue(scroll.waitForExistence(timeout: 3))
-        let latest = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS 'Historical fixture entry 180'")
+        // Initial fixture history arrives asynchronously; measure scrolling
+        // only after the last row reaches the presenter, not while loading it.
+        XCTAssertTrue(app.waitForTranscriptRow(timeout: 10) {
+            $0.row == "opening:history-179"
+        })
+        let latest = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
+                "Historical fixture entry 180"
+            )
         ).firstMatch
         XCTAssertTrue(waitForVisible(latest, in: scroll))
 
