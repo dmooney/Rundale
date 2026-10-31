@@ -176,9 +176,8 @@ final class FixtureRuleTests: XCTestCase {
         XCTAssertTrue(presenter.completions.isEmpty, "a chosen completion closes the strip")
 
         type("/", into: presenter)
-        let first = try? XCTUnwrap(presenter.completions.first)
-        XCTAssertNotNil(first)
-        presenter.selectCompletion(first!)
+        guard let first = presenter.completions.first else { return XCTFail("no slash completion") }
+        presenter.selectCompletion(first)
         XCTAssertTrue(presenter.draft.hasPrefix("/"))
         presenter.submitDraft()
         await waitUntil { presenter.transcript.contains { $0.kind == .playerCommand && $0.text.hasPrefix("/") } }
@@ -327,7 +326,7 @@ final class FixtureRuleTests: XCTestCase {
             PresentedHeader(location: "Kilteevan Village", timeOfDay: "Morning", weather: "Clear").accessibilityLabel,
             "Current place, Kilteevan Village. Morning. Clear."
         )
-        XCTAssertEqual(presenter.header.accessibilityLabel.hasPrefix("Current place, "), true)
+        XCTAssertTrue(presenter.header.accessibilityLabel.hasPrefix("Current place, "))
     }
 
     // MARK: Automatic delivery (the real scheduler)

@@ -48,12 +48,12 @@ A XCUITest costs about 30 seconds and asks the accessibility tree whether an
 animating view is ready, so it is the slowest and flakiest place to test a rule.
 Put a new behaviour test in the lowest layer that can see it:
 
-| The behaviour is | Test it in | Run by |
-| --- | --- | --- |
+| The behaviour is                                                                                                                                             | Test it in                                                                                                                                                                  | Run by                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | A rule about state: what a row's spoken label says, when Send is enabled, what a completion inserts, whether Retry shows, which row the reading anchor keeps | `RundaleKit` or `RundaleSession` (move the decision out of the view into a plain value type or the presenter), a unit test over the fixture controller (`FixtureRuleTests`) | `swift test`, any host, milliseconds |
-| An engine scenario: commands, travel, clarification, stop and retry, fault recovery, relaunch from the save | `RundaleTests/EngineScenarioTests`: the real engine, save and mock Endpoint with the real presenter, app-hosted | the simulator, seconds, no UI |
-| Layout and gestures only the real tree has: the keyboard, Dynamic Type, a grown composer, scrolling, rotation | a `RundaleUITests` journey test | the simulator, serial on hosted CI |
-| The process lifecycle: launch, background, force quit, relaunch | a `RundaleUITests` journey test | the simulator |
+| An engine scenario: commands, travel, clarification, stop and retry, fault recovery, relaunch from the save                                                  | `RundaleTests/EngineScenarioTests`: the real engine, save and mock Endpoint with the real presenter, app-hosted                                                             | the simulator, seconds, no UI        |
+| Layout and gestures only the real tree has: the keyboard, Dynamic Type, a grown composer, scrolling, rotation                                                | a `RundaleUITests` journey test                                                                                                                                             | the simulator, serial on hosted CI   |
+| The process lifecycle: launch, background, force quit, relaunch                                                                                              | a `RundaleUITests` journey test                                                                                                                                             | the simulator                        |
 
 Keep the XCUITest set to journeys (launch, a streamed turn, completion, reading
 history, save and restore, accessibility). When you move a rule down, delete the

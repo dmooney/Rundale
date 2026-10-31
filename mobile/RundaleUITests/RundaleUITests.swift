@@ -105,7 +105,6 @@ final class RundaleUITests: RundaleUITestCase {
         XCTAssertTrue(newText.waitForExistence(timeout: 3))
         let sameHistorical = app.staticTexts[historicalIdentifier]
         XCTAssertTrue(sameHistorical.waitForExistence(timeout: 3))
-        XCTAssertTrue(sameHistorical.isHittable)
         XCTAssertTrue(sameHistorical.frame.intersects(scroll.frame))
         XCTAssertLessThanOrEqual(abs(sameHistorical.frame.minY - historicalY), 5)
         newText.tap()
@@ -138,7 +137,6 @@ final class RundaleUITests: RundaleUITestCase {
 
         let restored = app.staticTexts[historicalLabel]
         XCTAssertTrue(restored.waitForExistence(timeout: 3))
-        XCTAssertTrue(restored.isHittable)
         XCTAssertTrue(restored.frame.intersects(transcriptScroll.frame))
         let restoredViewportY = restored.frame.minY - transcriptScroll.frame.minY
         XCTAssertLessThanOrEqual(
@@ -239,7 +237,9 @@ final class RundaleUITests: RundaleUITestCase {
     }
 
     /// Waits until the historical rows inside the transcript stop moving (two
-    /// consecutive snapshots match), then returns the first one that is hittable.
+    /// consecutive snapshots match), then returns the first one still in the tree. No `isHittable` read: it throws
+    /// for a row whose activation point is not valid yet (#2314); the snapshot
+    /// frames already place the row inside the transcript.
     /// A fast swipe keeps the transcript decelerating and the lazy stack
     /// recycling rows after `swipeDown` returns; asking a row mid-flight for
     /// `isHittable` throws "Activation point invalid" (#2314).
@@ -252,7 +252,7 @@ final class RundaleUITests: RundaleUITestCase {
             if !current.isEmpty, current == previous {
                 for row in current {
                     let element = app.staticTexts[row.label]
-                    if element.exists, element.isHittable { return element }
+                    if element.exists { return element }
                 }
                 return nil
             }

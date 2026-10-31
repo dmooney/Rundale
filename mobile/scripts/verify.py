@@ -33,12 +33,8 @@ NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
 # Xcode spreads whole test classes across parallel simulator workers, so each
 # phase's UI tests are split over several classes (sharing one base class).
-PHASE2_UI_CLASSES = (
-    "RundaleUITests/RundalePhase2UITests",
-)
-PHASE3_UI_CLASSES = (
-    "RundaleUITests/RundalePhase3UITests",
-)
+PHASE2_UI_CLASSES = ("RundaleUITests/RundalePhase2UITests",)
+PHASE3_UI_CLASSES = ("RundaleUITests/RundalePhase3UITests",)
 PHASE4_UI_CLASSES = (
     "RundaleUITests/RundalePhase4UITests",
     "RundaleUITests/RundalePhase4RecoveryUITests",
@@ -471,6 +467,7 @@ def _hosted_runner() -> bool:
 
 def _default_parallel_workers() -> int:
     return HOSTED_PARALLEL_WORKERS if _hosted_runner() else DEFAULT_PARALLEL_WORKERS
+
 
 # Longest "Suite.test: message" line summary.txt prints per failed test; CI
 # prints summary.txt to its log, and verify.json keeps the full message.
@@ -2992,7 +2989,7 @@ class VerificationRun:
             phase=3,
             identifier=identifier,
             name=name,
-            only_testing=PHASE3_UI_CLASSES,
+            only_testing=[*PHASE3_UI_CLASSES, "RundaleTests/EngineScenarioTests"],
             summary_identifier="phase3-ios-simulator-test-results",
         )
         if record["status"] == PASSED:
@@ -3360,8 +3357,17 @@ class VerificationRun:
         if record["status"] == PASSED:
             self._validate_result(record, phase=1, summary_identifier=f"{identifier}-results")
 
-    def _phase1(self) -> None:
+    def _phase1(self, *, standalone: bool = False) -> None:
         self._swift_tests()
+        if standalone:
+            # The Phase 1 composer and transcript rules (`FixtureRuleTests`)
+            # live in RundaleSession; a full run gets them from Phase 2.
+            self._swift_package_tests(
+                package_path=self.root / "mobile" / "RundaleSession",
+                identifier="swift-session-tests-phase1",
+                name="RundaleSession Phase 1 composer and transcript rule tests",
+                phase=1,
+            )
         xcodegen_ok = self._xcodegen()
         self._device(xcodegen_ok)
         selected, selection = self._select()
@@ -3468,7 +3474,7 @@ class VerificationRun:
             if phase is None:
                 self._future()
         elif phase == 1:
-            self._phase1()
+            self._phase1(standalone=True)
         elif phase == 2:
             self._phase2(reuse_phase1_native_setup=False)
         elif phase == 3:

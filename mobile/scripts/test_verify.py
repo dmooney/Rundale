@@ -297,6 +297,12 @@ def create_phase1_fixture(root: Path) -> None:
         encoding="utf-8",
     )
     (root / "mobile" / "Rundale.xcodeproj").mkdir(parents=True)
+    session = root / "mobile" / "RundaleSession"
+    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
+    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
+    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
 
 
 def create_phase2_fixture(root: Path) -> None:
@@ -322,12 +328,6 @@ def create_phase2_fixture(root: Path) -> None:
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests" / "FixtureTests.swift").write_text(
-        "// fixture\n", encoding="utf-8"
-    )
-    session = root / "mobile" / "RundaleSession"
-    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
-    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
-    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
     packaging = root / "mobile" / "scripts" / "build-rust-mobile.sh"
@@ -535,11 +535,7 @@ class VerificationRunnerTests(unittest.TestCase):
 
             def without_derived_data(argv):
                 at = argv.index("-derivedDataPath")
-                return [
-                    arg
-                    for arg in argv[:at] + argv[at + 4 :]
-                    if arg != "-resultBundlePath"
-                ]
+                return [arg for arg in argv[:at] + argv[at + 4 :] if arg != "-resultBundlePath"]
 
             self.assertEqual(
                 without_derived_data(simulator_argv(parallel_workers=1)), without_derived_data(argv)
@@ -568,7 +564,9 @@ class VerificationRunnerTests(unittest.TestCase):
 
         workflows = Path(__file__).resolve().parents[2] / ".github" / "workflows"
         runs_verify = [
-            path for path in sorted(workflows.glob("*.yml")) if "mobile/scripts/verify.py" in path.read_text("utf-8")
+            path
+            for path in sorted(workflows.glob("*.yml"))
+            if "mobile/scripts/verify.py" in path.read_text("utf-8")
         ]
         self.assertTrue(runs_verify, "no workflow runs verify.py")
         for path in workflows.glob("*.yml"):
@@ -870,9 +868,10 @@ class VerificationRunnerTests(unittest.TestCase):
             # left to the full run without blocking.
             self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
             self.assertIn("--smoke", by_id["ios-simulator-tests"]["name"])
-            for identifier in ("phase3-ios-simulator-tests", "phase4-ios-simulator-tests"):
-                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
-                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            # Phase 3 keeps its engine scenarios (EngineScenarioTests, a unit class).
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["status"], "passed")
+            self.assertEqual(by_id["phase4-ios-simulator-tests"]["status"], "skipped")
+            self.assertFalse(by_id["phase4-ios-simulator-tests"]["blocking"])
             self.assertEqual(by_id["phase4-ios-controller-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
@@ -1215,7 +1214,7 @@ class VerificationRunnerTests(unittest.TestCase):
                 self.assertIn(f"-only-testing:{selector}", selectors)
             self.assertEqual(by_id["ios-simulator-combined-run"]["status"], "passed")
             self.assertEqual(by_id["phase4-ios-simulator-tests-results"]["status"], "passed")
-            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 1)
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["details"]["totalTestCount"], 2)
 
     def test_combined_run_fails_only_the_suite_whose_case_failed(self):
         with tempfile.TemporaryDirectory() as directory:
