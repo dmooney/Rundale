@@ -1,0 +1,65 @@
+{
+  "_about": "Prompt lab settings (§6). Prices are USD per 1M tokens; spend is metered from each response's reported usage, and a model without a price is refused so spend can never go uncounted.",
+  "models": {
+    "production": {
+      "provider": "google",
+      "model": "gemini-3.5-flash-lite",
+      "max_output_tokens": 1024,
+      "price": {
+        "input": 0.3,
+        "output": 2.5,
+        "source": "endpoints/deploy/limerick-prod-providers.json"
+      }
+    },
+    "stronger": {
+      "provider": "google",
+      "model": "gemini-3.5-flash",
+      "max_output_tokens": 1024,
+      "price": {
+        "input": 1.5,
+        "output": 9.0,
+        "source": "conservative estimate; check Google's price list before trusting totals"
+      }
+    }
+  },
+  "stand_in": {
+    "_about": "Plumbing checks only (--stand-in): proves the loop runs end to end where no Gemini key is available. Its scores are never research results and are marked as such.",
+    "provider": "openai",
+    "model": "gpt-5-mini",
+    "max_output_tokens": 2048,
+    "price": {
+      "input": 0.25,
+      "output": 2.0,
+      "source": "promptfoo/config/pricing.py"
+    }
+  },
+  "judges": {
+    "claude": { "kind": "claude-cli", "model": "sonnet", "billed": false },
+    "gpt": {
+      "kind": "codex-cli",
+      "model": "gpt-5.5",
+      "billed": false,
+      "fallback": {
+        "_about": "Used only when the codex CLI is not installed. API calls are billed, so they count against the cap.",
+        "kind": "openai-api",
+        "model": "gpt-5-mini",
+        "billed": true,
+        "price": {
+          "input": 0.25,
+          "output": 2.0,
+          "source": "promptfoo/config/pricing.py"
+        }
+      }
+    }
+  },
+  "rewriter": { "kind": "claude-cli", "model": "opus" },
+  "research": {
+    "spend_cap_usd": 25.0,
+    "plateau_points": 2.0,
+    "plateau_rounds": 3,
+    "max_rounds": 20,
+    "judge_gap_flag": 20,
+    "samples_per_case": 2,
+    "concurrency": { "generate": 8, "judge": 4 }
+  }
+}

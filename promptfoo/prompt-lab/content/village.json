@@ -1,0 +1,72 @@
+{
+  "_source": "mods/rundale/world.json, festivals.json and npcs.json at the lab's creation (§4.3). Fixed content: the research loop may not change it.",
+  "name": "Kilteevan",
+  "places": [
+    {
+      "name": "Kilteevan Village",
+      "looks": "A muddy road runs between low stone walls and a handful of whitewashed cottages. Smoke lifts from the clustered roofs.",
+      "story": "Cill Taobháin means Taobhán's church. The old people say the saint kept his cell near where the road bends.",
+      "ways": [
+        "a short lane east to the whitewashed Letter Office",
+        "a rutted boreen west to Connolly Cottage"
+      ]
+    },
+    {
+      "name": "Letter Office",
+      "looks": "A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells of sealing wax, turf smoke, and damp wool.",
+      "story": null,
+      "ways": ["the lane back west to the village road"]
+    },
+    {
+      "name": "Connolly Cottage",
+      "looks": "A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth, and rain-dark coats by the door.",
+      "story": null,
+      "ways": ["the boreen climbing east to the village road"]
+    }
+  ],
+  "people": [
+    {
+      "name": "Peig Hannigan",
+      "looks": "a sharp-eyed woman with a satchel of letters",
+      "work": "keeps the Letter Office",
+      "home": "Letter Office",
+      "workplace": "Letter Office"
+    },
+    {
+      "name": "Mícheál Connolly",
+      "looks": "a weathered man in a mud-spattered frieze coat",
+      "work": "smallholder and cattle drover",
+      "home": "Connolly Cottage",
+      "workplace": "Connolly Cottage"
+    },
+    {
+      "name": "Róisín Connolly",
+      "looks": "a young woman with yarn wound about her wrist",
+      "work": "spinner and household bookkeeper",
+      "home": "Connolly Cottage",
+      "workplace": "Connolly Cottage"
+    }
+  ],
+  "festivals": [
+    {
+      "name": "Imbolc",
+      "date": "1 February",
+      "about": "start of spring, the feast of St. Brigid"
+    },
+    {
+      "name": "Bealtaine",
+      "date": "1 May",
+      "about": "start of summer, bonfires lit on hilltops"
+    },
+    {
+      "name": "Lughnasa",
+      "date": "1 August",
+      "about": "start of autumn, the harvest festival"
+    },
+    {
+      "name": "Samhain",
+      "date": "1 November",
+      "about": "start of winter, when the veil between worlds is thin"
+    }
+  ]
+}

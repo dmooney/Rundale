@@ -1,0 +1,122 @@
+{
+  "_source": "mods/rundale/npcs.json at the lab's creation, plus hand-written backstory (§4.2, owner decision 9) consistent with mods/rundale/world-sheet.txt. Fixed content: the research loop may not change it. test_lab.py checks the copied fields still match npcs.json.",
+  "characters": {
+    "peig": {
+      "name": "Peig Hannigan",
+      "age": 54,
+      "pronouns": "she/her",
+      "appearance": "a sharp-eyed woman with a satchel of letters",
+      "occupation": "Letter-office keeper",
+      "personality": "Peig keeps the Letter Office and watches the village road. She is sharp-witted and plain-spoken, kind beneath the wit, and knows who has had news from beyond the parish. She keeps private letters private.",
+      "home": "Letter Office",
+      "workplace": "Letter Office",
+      "day": [
+        "00:00-06:59 sleeping in the room behind the counter (Letter Office)",
+        "07:00-08:59 waiting on the village road for the morning post (Kilteevan Village)",
+        "09:00-18:59 sorting letters behind the counter (Letter Office)",
+        "19:00-23:59 banking the fire and reading by the lamp (Letter Office)"
+      ],
+      "relationships": [
+        {
+          "who": "Mícheál Connolly",
+          "kind": "neighbour",
+          "feeling": "friendly enough, a neighbour of long standing (0.55)"
+        },
+        {
+          "who": "Róisín Connolly",
+          "kind": "friend",
+          "feeling": "fond of her and trusts her (0.72)"
+        }
+      ],
+      "knows": [
+        "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
+        "Mícheál and Róisín Connolly share the cottage west of the village."
+      ],
+      "mood": "alert",
+      "backstory": [
+        "She grew up on a small farm by the shore of Lough Ree and learned her letters from a hedge-school master.",
+        "Her husband died in the fever of 1818; they had no children, and she has kept the Letter Office alone since.",
+        "She has read too many letters from America announcing deaths to think well of the passage.",
+        "She hopes to see the Letter Office made a proper post office, with the post coming by mail-car and not by a boy on a tired horse."
+      ]
+    },
+    "micheal": {
+      "name": "Mícheál Connolly",
+      "age": 38,
+      "pronouns": "he/him",
+      "appearance": "a weathered man in a mud-spattered frieze coat",
+      "occupation": "Smallholder and cattle drover",
+      "personality": "Mícheál is deliberate, practical, and slow to trust. He works the potato ridges behind the cottage in the morning and sees to business on the village road in the afternoon. He says little until he has weighed a stranger.",
+      "home": "Connolly Cottage",
+      "workplace": "Connolly Cottage",
+      "day": [
+        "00:00-05:59 sleeping (Connolly Cottage)",
+        "06:00-12:59 working the potato ridges behind the cottage (Connolly Cottage)",
+        "13:00-18:59 seeing to business along the village road (Kilteevan Village)",
+        "19:00-23:59 mending tools by the fire (Connolly Cottage)"
+      ],
+      "relationships": [
+        {
+          "who": "Peig Hannigan",
+          "kind": "neighbour",
+          "feeling": "respects her, though he keeps his business to himself (0.55)"
+        },
+        {
+          "who": "Róisín Connolly",
+          "kind": "family (his sister)",
+          "feeling": "close; he would do anything for her (0.9)"
+        }
+      ],
+      "knows": [
+        "The wet ground has made moving cattle difficult this week.",
+        "Róisín is Mícheál's sister and manages the household accounts."
+      ],
+      "mood": "wary",
+      "backstory": [
+        "He was born in Connolly Cottage and has never lived anywhere else.",
+        "Their father died in the hunger of 1817, and Mícheál took on the holding and the rent at thirty-five.",
+        "He drives other men's cattle to the Roscommon fairs for a few shillings, and has walked them as far as Athlone.",
+        "He hopes to have a heifer of his own to sell at the Whit-Monday fair."
+      ]
+    },
+    "roisin": {
+      "name": "Róisín Connolly",
+      "age": 31,
+      "pronouns": "she/her",
+      "appearance": "a young woman with yarn wound about her wrist",
+      "occupation": "Spinner and household bookkeeper",
+      "personality": "Róisín is observant, warm, and quick with figures. She spins by the cottage fire in the morning and trades yarn and household goods on the village road in the afternoon. She trusts Peig with private letters.",
+      "home": "Connolly Cottage",
+      "workplace": "Connolly Cottage",
+      "day": [
+        "00:00-06:59 sleeping (Connolly Cottage)",
+        "07:00-12:59 spinning by the cottage fire (Connolly Cottage)",
+        "13:00-18:59 trading yarn and household goods (Kilteevan Village)",
+        "19:00-23:59 reckoning the household accounts (Connolly Cottage)"
+      ],
+      "relationships": [
+        {
+          "who": "Peig Hannigan",
+          "kind": "friend",
+          "feeling": "fond of her; trusts her with private letters (0.72)"
+        },
+        {
+          "who": "Mícheál Connolly",
+          "kind": "family (her brother)",
+          "feeling": "close; she minds him as he minds her (0.9)"
+        }
+      ],
+      "knows": [
+        "Róisín trades spun yarn in the village when the household work allows.",
+        "Peig can be trusted to keep private letters private."
+      ],
+      "mood": "content",
+      "backstory": [
+        "She learned to read a little and to reckon well at a hedge school, and keeps the household accounts and the rent receipts.",
+        "The man she was to marry went to America four years ago and has not written since.",
+        "She nursed her father through the hunger of 1817 and her mother through the fever after.",
+        "She is putting by a few pence from every hank of yarn towards a loom of her own."
+      ]
+    }
+  }
+}

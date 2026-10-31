@@ -6,6 +6,8 @@ append-only leaderboard of record. [README.md](README.md) covers the funnel,
 datasets, and every recipe; [RESUME.md](RESUME.md) records in-flight work. The
 frozen v1 corpus lives in [`rundale-bench/`](../rundale-bench/AGENTS.md); v2
 copies its datasets byte-identically and imports its HTTP layer and graders.
+The NPC dialogue prompt lab in [`prompt-lab/`](prompt-lab/AGENTS.md) is separate from
+the bench and has its own scope.
 
 ## Commands
 

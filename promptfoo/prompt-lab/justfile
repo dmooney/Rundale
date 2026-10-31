@@ -1,0 +1,49 @@
+# NPC dialogue prompt lab recipes. Run from the repository root:
+#     just -f promptfoo/prompt-lab/justfile <recipe>
+# Needs GEMINI_API_KEY (or GOOGLE_API_KEY) for Gemini, the `claude` CLI for the
+# Claude judge and rewriter, and the `codex` CLI for the GPT judge (without it,
+# OPENAI_API_KEY and a billed API judge that counts against the cap).
+
+LAB := justfile_directory()
+PF := justfile_directory() / ".."
+
+default:
+    @just --justfile {{ justfile() }} --list
+
+# Offline unit tests (no model calls).
+test:
+    python3 {{ LAB }}/test_lab.py
+
+# Print the exact request a case produces: `just render brief t04-route-connollys`.
+render variant case:
+    python3 {{ LAB }}/lab.py render {{ variant }} {{ case }} --pretty
+
+# Rough model cost of one round.
+estimate variant="brief":
+    python3 {{ LAB }}/lab.py estimate {{ variant }}
+
+# Run, or resume, the automated research loop: `just loop run=2026-11-01-brief`.
+loop run="" start="brief":
+    python3 {{ LAB }}/lab.py loop --start {{ start }} {{ if run != "" { "--run " + run } else { "" } }}
+
+# Plumbing check with the OpenAI stand-in: the starting prompt and one rewrite on three cases, then held-out and report.
+smoke run="smoke-stand-in":
+    python3 {{ LAB }}/lab.py loop --run {{ run }} --stand-in --max-rounds 1 --cases t04-route-connollys t07-father-murphy t09-telephone
+    python3 {{ LAB }}/lab.py heldout {{ run }}
+    python3 {{ LAB }}/lab.py report {{ run }}
+
+# Owner review: the best prompt and the baseline on the held-out set.
+heldout run:
+    python3 {{ LAB }}/lab.py heldout {{ run }}
+
+# Write-up for docs/test-plans/results/.
+report run out:
+    python3 {{ LAB }}/lab.py report {{ run }} --write {{ out }}
+
+# B7 without the anachronism flag (§6.1.3).
+noflag:
+    python3 {{ LAB }}/lab.py round brief-noflag --tags B7
+
+# The suite in promptfoo (viewer, one-off comparisons): `just eval split=heldout`.
+eval split="train" tags="":
+    cd {{ LAB }} && LAB_SPLIT={{ split }} LAB_TAGS={{ tags }} PROMPTFOO_PYTHON=python3 {{ PF }}/node_modules/.bin/promptfoo eval -c promptfooconfig.yaml --no-cache -o output/promptfoo-{{ split }}.json

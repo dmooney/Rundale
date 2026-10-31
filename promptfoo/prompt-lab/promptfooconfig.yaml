@@ -1,0 +1,31 @@
+# NPC dialogue prompt lab (docs/design/npc-dialogue-prompt.md §6, issue 2294).
+# Separate from the rundale-bench leaderboard: it calls models directly and is
+# not the game. Run through the justfile (`just -f promptfoo/prompt-lab/justfile eval`),
+# which sets LAB_SPLIT / LAB_TAGS; the research loop is `lab.py loop`.
+description: Rundale NPC dialogue prompt lab
+
+prompts:
+  - id: baseline
+    raw: baseline
+  - id: brief
+    raw: brief
+
+providers:
+  - id: file://promptfoo_hooks.py
+    label: gemini-3.5-flash-lite
+    config:
+      model: production
+  - id: file://promptfoo_hooks.py
+    label: gemini-3.5-flash
+    config:
+      model: stronger
+
+tests: file://promptfoo_hooks.py:tests
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://promptfoo_hooks.py:assert_reply
+
+evaluateOptions:
+  maxConcurrency: 4

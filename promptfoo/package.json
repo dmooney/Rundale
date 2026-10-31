@@ -9,7 +9,7 @@
   "scripts": {
     "manifest": "python3 scripts/pin_manifest.py",
     "report": "python3 scripts/report.py output",
-    "test": "python3 scripts/test_v2.py",
+    "test": "python3 scripts/test_v2.py && python3 prompt-lab/test_lab.py",
     "test:keyless": "python3 scripts/test_keyless_e2e.py"
   },
   "devDependencies": {
