@@ -259,9 +259,9 @@ jobs:
         id: gate
         if: steps.recorded.outputs.run == 'true'
         env:
-          # Sized for the hosted runner: six simulator clones outran the
-          # command limit there (#2276).
-          RUNDALE_PARALLEL_WORKERS: "2"
+          # The simulator suites run with one worker here: parallel clones
+          # outran the command limit (#2276) and then flaked a different test
+          # every night (#2301). verify.py refuses more on a hosted runner.
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
         # Tests whose result depends on machine speed run only in local runs
         # (verify.py TIME_SENSITIVE_TESTS).

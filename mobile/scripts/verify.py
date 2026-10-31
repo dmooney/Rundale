@@ -35,17 +35,13 @@ STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
 # phase's UI tests are split over several classes (sharing one base class).
 PHASE2_UI_CLASSES = (
     "RundaleUITests/RundalePhase2UITests",
-    "RundaleUITests/RundalePhase2DialogueUITests",
-    "RundaleUITests/RundalePhase2RecoveryUITests",
 )
 PHASE3_UI_CLASSES = (
     "RundaleUITests/RundalePhase3UITests",
-    "RundaleUITests/RundalePhase3ClarificationUITests",
 )
 PHASE4_UI_CLASSES = (
     "RundaleUITests/RundalePhase4UITests",
     "RundaleUITests/RundalePhase4RecoveryUITests",
-    "RundaleUITests/RundalePhase4NetworkUITests",
     "RundaleUITests/RundalePhase4AccessibilityUITests",
 )
 # The hosted pull-request gate (--smoke) runs these core-loop UI tests in place
@@ -59,29 +55,15 @@ SMOKE_UI_TESTS = (
     "RundaleUITests/RundalePhase3UITests/testPlaceNameTravelWithoutEndpointInference",
     "RundaleUITests/RundalePhase4UITests/testDraftAndCommittedTravelSurviveBackgroundAndTermination",
 )
-# Tests whose result depends on the machine's speed: real fixture timers, a
-# slow mock Endpoint racing Stop or a background, a wall-clock budget, or rows
-# and layout settling within a polling window. They pass on a developer's Mac
-# and failed on the hosted macos-26 runner (#2292), so hosted CI passes
-# --skip-time-sensitive and they run only in local `just mobile-verify` runs
-# (owner's decision, #2287).
-TIME_SENSITIVE_TESTS = (
-    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksStayVisibleAndCompleteWithoutNext",
-    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticChunksWorkWithNativeMultilineComposer",
-    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticOutputPreservesHistoryAndNewTextReturnsToFinalReply",
-    "RundaleUITests/RundalePhase1TimerAuditUITests/testAutomaticStopRetainsExactPartialBeyondNextTimerTicks",
-    "RundaleUITests/RundalePhase1TimerAuditUITests/testLongFixtureTraversesOldestAndNewestWithinInteractionBudget",
-    "RundaleUITests/RundalePhase1AuditUITests/testPagedHistoryRestoresOlderAnchorAndReturnsToNewestCompletedReply",
-    "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
-    "RundaleTests/TranscriptScrollingTests/testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
-    "RundaleUITests/RundalePhase2DialogueUITests/testPhase2IncrementalChunksUpdateOneDialogueRowBeforeFinal",
-    "RundaleUITests/RundalePhase2RecoveryUITests/testPhase2StopLeavesInterruptedAttemptAndRetryCompletes",
-    "RundaleUITests/RundalePhase4RecoveryUITests/testBackgroundInterruptsStreamAndPreservesNewDraftForRetry",
-    "RundaleUITests/RundalePhase4RecoveryUITests/testTerminationDuringStreamingRecoversOneRequestAndRetriesOnce",
-    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAtSendKeepsOneCommandAndOffersRetry",
-    "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAfterTheReplyCommitsKeepsItWithoutRetry",
-    "RundaleUITests/RundaleUITests/testFollowingNewestStartsAtLatestAndTracksComposerResize",
-)
+# Tests whose result depends on the machine's speed, which hosted CI leaves to
+# local runs with --skip-time-sensitive (#2287). The list is empty on purpose.
+# It grew to 15 entries (#2292) because the hosted simulator suites ran in
+# parallel simulator clones on a small shared VM, where fixed waits raced each
+# other (#2301); hosted runs now use one worker (HOSTED_PARALLEL_WORKERS), and
+# the rules behind most of those tests moved below XCUITest (#2319). Add a test
+# here only with evidence that it still fails when run alone on the hosted
+# runner, and name the issue that will fix it.
+TIME_SENSITIVE_TESTS: tuple[str, ...] = ()
 UI_TEST_BUNDLE = "RundaleUITests"
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
@@ -472,6 +454,24 @@ def _select_simulator(
 # Measured on an 18-core M5 Pro: one combined run of every simulator suite took
 # 448 s with 4 workers and 353 s with 6.
 DEFAULT_PARALLEL_WORKERS = 6
+# GitHub-hosted runners are small shared VMs. Parallel simulator clones there
+# raced the suites' fixed waits and flaked a different test every night (#2301),
+# so a hosted run uses one worker, and asking for more is an error rather than
+# a silent return to parallel testing. Local runs keep DEFAULT_PARALLEL_WORKERS:
+# a developer Mac has the cores for it, and a failure there is not a shared-VM
+# timing race.
+HOSTED_PARALLEL_WORKERS = 1
+
+
+def _hosted_runner() -> bool:
+    """Whether this process runs on a GitHub-hosted runner."""
+
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def _default_parallel_workers() -> int:
+    return HOSTED_PARALLEL_WORKERS if _hosted_runner() else DEFAULT_PARALLEL_WORKERS
+
 # Longest "Suite.test: message" line summary.txt prints per failed test; CI
 # prints summary.txt to its log, and verify.json keeps the full message.
 FAILURE_MESSAGE_CHARS = 400
@@ -900,10 +900,16 @@ class VerificationRun:
         self.development_team = development_team or os.environ.get("RUNDALE_IOS_DEVELOPMENT_TEAM")
         self.timeout = command_timeout_seconds
         self.parallel_workers = (
-            DEFAULT_PARALLEL_WORKERS if parallel_workers is None else parallel_workers
+            _default_parallel_workers() if parallel_workers is None else parallel_workers
         )
         if self.parallel_workers < 1:
             raise ValueError("--parallel-workers must be at least 1")
+        if _hosted_runner() and self.parallel_workers > HOSTED_PARALLEL_WORKERS:
+            raise ValueError(
+                f"hosted runners run the simulator suites with {HOSTED_PARALLEL_WORKERS} worker, "
+                f"not {self.parallel_workers}: parallel simulator clones flaked the nightly "
+                "gate (#2301). Unset RUNDALE_PARALLEL_WORKERS / --parallel-workers."
+            )
         self.runner = command_runner or SubprocessCommandRunner()
         self.records: list[dict[str, Any]] = []
         self.results: dict[str, CommandResult] = {}
@@ -2027,17 +2033,20 @@ class VerificationRun:
         if self.soak and is_physical:
             command.append("-test-timeouts-enabled")
             command.append("NO")
-        if destination is not None and not is_physical and self.parallel_workers > 1:
-            # Simulator suites clone the destination simulator per worker.
-            # Every UI test launches the app with its own launch arguments and
-            # a fresh app container, so classes share no state. One worker
-            # keeps the run serial.
-            command += [
-                "-parallel-testing-enabled",
-                "YES",
-                "-parallel-testing-worker-count",
-                str(self.parallel_workers),
-            ]
+        if destination is not None and not is_physical:
+            if self.parallel_workers > 1:
+                # Simulator suites clone the destination simulator per worker.
+                # Every UI test launches the app with its own launch arguments
+                # and a fresh app container, so classes share no state.
+                command += [
+                    "-parallel-testing-enabled",
+                    "YES",
+                    "-parallel-testing-worker-count",
+                    str(self.parallel_workers),
+                ]
+            else:
+                # Say so rather than rely on the scheme: one worker is serial.
+                command += ["-parallel-testing-enabled", "NO"]
         command += ["-derivedDataPath", derived, "-resultBundlePath", bundle]
         command += (
             ["CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "build"]
@@ -2924,8 +2933,8 @@ class VerificationRun:
             name=name,
             only_testing=[
                 *PHASE2_UI_CLASSES,
-                "RundaleUITests/RundaleSceneUITests",
                 "RundaleUITests/RundaleCommandsUITests",
+                "RundaleTests/EngineScenarioTests",
                 "RundaleTests/RundaleEngineLifecycleTests",
                 "RundaleTests/RundaleBugReportTests",
             ],
@@ -3835,11 +3844,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=_worker_count,
         # A string default goes through `type`, so a bad environment value is
         # reported as a usage error rather than a traceback.
-        default=os.environ.get("RUNDALE_PARALLEL_WORKERS", str(DEFAULT_PARALLEL_WORKERS)),
+        default=os.environ.get("RUNDALE_PARALLEL_WORKERS", str(_default_parallel_workers())),
         metavar="N",
         help=(
             "simulator test workers (cloned simulators); 1 runs serially "
-            f"(default {DEFAULT_PARALLEL_WORKERS}, or RUNDALE_PARALLEL_WORKERS)"
+            f"(default {DEFAULT_PARALLEL_WORKERS}, or {HOSTED_PARALLEL_WORKERS} on a "
+            "GitHub-hosted runner, where more is an error; or RUNDALE_PARALLEL_WORKERS)"
         ),
     )
     parser.add_argument(
@@ -3877,6 +3887,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.skip_time_sensitive and (args.fast or args.phase not in {None, 4} or args.device):
         parser.error(
             "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+        )
+    if _hosted_runner() and args.parallel_workers > HOSTED_PARALLEL_WORKERS:
+        parser.error(
+            f"a hosted runner runs the simulator suites with {HOSTED_PARALLEL_WORKERS} worker, "
+            f"not {args.parallel_workers} (#2301); unset RUNDALE_PARALLEL_WORKERS"
         )
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(

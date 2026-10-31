@@ -836,7 +836,8 @@ jobs:
       - name: Run the mobile-verify gate
         if: steps.recorded.outputs.run == 'true'
         env:
-          RUNDALE_PARALLEL_WORKERS: "2"
+          # One simulator worker: parallel clones flaked this runner (#2301),
+          # and verify.py refuses more on a hosted runner.
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
           GATE_ARGS: ${{ steps.recorded.outputs.args }}
         # GATE_ARGS is `--smoke` or `--phase all`.
