@@ -108,6 +108,12 @@ class ContentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             content.cases("all")
 
+    def test_case_weather_is_a_value_the_engine_emits(self):
+        # limerick-types `Weather` Display strings.
+        emitted = {"Clear", "Partly Cloudy", "Overcast", "Light Rain", "Heavy Rain", "Fog", "Storm"}
+        for case in content.all_cases():
+            self.assertIn(case.weather, emitted, case.id)
+
     def test_part_of_day_mirrors_the_engine(self):
         cases = {
             "05:00": "Dawn",
@@ -247,6 +253,13 @@ class VariantTests(unittest.TestCase):
 
     def test_rewrite_may_not_add_world_facts(self):
         for addition in ("Peig is the eldest.", "Remember Athlone.", "It is 1820."):
+            with self.subTest(addition=addition):
+                proposal = {"instructions": self.start["instructions"] + " " + addition}
+                with self.assertRaises(variant_mod.VariantError):
+                    variant_mod.apply_rewrite(self.start, self.start, proposal, "x")
+
+    def test_rewrite_may_not_name_people_from_the_test_lines(self):
+        for addition in ("There is no Father Murphy.", "Greet Seán kindly."):
             with self.subTest(addition=addition):
                 proposal = {"instructions": self.start["instructions"] + " " + addition}
                 with self.assertRaises(variant_mod.VariantError):
@@ -410,6 +423,30 @@ class LoopTests(unittest.TestCase):
         self.assertFalse(r["judged"], "one judge alone must not score a row")
         self.assertIsNone(r["score"])
 
+    def test_failed_request_is_not_scored_as_the_prompts_miss(self):
+        cfg = research.load_config()["models"]["production"]
+        request = render.render(variant_mod.load_named("brief"), content.cases("train")[0])
+
+        def quota(*_a, **_k):
+            raise RuntimeError("HTTP 429: quota")
+
+        with (
+            mock.patch.dict("os.environ", {"GEMINI_API_KEY": "k"}),
+            mock.patch.object(models, "post_json", quota),
+        ):
+            reply = models.generate(cfg, request)
+        self.assertTrue(reply.transport_failed)
+        row = {"reply": reply.to_json(), "verdicts": {}}
+        research.finish_row(row, ["claude", "gpt"], 20)
+        self.assertFalse(row["judged"])
+        self.assertIsNone(row["score"])
+        bad_json = models.Reply(
+            "m", False, None, "not json", "no valid dialogue", 1, 1, 0.0, 0.1, "STOP"
+        )
+        row = {"reply": bad_json.to_json(), "verdicts": {}}
+        research.finish_row(row, ["claude", "gpt"], 20)
+        self.assertEqual(row["score"], 0.0)
+
     def test_judge_outage_pauses_the_loop_without_counting_the_round(self):
         cfg = research.load_config()
         cfg["research"]["samples_per_case"] = 1
@@ -431,7 +468,7 @@ class LoopTests(unittest.TestCase):
             state = research.run_loop(
                 "o", "brief", stand_in=True, case_ids={c.id for c in case}, log=lambda *_: None
             )
-            self.assertIn("judge outage", state["paused"])
+            self.assertIn("outage", state["paused"])
             self.assertIsNone(state["stopped"])
             self.assertIsNone(state["baseline"])
             self.assertEqual(state["rounds"], [])

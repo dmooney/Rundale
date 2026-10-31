@@ -33,8 +33,9 @@ class SpendCapReached(RuntimeError):
     pass
 
 
-class JudgeOutage(RuntimeError):
-    """Too many replies lack a judge: the round is not comparable with others."""
+class Outage(RuntimeError):
+    """Too many rows failed to complete (a request or a judge): the round is not
+    comparable with others, so it is discarded rather than scored."""
 
 
 def load_config() -> dict:
@@ -140,18 +141,18 @@ def score_round(
 
     summary = summarise(rows, ledger, stand_in=stand_in)
     summary["variant"] = variant if isinstance(variant, str) else variant["name"]
-    valid = sum(1 for r in rows if r["reply"]["ok"])
     missing = summary["unjudged"]
-    summary["judge_outage"] = bool(valid) and missing / valid > research["max_unjudged_fraction"]
+    summary["outage"] = bool(rows) and missing / len(rows) > research["max_unjudged_fraction"]
     with (out_dir / "rows.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
     (out_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    if summary["judge_outage"]:
-        raise JudgeOutage(
-            f"{missing} of {valid} replies lack a judge in {out_dir.name}; see its rows.jsonl"
+    if summary["outage"]:
+        raise Outage(
+            f"{missing} of {len(rows)} rows in {out_dir.name} lack a completed request or a"
+            " judge; see its rows.jsonl"
         )
     return summary
 
@@ -162,7 +163,11 @@ def finish_row(row: dict, judge_names: list[str], gap_flag: float) -> None:
     A row one judge missed is left out rather than scored by the other alone,
     so every score in every round is the same two-judge mean (§6.4).
     """
+    if row["reply"].get("transport_failed"):
+        row.update(score=None, judged=False, gap=None, flagged=True, note="request failed")
+        return
     if not row["reply"]["ok"]:
+        # A completed response that is not output-schema JSON is the model's miss.
         row.update(score=0.0, judged=True, gap=None, flagged=False, note="no valid reply")
         return
     missing = [j for j in judge_names if not row["verdicts"].get(j, {}).get("ok")]
@@ -194,7 +199,10 @@ def summarise(rows: list[dict], ledger: Ledger, *, stand_in: bool) -> dict:
         "score": statistics.fmean(r["score"] for r in judged) if judged else 0.0,
         "replies": len(rows),
         "judged": len(judged),
-        "failed_replies": sum(1 for r in rows if not r["reply"]["ok"]),
+        "failed_replies": sum(
+            1 for r in rows if not r["reply"]["ok"] and not r["reply"].get("transport_failed")
+        ),
+        "failed_requests": sum(1 for r in rows if r["reply"].get("transport_failed")),
         "unjudged": sum(1 for r in rows if not r["judged"]),
         "flagged": [
             {"case": r["case"], "model": r["model"], "gap": r["gap"], "note": r.get("note")}
@@ -445,9 +453,9 @@ def run_loop(
             )
     except SpendCapReached as err:
         state["stopped"] = str(err)
-    except JudgeOutage as err:
+    except Outage as err:
         # Not a stop: the round is discarded and resuming the run reruns it.
-        state["paused"] = f"judge outage: {err}; resume when both judges answer"
+        state["paused"] = f"outage: {err}; resume when the model and both judges answer"
         log(state["paused"])
     finally:
         # Persist metered spend even on an interrupt or a rewriter failure.
@@ -461,7 +469,7 @@ def run_loop(
     if state.get("stopped"):
         state.pop("paused", None)
         _save(run_dir, state)
-    log(f"stopped: {state['stopped']}")
+        log(f"stopped: {state['stopped']}")
     return state
 
 

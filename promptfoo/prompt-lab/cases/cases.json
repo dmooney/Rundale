@@ -166,7 +166,7 @@
       "location": "Connolly Cottage",
       "clock": "20:00",
       "present": ["micheal"],
-      "weather": "Rain",
+      "weather": "Light Rain",
       "conversation": [],
       "player_line": "Can I sleep here tonight?",
       "expect": "Evening, rain, a one-room cottage. Rural hospitality may stretch to a place by the fire for the night, perhaps after a look at her brother; it cannot stretch to a bed or room they do not have. Fits the wet night."
@@ -359,7 +359,7 @@
       "location": "Letter Office",
       "clock": "19:30",
       "present": [],
-      "weather": "Rain",
+      "weather": "Light Rain",
       "conversation": [],
       "player_line": "I'm Máire. I've walked from Athlone and I need a bed for the night.",
       "expect": "Acknowledges Máire, the walk from Athlone, and the need for a bed, on a wet evening. Peig sleeps in the room behind the counter: she has no spare bed. At most the fireside, or an honest no. No invented inn."

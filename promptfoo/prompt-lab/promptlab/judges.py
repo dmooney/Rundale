@@ -81,9 +81,10 @@ def ask(cfg: dict, prompt: str) -> tuple[str, float]:
     raise ValueError(f"unknown judge kind {kind!r}")
 
 
-def _isolated_dir() -> str:
-    # Run CLIs outside the repository so no project instructions load.
-    return tempfile.mkdtemp(prefix="prompt-lab-cli-")
+def _isolated_dir() -> tempfile.TemporaryDirectory:
+    # Run CLIs outside the repository so no project instructions load. User-level
+    # settings (~/.claude, ~/.codex) still apply.
+    return tempfile.TemporaryDirectory(prefix="prompt-lab-cli-")
 
 
 def _claude(cfg: dict, prompt: str) -> str:
@@ -99,14 +100,15 @@ def _claude(cfg: dict, prompt: str) -> str:
         "--no-session-persistence",
         "--strict-mcp-config",
     ]
-    proc = subprocess.run(
-        cmd,
-        input=prompt,
-        capture_output=True,
-        text=True,
-        timeout=CLI_TIMEOUT_S,
-        cwd=_isolated_dir(),
-    )
+    with _isolated_dir() as workdir:
+        proc = subprocess.run(
+            cmd,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT_S,
+            cwd=workdir,
+        )
     # A billing or rate-limit error arrives as a JSON envelope on stdout with
     # a nonzero exit; parse it before deciding the call failed.
     try:
@@ -121,27 +123,29 @@ def _claude(cfg: dict, prompt: str) -> str:
 
 
 def _codex(cfg: dict, prompt: str) -> str:
-    workdir = _isolated_dir()
-    last = os.path.join(workdir, "last-message.txt")
-    cmd = [
-        "codex",
-        "exec",
-        "--model",
-        cfg["model"],
-        "--skip-git-repo-check",
-        "--sandbox",
-        "read-only",
-        "--output-last-message",
-        last,
-        "-",
-    ]
-    proc = subprocess.run(
-        cmd, input=prompt, capture_output=True, text=True, timeout=CLI_TIMEOUT_S, cwd=workdir
-    )
-    if proc.returncode != 0 or not os.path.exists(last):
-        raise RuntimeError(f"codex exited {proc.returncode}: {(proc.stderr or proc.stdout)[-400:]}")
-    with open(last, encoding="utf-8") as handle:
-        return handle.read()
+    with _isolated_dir() as workdir:
+        last = os.path.join(workdir, "last-message.txt")
+        cmd = [
+            "codex",
+            "exec",
+            "--model",
+            cfg["model"],
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--output-last-message",
+            last,
+            "-",
+        ]
+        proc = subprocess.run(
+            cmd, input=prompt, capture_output=True, text=True, timeout=CLI_TIMEOUT_S, cwd=workdir
+        )
+        if proc.returncode != 0 or not os.path.exists(last):
+            raise RuntimeError(
+                f"codex exited {proc.returncode}: {(proc.stderr or proc.stdout)[-400:]}"
+            )
+        with open(last, encoding="utf-8") as handle:
+            return handle.read()
 
 
 def _openai(cfg: dict, prompt: str) -> tuple[str, float]:

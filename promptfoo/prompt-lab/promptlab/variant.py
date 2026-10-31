@@ -162,7 +162,15 @@ def fact_vocabulary() -> set[str]:
         _strings([content.characters(), content.village(), content.common_knowledge()])
     )
     words = set(re.findall(r"[\wÁÉÍÓÚáéíóú'’-]+", text))
-    return {w for w in words if w[0].isupper() and w.lower() not in words and w not in _NOT_FACTS}
+    vocab = {w for w in words if w[0].isupper() and w.lower() not in words and w not in _NOT_FACTS}
+    # Names in the cases count too: a rewrite naming a test line's person
+    # ("there is no Father Murphy") is tailoring, not a better brief. Only
+    # mid-sentence capitals are taken, so sentence openers are not names.
+    case_text = "\n".join(t for c in content.all_cases() for t in (c.player_line, c.expect))
+    for name in re.findall(r"(?<=[\w,;] )[A-ZÁÉÍÓÚ][\wáéíóú'’-]+", case_text):
+        if name.lower() not in words and name not in _NOT_FACTS:
+            vocab.add(name)
+    return vocab
 
 
 def fact_guard(start: dict, candidate: dict) -> list[str]:

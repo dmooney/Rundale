@@ -11,18 +11,18 @@ rundale-bench leaderboard in the parent directory.
 
 ## What is here
 
-| Path                            | What it holds                                                                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `content/common-knowledge.json` | §4.1 common knowledge as fact-checked, plus each character's shaded note (§8 question 2)                                                    |
-| `content/characters.json`       | §4.2 character content from `mods/rundale/npcs.json` and three to five hand-written backstory lines each                                    |
-| `content/village.json`          | §4.3 places, looks, stories, ways, people and the feast calendar                                                                            |
-| `cases/cases.json`              | 20 training and 8 held-out moments, each tagged with the requirements it tests and an expectation only the judges see                       |
-| `prompts/brief/`                | the starting brief (§6.1.2): actor-style instructions, JSON layout, shared common knowledge                                                 |
-| `prompts/brief-noflag/`         | the brief without the anachronism flag (§6.1.3), for the B7 cases                                                                           |
-| `promptlab/render.py`           | renders the v1 baseline (the Endpoint's v1 instructions with the v1 input the engine builds) and the brief, in the production request shape |
-| `promptlab/research.py`         | the loop, the held-out review and the write-up                                                                                              |
-| `config.json`                   | models, prices, judges, stop rules and the spend cap                                                                                        |
-| `promptfooconfig.yaml`          | the same suite as a promptfoo eval, for the viewer and one-off comparisons                                                                  |
+| Path                            | What it holds                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content/common-knowledge.json` | §4.1 common knowledge as fact-checked, plus each character's shaded note (§8 question 2)                                                                                                          |
+| `content/characters.json`       | §4.2 character content from `mods/rundale/npcs.json` and three to five hand-written backstory lines each                                                                                          |
+| `content/village.json`          | §4.3 places, looks, stories, ways, people and the feast calendar                                                                                                                                  |
+| `cases/cases.json`              | 20 training and 8 held-out moments, each tagged with the requirements it tests and an expectation only the judges see                                                                             |
+| `prompts/brief/`                | the starting brief (§6.1.2): actor-style instructions, JSON layout, shared common knowledge                                                                                                       |
+| `prompts/brief-noflag/`         | the brief without the anachronism flag (§6.1.3), for the B7 cases                                                                                                                                 |
+| `promptlab/render.py`           | renders the v1 baseline (the Endpoint's v1 instructions with a reconstruction of the v1 input the engine builds, using its weather and time words) and the brief, in the production request shape |
+| `promptlab/research.py`         | the loop, the held-out review and the write-up                                                                                                                                                    |
+| `config.json`                   | models, prices, judges, stop rules and the spend cap                                                                                                                                              |
+| `promptfooconfig.yaml`          | the same suite as a promptfoo eval, for the viewer and one-off comparisons                                                                                                                        |
 
 Every request has the production shape (§5): the instructions as the system
 instruction, one user part `Endpoint input values:\n<compact JSON>`, and the
@@ -55,11 +55,13 @@ just -f promptfoo/prompt-lab/justfile report <run> docs/test-plans/results/<date
 3. Two judges from other families score each reply 0 to 100 against the
    requirements its case is tagged with: Claude Sonnet through the `claude`
    CLI and a GPT model through the `codex` CLI. The row score is their mean;
-   a split over 20 points is flagged. A row only one judge scored is left out,
-   never scored by the other alone, so every round measures the same thing; if
-   more than 5% of a round's replies lack a judge (a subscription limit, say),
-   the round is discarded and the run pauses, and resuming reruns it. A reply that is not valid output-schema
-   JSON scores 0. Judges score against the true world (`judge_reference`), not
+   a split over 20 points is flagged. A completed response that is not valid
+   output-schema JSON scores 0, as the model's miss. A row whose request failed
+   (an HTTP error after retries, a timeout) or that only one judge scored is
+   left out, never scored, so every round measures the same thing. If more than
+   5% of a round's rows are left out (a quota or a subscription limit, say), the
+   round is discarded and the run pauses; resuming scores that round again,
+   with a fresh rewrite after round 0. Judges score against the true world (`judge_reference`), not
    the prompt the model saw, so a prompt that leaves a fact out is marked down.
 4. The rewriter (Claude Opus through the `claude` CLI) reads the best prompt so
    far, the scores by requirement, the weakest replies with the judges' notes,

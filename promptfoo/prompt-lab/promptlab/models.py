@@ -32,6 +32,9 @@ class Reply:
     cost_usd: float
     latency_s: float
     finish: str | None
+    # The request never completed (HTTP error after retries, timeout): an
+    # outage, not a judgement on the prompt, so it is never scored.
+    transport_failed: bool = False
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -165,7 +168,7 @@ def generate(cfg: dict, request: Request) -> Reply:
         text, tin, tout, finish = call(cfg, request)
     except ModelConfigError:
         raise
-    except Exception as err:  # recorded as a failed reply, scored 0
+    except Exception as err:
         return Reply(
             cfg["model"],
             False,
@@ -177,6 +180,7 @@ def generate(cfg: dict, request: Request) -> Reply:
             0.0,
             time.monotonic() - started,
             None,
+            transport_failed=True,
         )
     dialogue = _dialogue(text)
     finish_ok = finish in (None, "STOP", "stop")

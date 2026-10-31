@@ -60,7 +60,12 @@ def call_api(prompt, options, context):
 
 
 def assert_reply(output, context):
-    """Mean of the configured judges, 0-100 mapped to 0-1; a split over the gap flag fails."""
+    """Mean of the judges that answered, 0-100 mapped to 0-1.
+
+    For viewing only: a split over the gap flag, or a missing judge, fails the
+    row, but its score may be one judge's. The research loop never scores a
+    row on one judge (research.finish_row).
+    """
     cfg = research.load_config()
     case = _case(context["vars"]["case"])
     verdicts = [

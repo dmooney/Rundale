@@ -30,7 +30,7 @@ class Request:
 
     @property
     def user(self) -> str:
-        # JSON.stringify(values): compact, insertion order, non-ASCII kept.
+        # JSON.stringify(values) of keys the phone sorted: compact, non-ASCII kept.
         return "Endpoint input values:\n" + json.dumps(
             self.values, ensure_ascii=False, separators=(",", ":"), sort_keys=True
         )
@@ -59,9 +59,23 @@ def _place_description(name: str, case: Case) -> str:
     loc = next(loc for loc in world["locations"] if loc["name"] == name)
     return (
         loc["description_template"]
-        .replace("{weather}", case.weather.lower())
-        .replace("{time}", content.part_of_day(case.clock).lower())
+        .replace("{weather}", _weather_display(case.weather))
+        .replace("{time}", _time_display(content.part_of_day(case.clock)))
     )
+
+
+def _weather_display(weather: str) -> str:
+    """Mirror of limerick-world `description::weather_display`."""
+    return {
+        "Partly Cloudy": "partly cloudy",
+        "Light Rain": "rainy",
+        "Heavy Rain": "rain-soaked",
+    }.get(weather, weather.lower())
+
+
+def _time_display(part: str) -> str:
+    """Mirror of limerick-world `description::time_display`."""
+    return "late night" if part == "Midnight" else part.lower()
 
 
 def _grounded_person(key: str) -> dict:
