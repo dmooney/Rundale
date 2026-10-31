@@ -17,9 +17,15 @@ just -f promptfoo/prompt-lab/justfile loop       # the research loop (Gemini key
 
 - **Facts live in `content/`, presentation in `prompts/`.** The loop may only
   rewrite presentation. Do not add facts to a variant's instructions; the fact
-  guard refuses proper nouns and numbers it does not already contain. Copied
-  mod fields are checked against `mods/rundale/` by `test_lab.py`, so a mod
-  change fails the tests until the content is updated.
+  guard refuses proper nouns and numbers it does not already contain. `test_lab.py`
+  checks the copied character sheets (fields, days, homes, relationships) and
+  the village's place names, ways, stories and feast names against
+  `mods/rundale/`, and CI runs it
+  when those mod files or the requirements doc change, so a mod change fails
+  until the content is updated.
+- **Production sorts the input keys.** Key names, not dict order, decide the
+  order the model reads a brief's sections; `variant.validate` requires the
+  moment and player line to sort last.
 - **Never load held-out cases in the loop or the rewriter prompt.** Use
   `content.cases("train")`; held-out is for `run_heldout` alone.
 - **Cases must put everyone where their day does.** The test checks each

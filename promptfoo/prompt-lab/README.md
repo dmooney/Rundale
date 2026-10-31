@@ -27,8 +27,18 @@ rundale-bench leaderboard in the parent directory.
 Every request has the production shape (§5): the instructions as the system
 instruction, one user part `Endpoint input values:\n<compact JSON>`, and the
 v1 output schema as the response schema, as
-`endpoints/packages/providers/src/google/adapter.ts` sends them. Static content
-comes before the moment so a provider's prompt cache can reuse it.
+`endpoints/packages/providers/src/google/adapter.ts` sends them. The JSON keys
+are sorted at every level, because the phone re-encodes each invocation with
+sorted keys (`mobile/RundaleBridge/Sources/RundaleBridge/LimerickRuntime.swift`,
+`.sortedKeys`) and the Endpoint passes the values through unchanged. So a
+brief's key names decide the order the model reads its sections: they must sort
+the static sections first, then the moment, then the player's line, so a
+provider's prompt cache can reuse the static prefix. If #2299 wants an order
+that alphabetical keys cannot give, the bridge has to stop sorting first.
+
+The brief's values carry only §4 content. A production invocation also carries
+the v1 envelope fields (`contractVersion`, `sessionID`, `attemptID` and so on),
+which the baseline reproduces and the brief leaves to #2299.
 
 ## The loop
 
@@ -45,15 +55,18 @@ just -f promptfoo/prompt-lab/justfile report <run> docs/test-plans/results/<date
 3. Two judges from other families score each reply 0 to 100 against the
    requirements its case is tagged with: Claude Sonnet through the `claude`
    CLI and a GPT model through the `codex` CLI. The row score is their mean;
-   a split over 20 points is flagged. A reply that is not valid output-schema
+   a split over 20 points is flagged. A row only one judge scored is left out,
+   never scored by the other alone, so every round measures the same thing; if
+   more than 5% of a round's replies lack a judge (a subscription limit, say),
+   the round is discarded and the run pauses, and resuming reruns it. A reply that is not valid output-schema
    JSON scores 0. Judges score against the true world (`judge_reference`), not
    the prompt the model saw, so a prompt that leaves a fact out is marked down.
 4. The rewriter (Claude Opus through the `claude` CLI) reads the best prompt so
    far, the scores by requirement, the weakest replies with the judges' notes,
    and every earlier round's change, and proposes a new variant.
 5. It stops after three rounds in a row that each gain under 2 points on the
-   best score before them, at $25 of model spend, or at `max_rounds`. The best
-   prompt is kept, not the last.
+   best score before them, at $25 of model spend less a $2 reserve for the
+   held-out run, or at `max_rounds`. The best prompt is kept, not the last.
 
 The training score is the mean judge score over every training reply on both
 models. Resuming a run continues from its last completed round.
@@ -61,7 +74,8 @@ models. Resuming a run continues from its last completed round.
 **What the loop may change.** A variant holds only presentation: the
 instructions, `layout` (`json` keeps structured values; `prose` renders each
 section as sentences inside the same JSON envelope), `common_knowledge`
-(`shared` or `shaded`), the order of the static sections, the key names, and
+(`shared` or `shaded`), the key names (and with them the order of the static
+sections), and
 the wording of the moment's cues (the stranger, how the character came to
 answer, the anachronism notice). Facts come from `content/` through the
 renderer, so a rewrite cannot change the world. `promptlab/variant.py` also
@@ -78,7 +92,10 @@ for the owner.
 `config.json`; a model without a price is refused. The CLI judges and the
 rewriter run on the owner's subscriptions and are not metered. Without the
 `codex` CLI the GPT judge falls back to the OpenAI API (`gpt-5-mini`), which is
-billed and counted against the cap.
+billed and counted against the cap. Spend is saved after every round and on any
+interrupt. One-off runs (`lab.py round`, `just noflag`, `just eval`) are
+outside a run's ledger: each prints or records its own spend, and the write-up
+reports them separately from the loop's total.
 
 ## The §8 questions
 

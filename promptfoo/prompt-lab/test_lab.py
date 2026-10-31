@@ -35,6 +35,29 @@ class ContentTests(unittest.TestCase):
                 self.assertEqual(char[field], npc[field], f"{key}.{field}")
             self.assertEqual(char["appearance"], npc["brief_description"])
             self.assertEqual(char["knows"], npc["knowledge"])
+            names = {n["id"]: n["name"] for n in npcs.values()}
+            places = {
+                loc["id"]: loc["name"]
+                for loc in json.loads((content.MOD_DIR / "world.json").read_text(encoding="utf-8"))[
+                    "locations"
+                ]
+            }
+            self.assertEqual(char["home"], places[npc["home"]], f"{key}.home")
+            self.assertEqual(char["workplace"], places[npc["workplace"]], f"{key}.workplace")
+            day = [
+                f"{e['start_hour']:02d}:00-{e['end_hour']:02d}:59 {e['activity']} ({places[e['location']]})"
+                for e in npc["seasonal_schedule"][0]["entries"]
+            ]
+            self.assertEqual(char["day"], day, f"{key}.day")
+            rels = [
+                (r["who"], r["feeling"].rsplit("(", 1)[1].rstrip(")"))
+                for r in char["relationships"]
+            ]
+            self.assertEqual(
+                rels,
+                [(names[r["target_id"]], str(r["strength"])) for r in npc["relationships"]],
+                f"{key}.relationships",
+            )
             self.assertTrue(
                 3 <= len(char["backstory"]) <= 5, f"{key} needs three to five backstory lines"
             )
@@ -124,12 +147,22 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(exchange["speaker_name"], "Mícheál Connolly")
 
     def test_brief_static_sections_first_and_player_line_last(self):
-        values = render.render(self.brief, self.case).values
+        request = render.render(self.brief, self.case)
         labels = self.brief["labels"]
-        self.assertEqual(
-            list(values), [labels[s] for s in self.brief["section_order"]] + [labels["player_line"]]
-        )
-        self.assertEqual(values[labels["player_line"]], self.case.player_line)
+        sent = list(json.loads(request.user.split("\n", 1)[1]))
+        self.assertEqual(sent[-2:], [labels["moment"], labels["player_line"]])
+        self.assertEqual(request.values[labels["player_line"]], self.case.player_line)
+
+    def test_keys_are_sorted_as_the_phone_sends_them(self):
+        # mobile/RundaleBridge LimerickRuntime.swift encodes input with .sortedKeys.
+        for v in (render.BASELINE, self.brief):
+            body = render.render(v, self.case).user.split("\n", 1)[1]
+            self.assertEqual(
+                body,
+                json.dumps(
+                    json.loads(body), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+                ),
+            )
 
     def test_static_prefix_is_shared_across_cases_for_one_character(self):
         a, b = (content.cases("train", ids={i})[0] for i in ("t01-greet-peig", "t07-father-murphy"))
@@ -185,9 +218,18 @@ class VariantTests(unittest.TestCase):
                 [],
             )
 
-    def test_moment_must_come_last(self):
+    def test_moment_and_player_line_must_sort_last(self):
+        for key, label in (
+            ("moment", "anHourNow"),
+            ("player_line", "aLine"),
+            ("setting", "zSetting"),
+        ):
+            bad = copy.deepcopy(self.start)
+            bad["labels"][key] = label
+            with self.subTest(key=key), self.assertRaises(variant_mod.VariantError):
+                variant_mod.validate(bad)
         bad = copy.deepcopy(self.start)
-        bad["section_order"] = ["moment", "setting", "village", "character"]
+        bad["labels"]["village"] = "Village"
         with self.assertRaises(variant_mod.VariantError):
             variant_mod.validate(bad)
 
@@ -365,6 +407,35 @@ class LoopTests(unittest.TestCase):
         r = row(claude=80)
         research.finish_row(r, names, 20)
         self.assertTrue(r["flagged"])
+        self.assertFalse(r["judged"], "one judge alone must not score a row")
+        self.assertIsNone(r["score"])
+
+    def test_judge_outage_pauses_the_loop_without_counting_the_round(self):
+        cfg = research.load_config()
+        cfg["research"]["samples_per_case"] = 1
+        case = content.cases("train")[:4]
+        ok = models.Reply("m", True, "Good day.", "{}", None, 10, 5, 0.001, 0.1, "STOP")
+
+        def fake_judge(name, jcfg, c, reply):
+            if name == "gpt":
+                return judges.Verdict(name, False, None, error="usage limit")
+            return judges.Verdict(name, True, 80.0)
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(research, "OUTPUT_DIR", Path(tmp)),
+            mock.patch.object(research, "load_config", return_value=cfg),
+            mock.patch.object(models, "generate", return_value=ok),
+            mock.patch.object(judges, "judge", fake_judge),
+        ):
+            state = research.run_loop(
+                "o", "brief", stand_in=True, case_ids={c.id for c in case}, log=lambda *_: None
+            )
+            self.assertIn("judge outage", state["paused"])
+            self.assertIsNone(state["stopped"])
+            self.assertIsNone(state["baseline"])
+            self.assertEqual(state["rounds"], [])
+            self.assertGreater(state["spend_usd"], 0)
 
     def test_loop_keeps_best_stops_on_plateau_and_never_sees_heldout(self):
         """Drive run_loop with fake generation, judging and rewriting."""

@@ -235,7 +235,7 @@ def judge(name: str, cfg: dict, case: Case, reply: str, attempts: int = 2) -> Ve
 
 REWRITE_TEMPLATE = """You are improving the prompt for NPC dialogue in Rundale, a text adventure set in Kilteevan parish, County Roscommon, in spring 1820. A small production model (Gemini Flash Lite) reads the prompt and plays one village character answering a stranger.
 
-The prompt is a "variant": the instructions text (the system instruction), how the request values are laid out (layout "json" keeps structured values; "prose" renders each section as sentences), whether common knowledge is shaded by the character's station ("shared" or "shaded"), the order of the static sections (the moment always comes last), the key names or headings (labels), and the wording of the present-moment cues. The facts themselves (characters, backstory, village, common knowledge) come from fixed content and are not yours to change.
+The prompt is a "variant": the instructions text (the system instruction), how the request values are laid out (layout "json" keeps structured values; "prose" renders each section as sentences), whether common knowledge is shaded by the character's station ("shared" or "shaded"), the key names or headings (labels; production sends keys sorted alphabetically at every level, so the labels also decide the order the model reads the sections, and the moment then the player line must sort after the static sections), and the wording of the present-moment cues. The facts themselves (characters, backstory, village, common knowledge) come from fixed content and are not yours to change.
 
 You may change: wording, framing, ordering and format. You may not: add, remove or alter facts; put any person, place, date, number or world detail into the instructions; tailor the prompt to the particular test lines below. Every reply is judged against these requirements:
 {requirements}
@@ -256,7 +256,7 @@ EARLIER ROUNDS
 {history}
 
 Make the one change, or small set of related changes, you judge most likely to raise the mean score without hurting other requirements. Prefer general guidance over case-specific patches. Answer with JSON only:
-{{"reasoning": "<what the misses have in common and why your change should fix it>", "variant": {{"instructions": "...", "layout": "json|prose", "common_knowledge": "shared|shaded", "section_order": [...], "labels": {{...}}, "wording": {{...}}}}}}"""
+{{"reasoning": "<what the misses have in common and why your change should fix it>", "variant": {{"instructions": "...", "layout": "json|prose", "common_knowledge": "shared|shaded", "labels": {{...}}, "wording": {{...}}}}}}"""
 
 
 def rewrite_prompt(
@@ -276,7 +276,6 @@ def rewrite_prompt(
             "instructions",
             "layout",
             "common_knowledge",
-            "section_order",
             "labels",
             "wording",
         )

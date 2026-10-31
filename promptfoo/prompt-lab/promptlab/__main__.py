@@ -101,7 +101,7 @@ def cmd_loop(args) -> int:
         max_rounds=args.max_rounds,
     )
     print(
-        f"run {run}: best {state['best']}; stopped: {state['stopped']}; spend ${state['spend_usd']:.4f}"
+        f"run {run}: best {state['best']}; stopped: {state['stopped']}; paused: {state.get('paused')}; spend ${state['spend_usd']:.4f}"
     )
     return 0
 

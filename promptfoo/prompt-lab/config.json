@@ -18,7 +18,7 @@
       "price": {
         "input": 1.5,
         "output": 9.0,
-        "source": "conservative estimate; check Google's price list before trusting totals"
+        "source": "Google Cloud generative AI pricing, global endpoint, standard tier (checked 2026-10-31); confirm against ai.google.dev/gemini-api/docs/pricing"
       }
     }
   },
@@ -59,6 +59,8 @@
     "plateau_rounds": 3,
     "max_rounds": 20,
     "judge_gap_flag": 20,
+    "max_unjudged_fraction": 0.05,
+    "heldout_reserve_usd": 2.0,
     "samples_per_case": 2,
     "concurrency": { "generate": 8, "judge": 4 }
   }

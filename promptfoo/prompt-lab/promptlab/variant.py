@@ -24,11 +24,22 @@ LABEL_KEYS = (*SECTIONS, "player_line")
 WORDING_KEYS = ("stranger", "addressing", "anachronism_flag")
 
 # The loop may change these.
-EDITABLE = ("instructions", "layout", "common_knowledge", "section_order", "labels", "wording")
+EDITABLE = ("instructions", "layout", "common_knowledge", "labels", "wording")
 # Experiment switches set by a person (§6.1.3, §8.3); the loop keeps them.
 LOCKED = ("backstory", "anachronism_flag")
 
-_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9 _'-]{0,40}$")
+# Lower camel case, ASCII letters only, so every JSON encoder sorts them alike.
+_LABEL = re.compile(r"^[a-z][A-Za-z]{0,40}$")
+
+
+def section_order(labels: dict) -> list[str]:
+    """Label keys in the order production sends them.
+
+    The phone re-encodes Endpoint input with sorted keys at every level
+    (mobile/RundaleBridge LimerickRuntime.swift, `.sortedKeys`), so the key
+    names, not the renderer, decide the order the model reads.
+    """
+    return sorted(labels, key=lambda key: labels[key])
 
 
 class VariantError(ValueError):
@@ -58,15 +69,6 @@ def validate(variant: dict) -> None:
     )
     need(isinstance(variant.get("backstory"), bool), "backstory must be a boolean")
     need(isinstance(variant.get("anachronism_flag"), bool), "anachronism_flag must be a boolean")
-    order: Any = variant.get("section_order")
-    need(
-        isinstance(order, list) and sorted(order) == sorted(SECTIONS),
-        f"section_order must order exactly {SECTIONS}",
-    )
-    need(
-        order[-1] == "moment",
-        "the moment comes last: static content first, so provider caching can reuse it (§5)",
-    )
     labels: Any = variant.get("labels")
     need(
         isinstance(labels, dict) and set(labels) == set(LABEL_KEYS),
@@ -77,6 +79,15 @@ def validate(variant: dict) -> None:
         "labels must be short plain names",
     )
     need(len(set(labels.values())) == len(labels), "labels must be distinct")
+    need(
+        sorted(labels.values()) == sorted(labels.values(), key=str.lower),
+        "labels must sort the same with and without case",
+    )
+    need(
+        section_order(labels)[-2:] == ["moment", "player_line"],
+        "the moment and then the player line must sort after every static section:"
+        " static content first, so provider caching can reuse it (§5)",
+    )
     wording: Any = variant.get("wording")
     need(
         isinstance(wording, dict) and set(wording) == set(WORDING_KEYS),

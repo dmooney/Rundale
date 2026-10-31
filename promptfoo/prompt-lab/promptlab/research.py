@@ -33,6 +33,10 @@ class SpendCapReached(RuntimeError):
     pass
 
 
+class JudgeOutage(RuntimeError):
+    """Too many replies lack a judge: the round is not comparable with others."""
+
+
 def load_config() -> dict:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
@@ -136,35 +140,45 @@ def score_round(
 
     summary = summarise(rows, ledger, stand_in=stand_in)
     summary["variant"] = variant if isinstance(variant, str) else variant["name"]
+    valid = sum(1 for r in rows if r["reply"]["ok"])
+    missing = summary["unjudged"]
+    summary["judge_outage"] = bool(valid) and missing / valid > research["max_unjudged_fraction"]
     with (out_dir / "rows.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
     (out_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    if summary["judge_outage"]:
+        raise JudgeOutage(
+            f"{missing} of {valid} replies lack a judge in {out_dir.name}; see its rows.jsonl"
+        )
     return summary
 
 
 def finish_row(row: dict, judge_names: list[str], gap_flag: float) -> None:
-    """Mean of the judges; a failed reply scores 0; a wide split is flagged."""
+    """Mean of every judge, or unjudged; a failed reply scores 0; a wide split is flagged.
+
+    A row one judge missed is left out rather than scored by the other alone,
+    so every score in every round is the same two-judge mean (§6.4).
+    """
     if not row["reply"]["ok"]:
         row.update(score=0.0, judged=True, gap=None, flagged=False, note="no valid reply")
         return
-    scores = [
-        row["verdicts"][j]["score"] for j in judge_names if row["verdicts"].get(j, {}).get("ok")
-    ]
-    if not scores:
+    missing = [j for j in judge_names if not row["verdicts"].get(j, {}).get("ok")]
+    if missing:
         row.update(
-            score=None, judged=False, gap=None, flagged=True, note="no judge returned a score"
+            score=None,
+            judged=False,
+            gap=None,
+            flagged=True,
+            note=f"missing judge: {', '.join(missing)}",
         )
         return
-    gap = max(scores) - min(scores) if len(scores) > 1 else None
+    scores = [row["verdicts"][j]["score"] for j in judge_names]
+    gap = max(scores) - min(scores)
     row.update(
-        score=statistics.fmean(scores),
-        judged=True,
-        gap=gap,
-        flagged=(gap is not None and gap > gap_flag) or len(scores) < len(judge_names),
-        note=None if len(scores) == len(judge_names) else "one judge only",
+        score=statistics.fmean(scores), judged=True, gap=gap, flagged=gap > gap_flag, note=None
     )
 
 
@@ -343,6 +357,7 @@ def run_loop(
     if state.get("stopped"):
         log(f"run already stopped: {state['stopped']}")
         return state
+    state.pop("paused", None)
     ledger = Ledger(research["spend_cap_usd"], state["spend_usd"])
     limit = max_rounds if max_rounds is not None else research["max_rounds"]
 
@@ -378,9 +393,11 @@ def run_loop(
                     f"plateau: {research['plateau_rounds']} rounds in a row each gaining under {research['plateau_points']} points"
                 )
                 break
-            if n and ledger.spent + state["rounds"][-1]["spend_usd"] > ledger.cap:
+            reserve = research["heldout_reserve_usd"]
+            if n and ledger.spent + state["rounds"][-1]["spend_usd"] + reserve > ledger.cap:
                 state["stopped"] = (
-                    f"next round would pass the ${ledger.cap:.2f} cap (spent ${ledger.spent:.2f})"
+                    f"next round would pass the ${ledger.cap:.2f} cap less the ${reserve:.2f}"
+                    f" held-out reserve (spent ${ledger.spent:.2f})"
                 )
                 break
             if n == 0:
@@ -428,13 +445,22 @@ def run_loop(
             )
     except SpendCapReached as err:
         state["stopped"] = str(err)
-    state["spend_usd"] = ledger.spent
-    _save(run_dir, state)
+    except JudgeOutage as err:
+        # Not a stop: the round is discarded and resuming the run reruns it.
+        state["paused"] = f"judge outage: {err}; resume when both judges answer"
+        log(state["paused"])
+    finally:
+        # Persist metered spend even on an interrupt or a rewriter failure.
+        state["spend_usd"] = ledger.spent
+        _save(run_dir, state)
     best = state["best"]
     if best:
         (run_dir / "best-variant.json").write_text(
             (run_dir / best["dir"] / "variant.json").read_text(encoding="utf-8"), encoding="utf-8"
         )
+    if state.get("stopped"):
+        state.pop("paused", None)
+        _save(run_dir, state)
     log(f"stopped: {state['stopped']}")
     return state
 
@@ -453,12 +479,19 @@ def run_heldout(run_id: str, *, log=print) -> dict:
     held = content.cases("heldout")
     best_variant = variant_mod.load(run_dir / state["best"]["dir"] / "variant.json")
     out = run_dir / "heldout"
-    log("held-out: best prompt")
-    best = score_round(best_variant, held, cfg, ledger, out / "best", stand_in=stand_in, log=log)
-    log("held-out: v1 baseline")
-    base = score_round(
-        render.BASELINE, held, cfg, ledger, out / "baseline", stand_in=stand_in, log=log
-    )
+    # The loop stops early enough to leave `heldout_reserve_usd` for this.
+    try:
+        log("held-out: best prompt")
+        best = score_round(
+            best_variant, held, cfg, ledger, out / "best", stand_in=stand_in, log=log
+        )
+        log("held-out: v1 baseline")
+        base = score_round(
+            render.BASELINE, held, cfg, ledger, out / "baseline", stand_in=stand_in, log=log
+        )
+    finally:
+        state["spend_usd"] = ledger.spent
+        _save(run_dir, state)
     state["heldout"] = {
         "best": best["score"],
         "baseline": base["score"],
@@ -513,7 +546,7 @@ def report(run_id: str) -> str:
         ]
     lines += [
         f"- Started: {state['created']} from `{state['start']}`, {len(state['cases'])} training cases",
-        f"- Stopped: {state.get('stopped') or 'still running'}",
+        f"- Stopped: {state.get('stopped') or state.get('paused') or 'still running'}",
         f"- Model spend: ${state['spend_usd']:.2f} of ${state['config']['research']['spend_cap_usd']:.2f}",
         f"- Baseline (v1) training score: {state['baseline']['score']:.1f}"
         if state.get("baseline")

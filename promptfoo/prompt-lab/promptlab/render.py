@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from . import content
 from .content import Case
+from .variant import section_order
 
 BASELINE = "baseline"
 CHAR_IDS = {"peig": 1, "micheal": 2, "roisin": 3}
@@ -31,7 +32,7 @@ class Request:
     def user(self) -> str:
         # JSON.stringify(values): compact, insertion order, non-ASCII kept.
         return "Endpoint input values:\n" + json.dumps(
-            self.values, ensure_ascii=False, separators=(",", ":")
+            self.values, ensure_ascii=False, separators=(",", ":"), sort_keys=True
         )
 
     @property
@@ -275,10 +276,12 @@ def render_brief(variant: dict, case: Case) -> Request:
         "moment": lambda: _moment(variant, case),
     }
     values: dict = {}
-    for section in variant["section_order"]:
+    for section in section_order(labels):
+        if section == "player_line":
+            values[labels[section]] = case.player_line
+            continue
         data, prose = builders[section]()
         values[labels[section]] = data if variant["layout"] == "json" else prose
-    values[labels["player_line"]] = case.player_line
     return Request(variant["instructions"], values, output_schema())
 
 

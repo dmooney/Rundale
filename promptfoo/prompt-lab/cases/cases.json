@@ -132,7 +132,7 @@
       "present": ["roisin"],
       "conversation": [],
       "player_line": "My child has a fever, what should I do?",
-      "expect": "He is a smallholder, not a healer. What his life would teach him (he lost family to the fever) at most; otherwise admit it is beyond him. He must not invent a named doctor, healer or place in the village. Pointing to Roscommon town in general terms is acceptable."
+      "expect": "He is a smallholder, not a healer. What his life would teach him (the hunger and the fever went through his own family; his father died in the hunger of 1817) at most; otherwise admit it is beyond him. He must not invent a named doctor, healer or place in the village. Pointing to Roscommon town in general terms is acceptable."
     },
     {
       "id": "t11-king",
