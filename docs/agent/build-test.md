@@ -58,8 +58,9 @@ Keep the XCUITest set to journeys (launch, a streamed turn, completion, reading
 history, save and restore, accessibility). When you move a rule down, delete the
 XCUITest in the same change and name it in the new test's comment, as
 `EngineScenarioTests` does; never drop coverage. Do not add a test to
-`TIME_SENSITIVE_TESTS` to hide a flake: serial hosted runs are the fix, and a
-test that still fails alone is a bug to fix.
+`TIME_SENSITIVE_TESTS` to hide a flake: serial hosted runs are the fix. Only a
+test that still fails alone on the hosted runner, with that run linked and an
+issue to fix it, belongs there.
 
 `just mobile-verify --fast` runs pinned SwiftLint and SwiftFormat checks and
 the three Swift package suites. Swift builds treat warnings as errors, and each

@@ -403,7 +403,9 @@ final class EngineScenarioTests: XCTestCase {
 }
 
 /// A fail-always Endpoint transport: every request fails as it would with the
-/// network down.
+/// network down. The old UI test used the real client against an unresolvable
+/// host; the client's own failure mapping is tested in `RundaleSessionTests`
+/// (`EndpointFailureClassificationTests`).
 private struct UnreachableTransport: EndpointTransport {
     func open(_ request: URLRequest) -> EndpointByteStream {
         EndpointByteStream(events: AsyncThrowingStream<EndpointTransportEvent, Error> {

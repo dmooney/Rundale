@@ -31,8 +31,9 @@ SKIPPED = "skipped"
 UNAVAILABLE = "unavailable"
 NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
-# Xcode spreads whole test classes across parallel simulator workers, so each
-# phase's UI tests are split over several classes (sharing one base class).
+# Xcode spreads whole test classes across parallel simulator workers on a
+# developer Mac, so a phase's UI tests may be split over classes sharing one
+# base class (most phases now have one or two journeys, #2319).
 PHASE2_UI_CLASSES = ("RundaleUITests/RundalePhase2UITests",)
 PHASE3_UI_CLASSES = ("RundaleUITests/RundalePhase3UITests",)
 PHASE4_UI_CLASSES = (

@@ -37,8 +37,8 @@ out of the view into a value type or the presenter, then `swift test`), an
 engine scenario in `RundaleTests/EngineScenarioTests`, and only layout,
 gestures and the process lifecycle in `RundaleUITests` (#2319). The table is in
 [build-test.md](../docs/agent/build-test.md#which-layer-tests-a-ui-behaviour-2319).
-Delete the XCUITest when you move its rule down; do not add to
-`TIME_SENSITIVE_TESTS`.
+Delete the XCUITest when you move its rule down; add to
+`TIME_SENSITIVE_TESTS` only for a test that fails alone on the hosted runner.
 
 ## Evidence
 
