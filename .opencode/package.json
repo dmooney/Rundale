@@ -10,13 +10,13 @@
     "jsonc-parser": "3.3.1",
     "node-notifier": "11.0.0",
     "unique-names-generator": "4.7.1",
-    "zod": "4.6.6"
+    "zod": "4.6.7"
   },
   "overrides": {
     "node-notifier": {
       "uuid": "11.1.1"
     },
-    "zod": "4.6.6",
+    "zod": "4.6.7",
     "toml": "5.0.1"
   }
 }
