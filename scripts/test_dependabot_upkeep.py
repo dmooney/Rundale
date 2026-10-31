@@ -810,7 +810,7 @@ class SweepAndSummaryTests(UpkeepCase):
         self.make().post_summary("x" * 100_000)
         (cmd,) = self.world.ran("gh", "workflow", "run")
         value = next(a for a in cmd if a.startswith("summary="))[len("summary=") :]
-        self.assertLessEqual(len(value), upkeep.SUMMARY_DISPATCH_LIMIT)
+        self.assertLessEqual(len(value), int(upkeep.SUMMARY_DISPATCH_LIMIT * 0.9))
         self.assertTrue(value.endswith("chars]"))
 
     def test_failed_dispatch_falls_back_to_a_direct_comment_and_logs_it(self) -> None:
