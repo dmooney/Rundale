@@ -48,7 +48,9 @@ jobs:
       # mean "run".
       runtime: ${{ steps.filter.outputs.runtime == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       differential: ${{ steps.filter.outputs.differential == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
-      promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
+      # The prompt lab parses its requirements table from a design doc, so a
+      # change to that doc is not docs-only for this lane.
+      promptfoo: ${{ steps.filter.outputs.promptfoo == 'false' && 'false' || (steps.nondoc.outputs.nondoc == 'false' && steps.filter.outputs.prompt_lab_docs != 'true') && 'false' || 'true' }}
       bench_site: ${{ steps.filter.outputs.bench_site == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       swift: ${{ steps.filter.outputs.swift == 'false' && 'false' || steps.nondoc.outputs.nondoc == 'false' && 'false' || 'true' }}
       # The golden frames are Markdown, so a change to them is not docs-only.
@@ -103,6 +105,14 @@ jobs:
             promptfoo:
               - 'promptfoo/**'
               - '.github/workflows/ci.yml'
+              # Copied or read by promptfoo/prompt-lab, whose tests check them.
+              - 'mods/rundale/npcs.json'
+              - 'mods/rundale/world.json'
+              - 'mods/rundale/festivals.json'
+              - 'mods/rundale/endpoints/rundale-dialogue.v1.json'
+              - 'docs/design/npc-dialogue-prompt.md'
+            prompt_lab_docs:
+              - 'docs/design/npc-dialogue-prompt.md'
             bench_site:
               - 'promptfoo/bench-site/**'
               - 'promptfoo/leaderboard/**'
