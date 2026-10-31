@@ -85,7 +85,9 @@ final class FixtureRuleTests: XCTestCase {
         let presenter = await presenter()
         let command = "look around\ncheck the road\nwait by the gate"
         await send(command, on: presenter)
-        XCTAssertEqual(presenter.draft, "")
+        // The command row can show a moment before acceptance clears the draft.
+        await waitUntil { presenter.draft.isEmpty }
+        await waitUntil { presenter.isFollowingNewest }
         XCTAssertNotNil(label(presenter, containing: "Player command. \(command)"))
         XCTAssertTrue(presenter.isFollowingNewest, "an accepted row is shown at the newest end")
 
