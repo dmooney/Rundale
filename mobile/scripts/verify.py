@@ -3863,6 +3863,15 @@ class VerificationRun:
                 f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
                 "(details.cache in the JSON report; --no-cache reruns them)"
             )
+        slowest = sorted(
+            (r for r in self.records if (r.get("duration_seconds") or 0) >= 5),
+            key=lambda r: -r["duration_seconds"],
+        )[:8]
+        if slowest:
+            lines.append(
+                "Slowest suites: "
+                + ", ".join(f"{r['id']} {r['duration_seconds']:.0f}s" for r in slowest)
+            )
         if self._evidence_written:
             lines += [
                 "",
