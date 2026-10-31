@@ -23,6 +23,13 @@ against the diff.
   request. Only the body counts; comments are ignored, so a third party cannot
   satisfy the gate.
 
+Both modes diff against `AGENT_CHECK_BASE_REF` when it is set. Otherwise PR mode
+compares against the PR's own base branch, so a PR stacked on another PR's
+branch is judged on its own files, and local mode compares against
+`origin/main`. If PR mode cannot read the base, it falls back to `origin/main`,
+which can only require more evidence. Changing a PR's base does not re-run the
+job either; re-run it or push a commit after retargeting.
+
 The job reads the body when it runs, and `pull_request` runs on `opened`,
 `synchronize`, and `reopened`, not on body edits. Publish the page and link it
 before opening the PR, or re-run the job (or push a commit) after adding it.
