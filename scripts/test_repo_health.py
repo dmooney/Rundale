@@ -385,6 +385,12 @@ class SummaryTests(unittest.TestCase):
         self.assertIn("tracked by issue 5", summary.body)
         self.assertIn("Watcher errors", summary.body)
 
+    def test_a_tracked_red_workflow_alone_is_a_problem_that_mentions_the_owner(self) -> None:
+        summary = self.summary(tracked=[("testflight.yml", 5)])
+        self.assertTrue(summary.needs_owner)
+        self.assertNotIn("All clear.", summary.body)
+        self.assertIn("tracked by issue 5", summary.body.split("### ")[0])
+
     def test_a_tracked_workflow_is_not_also_counted_as_red(self) -> None:
         red = rh.WorkflowState("testflight.yml", "TF", "red", run(3, "failure", 5), ago(5))
         other = rh.WorkflowState("ci.yml", "CI", "red", run(4, "failure", 5), ago(5))
@@ -668,6 +674,54 @@ class PartialFailureTests(unittest.TestCase):
         self.assertEqual(rh.run(client, NOW, False, lambda _m: None), 1)
         creates = [w for w in client.writes if w[0] == "create"]
         self.assertIn("CI red on main: CI (ci.yml)", [c[1] for c in creates])
+
+
+class EventVerdictTests(unittest.TestCase):
+    def state(self, runs: Any) -> Any:
+        (state,) = rh.classify_workflows([wf(1, "testflight.yml")], {1: runs}, {"testflight.yml"})
+        return state
+
+    def test_a_passing_schedule_does_not_hide_a_failed_push(self) -> None:
+        state = self.state([run(2, "success", 1, event="schedule"), run(1, "failure", 5)])
+        self.assertEqual((state.status, state.run["id"]), ("red", 1))
+
+    def test_a_passing_push_does_not_hide_a_failed_schedule(self) -> None:
+        state = self.state([run(2, "success", 1), run(1, "failure", 5, event="schedule")])
+        self.assertEqual((state.status, state.run["id"]), ("red", 1))
+
+    def test_green_only_when_every_event_passed(self) -> None:
+        state = self.state([run(2, "success", 1), run(1, "success", 5, event="schedule")])
+        self.assertEqual(state.status, "green")
+
+    def test_a_failure_the_managed_issue_does_not_cover_is_preferred(self) -> None:
+        state = self.state([run(2, "failure", 1, event="schedule"), run(1, "failure", 9)])
+        self.assertEqual(state.run["event"], "push")
+
+
+class GatekeeperReviewTests(unittest.TestCase):
+    def test_a_blocked_marker_is_not_a_review(self) -> None:
+        blocked = pr(1, comments={"nodes": [marker("blocked", 10)]})
+        self.assertEqual(len(rh.analyze_prs([blocked], NOW).unreviewed), 1)
+        body = marker("blocked", 10)["body"]
+        review = {
+            "author": {"login": "o"},
+            "body": body,
+            "submittedAt": ago(10),
+            "state": "COMMENTED",
+            "commit": {"oid": "ab12cd34"},
+        }
+        report = rh.analyze_prs([pr(1, reviews={"nodes": [review]})], NOW)
+        self.assertEqual(len(report.unreviewed), 1)
+
+
+class HealthIssueTests(unittest.TestCase):
+    def test_only_the_labelled_issue_receives_the_summary(self) -> None:
+        quoting = issue(50, "discussion", rh.HEALTH_MARKER)
+        real = issue(40, "Repo health", rh.HEALTH_MARKER, ("repo-health",))
+        client = FakeClient(issues=[quoting, real])
+        rh.run(client, NOW, False, lambda _m: None)
+        posted = {w[1] for w in client.writes if w[0] == "comment"}
+        self.assertEqual(posted, {40})
 
 
 if __name__ == "__main__":

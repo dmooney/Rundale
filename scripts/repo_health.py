@@ -160,22 +160,39 @@ def classify_workflows(
             and run.get("status") == "completed"
             and (run.get("conclusion") == "success" or run.get("conclusion") in RED_CONCLUSIONS)
         ]
-        verdicts.sort(key=lambda run: run["created_at"], reverse=True)
-        if not verdicts:
-            states.append(WorkflowState(file, wf["name"], "unknown", None))
-        else:
-            run = verdicts[0]
-            status = "green" if run["conclusion"] == "success" else "red"
-            streak = []
-            for older in verdicts:
-                if older["conclusion"] == "success":
-                    break
-                streak.append(older)
-            states.append(
-                WorkflowState(
-                    file, wf["name"], status, run, streak[-1]["created_at"] if streak else ""
-                )
+        # One verdict per event: a workflow that splits its jobs by event (TestFlight's
+        # push upload and scheduled gate) must not have one event's pass hide or close
+        # the other's failure.
+        latest: list[dict[str, Any]] = []
+        for event in VERDICT_EVENTS:
+            of_event = sorted(
+                (r for r in verdicts if r["event"] == event),
+                key=lambda r: r["created_at"],
+                reverse=True,
             )
+            if of_event:
+                latest.append(of_event[0])
+        if not latest:
+            states.append(WorkflowState(file, wf["name"], "unknown", None))
+            continue
+        reds = [r for r in latest if r["conclusion"] != "success"]
+        if not reds:
+            newest = max(latest, key=lambda r: r["created_at"])
+            states.append(WorkflowState(file, wf["name"], "green", newest))
+            continue
+        # Prefer a failure the workflow's own managed issue does not already cover.
+        managed_event = MANAGED_ISSUES.get(file, ("", ""))[1]
+        run = max(reds, key=lambda r: (r["event"] != managed_event, r["created_at"]))
+        streak = []
+        for older in sorted(
+            (r for r in verdicts if r["event"] == run["event"]),
+            key=lambda r: r["created_at"],
+            reverse=True,
+        ):
+            if older["conclusion"] == "success":
+                break
+            streak.append(older)
+        states.append(WorkflowState(file, wf["name"], "red", run, streak[-1]["created_at"]))
     return states
 
 
@@ -210,7 +227,7 @@ def render_ci_red_body(
         *(f"  {line}" for line in (failing_jobs(jobs) or ["- (job details unavailable)"])),
         "",
         "Opened by the repo health watcher ([`scripts/repo_health.py`]"
-        "(../blob/main/scripts/repo_health.py)). It updates this description as the failing "
+        "(https://github.com/dmooney/Rundale/blob/main/scripts/repo_health.py)). It updates this description as the failing "
         f"run changes and closes the issue when the workflow passes on {span(branch)}. Fix the cause "
         "and close the process gap that let it sit, per the AGENTS.md rule.",
     ]
@@ -403,13 +420,17 @@ def reviewed_at_head(pr: dict[str, Any], head: str) -> bool:
     """A non-bot, non-author review at the head commit, or a gatekeeper marker for it."""
     author = (pr.get("author") or {}).get("login")
     for review in nodes(pr, "reviews"):
-        if is_bot(review.get("author")):
+        if is_bot(review.get("author")) or GATEKEEPER_MARKER.search(review.get("body") or ""):
             continue
         reviewer = (review.get("author") or {}).get("login")
         commit = (review.get("commit") or {}).get("oid", "")
         if reviewer != author and review.get("state") != "PENDING" and commit == head:
             return True
-    return any(sha_matches(sha, head) for _, sha, _, _ in gatekeeper_markers(pr))
+    # `verdict=blocked` is the gatekeeper declining to review this head, not a review.
+    return any(
+        sha_matches(sha, head) and verdict != "blocked"
+        for _, sha, verdict, _ in gatekeeper_markers(pr)
+    )
 
 
 def analyze_prs(prs: list[dict[str, Any]], now: datetime) -> PrReport:
@@ -563,8 +584,9 @@ def render_summary(
     if prs.needs_owner:
         reasons.append(f"{len(prs.needs_owner)} pull request(s) labelled `needs-owner`")
     reasons += [f.text for f in everything]
+    reasons += [f"{span(wf)} is red on main, tracked by issue {n}" for wf, n in tracked]
     reasons += [f"watcher error: {e}" for e in errors]
-    problems = len(everything) + len(prs.needs_owner) + len(errors)
+    problems = len(everything) + len(prs.needs_owner) + len(tracked) + len(errors)
     head = f"## Repo health {now:%Y-%m-%d %H:%M} UTC"
     lines = [WATCHER_COMMENT_MARKER, head, ""]
     if reasons:
@@ -591,7 +613,7 @@ def render_summary(
         lines += section("Watcher errors", errors)
     lines.append(
         "Posted by the repo health watcher ([`scripts/repo_health.py`]"
-        "(../blob/main/scripts/repo_health.py)). The owner is mentioned whenever a problem "
+        "(https://github.com/dmooney/Rundale/blob/main/scripts/repo_health.py)). The owner is mentioned whenever a problem "
         "is listed."
     )
     return Summary("\n".join(lines), bool(reasons))
@@ -810,12 +832,19 @@ def post_summary(
         log("would post to the Repo health issue:")
         log(summary.body)
         return
-    issue = next((i for i in open_issues if HEALTH_MARKER in (i.get("body") or "")), None)
+    issue = next(
+        (
+            i
+            for i in open_issues
+            if HEALTH_LABEL in label_names(i) and HEALTH_MARKER in (i.get("body") or "")
+        ),
+        None,
+    )
     if issue is None:
         client.ensure_label(HEALTH_LABEL, "1D76DB", "Daily repo health summaries")
         body = (
             f"{HEALTH_MARKER}\nOne comment per run from the repo health watcher "
-            "([`scripts/repo_health.py`](../blob/main/scripts/repo_health.py)): workflows red on "
+            "([`scripts/repo_health.py`](https://github.com/dmooney/Rundale/blob/main/scripts/repo_health.py)): workflows red on "
             "`main`, stuck pull requests, silent scheduled routines, and stale failure issues. "
             "The owner is mentioned whenever a problem is listed."
         )
