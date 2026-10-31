@@ -501,6 +501,10 @@ private final class Game {
     /// failed turn can return the text to it at once); a host command such as
     /// `/new` makes no row, so it is accepted when the composer clears.
     func submit(_ command: String, makesARow: Bool = true) async {
+        // The presenter refuses a line while the engine is still working on
+        // the last one (a travel turn settles a moment after its scene row
+        // shows), so wait for it to go idle as a player's next tap would.
+        await waitUntil { !self.presenter.isStreaming }
         let rows = playerCommands(containing: command)
         type(command)
         presenter.submitDraft()

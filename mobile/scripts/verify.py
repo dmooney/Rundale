@@ -41,17 +41,12 @@ PHASE4_UI_CLASSES = (
     "RundaleUITests/RundalePhase4RecoveryUITests",
     "RundaleUITests/RundalePhase4AccessibilityUITests",
 )
-# The hosted pull-request gate (--smoke) runs these core-loop UI tests in place
-# of the full UI suites, which take most of an hour on a hosted runner and run
-# nightly instead (testflight.yml): launch, a fixture stream and Stop, the engine booting the
-# canonical world, travel by place name, and a save surviving termination.
-SMOKE_UI_TESTS = (
-    "RundaleUITests/RundaleUITests/testLaunchShowsOnlyPrimaryPlayRegions",
-    "RundaleUITests/RundaleUITests/testManualStreamCanBeStoppedWithPartialOutputRetained",
-    "RundaleUITests/RundalePhase2UITests/testPhase2FoundationBootsCanonicalWorldAndPeig",
-    "RundaleUITests/RundalePhase3UITests/testPlaceNameTravelWithoutEndpointInference",
-    "RundaleUITests/RundalePhase4UITests/testDraftAndCommittedTravelSurviveBackgroundAndTermination",
-)
+# The hosted pull-request gate (--smoke) runs only this journey: the app
+# launches and renders its regions on the simulator, which no unit or
+# engine-scenario test can show. The other journeys (a streamed turn, travel, a
+# save surviving termination, ...) are covered below the UI and run in the
+# nightly report-only journeys job (testflight.yml).
+SMOKE_UI_TESTS = ("RundaleUITests/RundaleUITests/testLaunchShowsOnlyPrimaryPlayRegions",)
 # Tests whose result depends on the machine's speed, which hosted CI leaves to
 # local runs with --skip-time-sensitive (#2287). The list is empty on purpose.
 # It grew to 15 entries (#2292) because the hosted simulator suites ran in
@@ -62,6 +57,23 @@ SMOKE_UI_TESTS = (
 # runner, and name the issue that will fix it.
 TIME_SENSITIVE_TESTS: tuple[str, ...] = ()
 UI_TEST_BUNDLE = "RundaleUITests"
+# The XCUITest journeys (the RundaleUITests bundle) are slow and ask the real
+# accessibility tree, so they are not part of every gate (#2319). `--journeys`:
+#   on    run them with the rest.
+#   off   leave them out; the unit, presenter, engine-scenario and package
+#         suites still run. The hosted PR and nightly gates use this.
+#   only  run just the journeys, report-only: the exit code stays 0 and the
+#         result is in verify.json. The nightly "journeys" job uses this.
+#   auto  on a developer Mac, on when the change touches the GUI (below), else
+#         off; hosted runners resolve to off.
+JOURNEY_MODES = ("auto", "on", "off", "only")
+# What counts as "Swift GUI code". The journeys see the app only through its
+# views, so they run when a view, the app wiring, the project spec or the UI
+# tests change. RundaleSession (presenter, controllers) and RundaleKit do not
+# count: the rules they hold have unit tests (FixtureRuleTests,
+# EngineScenarioTests), and the nightly journeys run reports any drift the
+# next day. Pass `--journeys on` for a presenter change that moves a view.
+JOURNEY_GUI_PATHS = ("mobile/Rundale/", "mobile/RundaleUITests/", "mobile/project.yml")
 IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 7
@@ -871,8 +883,15 @@ class VerificationRun:
         host_lock_wait_seconds: float = HOST_LOCK_WAIT_SECONDS,
         smoke: bool = False,
         skip_time_sensitive: bool = False,
+        journeys: str = "on",
     ) -> None:
         self.root = repo_root.resolve()
+        if journeys not in JOURNEY_MODES:
+            raise ValueError(f"--journeys must be one of {', '.join(JOURNEY_MODES)}")
+        # Resolved in run(): "on", "off" or "only", and why.
+        self.journeys_requested = journeys
+        self.journeys = "on" if journeys == "auto" else journeys
+        self.journeys_reason = f"--journeys {journeys}"
         # Every gate but the full UI suites, which SMOKE_UI_TESTS stand in for.
         self.smoke = smoke
         # Leaves TIME_SENSITIVE_TESTS out of the combined simulator run.
@@ -1987,19 +2006,30 @@ class VerificationRun:
         smoke_ui: bool = False,
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
-        if self.smoke and destination is not None and not is_physical and not smoke_ui:
-            # --smoke keeps a suite's unit test classes and leaves its UI
-            # classes to the full run; SMOKE_UI_TESTS run as their own suite.
+        simulator_suite = destination is not None and not is_physical
+        if simulator_suite and not smoke_ui and (self.smoke or self.journeys != "on"):
+            # Without journeys (--smoke, --journeys off) a suite keeps its unit
+            # test classes and leaves the UI classes out; with --journeys only
+            # it keeps just the UI classes. SMOKE_UI_TESTS run as their own suite.
             requested = [only_testing] if isinstance(only_testing, str) else only_testing or []
-            kept = [s for s in requested if s.split("/")[0] != UI_TEST_BUNDLE]
+            journeys_only = self.journeys == "only" and not self.smoke
+            kept = [s for s in requested if (s.split("/")[0] == UI_TEST_BUNDLE) == journeys_only]
             identifier = identifier or "ios-simulator-tests"
             name = name or "iOS simulator XCTest/XCUITest suite"
             if not kept:
-                return self._skip(
-                    identifier, name, phase, "--smoke leaves UI suites to the full run"
-                )
+                if journeys_only:
+                    why = "--journeys only runs just the UI journeys"
+                elif self.smoke:
+                    why = "--smoke leaves UI suites to the nightly journeys run"
+                else:
+                    why = "--journeys off leaves the UI journeys to the nightly report-only run"
+                return self._skip(identifier, name, phase, why)
             if len(kept) < len(requested):
-                name = f"{name} (unit test classes; --smoke)"
+                if journeys_only:
+                    label = "journeys only"
+                else:
+                    label = f"unit test classes; {'--smoke' if self.smoke else '--journeys off'}"
+                name = f"{name} ({label})"
             only_testing = kept
         target_kind = (
             "iphoneos" if destination is None else ("device" if is_physical else "simulator")
@@ -3542,7 +3572,53 @@ class VerificationRun:
                     time.sleep(min(5.0, max(0.05, self.host_lock_wait_seconds - waited)))
             yield
 
+    def _changed_paths(self) -> tuple[list[str] | None, str]:
+        """Paths changed against origin/main (committed, uncommitted, untracked)."""
+
+        base = self._execute(["git", "merge-base", "origin/main", "HEAD"])
+        if base.returncode != 0 or not base.stdout.strip():
+            return None, "no origin/main to compare with"
+        diff = self._execute(["git", "diff", "--name-only", base.stdout.strip()])
+        untracked = self._execute(["git", "ls-files", "--others", "--exclude-standard"])
+        if diff.returncode != 0 or untracked.returncode != 0:
+            return None, "git could not list the changes"
+        paths = [*diff.stdout.splitlines(), *untracked.stdout.splitlines()]
+        return sorted({path for path in paths if path}), ""
+
+    def _resolve_journeys(self) -> None:
+        """Decide whether this run includes the XCUITest journeys, and say why."""
+
+        if self.smoke:
+            self.journeys, self.journeys_reason = "off", "--smoke runs one launch journey only"
+        elif self.journeys_requested != "auto":
+            self.journeys = self.journeys_requested
+            self.journeys_reason = f"--journeys {self.journeys_requested}"
+        elif _hosted_runner():
+            self.journeys = "off"
+            self.journeys_reason = "hosted runner: the nightly report-only journeys job runs them"
+        else:
+            paths, problem = self._changed_paths()
+            gui = [p for p in paths or [] if p.startswith(JOURNEY_GUI_PATHS)]
+            if paths is None:
+                self.journeys = "on"
+                self.journeys_reason = f"{problem}; running them to be safe"
+            elif gui:
+                self.journeys = "on"
+                shown = ", ".join(gui[:3]) + (f" and {len(gui) - 3} more" if len(gui) > 3 else "")
+                self.journeys_reason = f"the change touches GUI code ({shown})"
+            else:
+                self.journeys = "off"
+                self.journeys_reason = (
+                    "no change under mobile/Rundale/, mobile/RundaleUITests/ or mobile/project.yml "
+                    "(force them with --journeys on)"
+                )
+        print(f"mobile-verify: journeys {self.journeys}: {self.journeys_reason}", flush=True)
+
     def _locked_run(self, phase: int | None, *, fast: bool) -> dict[str, Any]:
+        if fast:
+            self.journeys, self.journeys_reason = "off", "--fast runs no simulator suites"
+        else:
+            self._resolve_journeys()
         self._prune_previous_runs()
         if fast:
             self._fast()
@@ -3560,6 +3636,11 @@ class VerificationRun:
             if phase is None
             else str(phase),
             "implemented_phases": list(IMPLEMENTED_PHASES),
+            "journeys": {
+                "requested": self.journeys_requested,
+                "effective": self.journeys,
+                "reason": self.journeys_reason,
+            },
             "started_at": self.started_at,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "build_identity": self._build_identity(),
@@ -3589,7 +3670,13 @@ class VerificationRun:
         self._store_cached_passes(self.report_dir / "verify.json")
         # A smoke pass leaves the UI suites untested, so it never stands in
         # for a full pass.
-        if phase is None and not fast and not self.smoke and report["status"] == PASSED:
+        if (
+            phase is None
+            and not fast
+            and not self.smoke
+            and self.journeys != "only"
+            and report["status"] == PASSED
+        ):
             self._store_full_pass(report)
         return report
 
@@ -3631,6 +3718,14 @@ class VerificationRun:
                     "input_tree": tree,
                     "content_key": self._content_key_value,
                     "skipped_time_sensitive": self.skip_time_sensitive,
+                    "journeys": self.journeys,
+                    "journeys_reason": self.journeys_reason,
+                    "suites_run": sorted(
+                        r["id"] for r in report["suites"] if r["status"] == PASSED
+                    ),
+                    "suites_skipped": sorted(
+                        r["id"] for r in report["suites"] if r["status"] == SKIPPED
+                    ),
                     "started_at": report["started_at"],
                     "finished_at": report["finished_at"],
                     "summary": report["summary"],
@@ -3738,6 +3833,7 @@ class VerificationRun:
         summary = report["summary"]
         lines = [
             f"Rundale mobile verification (phase {report['phase']})",
+            f"journeys {report['journeys']['effective']}: {report['journeys']['reason']}",
             f"{'PASS' if report['exit_code'] == 0 else 'FAIL'} automated gate: {summary['passed']} passed, {summary['failed']} failed, {summary['skipped']} skipped, {summary['unavailable']} unavailable, {summary['not_automatable']} not automatable",
         ]
         if summary["reused"]:
@@ -3860,6 +3956,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--journeys",
+        choices=JOURNEY_MODES,
+        default="auto",
+        help=(
+            "the XCUITest journeys: on, off, only (report-only, exit 0), or auto (default): "
+            "on a Mac when the change against origin/main touches mobile/Rundale/, "
+            "mobile/RundaleUITests/ or mobile/project.yml; off on a hosted runner"
+        ),
+    )
+    parser.add_argument(
         "--command-timeout",
         type=_timeout_minutes,
         default=os.environ.get("RUNDALE_COMMAND_TIMEOUT_MINUTES", "30"),
@@ -3891,6 +3997,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--fast runs no phase or device suites")
     if args.smoke and (args.fast or args.phase is not None or args.device):
         parser.error("--smoke runs every phase on the simulator, without --fast")
+    if args.journeys == "only" and (args.fast or args.smoke or args.device):
+        parser.error(
+            "--journeys only runs the simulator journeys, without --fast, --smoke or --device"
+        )
     if args.skip_time_sensitive and (args.fast or args.phase not in {None, 4} or args.device):
         parser.error(
             "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
@@ -3921,6 +4031,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         command_timeout_seconds=args.command_timeout * 60,
         smoke=args.smoke,
         skip_time_sensitive=args.skip_time_sensitive,
+        journeys=args.journeys,
     )
     # SIGTERM unwinds like Ctrl+C, so the runner stops its child's process
     # group before the report-directory lock is released.
@@ -3931,6 +4042,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"mobile-verify: {exc}", file=sys.stderr)
         return 2
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
+    if args.journeys == "only":
+        # Report-only: the nightly job reads verify.json and opens an issue.
+        return 0
     return int(report["exit_code"])
 
 

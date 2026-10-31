@@ -854,6 +854,11 @@ jobs:
         # GATE_ARGS is `--smoke` or `--phase all`.
         run: |
           read -ra args <<< "$GATE_ARGS"
+          # The PR gate leaves the XCUITest journeys to the nightly report-only
+          # job; a PR labelled mobile-verify-full asks for them (--phase all).
+          if [ "${args[0]}" = "--phase" ]; then
+            args+=(--journeys on)
+          fi
           python3 mobile/scripts/verify.py "${args[@]}" --skip-time-sensitive
 
       # Saved even when a later test fails: the Rust build finished first.

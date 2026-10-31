@@ -47,11 +47,11 @@ the Phase 2 to 4 UI suites take tens of minutes on cloned simulators. Run
 `just mobile-verify --phase all` on a Mac before a mobile pull request merges,
 record the pass, and report its `summary.txt`. Without a recorded pass, CI's
 "Recorded mobile-verify pass" job builds the app and runs `verify.py --smoke`
-(every gate but the full UI suites and the Swift package suites, which this
-job runs, plus a few core-loop UI tests; the full
-gate on a PR labelled `mobile-verify-full`), and the
-TestFlight workflow's nightly run runs the full gate on `main` after the merge
-has uploaded. Hosted runs use one simulator worker (parallel clones flaked the nightly
+(every gate but the XCUITest journeys and the Swift package suites, which this
+job runs, plus the launch journey; the full gate with the journeys on a PR
+labelled `mobile-verify-full`), and the TestFlight workflow's nightly run runs
+the gate on `main` after the merge has uploaded (`--journeys off`), with the
+journeys in a separate report-only job (#2319). Hosted runs use one simulator worker (parallel clones flaked the nightly
 gate, #2301) and leave out `verify.py` `TIME_SENSITIVE_TESTS`, which is empty:
 add a test there only with evidence that it fails when run alone on the hosted
 runner.

@@ -52,11 +52,24 @@ named GitHub milestones (Stability, Existing features usable, Full village, Rele
   report Phases 5–7 as non-blocking future work.
 - `just mobile-verify --phase 5`, `--phase 6`, and `--phase 7` report the selected phase as
   unavailable and exit nonzero until it is implemented.
-- `just mobile-verify --smoke` runs every gate of `--phase all` except the full UI
-  suites: their unit test classes still run, and `SMOKE_UI_TESTS` (launch, a
-  fixture stream and Stop, the engine booting the canonical world, travel by
-  place name, a save surviving termination) stand in for the UI classes. It is
-  CI's hosted pull-request gate. A smoke pass is never saved as a full pass.
+- `--journeys auto|on|off|only` chooses whether the XCUITest journeys (the
+  `RundaleUITests` bundle) run. `off` keeps every other suite (packages, the
+  presenter and engine-scenario tests, Rust, packaging, the device build) and
+  leaves the journeys out. `only` runs just the journeys, report-only: it exits 0
+  and the result is in `verify.json` (the nightly `journeys` job). `auto`, the
+  default, is `off` on a hosted runner, and on a Mac is `on` when the change
+  against `origin/main` (committed, uncommitted and untracked) touches
+  `mobile/Rundale/`, `mobile/RundaleUITests/` or `mobile/project.yml`, else `off`.
+  RundaleSession and RundaleKit changes do not count: their rules have unit
+  tests, and the nightly journeys catch any drift the next day (pass
+  `--journeys on` for a presenter change that moves a view). The run prints
+  `journeys <on|off>: <reason>` first, and the report and the stored pass record
+  it with the suites that ran. A pass recorded with journeys off is a valid PR
+  pass.
+- `just mobile-verify --smoke` runs every gate of `--phase all` except the
+  journeys: the unit test classes still run, and the one `SMOKE_UI_TESTS` journey
+  (the app launches and shows its regions) stands in for them. It is CI's hosted
+  pull-request gate. A smoke pass is never saved as a full pass.
 - `--skip-time-sensitive` (with `--smoke`, `--phase 4`, or `--phase all`) adds
   `-skip-testing` for `TIME_SENSITIVE_TESTS` to the combined simulator run and
   reports them as one non-blocking skipped suite. Those tests depend on machine
@@ -169,12 +182,13 @@ tree, for example when the run included uncommitted or untracked inputs. CI's
 matching status on any commit of the PR, waiting up to two minutes, so the
 suites run once per change instead of again in CI. When none turns up, for
 example for a change made in a Linux cloud session, that job runs
-`verify.py --smoke` on a hosted macOS runner and records nothing: the full UI
-suites took most of an hour on that runner. Label the PR `mobile-verify-full`
-before a push to have that job run the full gate and record its pass instead,
-for example to prove a fix to the UI suites before merge. The merge still uploads to
-TestFlight; the TestFlight workflow's nightly run then runs the full gate on
-`main` and records the pass (`verify_record.py check --latest` finds whether
+`verify.py --smoke` on a hosted macOS runner and records nothing. Label the PR
+`mobile-verify-full` before a push to have that job run the full gate with the
+journeys (`--journeys on`, about 40 minutes there) and record its pass instead,
+for example to prove a fix to the journeys before merge. The merge still uploads to
+TestFlight; the TestFlight workflow's nightly run then runs the gate (`--journeys off`) on
+`main` and records the pass, and its separate `journeys` job runs the XCUITest
+journeys report-only (`verify_record.py check --latest` finds whether
 `main`'s input tree already has one). When the PR's input tree
 equals its base's, so the PR changes no app input (verification tools, CI, docs),
 `check` exits 3 and the job passes with no pass recorded; on a push to `main`

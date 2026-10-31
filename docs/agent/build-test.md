@@ -68,8 +68,16 @@ Swift package must hold its line-coverage baseline. CI's `Swift quality` job
 runs it on Linux. The phase gates run the package suites too, against Apple's
 Foundation, but not the style checks; `--smoke` leaves out both.
 The full simulator gate runs on a Mac; without a recorded pass, CI runs
-`--smoke` on a PR (the full gate on one labelled `mobile-verify-full`) and the
-TestFlight workflow runs the full gate nightly. The
+`--smoke` on a PR (the full gate with the journeys on one labelled
+`mobile-verify-full`) and the TestFlight workflow runs the gate nightly.
+The XCUITest journeys are not part of every gate (#2319): `--journeys auto`
+(the default) runs them on a Mac only when the change touches Swift GUI code
+(`mobile/Rundale/`, `mobile/RundaleUITests/`, `mobile/project.yml`), prints
+which way it went and why, and `--journeys on|off` forces it; hosted PR and
+nightly gates leave them out, and a separate nightly `journeys` job runs them
+report-only, opening a "Nightly mobile-verify journeys failed" issue on a failure.
+Presenter, kit and engine changes are covered by the unit and engine-scenario
+tests that stay in every gate. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
 

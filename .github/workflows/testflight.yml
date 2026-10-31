@@ -263,9 +263,11 @@ jobs:
           # outran the command limit (#2276) and then flaked a different test
           # every night (#2301). verify.py refuses more on a hosted runner.
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
-        # Tests whose result depends on machine speed run only in local runs
-        # (verify.py TIME_SENSITIVE_TESTS).
-        run: python3 mobile/scripts/verify.py --phase all --skip-time-sensitive
+        # Every fast suite (packages, presenter and engine-scenario tests, Rust,
+        # packaging, device build); the XCUITest journeys run in the separate
+        # report-only `journeys` job below, so a flaky journey cannot fail
+        # this gate or the pass it records.
+        run: python3 mobile/scripts/verify.py --phase all --journeys off --skip-time-sensitive
 
       # Saved even when a later test fails: the Rust build finished first.
       - name: Save the Rust mobile build
@@ -358,3 +360,105 @@ jobs:
             while read -r number; do
               gh issue close "$number" --comment "The full mobile-verify gate passed on ${GITHUB_SHA}: ${RUN_URL}"
             done
+
+  # The XCUITest journeys, nightly and report-only (#2319): a failure opens or
+  # updates the "Nightly mobile-verify journeys failed" issue and nothing else.
+  # It is its own job, so it cannot fail the gate above, block an upload, or
+  # count against a pull request.
+  journeys:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: testflight-nightly-journeys
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select --switch /Applications/Xcode_26.6.app
+
+      - name: Install the Rust toolchain and iOS targets
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Restore the Rust mobile build
+        id: rust-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: mobile/.build/rust-mobile/cargo-target
+          key: rust-mobile-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '.cargo/**', 'limerick/Cargo.toml', 'limerick/Cargo.lock', 'limerick/crates/**') }}
+          restore-keys: |
+            rust-mobile-${{ runner.os }}-
+
+      # --journeys only exits 0 whatever the tests do; the result is in
+      # verify.json. The fast suites are skipped or reused from the gate job's
+      # cache key, so this run is the journeys alone plus the app build.
+      - name: Run the XCUITest journeys (report only)
+        id: journeys
+        env:
+          RUNDALE_COMMAND_TIMEOUT_MINUTES: "120"
+        run: python3 mobile/scripts/verify.py --phase all --journeys only
+
+      - name: Upload the journeys report
+        id: report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-verify-journeys-report
+          path: |
+            mobile/.verification/verify.json
+            mobile/.verification/verify.junit.xml
+            mobile/.verification/summary.txt
+            mobile/.verification/failures/
+            mobile/.verification/xcresults/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report failed journeys in an issue, or close it
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVIDENCE_URL: ${{ steps.report.outputs.artifact-url }}
+        run: |
+          title="Nightly mobile-verify journeys failed"
+          status="$(python3 -c "import json; print(json.load(open('mobile/.verification/verify.json'))['status'])" 2>/dev/null || echo missing)"
+          if [ "$status" = "passed" ]; then
+            gh issue list --state open --search "in:title \"$title\"" --json number,title \
+              --jq ".[] | select(.title == \"$title\") | .number" |
+              while read -r number; do
+                gh issue close "$number" --comment "The journeys passed on ${GITHUB_SHA}: ${RUN_URL}"
+              done
+            exit 0
+          fi
+          summary="$(cat mobile/.verification/summary.txt 2>/dev/null || echo 'mobile-verify wrote no summary')"
+          body="$(
+            cat <<EOF
+          The XCUITest journeys did not pass (report-only; the gate and the TestFlight upload are unaffected) on ${GITHUB_SHA}. Result: ${status}.
+
+          Run: ${RUN_URL}
+
+          Report and failure evidence (kept 14 days): ${EVIDENCE_URL:-not uploaded}
+
+          \`\`\`\`text
+          ${summary}
+          \`\`\`\`
+          EOF
+          )"
+          number="$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

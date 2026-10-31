@@ -40,6 +40,13 @@ gestures and the process lifecycle in `RundaleUITests` (#2319). The table is in
 Delete the XCUITest when you move its rule down; add to
 `TIME_SENSITIVE_TESTS` only for a test that fails alone on the hosted runner.
 
+The XCUITest journeys are not in every gate: `just mobile-verify` runs them only
+when the change touches `mobile/Rundale/`, `mobile/RundaleUITests/` or
+`mobile/project.yml` (it prints which way it went; `--journeys on|off` forces
+it), the hosted PR gate runs just the launch journey, and a nightly report-only
+`journeys` job runs the rest. Presenter and engine changes are covered by the
+tests that stay in every gate.
+
 ## Evidence
 
 - The simulator is not a physical iPhone. Report simulator runs as simulator
