@@ -297,6 +297,51 @@ final class RundaleKitTests: XCTestCase {
         )
     }
 
+    /// #2329: only the newest request can be retried, and only while it ended
+    /// without committing. A recovered request, or an older failure the player
+    /// moved past, leaves nothing to retry.
+    func testRetryableRequestIsOnlyTheNewestUncommittedFailure() {
+        let sessionID = SessionID("session-retryable")
+        var state = SessionState(sessionID: sessionID)
+        var reducer = SessionReducer()
+        var sequence: UInt64 = 0
+        func apply(_ id: String, _ kind: SemanticEventKind, request: String, attempt: String,
+                   outcome: ResponseTerminalOutcome? = nil, revision: StateRevision? = nil,
+                   metadata: [String: String] = [:]) {
+            sequence += 1
+            let event = SemanticEvent(
+                eventID: SemanticEventID(id), sessionID: sessionID, sequence: EventSequence(sequence),
+                kind: kind, content: kind == .playerCommand ? "ask" : nil,
+                logicalRequestID: LogicalRequestID(request), attemptID: ExecutionAttemptID(attempt),
+                transcriptItemID: kind == .playerCommand ? TranscriptItemID(id) : nil,
+                terminalOutcome: outcome, accepted: kind == .playerCommand,
+                stateRevision: revision, metadata: metadata
+            )
+            _ = reducer.reduce(.apply(event), in: &state)
+        }
+        XCTAssertNil(state.retryableRequest, "no request, nothing to retry")
+
+        apply("a-command", .playerCommand, request: "a", attempt: "a1")
+        apply("a-stopped", .responseCompleted, request: "a", attempt: "a1", outcome: .cancelled)
+        XCTAssertEqual(state.retryableRequest?.id, LogicalRequestID("a"))
+
+        apply("a-retry", .progress, request: "a", attempt: "a2", metadata: ["retry": "true"])
+        XCTAssertNil(state.retryableRequest, "a retry in flight is not retryable")
+        apply("a-done", .responseCompleted, request: "a", attempt: "a2", outcome: .succeeded,
+              revision: StateRevision(2))
+        XCTAssertNil(state.retryableRequest, "a recovered request has nothing left to retry")
+
+        apply("b-command", .playerCommand, request: "b", attempt: "b1")
+        apply("b-failed", .responseCompleted, request: "b", attempt: "b1", outcome: .failed)
+        XCTAssertEqual(state.retryableRequest?.id, LogicalRequestID("b"))
+
+        apply("c-command", .playerCommand, request: "c", attempt: "c1")
+        apply("c-done", .responseCompleted, request: "c", attempt: "c1", outcome: .succeeded,
+              revision: StateRevision(3))
+        XCTAssertNil(state.retryableRequest,
+                     "an older failure is superseded once a newer request succeeds")
+    }
+
     func testRetryCreatesCurrentAttemptBeforeRejectingOldAttemptEvents() {
         let sessionID = SessionID("session-retry")
         let requestID = LogicalRequestID("request-1")

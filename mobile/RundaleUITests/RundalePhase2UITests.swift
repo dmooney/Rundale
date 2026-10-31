@@ -253,6 +253,43 @@ final class RundalePhase2RecoveryUITests: RundalePhase2UITestCase {
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
 
+    /// #2329: once a retry has recovered the stopped reply there is no
+    /// retryable failure, so Retry stays gone and a later question does not
+    /// bring it back.
+    func testPhase2RetryIsGoneAfterRecoveryAndAfterTheNextQuestion() {
+        launch(reset: true)
+        waitForInitialScene()
+        goToTheCottage()
+
+        submit("ask Mícheál about the cattle slowly")
+        let stop = app.buttons["composer.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 8))
+        stop.tap()
+        let retry = app.buttons["composer.retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 8))
+        retry.tap()
+        XCTAssertTrue(waitForDialogue(containing: "difficult this week", timeout: 20))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertFalse(retry.exists, "A recovered reply leaves nothing to retry")
+        XCTAssertFalse(waitForTranscriptText("could not be completed", timeout: 1))
+
+        // A stopped question that is then replaced by a new one is not
+        // offered for retry once the new one succeeds.
+        submit("ask Mícheál about the weather slowly")
+        XCTAssertTrue(stop.waitForExistence(timeout: 8))
+        stop.tap()
+        XCTAssertTrue(retry.waitForExistence(timeout: 8))
+        submit("ask Mícheál about the cattle")
+        XCTAssertTrue(stop.waitForExistence(timeout: 8))
+        let finished = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: stop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 25), .completed)
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertFalse(retry.exists,
+                       "Retry must not outlive the newer question that replaced the stopped one")
+    }
+
     func testPhase2SQLiteRestoresCommittedDialogueAfterRelaunch() {
         launch(reset: true)
         waitForInitialScene()

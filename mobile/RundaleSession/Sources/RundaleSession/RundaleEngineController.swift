@@ -389,7 +389,7 @@ public final class RundaleEngineController: RundaleSessionControlling {
 
     public func retryLastFailed() async throws {
         guard let runtime else { throw LimerickRuntimeError.closed }
-        guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
+        guard let request = state.retryableRequest else {
             throw FixtureAdapterError.requestNotRetryable
         }
         let receipt = try await runtime.retry(logicalRequestID: request.id)
