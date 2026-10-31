@@ -112,8 +112,16 @@ final class RundalePhase1TimerAuditUITests: RundaleUITestCase {
 
         let firstRow = row("Dialogue. Peig. \(first). In progress")
         XCTAssertTrue(firstRow.waitForExistence(timeout: 8))
-        assertVisible(firstRow.identifier)
-        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        let identity = firstRow.identifier
+        assertVisible(identity)
+        // Two 2.75-second chunks remain before the final completion tick.
+        // Observe that boundary before measuring completion, as the ordinary
+        // composer test does; eight seconds cannot cover all three ticks.
+        let finalRow = row("Dialogue. Peig. \(final). In progress")
+        XCTAssertTrue(finalRow.waitForExistence(timeout: 8))
+        XCTAssertEqual(finalRow.identifier, identity)
+        assertVisible(finalRow.identifier)
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 5))
         let completed = row("Dialogue. Peig. \(final)")
         XCTAssertTrue(completed.waitForExistence(timeout: 3))
         assertVisible(completed.identifier)

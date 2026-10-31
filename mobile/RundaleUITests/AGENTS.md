@@ -10,3 +10,6 @@
 - Read changing transcript rows and their viewport from one app accessibility
   snapshot. Live element queries can retain a stale row as streaming replaces
   its label; noninteractive text can also throw when asked for `isHittable`.
+- Measure automatic completion from the final fixture chunk. Each step waits
+  2.75 seconds, so a first-chunk barrier still leaves two chunks and completion
+  (8.25 seconds); an eight-second completion timeout cannot cover that schedule.
