@@ -167,7 +167,7 @@ def fact_vocabulary() -> set[str]:
     # Names in the cases count too: a rewrite naming a test line's person
     # ("there is no Father Murphy") is tailoring, not a better brief. Only
     # mid-sentence capitals are taken, so sentence openers are not names.
-    case_text = "\n".join(t for c in content.all_cases() for t in (c.player_line, c.expect))
+    case_text = "\n".join(t for c in content.cases("train") for t in (c.player_line, c.expect))
     for name in re.findall(r"(?<=[\w,;] )[A-ZÁÉÍÓÚ][\wáéíóú'’-]+", case_text):
         if name.lower() not in words and name not in _NOT_FACTS:
             vocab.add(name)

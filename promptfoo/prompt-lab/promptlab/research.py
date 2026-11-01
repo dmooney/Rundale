@@ -276,7 +276,8 @@ def _weakest(rows: list[dict], limit: int = 12) -> list[dict]:
                 },
             }
         )
-    failed = [r for r in rows if not r["reply"]["ok"]]
+    # Model misses only; failed requests are outages, not something to rewrite for.
+    failed = [r for r in rows if not r["reply"]["ok"] and not r["reply"].get("transport_failed")]
     for row in failed[:4]:
         out.append(
             {

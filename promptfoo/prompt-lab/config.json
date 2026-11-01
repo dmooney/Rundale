@@ -14,12 +14,13 @@
     "stronger": {
       "provider": "google",
       "model": "gemini-3.5-flash",
-      "max_output_tokens": 1024,
+      "max_output_tokens": 8192,
       "price": {
         "input": 1.5,
         "output": 9.0,
         "source": "Google Cloud generative AI pricing, global endpoint, standard tier (checked 2026-10-31); confirm against ai.google.dev/gemini-api/docs/pricing"
-      }
+      },
+      "_max_output_tokens": "Raised above production's 1024 so a reply cut short by thinking does not score as a prompt miss; this model tells a prompt problem from a model limit (§6.2) and is not bound by the production cap."
     }
   },
   "stand_in": {
@@ -34,7 +35,11 @@
     }
   },
   "judges": {
-    "claude": { "kind": "claude-cli", "model": "sonnet", "billed": false },
+    "claude": {
+      "kind": "claude-cli",
+      "model": "sonnet",
+      "billed": false
+    },
     "gpt": {
       "kind": "codex-cli",
       "model": "gpt-5.5",
@@ -52,7 +57,10 @@
       }
     }
   },
-  "rewriter": { "kind": "claude-cli", "model": "opus" },
+  "rewriter": {
+    "kind": "claude-cli",
+    "model": "opus"
+  },
   "research": {
     "spend_cap_usd": 25.0,
     "plateau_points": 2.0,
@@ -62,6 +70,9 @@
     "max_unjudged_fraction": 0.05,
     "heldout_reserve_usd": 2.0,
     "samples_per_case": 2,
-    "concurrency": { "generate": 8, "judge": 4 }
+    "concurrency": {
+      "generate": 8,
+      "judge": 4
+    }
   }
 }
