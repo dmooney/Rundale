@@ -70,7 +70,7 @@
     {% for t in ck.shared %}{{ t.topic }}: {{ t.text }}{{ " " if not loop.last }}{% endfor %}{% if (shaded | string) == "true" %} How you know it: {{ ck.shaded[speaker] }}{% endif %}
     {%- endset -%}
     {%- set vil_text -%}
-    Your village is {{ vil.name }}. {% for pl in vil.places %}{{ pl.name }}: {{ pl.looks }} From here: {{ pl.ways | join("; ") }}.{% if pl.story %} The old story: {{ pl.story }}{% endif %} {% endfor %}{% for pe in vil.people %}{{ pe.name }}, {{ pe.looks }}, {{ pe.work }}; lives at {{ pe.home }}. {% endfor %}The feasts of the year: {% for f in vil.festivals %}{{ f.name }}, {{ f.date }}: {{ f.about }}{{ "; " if not loop.last }}{% endfor %}.
+    Your village is {{ vil.name }}. {% for pl in vil.places %}{{ pl.name }}: {{ pl.looks }} From here: {{ pl.ways | join("; ") }}.{% if pl.story %} The old story: {{ pl.story }}{% endif %} {% endfor %}{% for pe in vil.people %}{{ pe.name }}, {{ pe.looks }}, {{ pe.work }}; lives at {{ pe.home }} and works at {{ pe.workplace }}. {% endfor %}The feasts of the year: {% for f in vil.festivals %}{{ f.name }}, {{ f.date }}: {{ f.about }}{{ "; " if not loop.last }}{% endfor %}.
     {%- endset -%}
     {%- set now_text -%}
     You are at {{ now.where }}, {{ now.whatYouAreDoing }}. It is {{ now.when }}. The weather: {{ now.weather }}. Feast today: {{ now.feastToday }}. Also here: {{ now.alsoHere | join("; ") }}. The stranger: {{ now.theStranger }} {{ now.howYouCameToAnswer }}{% if now.justSaid | length %} Just said: {% for c in now.justSaid %}{{ c.speaker }}: “{{ c.said }}”{{ " " if not loop.last }}{% endfor %}{% endif %}{% if now.notice %} {{ now.notice }}{% endif %}
