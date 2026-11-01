@@ -103,6 +103,17 @@ class ContentTests(unittest.TestCase):
                     place, case.location, f"{case.id}: {key} is at {place} at {case.clock}"
                 )
 
+    def test_every_2024_probe_has_a_case(self):
+        # The historical evaluation probes consolidated in #2024 (§6.3, last row).
+        probes = {1479, 1480, 1481, 1494, 1495, 1496, 1497, 1897, 1901, 1944}
+        covered = {p for c in content.all_cases() for p in c.probes}
+        self.assertEqual(probes - covered, set())
+
+    def test_heldout_covers_every_requirement(self):
+        # The owner accepts the prompt by reading held-out replies (§6.5).
+        covered = {t for c in content.cases("heldout") for t in c.tags}
+        self.assertEqual(set(content.requirements()) - covered, set())
+
     def test_training_loads_never_return_heldout(self):
         self.assertTrue(all(c.split == "train" for c in content.cases("train")))
         with self.assertRaises(ValueError):
@@ -161,14 +172,15 @@ class RenderTests(unittest.TestCase):
 
     def test_keys_are_sorted_as_the_phone_sends_them(self):
         # mobile/RundaleBridge LimerickRuntime.swift encodes input with .sortedKeys.
-        for v in (render.BASELINE, self.brief):
-            body = render.render(v, self.case).user.split("\n", 1)[1]
-            self.assertEqual(
-                body,
-                json.dumps(
-                    json.loads(body), ensure_ascii=False, separators=(",", ":"), sort_keys=True
-                ),
-            )
+        brief = json.loads(render.render(self.brief, self.case).user.split("\n", 1)[1])
+        self.assertEqual(
+            list(brief),
+            ["aboutYou", "commonKnowledge", "theVillage", "thisMoment", "whatTheStrangerSays"],
+        )
+        self.assertEqual(list(brief["aboutYou"])[:3], ["age", "appearance", "home"])
+        base = json.loads(render.render(render.BASELINE, self.case).user.split("\n", 1)[1])
+        self.assertEqual(list(base)[:3], ["addressing", "attemptID", "authoredFacts"])
+        self.assertEqual(list(base["speaker"])[0], "currentLocationId")
 
     def test_static_prefix_is_shared_across_cases_for_one_character(self):
         a, b = (content.cases("train", ids={i})[0] for i in ("t01-greet-peig", "t07-father-murphy"))
@@ -264,6 +276,11 @@ class VariantTests(unittest.TestCase):
                 proposal = {"instructions": self.start["instructions"] + " " + addition}
                 with self.assertRaises(variant_mod.VariantError):
                     variant_mod.apply_rewrite(self.start, self.start, proposal, "x")
+
+    def test_labels_may_not_carry_world_names(self):
+        bad = copy.deepcopy(self.start)
+        bad["labels"]["character"] = "aboutPeig"
+        self.assertTrue(variant_mod.fact_guard(self.start, bad))
 
     def test_ordinary_capitalised_words_are_not_facts(self):
         proposal = {

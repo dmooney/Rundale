@@ -1,5 +1,5 @@
 {
-  "_about": "Hand-written moments in the canonical tiny world (§6.3). `split` is train (the loop sees these) or heldout (it never does: the research loop refuses to load them). `expect` is for the judges only; no model under test sees it. Times follow each character's day in content/characters.json, so everyone is where the world sheet puts them.",
+  "_about": "Hand-written moments in the canonical tiny world (§6.3). `split` is train (the loop sees these) or heldout (it never does: the research loop refuses to load them). `expect` is for the judges only; no model under test sees it. Times follow each character's day in content/characters.json, so everyone is where the world sheet puts them. `probes` names the historical #2024 evaluation probes a case rephrases for the tiny world.",
   "defaults": {
     "date": "1820-03-20",
     "weather": "Clear",
@@ -31,7 +31,8 @@
       "addressing": "part_of_all",
       "conversation": [],
       "player_line": "God bless all here.",
-      "expect": "A stranger at the door of his own cottage. Mícheál is wary and says little until he has weighed a stranger: a short, guarded reply, one sentence or two at most."
+      "expect": "A stranger at the door of his own cottage. Mícheál is wary and says little until he has weighed a stranger: a short, guarded reply, one sentence or two at most.",
+      "probes": [1495]
     },
     {
       "id": "t03-greet-roisin-after-micheal",
@@ -43,8 +44,14 @@
       "present": ["micheal"],
       "addressing": "part_of_all",
       "conversation": [
-        { "who": "player", "text": "God bless all here." },
-        { "who": "micheal", "text": "And you. What brings you up the boreen?" }
+        {
+          "who": "player",
+          "text": "God bless all here."
+        },
+        {
+          "who": "micheal",
+          "text": "And you. What brings you up the boreen?"
+        }
       ],
       "player_line": "God bless all here.",
       "expect": "Róisín answers the same greeting after her brother. She sounds warmer and different from him, and does not repeat his words or his question."
@@ -59,7 +66,8 @@
       "present": [],
       "conversation": [],
       "player_line": "How would I get to the Connollys' place?",
-      "expect": "Correct route: back west along the lane to the village road, then the rutted boreen west to Connolly Cottage. No invented landmarks or turns. Answered without hesitation."
+      "expect": "Correct route: back west along the lane to the village road, then the rutted boreen west to Connolly Cottage. No invented landmarks or turns. Answered without hesitation.",
+      "probes": [1944]
     },
     {
       "id": "t05-where-peig-lives",
@@ -132,7 +140,8 @@
       "present": ["roisin"],
       "conversation": [],
       "player_line": "My child has a fever, what should I do?",
-      "expect": "He is a smallholder, not a healer. What his life would teach him (the hunger and the fever went through his own family; his father died in the hunger of 1817) at most; otherwise admit it is beyond him. He must not invent a named doctor, healer or place in the village. Pointing to Roscommon town in general terms is acceptable."
+      "expect": "He is a smallholder, not a healer. What his life would teach him (the hunger and the fever went through his own family; his father died in the hunger of 1817) at most; otherwise admit it is beyond him. He must not invent a named doctor, healer or place in the village. Pointing to Roscommon town in general terms is acceptable.",
+      "probes": [1496]
     },
     {
       "id": "t11-king",
@@ -180,7 +189,10 @@
       "clock": "14:00",
       "present": [],
       "conversation": [
-        { "who": "player", "text": "Is there any news from Dublin?" },
+        {
+          "who": "player",
+          "text": "Is there any news from Dublin?"
+        },
         {
           "who": "peig",
           "text": "Only that the new King is to be crowned, though nobody can say when."
@@ -257,7 +269,10 @@
       "clock": "15:00",
       "present": [],
       "conversation": [
-        { "who": "player", "text": "Good day to you." },
+        {
+          "who": "player",
+          "text": "Good day to you."
+        },
         {
           "who": "peig",
           "text": "Good day yourself. You've the look of someone who walked a long road."
@@ -277,6 +292,75 @@
       "conversation": [],
       "player_line": "Here, take this shilling for your trouble.",
       "expect": "She may thank them, refuse, or ask what trouble they mean, but she speaks only: no narration of taking the coin, no stage directions, nothing that describes the world changing."
+    },
+    {
+      "id": "t21-news-question",
+      "split": "train",
+      "tags": ["B10", "B1"],
+      "probes": [1497],
+      "speaker": "roisin",
+      "location": "Kilteevan Village",
+      "clock": "15:30",
+      "present": ["micheal"],
+      "conversation": [],
+      "player_line": "Is there much news about the village these days?",
+      "expect": "An innocent question from a stranger. Róisín may share ordinary talk or say little has happened, warmly; she does not turn suspicious or remark on the stranger's motives for asking."
+    },
+    {
+      "id": "t22-weary-traveller",
+      "split": "train",
+      "tags": ["B7", "B17", "B13"],
+      "probes": [1494],
+      "speaker": "peig",
+      "location": "Letter Office",
+      "clock": "17:00",
+      "present": [],
+      "conversation": [],
+      "player_line": "I've walked a long way today and I'm weary of the road.",
+      "expect": "Peig answers in her own period voice at dusk: sympathy, a seat by the fire, a question about where they walked from. No modern introspective or therapeutic phrasing (nothing like 'what moves you in this moment')."
+    },
+    {
+      "id": "t23-what-place",
+      "split": "train",
+      "tags": ["B13", "B1", "B10"],
+      "probes": [1901],
+      "speaker": "peig",
+      "location": "Letter Office",
+      "clock": "09:30",
+      "present": [],
+      "conversation": [],
+      "player_line": "What is this place, and who are you?",
+      "expect": "She is in the Letter Office, behind the counter, sorting letters; she names herself and the Letter Office correctly and does not place herself anywhere else, such as out on the road."
+    },
+    {
+      "id": "t24-which-feast",
+      "split": "train",
+      "tags": ["B3", "B4", "B13"],
+      "probes": [1897],
+      "speaker": "peig",
+      "location": "Letter Office",
+      "date": "1820-02-01",
+      "festival": "Imbolc",
+      "weather": "Overcast",
+      "clock": "11:00",
+      "present": [],
+      "conversation": [],
+      "player_line": "Is it Lughnasa they're keeping today, or Imbolc?",
+      "expect": "Today is Imbolc, 1 February, St. Brigid's feast; Lughnasa is the harvest feast in August. She knows both feasts and must not say she has never heard of either."
+    },
+    {
+      "id": "t25-cattle-reasoning",
+      "split": "train",
+      "tags": ["B20", "B8"],
+      "probes": [1479],
+      "speaker": "micheal",
+      "location": "Connolly Cottage",
+      "clock": "07:30",
+      "weather": "Light Rain",
+      "present": ["roisin"],
+      "conversation": [],
+      "player_line": "Could a man drive cattle to Roscommon on ground like this?",
+      "expect": "He knows the wet ground has made moving cattle hard this week. His reasoning holds together within the reply: no saying it is easy and then that it is impossible, or the reverse."
     },
     {
       "id": "h01-greet-roisin",
@@ -300,7 +384,8 @@
       "present": ["micheal"],
       "conversation": [],
       "player_line": "Which way to the letter office?",
-      "expect": "Up the boreen east to the village road, then the short lane east to the Letter Office. No invented landmarks."
+      "expect": "Up the boreen east to the village road, then the short lane east to the Letter Office. No invented landmarks.",
+      "probes": [1944]
     },
     {
       "id": "h03-mrs-delaney",
@@ -375,6 +460,74 @@
       "conversation": [],
       "player_line": "You're the drover who sold me a lame cow last year!",
       "expect": "He has never seen this stranger; the claim is just something said. He denies it or asks where, without accepting it as fact, and stays wary."
+    },
+    {
+      "id": "h09-prices",
+      "split": "heldout",
+      "tags": ["B8", "B4"],
+      "probes": [1481],
+      "speaker": "micheal",
+      "location": "Kilteevan Village",
+      "clock": "14:30",
+      "present": ["roisin"],
+      "conversation": [],
+      "player_line": "What's the news of prices, would you say?",
+      "expect": "Parish-scale talk a drover would know: cattle at the Roscommon fairs, the wet week, rent. No distant market intelligence (Dublin or Belfast commodity prices) a poor smallholder would not follow."
+    },
+    {
+      "id": "h10-ungrounded-she",
+      "split": "heldout",
+      "tags": ["B5", "B16"],
+      "probes": [1480],
+      "speaker": "peig",
+      "location": "Letter Office",
+      "clock": "13:30",
+      "present": [],
+      "conversation": [
+        {
+          "who": "player",
+          "text": "Good day to you."
+        },
+        {
+          "who": "peig",
+          "text": "Good day. Have you a letter to send, or one to collect?"
+        }
+      ],
+      "player_line": "And did she come by already?",
+      "expect": "Nobody has been named, so 'she' is unknown. Peig asks plainly who they mean, without guessing, lecturing the stranger, or taking her leave."
+    },
+    {
+      "id": "h11-hold-bag",
+      "split": "heldout",
+      "tags": ["B18", "B2"],
+      "speaker": "roisin",
+      "location": "Kilteevan Village",
+      "clock": "13:00",
+      "present": ["micheal"],
+      "conversation": [],
+      "player_line": "Would you hold my bag a moment while I fix my shoe?",
+      "expect": "She may agree or demur in words, but speaks only: no narration of taking the bag, no stage directions, nothing describing the world changing."
+    },
+    {
+      "id": "h12-repeat-fair",
+      "split": "heldout",
+      "tags": ["B15", "B14", "B20"],
+      "speaker": "micheal",
+      "location": "Kilteevan Village",
+      "clock": "17:30",
+      "present": ["roisin"],
+      "conversation": [
+        {
+          "who": "player",
+          "text": "Is the fair at Roscommon soon?"
+        },
+        {
+          "who": "micheal",
+          "text": "Whit-Monday, if the ground dries."
+        }
+      ],
+      "player_line": "Is the fair at Roscommon soon?",
+      "expect": "The same question again at dusk. Short, as a wary man is; he does not repeat his earlier line word for word or contradict it (the Whit-Monday fair)."
     }
   ]
 }

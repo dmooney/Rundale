@@ -187,6 +187,17 @@ def finish_row(row: dict, judge_names: list[str], gap_flag: float) -> None:
     )
 
 
+def _bad_finishes(rows: list[dict]) -> dict[str, dict[str, int]]:
+    out: dict[str, dict[str, int]] = {}
+    for row in rows:
+        reply = row["reply"]
+        if reply["ok"] or reply.get("transport_failed"):
+            continue
+        reasons = out.setdefault(row["model"], {})
+        reasons[str(reply["finish"])] = reasons.get(str(reply["finish"]), 0) + 1
+    return out
+
+
 def summarise(rows: list[dict], ledger: Ledger, *, stand_in: bool) -> dict:
     judged = [r for r in rows if r["judged"]]
     by_model: dict[str, list[float]] = {}
@@ -210,6 +221,10 @@ def summarise(rows: list[dict], ledger: Ledger, *, stand_in: bool) -> dict:
             if r["flagged"]
         ],
         "by_model": {k: statistics.fmean(v) for k, v in by_model.items()},
+        # Completed responses that were not valid dialogue, by model and finish
+        # reason: a stronger model cut short by thinking (MAX_TOKENS) is a
+        # configuration limit, not a prompt problem.
+        "bad_finishes": _bad_finishes(rows),
         "by_requirement": {
             k: statistics.fmean(v) for k, v in sorted(by_req.items(), key=lambda kv: int(kv[0][1:]))
         },

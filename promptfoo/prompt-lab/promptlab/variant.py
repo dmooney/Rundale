@@ -121,7 +121,8 @@ def editable_text(variant: dict) -> str:
     wording = variant["wording"]
     parts = [
         variant["instructions"],
-        *variant["labels"].values(),
+        # camelCase labels split into words, so "aboutPeig" shows its "Peig".
+        *(re.sub(r"(?<=[a-z])(?=[A-Z])", " ", label) for label in variant["labels"].values()),
         wording["stranger"],
         wording["anachronism_flag"],
         *wording["addressing"].values(),

@@ -70,6 +70,7 @@ class Case:
     anachronism: bool
     present: tuple[str, ...] = ()
     conversation: tuple[Turn, ...] = field(default_factory=tuple)
+    probes: tuple[int, ...] = ()
 
 
 ADDRESSING = ("spoken_to", "part_of_all", "joining_mentioned")
@@ -93,6 +94,7 @@ def _case(raw: dict, defaults: dict) -> Case:
         anachronism=bool(merged["anachronism"]),
         present=tuple(merged.get("present", ())),
         conversation=tuple(Turn(t["who"], t["text"]) for t in merged.get("conversation", ())),
+        probes=tuple(merged.get("probes", ())),
     )
 
 
