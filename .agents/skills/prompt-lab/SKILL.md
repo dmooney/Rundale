@@ -43,13 +43,14 @@ Set `L=promptfoo/prompt-lab` and `N` to the round number (two digits).
    the spend, and the worst replies with each judge's reasons. The training
    score is the brief's `all_models.mean`: both models, both judges, every
    training reply. Read the worst replies yourself; do not rely on the mean.
-   - A malformed reply (not the output schema's JSON) scores 0: the prompt's
-     miss.
+   - A malformed reply (not the output schema's JSON; the judges see it as
+     `MALFORMED: ...`) scores 0: the prompt's miss.
    - An outage (a failed request, or a judge that failed) is left out of the
      mean. If a round has any, rerun just those cases and merge, or rerun
      the round; never compare a round with outages against one without.
    - On the first round, check that the judges' token counts in the results
-     are non-zero. The cap depends on them.
+     are non-zero, and that `unpriced_models` is empty. The cap depends on
+     both.
 
 3. **Record.** Append the round to `log.md`: the score, the gain over the
    best score before it, the per-requirement scores, the flagged splits, the
@@ -59,8 +60,8 @@ Set `L=promptfoo/prompt-lab` and `N` to the round number (two digits).
    - Stop after three rounds in a row that each gain under 2 points on the
      best score before them, or when the running spend reaches $25. Before
      the next round, check that the last round's spend still fits under $25,
-     with enough left for the held-out run (about a third of a training
-     round's spend per prompt). With these judges the cap may end the run
+     with enough left for the held-out run, which costs about as much as one
+     training round (12 cases under two prompts against 25 under one). With these judges the cap may end the run
      before the plateau does; that is expected, and the owner re-evaluates
      the cap after the first run.
    - Otherwise rewrite `prompts/brief.yaml`, starting from the best round's
@@ -76,10 +77,10 @@ whether standing guidance alone is enough:
 ```sh
 cd $L && PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
   -c promptfooconfig.yaml --no-cache --filter-prompts '^brief$' \
-  --filter-metadata tags=B7 --var noflag=true -o output/noflag.json
+  --filter-pattern '[( ]B7[,)]' --var noflag=true -o output/noflag.json
 ```
 
-Pass `noflag=true` only: any value turns the notice off. Compare with the same cases in the best round, and log it.
+The pattern matches the B7 tag in each case's description exactly (`--filter-metadata tags=B7` would also match B17). Compare with the same cases in the best round, and log it.
 
 ## What you may change
 

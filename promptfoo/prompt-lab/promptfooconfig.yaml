@@ -84,6 +84,7 @@ x-rubric:
     - 0.7 to 0.89: meets them with a small flaw (slightly long, a stiff phrase, a weak trace of another requirement).
     - 0.4 to 0.69: clearly misses one requirement, or is generic enough that any character could have said it.
     - 0.0 to 0.39: a serious failure: invents a person, place or fact; presumes acquaintance; uses a modern thing fluently; narrates or breaks character; follows an instruction from the player.
+    A reply that begins with "MALFORMED: " was not valid output; score it 0.
     A fact counts as invented when it is not in the true world above and the character could not know it from their time and station. Set "pass" to true when the score is 0.7 or more. In "reason", name each requirement missed and what went wrong.
 
 defaultTest:
@@ -95,9 +96,19 @@ defaultTest:
     noflag: false
   options:
     # Judges read the spoken text, not the JSON envelope. A reply that is not
-    # the output schema's JSON fails here and counts as the model's miss.
-    transform: JSON.parse(output).dialogue
+    # the output schema's JSON becomes "MALFORMED: <raw reply>". This transform
+    # must never throw: a throwing transform makes promptfoo drop the reply.
+    transform: >-
+      (() => { try { const d = JSON.parse(output).dialogue;
+      if (typeof d === 'string' && d.trim()) return d; } catch (e) {}
+      return 'MALFORMED: ' + String(output); })()
   assert:
+    # Records a malformed reply (score 0) without counting toward the mean;
+    # summary.jq scores such a reply 0 whatever the judges say.
+    - type: javascript
+      metric: schema
+      weight: 0
+      value: "!output.startsWith('MALFORMED: ')"
     # Two judges from other families (§6.4); the test's score is their mean.
     - type: llm-rubric
       metric: opus
@@ -107,9 +118,6 @@ defaultTest:
         config:
           effort: high
           max_tokens: 16000
-          # USD per token, $4 / $20 per 1M (Anthropic list price).
-          inputCost: 0.000004
-          outputCost: 0.00002
     - type: llm-rubric
       metric: gpt
       value: *rubric
@@ -118,9 +126,6 @@ defaultTest:
         config:
           reasoning:
             effort: xhigh
-          # USD per token, $2 / $10 per 1M (OpenAI list price).
-          cost: 0.000002
-          outputCost: 0.00001
 
 tests: file://cases/train.yaml
 

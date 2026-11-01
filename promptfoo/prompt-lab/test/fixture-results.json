@@ -1,97 +1,308 @@
 {
-  "_about": "Hand-made promptfoo results for check.sh: one row of each kind summary.jq must tell apart.",
+  "_about": "Hand-made promptfoo 0.125 results for check.sh, one row of each kind summary.jq must tell apart. check.sh also runs summary.jq on real promptfoo output.",
   "results": {
     "results": [
       {
-        "prompt": { "label": "brief" },
-        "provider": { "label": "flash-lite" },
-        "testCase": { "metadata": { "id": "scored-agree", "tags": "B1,B3" } },
+        "prompt": {
+          "label": "brief"
+        },
+        "provider": {
+          "label": "flash-lite"
+        },
+        "testCase": {
+          "metadata": {
+            "id": "scored-agree",
+            "tags": "B1,B3"
+          }
+        },
         "response": {
           "output": "Good day to you.",
-          "tokenUsage": { "prompt": 1000, "completion": 100 }
+          "tokenUsage": {
+            "prompt": 1000,
+            "completion": 100,
+            "completionDetails": {
+              "reasoning": 40
+            }
+          }
         },
-        "score": 0.8,
         "gradingResult": {
           "componentResults": [
             {
-              "assertion": { "metric": "opus" },
-              "score": 0.9,
-              "reason": "fine",
-              "tokensUsed": { "prompt": 2000, "completion": 500 }
+              "assertion": {
+                "metric": "schema"
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "passed",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
             },
             {
-              "assertion": { "metric": "gpt" },
+              "assertion": {
+                "metric": "opus"
+              },
+              "pass": true,
+              "score": 0.9,
+              "reason": "fine",
+              "tokensUsed": {
+                "prompt": 2000,
+                "completion": 500,
+                "completionDetails": {
+                  "reasoning": 400
+                }
+              }
+            },
+            {
+              "assertion": {
+                "metric": "gpt"
+              },
+              "pass": true,
               "score": 0.7,
               "reason": "fine",
-              "tokensUsed": { "prompt": 2000, "completion": 500 }
+              "tokensUsed": {
+                "prompt": 2000,
+                "completion": 500,
+                "completionDetails": {
+                  "reasoning": 450
+                }
+              }
             }
           ]
-        }
+        },
+        "score": 0.0
       },
       {
-        "prompt": { "label": "brief" },
-        "provider": { "label": "flash" },
-        "testCase": { "metadata": { "id": "scored-split", "tags": "B3" } },
-        "response": { "output": "Up the boreen.", "tokenUsage": {} },
-        "score": 0.5,
+        "prompt": {
+          "label": "brief"
+        },
+        "provider": {
+          "label": "flash"
+        },
+        "testCase": {
+          "metadata": {
+            "id": "scored-split",
+            "tags": "B3"
+          }
+        },
+        "response": {
+          "output": "Up the boreen.",
+          "tokenUsage": {}
+        },
         "gradingResult": {
           "componentResults": [
             {
-              "assertion": { "metric": "opus" },
+              "assertion": {
+                "metric": "schema"
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "passed",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
+            },
+            {
+              "assertion": {
+                "metric": "opus"
+              },
+              "pass": true,
               "score": 0.8,
               "reason": "ok",
-              "tokensUsed": {}
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
             },
             {
-              "assertion": { "metric": "gpt" },
+              "assertion": {
+                "metric": "gpt"
+              },
+              "pass": false,
               "score": 0.2,
               "reason": "invents a turn",
-              "tokensUsed": {}
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
             }
           ]
-        }
+        },
+        "score": 0.0
       },
       {
-        "prompt": { "label": "brief" },
-        "provider": { "label": "flash-lite" },
-        "testCase": { "metadata": { "id": "malformed", "tags": "B5" } },
-        "response": { "output": "not json", "tokenUsage": {} },
-        "error": "Error: Transform function did not return a value",
-        "score": 0,
-        "gradingResult": null
-      },
-      {
-        "prompt": { "label": "brief" },
-        "provider": { "label": "flash" },
-        "testCase": { "metadata": { "id": "request-failed", "tags": "B5" } },
-        "response": { "error": "HTTP 429: quota", "output": null },
-        "error": "HTTP 429: quota",
-        "score": 0,
-        "gradingResult": null
-      },
-      {
-        "prompt": { "label": "brief" },
-        "provider": { "label": "flash-lite" },
-        "testCase": { "metadata": { "id": "judge-failed", "tags": "B1" } },
-        "response": { "output": "Who?", "tokenUsage": {} },
-        "score": 0.45,
+        "prompt": {
+          "label": "brief"
+        },
+        "provider": {
+          "label": "flash-lite"
+        },
+        "testCase": {
+          "metadata": {
+            "id": "malformed",
+            "tags": "B5"
+          }
+        },
+        "response": {
+          "output": "MALFORMED: not json",
+          "tokenUsage": {}
+        },
         "gradingResult": {
           "componentResults": [
             {
-              "assertion": { "metric": "opus" },
-              "score": 0.9,
-              "reason": "ok",
-              "tokensUsed": {}
+              "assertion": {
+                "metric": "schema"
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Custom function returned false",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
             },
             {
-              "assertion": { "metric": "gpt" },
-              "score": 0,
-              "reason": "Could not extract JSON",
-              "metadata": { "graderError": true },
-              "tokensUsed": {}
+              "assertion": {
+                "metric": "opus"
+              },
+              "pass": false,
+              "score": 0.6,
+              "reason": "ok",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
+            },
+            {
+              "assertion": {
+                "metric": "gpt"
+              },
+              "pass": false,
+              "score": 0.5,
+              "reason": "ok",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
             }
           ]
-        }
+        },
+        "score": 0.0
+      },
+      {
+        "prompt": {
+          "label": "brief"
+        },
+        "provider": {
+          "label": "flash"
+        },
+        "testCase": {
+          "metadata": {
+            "id": "request-failed",
+            "tags": "B5"
+          }
+        },
+        "response": {
+          "error": "HTTP 429: quota",
+          "output": null
+        },
+        "error": "HTTP 429: quota",
+        "gradingResult": null,
+        "score": 0.0
+      },
+      {
+        "prompt": {
+          "label": "brief"
+        },
+        "provider": {
+          "label": "flash-lite"
+        },
+        "testCase": {
+          "metadata": {
+            "id": "judge-failed",
+            "tags": "B1"
+          }
+        },
+        "response": {
+          "output": "Who?",
+          "tokenUsage": {}
+        },
+        "gradingResult": {
+          "componentResults": [
+            {
+              "assertion": {
+                "metric": "schema"
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "passed",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
+            },
+            {
+              "assertion": {
+                "metric": "opus"
+              },
+              "pass": true,
+              "score": 0.9,
+              "reason": "ok",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              }
+            },
+            {
+              "assertion": {
+                "metric": "gpt"
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Could not extract JSON",
+              "tokensUsed": {
+                "prompt": 0,
+                "completion": 0,
+                "completionDetails": {
+                  "reasoning": 0
+                }
+              },
+              "metadata": {
+                "graderError": true
+              }
+            }
+          ]
+        },
+        "score": 0.0
       }
     ]
   }

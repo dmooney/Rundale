@@ -39,7 +39,7 @@
       "howYouCameToAnswer": addressing_text,
       "justSaid": moment.justSaid
     } -%}
-    {%- if anachronism and not noflag -%}
+    {%- if anachronism and (noflag | string) != "true" -%}
     {%- set now = {
       "where": now.where, "whatYouAreDoing": now.whatYouAreDoing, "when": now.when, "weather": now.weather,
       "feastToday": now.feastToday, "alsoHere": now.alsoHere, "theStranger": now.theStranger,
