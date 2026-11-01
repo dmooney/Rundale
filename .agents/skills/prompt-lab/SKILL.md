@@ -13,8 +13,9 @@ these choices; you do. The rules come from
 
 ## Before the first round
 
-- Run from the repository root, with `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`
-  and `OPENAI_API_KEY` set. Both Gemini models (`gemini-3.5-flash-lite`,
+- Run from the repository root. `eval.sh` loads the keys from the repository's
+  `.env` (`GEMINI_API_KEY` or `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` and
+  `OPENAI_API_KEY`); keys already in the environment take precedence. Both Gemini models (`gemini-3.5-flash-lite`,
   the production model, and `gemini-3.8-flash`, the larger one) and both
   judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh) are billed
   through those keys. promptfoo calls the judges itself for every reply.
@@ -31,7 +32,7 @@ Set `L=promptfoo/prompt-lab` and `N` to the round number (two digits).
 1. **Run.** Round 00 also scores the baseline once, for reference:
 
    ```sh
-   cd $L && PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
+   cd $L && bash eval.sh \
      -c promptfooconfig.yaml --no-cache -o output/round-$N.json \
      --filter-prompts '^brief$'      # drop this flag in round 00
    cp prompts/brief.yaml output/round-$N-brief.yaml
@@ -98,7 +99,7 @@ most important question are done:
 ```sh
 cd $L && cp output/round-<best>-brief.yaml prompts/brief.yaml && \
   bash check.sh && \
-  PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
+  bash eval.sh \
   -c promptfooconfig.yaml --no-cache --filter-prompts '^brief$' \
   --filter-providers flash-lite --var <switch>=true -o output/<switch>.json
 ```
@@ -152,7 +153,7 @@ run the best prompt and the baseline on it once:
 
 ```sh
 cd $L && cp output/round-<best>-brief.yaml prompts/brief.yaml && \
-  PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
+  bash eval.sh \
   -c promptfooconfig.yaml -t cases/heldout.yaml --no-cache -o output/heldout.json
 ```
 

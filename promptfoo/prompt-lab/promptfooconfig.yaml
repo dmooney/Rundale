@@ -1,7 +1,8 @@
 # NPC dialogue prompt lab (docs/design/npc-dialogue-prompt.md §6, issue 2294).
 # Driven by an agent with the prompt-lab skill (.agents/skills/prompt-lab/SKILL.md),
-# not by a script. Needs GEMINI_API_KEY, ANTHROPIC_API_KEY and OPENAI_API_KEY.
-#   Training round: promptfoo eval -c promptfooconfig.yaml --filter-prompts '^brief$'
+# not by a script. Needs GEMINI_API_KEY (or GOOGLE_API_KEY), ANTHROPIC_API_KEY and
+# OPENAI_API_KEY; eval.sh loads them from the repository's .env.
+#   Training round: bash eval.sh -c promptfooconfig.yaml --filter-prompts '^brief$'
 #   Held-out (once, at the end): add -t cases/heldout.yaml
 description: Rundale NPC dialogue prompt lab
 
