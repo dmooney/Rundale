@@ -2,7 +2,7 @@
 
 Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference. Its target definitions inform the model and provider choices configured in [`limerick-config/src/provider/`](../limerick/crates/limerick-config/src/provider/) and the broader cloud / local inference selection.
 
-Spec + roadmap: [`docs/plans/rundale-bench.md`](../docs/plans/rundale-bench.md).
+Spec + roadmap: [`docs/plans/archive/rundale-bench.md`](../docs/plans/archive/rundale-bench.md).
 
 Generated benchmark outputs live in [`artifacts/`](artifacts/). The GitHub-renderable leaderboard is [`artifacts/leaderboard.md`](artifacts/leaderboard.md); the interactive static dashboard is [`artifacts/leaderboard.html`](artifacts/leaderboard.html).
 
@@ -213,4 +213,4 @@ Outputs land in `rundale-bench/artifacts/run_<target>_<slice>_<UTC>.json`
 - Encrypted holdout handling for the eventual frozen release.
 - Broader leaderboard coverage across at least one frontier cloud target, one open-weight target, and one local MLX target on the holdout split.
 
-See the [plan doc](../docs/plans/rundale-bench.md) for the remaining freeze work.
+See the [plan doc](../docs/plans/archive/rundale-bench.md) for the remaining freeze work.

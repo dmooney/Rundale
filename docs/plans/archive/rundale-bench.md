@@ -1,8 +1,8 @@
 # Rundale-Bench Plan
 
-> Status: In progress · Updated: 2026-05-25 · [Docs Index](../index.md)
+> Status: Abandoned for current model evaluations; retained as historical context for pre-3.0 tooling. Use only for a requested legacy run. Updated: 2026-10-18 · [Docs Index](../../index.md)
 
-> Back to [Docs Index](../index.md) | Siblings: [LLM Quality Evals Plan](llm-quality-evals.md), [Promptfoo Pentest Plan](promptfoo-pentest-plan.md)
+> Back to [Docs Index](../../index.md) | Siblings: [LLM Quality Evals Plan](../llm-quality-evals.md), [Promptfoo Pentest Plan](../promptfoo-pentest-plan.md)
 
 ## Goal
 
@@ -173,4 +173,4 @@ Today every `preset_models()` swap is a vibes-decision. With `rundale-bench`:
 - [Humanity's Last Exam](https://lastexam.ai/) — expert-graded, contamination-controlled, leaderboard-driven.
 - [HELM](https://crfm.stanford.edu/helm/) — multi-axis scoring, transparency, cost reporting.
 - [PR #958](https://github.com/dmooney/Rundale/pull/958) — `Target` abstraction this plan builds on.
-- [`docs/plans/llm-quality-evals.md`](llm-quality-evals.md) — earlier proposal for in-repo quality sensors; `rundale-bench` is the public face of that work.
+- [`docs/plans/llm-quality-evals.md`](../llm-quality-evals.md) — earlier proposal for in-repo quality sensors; `rundale-bench` is the public face of that work.

@@ -272,14 +272,16 @@ def test_dropped_prompt_is_failure():
     assert any(f["prompt_id"] == "p2" for f in failed)
 
 
-# ── criterion 8: both skills exist with the documented loop ──────────────────
-def test_skills_exist_with_headings():
+# ── criterion 8: current routing and historical judge skill ──────────────────
+def test_skills_exist_with_current_routing_and_historical_judge():
     repo = _BENCH_DIR.parent
     outer = repo / ".agents" / "skills" / "rundale-bench" / "SKILL.md"
     inner = repo / ".agents" / "skills" / "rundale-bench-judge" / "SKILL.md"
     assert outer.exists() and inner.exists()
     outer_txt = outer.read_text()
-    assert "drain-queue" in outer_txt and ".bench-queue/done" in outer_txt
+    assert "3bf68689ea7f6e6717c8aec2f3a6869231742cf5" in outer_txt
+    assert "/rundale-bench drain-queue" not in outer_txt
+    assert "/rundale-bench eval-dialogue" not in outer_txt
     inner_txt = inner.read_text()
     assert "judge_sonnet_v1.system.md" in inner_txt and "JSON" in inner_txt
 

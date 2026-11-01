@@ -1,6 +1,12 @@
 # rundale-bench — agent scope
 
-Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference; drives model + provider choices in `limerick-config::presets::preset_models()`. See root [`AGENTS.md`](../AGENTS.md) for non-negotiable rules. The `/rundale-bench` skill at [`.agents/skills/rundale-bench/SKILL.md`](../.agents/skills/rundale-bench/SKILL.md) drives this tooling from Claude Code.
+This directory contains legacy pre-3.0 benchmark tooling and results. Current
+Benchmark 3.0 lives in the public
+[dmooney/rundale-bench repository](https://github.com/dmooney/rundale-bench);
+the root [`/rundale-bench` skill](../.agents/skills/rundale-bench/SKILL.md)
+routes current requests there. Use the commands and guidance below only when a
+user explicitly requests a pre-3.0 historical run or reproduction. See root
+[`AGENTS.md`](../AGENTS.md) for non-negotiable engineering rules.
 
 ## Scoped commands
 
@@ -20,8 +26,11 @@ python3 rundale-bench/rundale_bench.py \
 # Benchmark every slice + perf in one go (sonnet subagent judge, queued):
 just -f rundale-bench/justfile bench-it '<target-spec>'
 
-# Then drain the judge queue and finalise:
-#   /rundale-bench drain-queue
+# Historical pre-3.0 queue-drain instructions are preserved at:
+#   https://github.com/dmooney/Rundale/blob/3bf68689ea7f6e6717c8aec2f3a6869231742cf5/.agents/skills/rundale-bench/SKILL.md
+# That archived `/rundale-bench drain-queue` mode is not available in the
+# current router; do not use it for Benchmark 3.0.
+# Historical finalisation after an explicitly requested legacy run:
 #   python3 rundale-bench/rundale_bench.py ingest --finalize
 
 # Rebuild manifest after dataset edit:

@@ -71,9 +71,8 @@ intent target limit="20":
 
 
 # Dialogue smoke (absolute 5-axis rubric). Default judge: Claude Sonnet 4.6
-# subagents (queued — requires `/rundale-bench drain-queue` to score, then
-# `python3 rundale_bench.py ingest --finalize` to fold scores back).
-# Pass `judge=judge_v1` to fall back to the HTTP Qwen3-235B judge.
+# subagents (queued — use the pinned pre-3.0 judging instructions in AGENTS.md,
+# then `python3 rundale_bench.py ingest --finalize` to fold scores back).
 # model_id / provider_id pin the catalog identity recorded on the candidate
 # — required for the leaderboard to merge across runs (build_site_data.py
 # keys on candidate.model_id). Omit only for ad-hoc probes.
@@ -100,9 +99,8 @@ bench target judge="judge_sonnet_v1" limit="10" model_id="" provider_id="":
 
 # Everything for one (model, provider). Generates samples for every slice
 # AND runs the perf probe in one go. With the default sonnet subagent
-# judge, judging is queued — invoke `/rundale-bench drain-queue` to score
-# the queued bundles, then `python3 rundale_bench.py ingest --finalize`.
-# Pass judge=judge_v1 for the HTTP-only (no subagent) path.
+# judge, judging is queued — follow the pinned pre-3.0 judging instructions
+# in AGENTS.md, then `python3 rundale_bench.py ingest --finalize`.
 # model_id / provider_id pin catalog identity — see `dialogue` recipe note.
 bench-it target judge="judge_sonnet_v1" limit="10" perf_prompts="10" model_id="" provider_id="":
     #!/usr/bin/env bash
@@ -117,7 +115,9 @@ bench-it target judge="judge_sonnet_v1" limit="10" perf_prompts="10" model_id=""
     echo ">>> [2/2] perf probe (latency, tokens/sec)"
     python3 -u {{ BENCH }}/bench_perf.py --target '{{ target }}' --prompts {{ perf_prompts }}
     echo
-    echo ">>> Next: drain the judge queue with '/rundale-bench drain-queue', then"
+    echo ">>> Next: follow the pre-3.0 judging guide:"
+    echo ">>>       https://github.com/dmooney/Rundale/blob/3bf68689ea7f6e6717c8aec2f3a6869231742cf5/.agents/skills/rundale-bench/SKILL.md"
+    echo ">>> Then:"
     echo ">>>       python3 {{ BENCH }}/rundale_bench.py ingest --finalize"
 
 

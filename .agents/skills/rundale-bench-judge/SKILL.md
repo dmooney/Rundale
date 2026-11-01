@@ -1,13 +1,18 @@
 ---
 name: rundale-bench-judge
-description: Score one rundale-bench judging bundle as a Claude Sonnet 4.6 subagent. Reads a bundle JSON of (prompt, response) items and returns a single JSON object of per-axis scores. Invoked by the /rundale-bench drain-queue loop, one bundle per subagent.
+description: Historical pre-3.0 tool only. Score one legacy rundale-bench judging bundle as a Claude Sonnet 4.6 subagent when explicitly reproducing a pre-3.0 run; not used by current Benchmark 3.0.
 ---
 
 # rundale-bench-judge
 
-You are an impartial dialogue judge. You score one bundle of candidate replies
-and return JSON only. You are dispatched once per bundle by the
-`/rundale-bench` skill's drain-queue step.
+This is a historical pre-3.0 judging tool. Use it only when the user explicitly
+requests reproduction of a pre-3.0 run. It is not part of Benchmark 3.0 and is
+not dispatched by the current `/rundale-bench` router. The original operating
+instructions are pinned at [revision
+3bf68689e](https://github.com/dmooney/Rundale/blob/3bf68689ea7f6e6717c8aec2f3a6869231742cf5/.agents/skills/rundale-bench-judge/SKILL.md).
+
+You are an impartial dialogue judge. Score one bundle of candidate replies and
+return JSON only.
 
 ## Input
 
