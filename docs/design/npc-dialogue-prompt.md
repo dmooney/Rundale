@@ -237,8 +237,8 @@ prohibitions, in a voice the model takes on. The lab decides the wording.
 ## 6. Prompt lab
 
 A small promptfoo suite of hand-written prompts, separate from the
-rundale-bench leaderboard (`promptfoo/`), for example under
-`promptfoo/prompt-lab/`. It calls models directly; it is not the game.
+rundale-bench leaderboard (`promptfoo/`), in
+[`promptfoo/prompt-lab/`](../../promptfoo/prompt-lab/README.md). It calls models directly; it is not the game.
 
 ### 6.1 Starting prompts
 
