@@ -9,8 +9,8 @@
 #             left out of the score, and the round is rerun (see the skill)
 #
 # Prices are USD per 1M tokens (input, output), list prices checked
-# 2026-11-01. promptfoo does not price these judges, so spend is computed here
-# from token counts. gemini-3.8-flash is at its introductory price, which
+# 2026-11-01. promptfoo's own cost fields came back empty for the judges in
+# testing, so spend is computed here from token counts. gemini-3.8-flash is at its introductory price, which
 # ends on 2026-12-31 ($1.50 / $7.50 from 2027).
 def price: {
   "flash-lite": [0.30, 2.50],

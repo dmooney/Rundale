@@ -26,7 +26,9 @@ The content was copied from `mods/rundale/` (`npcs.json`, `world.json`,
 and the cases were written for the lab and await the owner's review. The
 common knowledge is the fact-checked list in §4.1.
 
-Keys are sent in the order the prompt writes them, not sorted as the phone's bridge sorts them; #2299 must render the order the lab freezes.
+Keys are sent in the order the prompt writes them. The phone's bridge sorts
+them today; by the owner's decision (design doc §6.4, 2026-11-01) production
+matches the order the lab freezes, and #2299 changes the bridge where needed.
 
 To run a round by hand: `cd promptfoo/prompt-lab && ../node_modules/.bin/promptfoo eval -c promptfooconfig.yaml -o output/round.json`,
 then `jq -f summary.jq output/round.json`. It needs `GEMINI_API_KEY`,

@@ -315,7 +315,10 @@ run on the provider APIs rather than subscriptions, whose quotas the owner
 often uses up, and their spend counts against the $25. With these judges $25
 may buy only a few rounds, so the cap rather than the plateau may end the
 first run; the owner re-evaluates the cap and the stopping rule after it. The
-larger Gemini of §6.2 is `gemini-3.8-flash`.
+larger Gemini of §6.2 is `gemini-3.8-flash`. The lab may change how the request is laid out, key
+order included; production then matches what the lab freezes. Today the
+phone's bridge sorts every key (`.sortedKeys` in `LimerickRuntime.swift`), so
+where the frozen prompt's order differs, #2299 changes that serialisation.
 
 **Record:** every round's prompt, replies, scores and the agent's reasoning
 for its change, plus the spend. The write-up goes in
