@@ -46,8 +46,9 @@ Set `L=promptfoo/prompt-lab` and `N` to the round number (two digits).
    - A malformed reply (not the output schema's JSON; the judges see it as
      `MALFORMED: ...`) scores 0: the prompt's miss.
    - An outage (a failed request, or a judge that failed) is left out of the
-     mean. If a round has any, rerun just those cases and merge, or rerun
-     the round; never compare a round with outages against one without.
+     mean. If a round has any, rerun the whole round into the same output
+     file; never merge partial results by hand, and never compare a round
+     with outages against one without.
    - On the first round, check that the judges' token counts in the results
      are non-zero, and that `unpriced_models` is empty. The cap depends on
      both.
@@ -59,28 +60,43 @@ Set `L=promptfoo/prompt-lab` and `N` to the round number (two digits).
 4. **Stop or rewrite.**
    - Stop after three rounds in a row that each gain under 2 points on the
      best score before them, or when the running spend reaches $25. Before
-     the next round, check that the last round's spend still fits under $25,
-     with enough left for the held-out run, which costs about as much as one
-     training round (12 cases under two prompts against 25 under one). With these judges the cap may end the run
-     before the plateau does; that is expected, and the owner re-evaluates
-     the cap after the first run.
+     the next round, check that the last round's spend still fits under $25
+     with the reserve left: the held-out run (about one training round: 12
+     cases under two prompts against 25 under one) and the four comparisons
+     below (each about half a training round: one model). With these judges
+     the cap may end the run before the plateau does; that is expected, and
+     the owner re-evaluates the cap after the first run.
    - Otherwise rewrite `prompts/brief.yaml`, starting from the best round's
      prompt (`output/round-<best>-brief.yaml`), not necessarily the last
      one. Make one change, or a small set of related changes, aimed at what
      the misses have in common.
 
-## The anachronism flag (§6.1.3)
+## Comparisons on the best prompt (§6.1.3, §8)
 
-Once, on the best prompt, score the B7 cases without the notice to learn
-whether standing guidance alone is enough:
+When the loop stops, run each comparison once on the best prompt, on the
+production model only, and log it. Compare each with the same cases and model
+in the best round. In order of priority, in case the cap runs out:
+
+| Question                                      | Switch                   | Cases                                |
+| --------------------------------------------- | ------------------------ | ------------------------------------ |
+| Does backstory earn a place as mod content?   | `--var nobackstory=true` | all training cases                   |
+| Shaded or shared common knowledge?            | `--var shaded=true`      | all training cases                   |
+| Structured JSON values or prose sections?     | `--var prose=true`       | all training cases                   |
+| Is standing guidance enough without the flag? | `--var noflag=true`      | `--filter-pattern '[( ]B7[,)]'` only |
 
 ```sh
-cd $L && PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
+cd $L && cp output/round-<best>-brief.yaml prompts/brief.yaml && \
+  PROMPTFOO_DISABLE_TELEMETRY=1 ../node_modules/.bin/promptfoo eval \
   -c promptfooconfig.yaml --no-cache --filter-prompts '^brief$' \
-  --filter-pattern '[( ]B7[,)]' --var noflag=true -o output/noflag.json
+  --filter-providers flash-lite --var <switch>=true -o output/<switch>.json
 ```
 
-The pattern matches the B7 tag in each case's description exactly (`--filter-metadata tags=B7` would also match B17). Compare with the same cases in the best round, and log it.
+Each switch changes only what it names; `check.sh` checks that. Pass `true`
+only. If the loop already adopted a setting (for example prose), compare
+against its opposite by editing a copy of the best prompt instead, and say
+so. The B7 pattern matches the tag in each case's description exactly
+(`--filter-metadata tags=B7` would also match B17). If the cap leaves no room
+for a comparison, say in the write-up which questions it leaves unanswered.
 
 ## What you may change
 
@@ -93,7 +109,9 @@ values versus prose, and whether the common knowledge is shaded by station
 You may not:
 
 - change facts or add them to the prompt: characters, backstory, village and
-  common knowledge come from `content/`, and the moment from the cases;
+  common knowledge come from `content/`, and the moment from the cases
+  (leaving the backstory out through `nobackstory` for its comparison is
+  allowed, as that answers §8 question 3 without changing a fact);
 - name a person, place or line from a case, or tailor the prompt to one case;
 - change when the anachronism notice appears (it follows the case's
   `anachronism` value);
@@ -113,6 +131,7 @@ cd $L && cp output/round-<best>-brief.yaml prompts/brief.yaml && \
 
 Then write `docs/test-plans/results/<date>-prompt-lab.md`. Include every
 round's prompt change, score, reasoning and spend from `log.md`, the
-held-out scores for both prompts, and each held-out case's two replies side
-by side for the owner to read. Leave raw output out of git. The owner
+held-out scores for both prompts, each held-out case's two replies side by
+side for the owner to read, and an answer to each §8 question from the
+comparisons above (with the scores behind it, or why it is unanswered). Leave raw output out of git. The owner
 accepts or rejects the prompt; do not freeze it yourself.

@@ -19,10 +19,25 @@
 
     Reply with JSON matching the output schema: a single dialogue string holding only the words you say aloud, with no narration, actions, stage directions, labels or notes.
 - role: user
+  # Switches for the §8 questions, each passed only as "true" on the command
+  # line (see the prompt-lab skill): nobackstory leaves out the character's
+  # backstory, shaded adds how this character holds the common knowledge, and
+  # prose renders each section as sentences instead of structured values.
   content: |-
     Endpoint input values:
-    {%- set ch = (characters | load).characters[speaker] -%}
+    {%- set full = (characters | load).characters[speaker] -%}
     {%- set ck = common_knowledge | load -%}
+    {%- set vil = village | load -%}
+    {%- set ch = {
+      "name": full.name, "age": full.age, "pronouns": full.pronouns,
+      "appearance": full.appearance, "occupation": full.occupation,
+      "personality": full.personality, "home": full.home, "workplace": full.workplace,
+      "day": full.day, "relationships": full.relationships, "knows": full.knows,
+      "mood": full.mood
+    } if (nobackstory | string) == "true" else full -%}
+    {%- set common = {
+      "shared": ck.shared, "howYouKnowIt": ck.shaded[speaker]
+    } if (shaded | string) == "true" else ck.shared -%}
     {%- set addressing_text = {
       "spoken_to": "The stranger is speaking to you.",
       "part_of_all": "The stranger spoke to everyone here, and you are the one answering.",
@@ -46,11 +61,29 @@
       "howYouCameToAnswer": now.howYouCameToAnswer, "justSaid": now.justSaid,
       "notice": "Something in what the stranger just said is not a thing you have ever heard of. Work out what puzzles you and react as you would: puzzlement, a guess, a mishearing, or a question."
     } -%}
-    {%- endif %}
-    {{ {
-      "aboutYou": ch,
-      "commonKnowledge": ck.shared,
-      "theVillage": village | load,
-      "thisMoment": now,
+    {%- endif -%}
+    {%- if (prose | string) == "true" -%}
+    {%- set ch_text -%}
+    You are {{ ch.name }}, {{ ch.age }} ({{ ch.pronouns }}), {{ ch.appearance }}. {{ ch.occupation }}. {{ ch.personality }} You live at {{ ch.home }} and work at {{ ch.workplace }}. Your day this season: {{ ch.day | join("; ") }}. Your people: {% for r in ch.relationships %}{{ r.who }}, {{ r.kind }}: {{ r.feeling }}{{ "; " if not loop.last }}{% endfor %}. What you know: {{ ch.knows | join(" ") }}{% if ch.backstory %} Your past: {{ ch.backstory | join(" ") }}{% endif %} Your mood: {{ ch.mood }}.
+    {%- endset -%}
+    {%- set ck_text -%}
+    {% for t in ck.shared %}{{ t.topic }}: {{ t.text }}{{ " " if not loop.last }}{% endfor %}{% if (shaded | string) == "true" %} How you know it: {{ ck.shaded[speaker] }}{% endif %}
+    {%- endset -%}
+    {%- set vil_text -%}
+    Your village is {{ vil.name }}. {% for pl in vil.places %}{{ pl.name }}: {{ pl.looks }} From here: {{ pl.ways | join("; ") }}.{% if pl.story %} The old story: {{ pl.story }}{% endif %} {% endfor %}{% for pe in vil.people %}{{ pe.name }}, {{ pe.looks }}, {{ pe.work }}; lives at {{ pe.home }}. {% endfor %}The feasts of the year: {% for f in vil.festivals %}{{ f.name }}, {{ f.date }}: {{ f.about }}{{ "; " if not loop.last }}{% endfor %}.
+    {%- endset -%}
+    {%- set now_text -%}
+    You are at {{ now.where }}, {{ now.whatYouAreDoing }}. It is {{ now.when }}. The weather: {{ now.weather }}. Feast today: {{ now.feastToday }}. Also here: {{ now.alsoHere | join("; ") }}. The stranger: {{ now.theStranger }} {{ now.howYouCameToAnswer }}{% if now.justSaid | length %} Just said: {% for c in now.justSaid %}{{ c.speaker }}: “{{ c.said }}”{{ " " if not loop.last }}{% endfor %}{% endif %}{% if now.notice %} {{ now.notice }}{% endif %}
+    {%- endset -%}
+    {%- set values = {
+      "aboutYou": ch_text | trim, "commonKnowledge": ck_text | trim,
+      "theVillage": vil_text | trim, "thisMoment": now_text | trim,
       "whatTheStrangerSays": player_line
-    } | dump | safe }}
+    } -%}
+    {%- else -%}
+    {%- set values = {
+      "aboutYou": ch, "commonKnowledge": common, "theVillage": vil,
+      "thisMoment": now, "whatTheStrangerSays": player_line
+    } -%}
+    {%- endif %}
+    {{ values | dump | safe }}

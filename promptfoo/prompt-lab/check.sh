@@ -68,6 +68,46 @@ jq -e --arg n "$notice" '[.results.results[] | .prompt.raw | test($n)] | any | n
         exit 1
     }
 
+# The §8 switches: by default the brief carries the backstory, shared common
+# knowledge and structured values; nobackstory, shaded and prose change only
+# what they name.
+values='.results.results[] | .prompt.raw | fromjson | .[1].content | split("\n")[1:] | join("\n") | fromjson'
+jq -e "[$values | select(.aboutYou | type == \"object\")] | length > 0 and all(.aboutYou | has(\"backstory\")) and all(.commonKnowledge | type == \"array\")" "$tmp/train.json" >/dev/null \
+    || {
+        echo "check: the default brief lost its backstory or shared common knowledge" >&2
+        exit 1
+    }
+(cd "$tmp" && $pf eval -c nojudge.yaml -r echo --filter-prompts '^brief$' --var nobackstory=true --var shaded=true --no-cache --no-progress-bar -o switches.json >/dev/null 2>&1) || true
+jq -e "[$values] | length > 0 and all(.aboutYou | has(\"backstory\") | not) and all(.aboutYou | has(\"personality\")) and all(.commonKnowledge.howYouKnowIt | type == \"string\")" "$tmp/switches.json" >/dev/null \
+    || {
+        echo "check: nobackstory=true or shaded=true did not change the brief as documented" >&2
+        exit 1
+    }
+(cd "$tmp" && $pf eval -c nojudge.yaml -r echo --filter-prompts '^brief$' --var prose=true --no-cache --no-progress-bar -o prose.json >/dev/null 2>&1) || true
+jq -e "[$values] | length > 0 and all(to_entries | all(.value | type == \"string\" and length > 0))" "$tmp/prose.json" >/dev/null \
+    || {
+        echo "check: prose=true did not render every section as text" >&2
+        exit 1
+    }
+
+# The judges' rubric renders with the case and the true world filled in. An
+# echo grader returns the rendered rubric instead of a verdict.
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const fs = require("fs");
+  const cfg = yaml.load(fs.readFileSync("promptfooconfig.yaml", "utf8"));
+  const judge = cfg.defaultTest.assert.find((a) => a.metric === "opus");
+  cfg.defaultTest.assert = [{ ...judge, provider: "echo" }];
+  cfg.defaultTest.options.transform = "\"Good day.\"";
+  fs.writeFileSync(process.argv[1], yaml.dump(cfg));
+' "$tmp/rubric.yaml"
+(cd "$tmp" && $pf eval -c rubric.yaml -r echo --filter-pattern '^t07-' --filter-prompts '^brief$' --no-cache --no-progress-bar -o rubric.json >/dev/null 2>&1) || true
+jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAssertionValue
+  | test("REQUIREMENTS UNDER TEST\nB5: ") and test("\"name\":\"Peig Hannigan\"") and test("Kilteevan") and (test("[{][{]") | not)' "$tmp/rubric.json" >/dev/null || {
+    echo "check: the judges' rubric did not render with the case filled in" >&2
+    exit 1
+}
+
 # A malformed reply stays malformed when the judges fail too. Fake keys and a
 # closed local port make both judges fail at once, without touching a network.
 PROMPTFOO_REQUEST_BACKOFF_MS=1 ANTHROPIC_API_KEY=offline OPENAI_API_KEY=offline \

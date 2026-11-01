@@ -30,7 +30,8 @@ Keys are sent in the order the prompt writes them. The phone's bridge sorts
 them today; by the owner's decision (design doc §6.4, 2026-11-01) production
 matches the order the lab freezes, and #2299 changes the bridge where needed.
 
-To run a round by hand: `cd promptfoo/prompt-lab && ../node_modules/.bin/promptfoo eval -c promptfooconfig.yaml -o output/round.json`,
-then `jq -f summary.jq output/round.json`. It needs `GEMINI_API_KEY`,
-`ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. Raw output goes to `output/`,
-which git ignores.
+To run a round, follow the skill's commands; they pass `--no-cache` (so a
+changed prompt is never answered from cache) and `--filter-prompts '^brief$'`
+(so the baseline is billed only in round 00). Each needs `GEMINI_API_KEY`,
+`ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. Raw output goes to `output/`, which
+git ignores.
