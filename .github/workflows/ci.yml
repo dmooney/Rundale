@@ -847,12 +847,18 @@ jobs:
       - name: Run the mobile-verify gate
         if: steps.recorded.outputs.run == 'true'
         env:
-          RUNDALE_PARALLEL_WORKERS: "2"
+          # One simulator worker: parallel clones flaked this runner (#2301),
+          # and verify.py refuses more on a hosted runner.
           RUNDALE_COMMAND_TIMEOUT_MINUTES: "100"
           GATE_ARGS: ${{ steps.recorded.outputs.args }}
         # GATE_ARGS is `--smoke` or `--phase all`.
         run: |
           read -ra args <<< "$GATE_ARGS"
+          # The PR gate leaves the XCUITest journeys to the nightly report-only
+          # job; a PR labelled mobile-verify-full asks for them (--phase all).
+          if [ "${args[0]}" = "--phase" ]; then
+            args+=(--journeys on)
+          fi
           python3 mobile/scripts/verify.py "${args[@]}" --skip-time-sensitive
 
       # Saved even when a later test fails: the Rust build finished first.

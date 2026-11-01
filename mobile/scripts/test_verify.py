@@ -34,6 +34,11 @@ CommandResult = verify_module.CommandResult
 VerificationRun = verify_module.VerificationRun
 
 
+# Tests that construct a run must not depend on where they run: on a GitHub
+# runner `GITHUB_ACTIONS` makes a run serial (and refuses parallel workers), so
+# the tests that want that set it themselves.
+os.environ.pop("GITHUB_ACTIONS", None)
+
 # Runs in these tests must never wait on, or block, a real run's host lock.
 os.environ["RUNDALE_MOBILE_VERIFY_LOCK"] = str(
     Path(tempfile.mkdtemp(prefix="rundale-verify-test-")) / "mobile-verify.lock"
@@ -292,6 +297,12 @@ def create_phase1_fixture(root: Path) -> None:
         encoding="utf-8",
     )
     (root / "mobile" / "Rundale.xcodeproj").mkdir(parents=True)
+    session = root / "mobile" / "RundaleSession"
+    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
+    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
+    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
 
 
 def create_phase2_fixture(root: Path) -> None:
@@ -317,12 +328,6 @@ def create_phase2_fixture(root: Path) -> None:
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
     (endpoint_kit / "Tests" / "LimerickEndpointKitTests" / "FixtureTests.swift").write_text(
-        "// fixture\n", encoding="utf-8"
-    )
-    session = root / "mobile" / "RundaleSession"
-    (session / "Tests" / "RundaleSessionTests").mkdir(parents=True)
-    (session / "Package.swift").write_text("// fixture\n", encoding="utf-8")
-    (session / "Tests" / "RundaleSessionTests" / "FixtureTests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
     packaging = root / "mobile" / "scripts" / "build-rust-mobile.sh"
@@ -499,10 +504,77 @@ class VerificationRunnerTests(unittest.TestCase):
         argv = simulator_argv(parallel_workers=2)
         self.assertEqual(argv[argv.index("-parallel-testing-worker-count") + 1], "2")
         argv = simulator_argv(parallel_workers=1)
-        self.assertNotIn("-parallel-testing-enabled", argv)
+        self.assertEqual(argv[argv.index("-parallel-testing-enabled") + 1], "NO")
         self.assertNotIn("-parallel-testing-worker-count", argv)
         with self.assertRaises(ValueError):
             VerificationRun(Path("."), parallel_workers=0)
+
+    def test_hosted_runs_are_serial_and_cannot_go_back_to_parallel(self):
+        """#2301: parallel simulator clones on a hosted runner flaked the nightly gate."""
+
+        def simulator_argv(**kwargs):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "mobile").mkdir()
+                create_phase1_fixture(root)
+                fake = FakeRunner()
+                VerificationRun(root, command_runner=fake, **kwargs).run(1)
+                return next(
+                    call["argv"]
+                    for call in fake.calls
+                    if call["argv"][0:2] == ("xcodebuild", "-project")
+                    and "test" in call["argv"]
+                    and any(arg.startswith("platform=iOS Simulator") for arg in call["argv"])
+                )
+
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            argv = simulator_argv()
+            self.assertEqual(argv[argv.index("-parallel-testing-enabled") + 1], "NO")
+            self.assertNotIn("-parallel-testing-worker-count", argv)
+            self.assertNotIn("YES", argv)
+
+            def without_derived_data(argv):
+                at = argv.index("-derivedDataPath")
+                return [arg for arg in argv[:at] + argv[at + 4 :] if arg != "-resultBundlePath"]
+
+            self.assertEqual(
+                without_derived_data(simulator_argv(parallel_workers=1)), without_derived_data(argv)
+            )
+            for workers in (2, 6):
+                with self.assertRaisesRegex(ValueError, "hosted runners"):
+                    VerificationRun(Path("."), parallel_workers=workers)
+            # The default for the command line is one worker too, and a request
+            # for more (an environment variable a workflow still sets) is refused
+            # before any suite runs.
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("RUNDALE_PARALLEL_WORKERS", None)
+                self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 1)
+            with patch.dict(os.environ, {"RUNDALE_PARALLEL_WORKERS": "2"}):
+                with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
+                    verify_module.main(["--fast"])
+                self.assertEqual(raised.exception.code, 2)
+
+    def test_local_runs_keep_the_parallel_default(self):
+        self.assertEqual(verify_module.DEFAULT_PARALLEL_WORKERS, 6)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(verify_module.build_parser().parse_args([]).parallel_workers, 6)
+
+    def test_workflows_do_not_ask_for_parallel_simulator_workers(self):
+        """The workflows that run verify.py must stay on the hosted default of one worker."""
+
+        workflows = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+        runs_verify = [
+            path
+            for path in sorted(workflows.glob("*.yml"))
+            if "mobile/scripts/verify.py" in path.read_text("utf-8")
+        ]
+        self.assertTrue(runs_verify, "no workflow runs verify.py")
+        for path in workflows.glob("*.yml"):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(r'RUNDALE_PARALLEL_WORKERS\s*:\s*"?(\d+)', text):
+                self.assertEqual(match.group(1), "1", f"{path.name}: {match.group(0)}")
+            for match in re.finditer(r"--parallel-workers[ =](\d+)", text):
+                self.assertEqual(match.group(1), "1", f"{path.name}: {match.group(0)}")
 
     def test_parallel_workers_option_reads_environment(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -796,9 +868,10 @@ class VerificationRunnerTests(unittest.TestCase):
             # left to the full run without blocking.
             self.assertEqual(by_id["ios-simulator-tests"]["status"], "passed")
             self.assertIn("--smoke", by_id["ios-simulator-tests"]["name"])
-            for identifier in ("phase3-ios-simulator-tests", "phase4-ios-simulator-tests"):
-                self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
-                self.assertFalse(by_id[identifier]["blocking"], identifier)
+            # Phase 3 keeps its engine scenarios (EngineScenarioTests, a unit class).
+            self.assertEqual(by_id["phase3-ios-simulator-tests"]["status"], "passed")
+            self.assertEqual(by_id["phase4-ios-simulator-tests"]["status"], "skipped")
+            self.assertFalse(by_id["phase4-ios-simulator-tests"]["blocking"])
             self.assertEqual(by_id["phase4-ios-controller-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests"]["status"], "passed")
             self.assertEqual(by_id["ios-simulator-smoke-tests-results"]["status"], "passed")
@@ -821,12 +894,117 @@ class VerificationRunnerTests(unittest.TestCase):
             ):
                 self.assertIn(identifier, by_id)
 
+    def _combined_selectors(self, **kwargs):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            run = VerificationRun(root, command_runner=fake, **kwargs)
+            report = run.run()
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and call["argv"][-1] == "test"
+            ]
+            selectors = [
+                a.removeprefix("-only-testing:")
+                for build in builds
+                for a in build
+                if a.startswith("-only-testing:")
+            ]
+            passes = {
+                path.name: json.loads(path.read_text())
+                for path in (root / "mobile" / ".verification" / "passes").glob("*.json")
+            }
+            return report, selectors, passes
+
+    def test_journeys_off_keeps_the_fast_suites_and_drops_the_ui_classes(self):
+        report, selectors, _ = self._combined_selectors(journeys="off")
+        self.assertEqual(report["exit_code"], 0)
+        self.assertEqual(report["journeys"]["effective"], "off")
+        self.assertFalse([s for s in selectors if s.startswith("RundaleUITests")])
+        self.assertIn("RundaleTests/EngineScenarioTests", selectors)
+        self.assertIn("RundaleTests", selectors)
+
+    def test_journeys_only_runs_just_the_ui_classes_and_records_no_pass(self):
+        report, selectors, passes = self._combined_selectors(journeys="only")
+        self.assertTrue(selectors)
+        self.assertTrue(all(s.startswith("RundaleUITests") for s in selectors), selectors)
+        self.assertEqual(passes, {})
+        by_id = {suite["id"]: suite for suite in report["suites"]}
+        for identifier in ("swift-session-tests", "ios-device-build", "limerick-persistence-tests"):
+            self.assertEqual(by_id[identifier]["status"], "skipped", identifier)
+
+    def test_journeys_on_runs_both_and_the_pass_says_what_ran(self):
+        with patch.object(VerificationRun, "_attestation_tree", return_value="a" * 40):
+            _, selectors, passes = self._combined_selectors(journeys="on")
+        self.assertTrue([s for s in selectors if s.startswith("RundaleUITests")])
+        self.assertIn("RundaleTests/EngineScenarioTests", selectors)
+        stored = passes[f"{'a' * 40}.json"]
+        self.assertEqual(stored["journeys"], "on")
+        self.assertTrue(stored["suites_run"])
+
+    def test_a_journeys_off_pass_is_recorded_and_says_so(self):
+        with patch.object(VerificationRun, "_attestation_tree", return_value="b" * 40):
+            _, _, passes = self._combined_selectors(journeys="off")
+        stored = passes[f"{'b' * 40}.json"]
+        self.assertEqual(stored["journeys"], "off")
+        self.assertTrue(stored["suites_run"])
+
+    def test_auto_runs_journeys_only_when_the_change_touches_gui_code(self):
+        def decide(paths, hosted=False):
+            run = VerificationRun(Path("/tmp/rundale-test"), journeys="auto")
+            env = {"GITHUB_ACTIONS": "true"} if hosted else {}
+            with (
+                patch.dict(os.environ, env),
+                patch.object(
+                    run,
+                    "_changed_paths",
+                    return_value=(paths, "no origin/main" if paths is None else ""),
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                run._resolve_journeys()
+            return run.journeys, run.journeys_reason
+
+        self.assertEqual(decide(["mobile/Rundale/ContentView.swift"])[0], "on")
+        self.assertEqual(decide(["mobile/RundaleUITests/RundaleUITests.swift"])[0], "on")
+        self.assertEqual(decide(["mobile/project.yml"])[0], "on")
+        # Presenter, kit, engine, tests and tooling do not count.
+        for path in (
+            "mobile/RundaleSession/Sources/RundaleSession/RundaleSessionPresenter.swift",
+            "mobile/RundaleKit/Sources/RundaleKit/SessionState.swift",
+            "mobile/RundaleTests/EngineScenarioTests.swift",
+            "mobile/scripts/verify.py",
+            "limerick/crates/limerick-core/src/lib.rs",
+        ):
+            self.assertEqual(decide([path])[0], "off", path)
+        self.assertEqual(decide([])[0], "off")
+        on, reason = decide(None)
+        self.assertEqual(on, "on")
+        self.assertIn("no origin/main", reason)
+        # A hosted runner never runs them by default.
+        self.assertEqual(decide(["mobile/Rundale/ContentView.swift"], hosted=True)[0], "off")
+
+    def test_journeys_flag_forces_either_way_and_only_reports_without_failing(self):
+        for mode in ("on", "off", "only"):
+            run = VerificationRun(Path("/tmp/rundale-test"), journeys=mode)
+            with contextlib.redirect_stdout(io.StringIO()):
+                run._resolve_journeys()
+            self.assertEqual(run.journeys, mode)
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), journeys="sometimes")
+        parser = verify_module.build_parser()
+        self.assertEqual(parser.parse_args([]).journeys, "auto")
+        with patch("sys.stderr"), self.assertRaises(SystemExit):
+            verify_module.main(["--journeys", "only", "--fast"])
+
     def test_smoke_fails_when_a_core_ui_test_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
             fake = FakeRunner()
-            selector = f"-only-testing:{verify_module.SMOKE_UI_TESTS[2]}"
+            selector = f"-only-testing:{verify_module.SMOKE_UI_TESTS[0]}"
             fake.case_results[selector] = "Failed"
             fake.case_failures[selector] = "RundalePhase2UITests.swift:9: XCTAssertTrue failed"
             report = VerificationRun(root, command_runner=fake, smoke=True).run()
@@ -841,7 +1019,7 @@ class VerificationRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_phase2_fixture(root)
-            renamed = (*verify_module.SMOKE_UI_TESTS[:-1], "RundaleUITests/RundaleUITests/testGone")
+            renamed = (*verify_module.SMOKE_UI_TESTS, "RundaleUITests/RundaleUITests/testGone")
             fake = FakeRunner()
             real_tree = fake.xcresult_tree
 
@@ -873,6 +1051,18 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(report["exit_code"], 0)
             store.assert_called_once()
 
+    SAMPLE_TIME_SENSITIVE = (
+        "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
+        "RundaleTests/TranscriptScrollingTests/testGrowingHostedRowsAndKeyboardResizeKeepTheActualTailVisible",
+        "RundaleUITests/RundalePhase4RecoveryUITests/testForceQuitAtSendKeepsOneCommandAndOffersRetry",
+    )
+
+    def test_the_time_sensitive_list_is_empty_unless_a_test_fails_alone_on_hosted(self):
+        # #2301/#2319: every entry needs evidence that it fails when run alone
+        # on the hosted runner. Update this guard with the entry's issue.
+        self.assertEqual(verify_module.TIME_SENSITIVE_TESTS, ())
+
+    @patch.object(verify_module, "TIME_SENSITIVE_TESTS", SAMPLE_TIME_SENSITIVE)
     def test_skip_time_sensitive_leaves_them_out_of_the_combined_run(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -898,6 +1088,7 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertFalse(record["blocking"])
             self.assertEqual(record["details"]["tests"], skipped)
 
+    @patch.object(verify_module, "TIME_SENSITIVE_TESTS", SAMPLE_TIME_SENSITIVE)
     def test_smoke_skips_only_the_time_sensitive_tests_it_selects(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -2339,7 +2530,7 @@ class SplitUiClassTests(unittest.TestCase):
             base = f"RundalePhase{phase}UITestCase"
             classes = re.findall(r"^(?:final )?class (\w+): (\w+) \{", text, re.MULTILINE)
             subclasses = {name for name, parent in classes if parent == base}
-            self.assertGreater(len(subclasses), 1, phase)
+            self.assertGreaterEqual(len(subclasses), 1, phase)
             self.assertEqual(
                 {f"RundaleUITests/{name}" for name in subclasses}, set(selected), phase
             )

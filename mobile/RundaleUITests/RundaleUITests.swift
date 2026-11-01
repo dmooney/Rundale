@@ -22,50 +22,6 @@ final class RundaleUITests: RundaleUITestCase {
         XCTAssertFalse(app.buttons["Save"].exists)
     }
 
-    func testMultilineSubmissionClearsOnlyAcceptedDraft() {
-        launch(fixture: "standard")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("look around\ncheck the road\nwait by the gate")
-        XCTAssertTrue((input.value as? String)?.contains("check the road") == true)
-
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText("look around\ncheck the road\nwait by the gate"))
-        XCTAssertEqual(input.value as? String ?? "", "")
-    }
-
-    func testSendButtonExposesDistinctDisabledAndEnabledStates() {
-        launch(fixture: "standard")
-
-        let send = app.buttons["composer.send"]
-        XCTAssertTrue(send.waitForExistence(timeout: 3))
-        XCTAssertFalse(send.isEnabled)
-        XCTAssertEqual(send.value as? String, "Enter a command to enable")
-
-        commandInput.tap()
-        commandInput.typeText("Look")
-
-        XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.value as? String, "Ready to send")
-    }
-
-    func testDraftTypedDuringAcceptedStreamSurvivesStop() {
-        launch(fixture: "manual-stream")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("long stream")
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(app.buttons["fixture.step"].waitForExistence(timeout: 3))
-
-        input.tap()
-        input.typeText("draft typed while the response runs")
-        app.buttons["composer.stop"].tap()
-
-        XCTAssertEqual(input.value as? String, "draft typed while the response runs")
-    }
-
     func testManualStreamCanBeStoppedWithPartialOutputRetained() {
         launch(fixture: "manual-stream")
 
@@ -82,94 +38,6 @@ final class RundaleUITests: RundaleUITestCase {
 
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
         XCTAssertTrue(waitForTranscriptText("Interrupted"))
-    }
-
-    func testCompletionInsertionAndSlashCommandSubmission() {
-        launch(fixture: "standard")
-
-        let firstInput = commandInput
-        firstInput.tap()
-        firstInput.typeText("@")
-        let npcCompletion = app.buttons["completion.npc-micheal"]
-        XCTAssertTrue(npcCompletion.waitForExistence(timeout: 3))
-        npcCompletion.tap()
-        XCTAssertTrue((firstInput.value as? String)?.contains("Mícheál") == true)
-
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = ["--ui-tests", "--no-auto-focus", "--reset-fixture", "--fixture=standard"]
-        app.launch()
-        let input = commandInput
-        input.tap()
-        input.typeText("/")
-        let slashCompletion = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'completion.'")
-        ).firstMatch
-        XCTAssertTrue(slashCompletion.waitForExistence(timeout: 3))
-        slashCompletion.tap()
-        XCTAssertTrue((input.value as? String)?.hasPrefix("/") == true)
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText("/"))
-    }
-
-    func testPeopleAndCommandsButtonsAvoidSymbolKeyboardAndPreserveDraftUntilSelection() {
-        launch(fixture: "standard")
-        let input = commandInput
-        input.tap()
-        input.typeText("Could you help me?")
-        app.buttons["composer.people"].tap()
-        XCTAssertEqual(input.value as? String, "Could you help me?")
-        let person = app.buttons["completion.npc-micheal"]
-        XCTAssertTrue(person.waitForExistence(timeout: 3))
-        person.tap()
-        XCTAssertEqual(input.value as? String, "@Mícheál Connolly Could you help me?")
-        app.buttons["composer.commands"].tap()
-        let look = app.buttons["completion.look"]
-        XCTAssertTrue(look.waitForExistence(timeout: 3))
-        look.tap()
-        XCTAssertEqual(input.value as? String, "/look")
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText("/look"))
-    }
-
-    func testWaitingKnotAppearsDuringRequestAndDisappearsOnStopAndCompletion() {
-        launch(fixture: "standard")
-        commandInput.tap()
-        commandInput.typeText("Hello")
-        app.buttons["composer.send"].tap()
-        let waiting = app.descendants(matching: .any).matching(identifier: "composer.waiting").firstMatch
-        XCTAssertTrue(waiting.waitForExistence(timeout: 3))
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Native Celtic knot and composer shortcuts"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-        app.buttons["composer.stop"].tap()
-        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
-        submitAndFinish("Hello again")
-        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
-    }
-
-    func testTranscriptCommandRecallWorksWithoutAHistoryButton() {
-        launch(fixture: "standard")
-
-        submitAndFinish("look around")
-        submitAndFinish("walk to the bridge")
-
-        XCTAssertFalse(app.buttons["composer.history"].exists)
-        let latestCommand = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
-                "walk to the bridge"
-            )
-        ).firstMatch
-        XCTAssertTrue(latestCommand.waitForExistence(timeout: 3))
-        latestCommand.tap()
-        let input = commandInput
-        XCTAssertEqual(input.value as? String, "walk to the bridge")
-        input.typeText(" slowly")
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText("walk to the bridge slowly"))
-        XCTAssertTrue(waitForTranscriptText("walk to the bridge"))
     }
 
     func testOrdinaryLaunchRestoresHistoryAndDraftAcrossRelaunch() {
@@ -193,37 +61,6 @@ final class RundaleUITests: RundaleUITestCase {
             commandInput.value as? String,
             "ordinary launch keeps this note"
         )
-    }
-
-    func testClarificationOptionIsTemporaryAndActionable() {
-        launch(fixture: "clarification")
-
-        let input = commandInput
-        input.tap()
-        input.typeText("ambiguous")
-        app.buttons["composer.send"].tap()
-
-        // UI tests run the fixture in deterministic manual-step mode. Advance
-        // through interpretation and clarification before checking the
-        // actionable prompt.
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
-        step.tap()
-        step.tap()
-        let clarification = app.otherElements["clarification"]
-        XCTAssertTrue(clarification.waitForExistence(timeout: 3))
-        let option = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'clarification.option.'")
-        ).firstMatch
-        XCTAssertTrue(option.exists)
-        let selectedName = option.label
-        option.tap()
-        XCTAssertTrue(app.otherElements["clarification"].waitForNonExistence(timeout: 3))
-        XCTAssertTrue(waitForTranscriptText("Directed to \(selectedName)."))
-        let resolvedPrompt = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS %@", "I’m not sure which Connolly you mean.")
-        ).firstMatch
-        XCTAssertFalse(resolvedPrompt.exists)
     }
 
     func testReadingHistoryExposesNewTextAndReturnsToNewest() {
@@ -278,67 +115,6 @@ final class RundaleUITests: RundaleUITestCase {
         ).firstMatch
         XCTAssertTrue(latest.waitForExistence(timeout: 3))
         XCTAssertTrue(latest.frame.intersects(scroll.frame))
-    }
-
-    func testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading() {
-        launch(fixture: "long-history")
-        let scroll = transcriptScroll
-        XCTAssertTrue(scroll.waitForExistence(timeout: 3))
-        let input = commandInput
-        let newest = app.buttons["transcript.new-text"]
-
-        for (index, command) in ["first new exchange", "second new exchange", "third new exchange"].enumerated() {
-            input.tap()
-            input.typeText(command)
-            if index == 1 {
-                // Sending a new message explicitly leaves an older reading position.
-                scroll.swipeDown(velocity: .fast)
-                XCTAssertNotNil(visibleHistoricalRow(in: scroll))
-            }
-            app.buttons["composer.send"].tap()
-            let step = app.buttons["fixture.step"]
-            XCTAssertTrue(step.waitForExistence(timeout: 3))
-            let commandRow = app.descendants(matching: .any).matching(NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", command
-            )).firstMatch
-            XCTAssertTrue(waitForVisible(commandRow, in: scroll))
-            XCTAssertFalse(newest.exists, "Accepted messages must rejoin the latest exchange")
-            step.tap()
-            XCTAssertFalse(newest.exists, "A growing reply must not enable history mode")
-            finishManualStreamIfNeeded()
-            XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
-            XCTAssertFalse(newest.exists)
-            XCTAssertTrue(app.keyboards.firstMatch.exists)
-        }
-
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Repeated conversations follow newest above the keyboard"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
-    func testFollowingNewestStartsAtLatestAndTracksComposerResize() {
-        launch(fixture: "long-history")
-
-        let scroll = transcriptScroll
-        XCTAssertTrue(scroll.waitForExistence(timeout: 3))
-        // Initial fixture history arrives asynchronously; measure scrolling
-        // only after the last row reaches the presenter, not while loading it.
-        XCTAssertTrue(app.waitForTranscriptRow(timeout: 10) {
-            $0.row == "opening:history-179"
-        })
-        let latest = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
-                "Historical fixture entry 180"
-            )
-        ).firstMatch
-        XCTAssertTrue(waitForVisible(latest, in: scroll))
-
-        let input = commandInput
-        input.tap()
-        input.typeText("first line\nsecond line\nthird line\nfourth line")
-        XCTAssertTrue(waitForVisible(latest, in: scroll))
     }
 
     func testReadingAnchorRestoresTheVisibleHistoricalRow() {
@@ -505,21 +281,6 @@ final class RundaleUITests: RundaleUITestCase {
             NSPredicate(format: "label CONTAINS %@", text)
         ).firstMatch
         return matching.waitForExistence(timeout: timeout)
-    }
-
-    private func waitForVisible(_ element: XCUIElement,
-                                in container: XCUIElement,
-                                timeout: TimeInterval = 3) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if element.exists,
-               element.isHittable,
-               element.frame.intersects(container.frame) {
-                return true
-            }
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
-        } while Date() < deadline
-        return false
     }
 }
 

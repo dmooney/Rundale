@@ -65,12 +65,15 @@ before the push, `verify_record.py tree`) uploads nothing.
 The workflow's nightly `gate` job (07:41 UTC) uploads nothing and runs outside
 the `testflight` environment and the upload's concurrency group. It checks what
 the smoke gate left out, after the build shipped: when `main`'s whole input tree
-has no recorded full pass (`check --latest`), it runs `verify.py --phase all`
-(over an hour on this runner; the speed-dependent `TIME_SENSITIVE_TESTS` run
-only in local runs) and records the pass, so the next night skips. A
+has no recorded full pass (`check --latest`), it runs `verify.py --phase all --journeys off`
+(one simulator worker on this runner; every suite except the XCUITest journeys)
+and records the pass, so the next night skips. A separate `journeys` job runs the
+journeys alone (`--journeys only`), report-only: a failure opens or updates a
+"Nightly mobile-verify journeys failed" issue and does not fail the gate, block
+an upload, or count against a pull request. A
 failed run opens or updates a "Nightly mobile-verify failed" issue with the
 summary, and a passing run closes it. Run workflow uploads only from `main`. The Rust target directory is
-cached between runs. `just testflight-update` keeps the full gate by default.
+cached between runs. `just testflight-update` keeps the full gate by default, with the journeys chosen by `--journeys auto` (on only when the change touches GUI code).
 `release.py` signs with an App Store Connect API key when `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` are all set, and with the signed-in Xcode account
 otherwise. `just testflight-update` takes those three from the repository's

@@ -58,7 +58,7 @@ produce a dangling “are here.”; a return to an empty place shows its title
 alone.
 
 Native simulator coverage:
-`RundaleSceneUITests.testReturningShowsWhoIsThereWithoutRepeatingTheDescription`.
+`EngineScenarioTests.testReturningShowsWhoIsThereWithoutRepeatingTheDescription`.
 The FFI test
 `returning_somewhere_lists_who_is_there_without_repeating_the_description`
 covers persisted visit history across relaunch.

@@ -1,9 +1,11 @@
 import XCTest
 
-/// Product spec §5.4 on the shared engine (#2120): the unadvertised time and
-/// inspection commands work, a refused command keeps its draft, and typing
-/// `/` completes every command step by step (#2146). The engine's own command
-/// answers are tested on Linux (limerick-mobile-ffi).
+/// The completion strip scrolls sideways to the commands past the screen edge
+/// (#2146). That is a gesture on the real tree, so it stays here; the rules it
+/// offers (every command, each next word, names narrowing without fadas, the
+/// short Commands list) and the commands' answers are tested in
+/// `EngineScenarioTests`, and the engine's own answers on Linux
+/// (limerick-mobile-ffi).
 ///
 /// Set `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>` on `xcodebuild test` to hold
 /// on each settled state when recording a demo (see the phase demo plan).
@@ -19,151 +21,33 @@ final class RundaleCommandsUITests: RundaleUITestCase {
         // fail instead of answering.
         app.launchArguments = ["--ui-tests", "--phase2", "--no-auto-focus", "--reset-fixture"]
         app.launch()
-        XCTAssertTrue(row(containing: "A muddy road runs between low stone walls")
-            .waitForExistence(timeout: 15))
-    }
-
-    func testNewGameStartsFreshOfflineAndResumesAfterRelaunch() {
-        hold(3)
-        submit("/wait 60")
-        XCTAssertTrue(row(containing: "You wait for 60 minutes").waitForExistence(timeout: 8))
-        hold(3)
-        input.tap()
-        input.typeText("/ne")
-        XCTAssertTrue(app.buttons["completion.new"].waitForExistence(timeout: 3))
-        app.buttons["completion.new"].tap()
-        hold(2)
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(row(containing: "A muddy road runs between low stone walls").waitForExistence(timeout: 8))
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
-        )], timeout: 8) == .completed)
-        XCTAssertFalse(row(containing: "You wait for 60 minutes").exists)
-        hold(3)
-        submit("/wait 7")
-        XCTAssertTrue(row(containing: "You wait for 7 minutes").waitForExistence(timeout: 8))
-        app.terminate()
-        app.launchArguments.removeAll { $0 == "--reset-fixture" }
-        app.launch()
-        XCTAssertTrue(row(containing: "You wait for 7 minutes").waitForExistence(timeout: 15))
-        XCTAssertFalse(row(containing: "You wait for 60 minutes").exists)
-        hold(3)
-        submit("/NEW-GAME")
-        XCTAssertTrue(row(containing: "A muddy road runs between low stone walls").waitForExistence(timeout: 8))
-        XCTAssertFalse(row(containing: "You wait for 7 minutes").exists)
-        hold(3)
-        submit("/help")
-        XCTAssertTrue(row(containing: "/new").waitForExistence(timeout: 8))
-        hold(5)
-    }
-
-    func testUnadvertisedCommandsWorkAndOthersAreRefused() {
-        submit("/wait 60")
-        XCTAssertTrue(row(containing: "You wait for 60 minutes").waitForExistence(timeout: 8))
-        submit("/debug clock")
-        XCTAssertTrue(row(containing: "[DEBUG CLOCK]").waitForExistence(timeout: 8))
-        hold(3)
-
-        input.tap()
-        input.typeText("/save")
-        app.buttons["composer.send"].tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(
-            format: "label CONTAINS %@", "That command isn't available here. Try /help."
-        )).firstMatch.waitForExistence(timeout: 8))
-        XCTAssertEqual(input.value as? String, "/save", "A refused command keeps the draft")
-        hold(3)
+            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
+            "A muddy road runs between low stone walls"
+        )).firstMatch.waitForExistence(timeout: 15))
     }
 
-    /// #2146: typing `/` offers every command, and completion then offers
-    /// each next word from the engine's registry; a name runs `/debug`
-    /// locally with no Endpoint call.
-    func testCompletionOffersEachNextWordAndRunsDebugMemory() {
+    func testCompletionStripScrollsSidewaysToCommandsPastTheScreenEdge() {
         input.tap()
         input.typeText("/")
         for name in ["look", "help", "wait", "pause", "resume", "debug", "flags"] {
             XCTAssertTrue(app.buttons["completion.\(name)"].waitForExistence(timeout: 3), name)
         }
         hold(3)
-        // The strip scrolls sideways to the commands past the screen edge.
         swipeStrip(until: "flags", direction: .left)
         hold(3)
         swipeStrip(until: "look", direction: .right)
         input.typeText("de")
-        XCTAssertFalse(app.buttons["completion.look"].exists, "completion narrows as the player types")
         app.buttons["completion.debug"].tap()
         XCTAssertEqual(input.value as? String, "/debug ")
         XCTAssertTrue(app.buttons["completion.memory"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["completion.clock"].exists)
         hold(3)
         swipeStrip(until: "help", direction: .left)
         hold(3)
         swipeStrip(until: "memory", direction: .right)
         app.buttons["completion.memory"].tap()
         XCTAssertEqual(input.value as? String, "/debug memory ")
-        // Every NPC in the world, not only the ones on the road.
-        for id in ["npc-1", "npc-2", "npc-3"] {
-            XCTAssertTrue(app.buttons["completion.\(id)"].waitForExistence(timeout: 3), id)
-        }
         hold(3)
-        input.typeText("mic")
-        XCTAssertFalse(app.buttons["completion.npc-1"].exists, "names narrow without fadas")
-        app.buttons["completion.npc-2"].tap()
-        XCTAssertEqual(input.value as? String, "/debug memory Mícheál Connolly ")
-        hold(3)
-        app.buttons["composer.send"].tap()
-        XCTAssertTrue(row(containing: "[DEBUG MEMORY: Mícheál Connolly]").waitForExistence(timeout: 8))
-
-        // Typed by hand without fadas, the engine still finds her.
-        submit("/debug schedule roisin")
-        XCTAssertTrue(row(containing: "[DEBUG SCHEDULE: Róisín Connolly]").waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["composer.retry"].exists, "No command failed")
-        hold(4)
-
-        // The Commands button keeps the short list.
-        app.buttons["composer.commands"].tap()
-        XCTAssertTrue(app.buttons["completion.look"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["completion.debug"].exists, "Commands lists only the advertised four")
-    }
-
-    /// #2022: in a beta build `/bug` is offered as you type and sends the
-    /// report, with a screenshot, to limerick-bug-report; it never becomes a
-    /// turn. UI tests send into memory instead of the live service.
-    func testBugCommandSendsAReportWithoutATurn() {
-        submit("go to Connolly Cottage")
-        input.tap()
-        input.typeText("/bu")
-        XCTAssertTrue(app.buttons["completion.bug"].waitForExistence(timeout: 3))
-        hold(3)
-        app.buttons["completion.bug"].tap()
-        XCTAssertEqual(input.value as? String, "/bug ")
-        input.typeText("Mícheál never looked up")
-        hold(2)
-        app.buttons["composer.send"].tap()
-
-        let notice = app.staticTexts["bugReport.notice"]
-        XCTAssertTrue(notice.waitForExistence(timeout: 8))
-        let sent = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", "Bug report sent. Thank you."),
-            object: notice
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [sent], timeout: 8), .completed, notice.label)
-        let report = app.descendants(matching: .any).matching(identifier: "uitest.bugReport").firstMatch
-        let text = report.value as? String ?? ""
-        XCTAssertTrue(text.hasPrefix("screenshot bytes: "), text)
-        XCTAssertFalse(text.hasPrefix("screenshot bytes: 0\n"), "a screenshot was taken")
-        XCTAssertTrue(text.contains("Rundale bug report\nMícheál never looked up\n"), text)
-        XCTAssertTrue(text.contains("Scene: Connolly Cottage · "), text)
-        XCTAssertTrue(text.contains("> go to Connolly Cottage\n"), text)
-        let cleared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed, "the /bug draft is cleared")
-        XCTAssertFalse(row(containing: "/bug").exists, "/bug is not a turn")
-        XCTAssertFalse(app.buttons["composer.retry"].exists)
-        hold(5)
-
-        app.buttons["bugReport.dismiss"].tap()
-        XCTAssertFalse(notice.exists)
     }
 
     /// Swipes the completion strip until `id`, off screen at first, is
@@ -188,22 +72,5 @@ final class RundaleCommandsUITests: RundaleUITestCase {
 
     private var input: XCUIElement {
         app.descendants(matching: .any).matching(identifier: "composer.input").firstMatch
-    }
-
-    private func submit(_ command: String) {
-        XCTAssertTrue(input.waitForExistence(timeout: 5))
-        input.tap()
-        input.typeText(command)
-        app.buttons["composer.send"].tap()
-        let cleared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == '' OR value == nil"), object: input
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 8), .completed, command)
-    }
-
-    private func row(containing text: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(
-            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", text
-        )).firstMatch
     }
 }
