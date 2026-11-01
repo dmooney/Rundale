@@ -1,7 +1,7 @@
 # NPC dialogue prompt lab (docs/design/npc-dialogue-prompt.md §6, issue 2294).
 # Driven by an agent with the prompt-lab skill (.agents/skills/prompt-lab/SKILL.md),
 # not by a script. Needs GEMINI_API_KEY, ANTHROPIC_API_KEY and OPENAI_API_KEY.
-#   Training round: promptfoo eval -c promptfooconfig.yaml --filter-prompts brief
+#   Training round: promptfoo eval -c promptfooconfig.yaml --filter-prompts '^brief$'
 #   Held-out (once, at the end): add -t cases/heldout.yaml
 description: Rundale NPC dialogue prompt lab
 
@@ -26,6 +26,29 @@ providers:
           $schema: http://json-schema.org/draft-07/schema#
           $id: rundale-dialogue-output-v1
           title: Rundale NPC dialogue result v1
+          description: The sole structured candidate accepted by the Phase 2 engine.
+          type: object
+          additionalProperties: false
+          properties:
+            dialogue:
+              type: string
+              minLength: 1
+              maxLength: 8192
+              description: One plain-text NPC utterance.
+          required: [dialogue]
+  # A larger Gemini (§6.2), to tell a prompt problem from a model limit. Its
+  # output limit is above production's so thinking does not cut replies short.
+  - id: google:gemini-3.8-flash
+    label: flash
+    config:
+      generationConfig:
+        responseMimeType: application/json
+        maxOutputTokens: 8192
+        responseJsonSchema:
+          $schema: http://json-schema.org/draft-07/schema#
+          $id: rundale-dialogue-output-v1
+          title: Rundale NPC dialogue result v1
+          description: The sole structured candidate accepted by the Phase 2 engine.
           type: object
           additionalProperties: false
           properties:
@@ -68,6 +91,8 @@ defaultTest:
     characters: file://content/characters.json
     common_knowledge: file://content/common-knowledge.json
     village: file://content/village.json
+    # --var noflag=true drops the anachronism notice (§6.1.3, B7 cases).
+    noflag: false
   options:
     # Judges read the spoken text, not the JSON envelope. A reply that is not
     # the output schema's JSON fails here and counts as the model's miss.

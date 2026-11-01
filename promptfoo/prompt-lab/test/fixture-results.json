@@ -1,0 +1,98 @@
+{
+  "_about": "Hand-made promptfoo results for check.sh: one row of each kind summary.jq must tell apart.",
+  "results": {
+    "results": [
+      {
+        "prompt": { "label": "brief" },
+        "provider": { "label": "flash-lite" },
+        "testCase": { "metadata": { "id": "scored-agree", "tags": "B1,B3" } },
+        "response": {
+          "output": "Good day to you.",
+          "tokenUsage": { "prompt": 1000, "completion": 100 }
+        },
+        "score": 0.8,
+        "gradingResult": {
+          "componentResults": [
+            {
+              "assertion": { "metric": "opus" },
+              "score": 0.9,
+              "reason": "fine",
+              "tokensUsed": { "prompt": 2000, "completion": 500 }
+            },
+            {
+              "assertion": { "metric": "gpt" },
+              "score": 0.7,
+              "reason": "fine",
+              "tokensUsed": { "prompt": 2000, "completion": 500 }
+            }
+          ]
+        }
+      },
+      {
+        "prompt": { "label": "brief" },
+        "provider": { "label": "flash" },
+        "testCase": { "metadata": { "id": "scored-split", "tags": "B3" } },
+        "response": { "output": "Up the boreen.", "tokenUsage": {} },
+        "score": 0.5,
+        "gradingResult": {
+          "componentResults": [
+            {
+              "assertion": { "metric": "opus" },
+              "score": 0.8,
+              "reason": "ok",
+              "tokensUsed": {}
+            },
+            {
+              "assertion": { "metric": "gpt" },
+              "score": 0.2,
+              "reason": "invents a turn",
+              "tokensUsed": {}
+            }
+          ]
+        }
+      },
+      {
+        "prompt": { "label": "brief" },
+        "provider": { "label": "flash-lite" },
+        "testCase": { "metadata": { "id": "malformed", "tags": "B5" } },
+        "response": { "output": "not json", "tokenUsage": {} },
+        "error": "Error: Transform function did not return a value",
+        "score": 0,
+        "gradingResult": null
+      },
+      {
+        "prompt": { "label": "brief" },
+        "provider": { "label": "flash" },
+        "testCase": { "metadata": { "id": "request-failed", "tags": "B5" } },
+        "response": { "error": "HTTP 429: quota", "output": null },
+        "error": "HTTP 429: quota",
+        "score": 0,
+        "gradingResult": null
+      },
+      {
+        "prompt": { "label": "brief" },
+        "provider": { "label": "flash-lite" },
+        "testCase": { "metadata": { "id": "judge-failed", "tags": "B1" } },
+        "response": { "output": "Who?", "tokenUsage": {} },
+        "score": 0.45,
+        "gradingResult": {
+          "componentResults": [
+            {
+              "assertion": { "metric": "opus" },
+              "score": 0.9,
+              "reason": "ok",
+              "tokensUsed": {}
+            },
+            {
+              "assertion": { "metric": "gpt" },
+              "score": 0,
+              "reason": "Could not extract JSON",
+              "metadata": { "graderError": true },
+              "tokensUsed": {}
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
