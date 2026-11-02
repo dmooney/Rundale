@@ -15,9 +15,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@google/genai": "2.18.0",
+    "@google/genai": "2.32.0",
     "@limerick/domain": "workspace:*",
     "@limerick/runtime": "workspace:*",
-    "openai": "7.5.0"
+    "openai": "7.45.1"
   }
 }
