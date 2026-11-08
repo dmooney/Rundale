@@ -100,6 +100,7 @@ class FakeWorld:
         self.summary_conclusion: str | None = "success"
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
+        self.list_resets = 0  # pr list calls that hit a dropped connection first
 
     def add(self, number: int, *, behind: int = 0, classify: int = 3, **extra: Any) -> None:
         self.prs[number] = pr_json(number, f"{number:04d}{'0' * 36}", **extra)
@@ -172,6 +173,11 @@ class FakeWorld:
 
     def gh(self, args: tuple[str, ...]) -> Result:
         if args[:2] == ("pr", "list"):
+            if self.list_resets > 0:
+                self.list_resets -= 1
+                return Result(
+                    1, "", 'Post "https://api.github.com/graphql": read: connection reset by peer'
+                )
             self.list_ok -= 1
             if self.list_ok < 0:
                 return Result(1, "", "HTTP 502: Bad Gateway")
@@ -783,6 +789,26 @@ class SweepAndSummaryTests(UpkeepCase):
         outcomes, summary = routine.run(only=set(), exclude=set())
         self.assertEqual(outcomes, [])
         self.assertIn("could not list the open Dependabot pull requests", summary)
+
+    def test_a_dropped_connection_is_retried_instead_of_ending_the_run(self) -> None:
+        self.world.add(96)
+        self.world.gatekeeper[96] = self.world.approve_and_merge(96)
+        self.world.list_resets = 2
+        routine = self.make()
+        outcomes, _ = routine.run(only=set(), exclude=set())
+        self.assertEqual([o.status for o in outcomes], ["merged"])
+        self.assertEqual(routine.problems, [])
+        self.assertGreaterEqual(self.clock[0], sum(upkeep.GH_RETRY_DELAYS[:2]))
+
+    def test_a_lasting_failure_is_still_reported_after_the_retries(self) -> None:
+        self.world.list_resets = 10
+        routine = self.make()
+        outcomes, summary = routine.run(only=set(), exclude=set())
+        self.assertEqual(outcomes, [])
+        self.assertIn("could not list the open Dependabot pull requests", summary)
+        # The inventory and the final sweep each try every retry before giving up.
+        attempts = len(upkeep.GH_RETRY_DELAYS) + 1
+        self.assertEqual(len(self.world.ran("gh", "pr", "list")), 2 * attempts)
 
     def test_summary_is_dispatched_to_the_posting_workflow(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]

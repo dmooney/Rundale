@@ -4,8 +4,11 @@
 # default, which can be an older major than package.json `engines` requires,
 # so `npm ci` then fails with EBADENGINE. A Node already on PATH without fnm
 # is left as is; ensure-deps.sh checks the major version either way.
+# `--shell bash`: without it fnm guesses the shell from the process tree and
+# errors ("Can't infer shell") under git hooks started by agents and IDEs,
+# which left the wrong Node on PATH.
 if command -v fnm >/dev/null 2>&1; then
-    eval "$(fnm env)"
+    eval "$(fnm env --shell bash)"
     __rundale_nvmrc="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.nvmrc"
     if [ -f "$__rundale_nvmrc" ]; then
         fnm use --silent-if-unchanged "$(tr -d '[:space:]' <"$__rundale_nvmrc")" >/dev/null 2>&1 || true

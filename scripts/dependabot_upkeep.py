@@ -71,6 +71,14 @@ TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
 CLAUDE_MODEL = "claude-opus-5-5"
+# Reads that fail this way are retried after these pauses (seconds).
+GH_RETRY_DELAYS = (30.0, 90.0, 270.0)
+TRANSIENT_GH = re.compile(
+    r"connection reset|connection refused|broken pipe|i/o timeout|timed out|TLS handshake"
+    r"|unexpected EOF|EOF$|no such host|HTTP 5\d\d|Bad Gateway|Service Unavailable"
+    r"|Gateway Timeout|secondary rate limit",
+    re.IGNORECASE | re.MULTILINE,
+)
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
 VERIFY_PROCESS = r"just mobile-verify( |$)|mobile/scripts/verify\.py"
 VERDICT = re.compile(r"<!--\s*gatekeeper:\s*sha=([0-9a-f]+)\s+verdict=([a-z-]+)")
@@ -438,7 +446,23 @@ class Upkeep:
     # GitHub reads -------------------------------------------------------------
 
     def gh(self, *args: str, **kwargs: Any) -> Any:
-        return self.sh.json(["gh", *args], **kwargs)
+        """A JSON read from GitHub, retried when the failure looks transient.
+
+        One dropped connection on the first read once cost a whole week's run
+        (2026-11-02), so network resets and 5xx answers get a few retries.
+        """
+        for delay in (*GH_RETRY_DELAYS, None):
+            try:
+                return self.sh.json(["gh", *args], **kwargs)
+            except CommandError as error:
+                detail = f"{error.result.stderr}\n{error.result.stdout}"
+                if delay is None or not TRANSIENT_GH.search(detail):
+                    raise
+                self.sh.say(
+                    f"  transient gh failure, retrying in {delay:.0f}s: {detail.strip()[:200]}"
+                )
+                self.sleep(delay)
+        raise AssertionError("unreachable")
 
     def open_prs(self) -> list[PullRequest]:
         fields = "number,title,url,headRefName,headRefOid,baseRefName,labels,isDraft,mergeable"

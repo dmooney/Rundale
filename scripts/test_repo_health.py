@@ -554,6 +554,20 @@ class CheckStateTests(unittest.TestCase):
         for conclusion in ("CANCELLED", "ACTION_REQUIRED", "STALE", "FAILURE", "TIMED_OUT"):
             self.assertEqual(self.state(check_run(conclusion, 5)), "red", conclusion)
 
+    def test_a_run_superseded_by_a_newer_run_is_ignored(self) -> None:
+        def run(conclusion: str, started: float, workflow: str = "Triage audit") -> Any:
+            return {
+                **check_run(conclusion, started),
+                "name": "audit",
+                "startedAt": ago(started),
+                "checkSuite": {"workflowRun": {"workflow": {"name": workflow}}},
+            }
+
+        self.assertEqual(self.state(run("CANCELLED", 2), run("SUCCESS", 1)), "green")
+        self.assertEqual(self.state(run("SUCCESS", 2), run("FAILURE", 1)), "red")
+        # The same job name in another workflow is a separate check.
+        self.assertEqual(self.state(run("SUCCESS", 1), run("FAILURE", 2, "CI")), "red")
+
     def test_success_neutral_and_skipped_are_green(self) -> None:
         for conclusion in ("SUCCESS", "NEUTRAL", "SKIPPED"):
             self.assertEqual(self.state(check_run(conclusion, 5)), "green", conclusion)
