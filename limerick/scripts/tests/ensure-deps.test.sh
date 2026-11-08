@@ -163,13 +163,20 @@ grep -q "Node 24 is required (.nvmrc) but node 22.22.3" "$work/err" || fail "wro
 [ "$(calls '^npm ci ')" = 0 ] || fail "wrong-major Node still ran npm ci"
 
 # When fnm manages Node, the .nvmrc version is selected, not fnm's default.
+# Like the real fnm, `env` fails when it must guess the shell from the
+# process tree, as under a git hook an agent started.
 cat >"$stubs/fnm" <<'STUB'
 #!/usr/bin/env bash
 echo "fnm $*" >>"$ENSURE_DEPS_LOG"
+if [ "$1" = env ] && [ "${2:-}" != --shell ]; then
+    echo "error: Can't infer shell!" >&2
+    exit 1
+fi
 STUB
 chmod +x "$stubs/fnm"
 : >"$log"
 bash "$script" js ui 2>/dev/null
+[ "$(calls '^fnm env --shell bash$')" = 1 ] || fail "fnm env was not told the shell"
 [ "$(calls '^fnm use --silent-if-unchanged 24$')" = 1 ] || fail "fnm did not select the .nvmrc Node"
 rm "$stubs/fnm"
 
