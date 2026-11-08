@@ -339,6 +339,27 @@ class PrReport:
     needs_owner: list[Finding] = field(default_factory=list)
 
 
+def newest_runs(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop check runs a newer run of the same workflow and job replaced.
+
+    A workflow with `cancel-in-progress` leaves a cancelled run beside the one
+    that superseded it; only the newest says anything about the commit.
+    """
+    newest: dict[tuple[str, str], dict[str, Any]] = {}
+    others = []
+    for ctx in contexts:
+        if ctx.get("__typename") != "CheckRun":
+            others.append(ctx)
+            continue
+        suite = ctx.get("checkSuite") or {}
+        workflow = (((suite.get("workflowRun") or {}).get("workflow")) or {}).get("name", "")
+        key = (workflow, ctx.get("name", ""))
+        held = newest.get(key)
+        if held is None or (ctx.get("startedAt") or "") > (held.get("startedAt") or ""):
+            newest[key] = ctx
+    return [*newest.values(), *others]
+
+
 def check_state(commit: dict[str, Any]) -> tuple[str, datetime]:
     """The head commit's checks as (red|pending|green|none, when that state began)."""
     committed = parse_time(commit["committedDate"])
@@ -348,7 +369,7 @@ def check_state(commit: dict[str, Any]) -> tuple[str, datetime]:
     failed: list[datetime] = []
     done: list[datetime] = []
     pending = False
-    for ctx in (rollup.get("contexts") or {}).get("nodes") or []:
+    for ctx in newest_runs((rollup.get("contexts") or {}).get("nodes") or []):
         if ctx.get("__typename") == "CheckRun":
             if ctx.get("status") != "COMPLETED":
                 pending = True
@@ -652,7 +673,8 @@ query($owner: String!, $name: String!, $after: String) {
           oid committedDate
           statusCheckRollup { state contexts(first: 100) { nodes {
             __typename
-            ... on CheckRun { name status conclusion completedAt }
+            ... on CheckRun { name status conclusion startedAt completedAt
+              checkSuite { workflowRun { workflow { name } } } }
             ... on StatusContext { context state createdAt }
           } } }
         } } }
