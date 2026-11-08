@@ -639,7 +639,10 @@ pub async fn handle_npc_conversation_settled(
         Resolution::Gone(label) => {
             release_claim().await;
             return GameInputOutcome {
-                unsent: Some(Some(format!("{label} is no longer here."))),
+                unsent: Some(Some(format!(
+                    "{} is no longer here.",
+                    crate::ipc::capitalize_first(&label)
+                ))),
                 ..GameInputOutcome::default()
             };
         }

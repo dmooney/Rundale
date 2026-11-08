@@ -74,7 +74,10 @@ not compatibility evidence.
 1. Read, type, select/edit text, dictate, dismiss/reopen the keyboard, send,
    recall a command, and use Stop/Retry. Keep an unsent draft while switching apps.
 2. Visit all three places, observe scheduled presence, resolve Connolly
-   ambiguity, and resume the same state after relaunch.
+   ambiguity, and resume the same state after relaunch. Before introductions,
+   "ask Connolly about the household" offers "the man" and "the woman", each
+   whole on the small-screen iPhone with no truncation; once introduced, the
+   choices are names (#2128).
 3. Start real dialogue. Background at acceptance and during streaming. Return,
    inspect the outcome, and retry only an interrupted request. Repeat with
    airplane mode before sending and during streaming; restore connectivity.

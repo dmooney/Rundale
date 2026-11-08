@@ -332,9 +332,12 @@ final class EngineScenarioTests: XCTestCase {
         await game.goToTheCottage()
         await game.submit("ask Connolly about the household")
         await waitUntil { game.presenter.clarification != nil }
-        let options = try XCTUnwrap(game.presenter.clarification).options.map(\.id)
-        XCTAssertTrue(options.contains("choose-npc-2"))
-        XCTAssertTrue(options.contains("choose-npc-3"))
+        let choices = try XCTUnwrap(game.presenter.clarification).options
+        let micheal = try XCTUnwrap(choices.first { $0.id == "choose-npc-2" })
+        let roisin = try XCTUnwrap(choices.first { $0.id == "choose-npc-3" })
+        // Strangers are told apart by short labels (#2128).
+        XCTAssertEqual(micheal.accessibilityLabel ?? micheal.label, "the man")
+        XCTAssertEqual(roisin.accessibilityLabel ?? roisin.label, "the woman")
         XCTAssertTrue(game.hasRow("Which Connolly do you mean?"))
         XCTAssertFalse(game.presenter.showsStop, "nothing is sent until the player answers")
         game.presenter.selectClarification(try XCTUnwrap(game.presenter.clarification?.options.first { $0.id == "choose-npc-3" }))

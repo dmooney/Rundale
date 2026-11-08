@@ -211,8 +211,11 @@ I’m not sure which Connolly you mean.
 [ Mícheál Connolly ]   [ Róisín Connolly ]
 ```
 
-Choices name people as the player knows them: by name once introduced,
-otherwise by their description.
+Choices name people as the player knows them: by name once introduced.
+Strangers get the shortest phrase from their authored data that tells them
+apart: "the man" / "the woman", then by age ("the older woman" / "the younger
+woman"), then by occupation, and only then by their full description
+(2026-10-29, #2128).
 
 Temporary choice controls are appropriate for genuine ambiguity.
 

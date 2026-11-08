@@ -100,8 +100,8 @@ Which Connolly do you mean?
 
 **Choose:** Which Connolly do you mean?
 
-1. a weathered man in a mud-spattered frieze coat
-2. a young woman with yarn wound about her wrist
+1. the man
+2. the woman
 
 > **Input:** `2`
 
@@ -125,7 +125,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 › ask Connolly about the household
 
-_Directed to a young woman with yarn wound about her wrist._
+_Directed to the woman._
 
 **A young woman with yarn wound about her wrist:** “I trade spun yarn ” _(in progress)_
 
@@ -153,7 +153,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 › ask Connolly about the household
 
-_Directed to a young woman with yarn wound about her wrist._
+_Directed to the woman._
 
 **A young woman with yarn wound about her wrist:** “I trade spun yarn in the village when ” _(in progress)_
 
@@ -181,7 +181,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 › ask Connolly about the household
 
-_Directed to a young woman with yarn wound about her wrist._
+_Directed to the woman._
 
 **A young woman with yarn wound about her wrist:** “I trade spun yarn in the village when the household work allows.”
 
@@ -211,7 +211,7 @@ _A weathered man in a mud-spattered frieze coat and a young woman with yarn woun
 
 › ask Connolly about the household
 
-_Directed to a young woman with yarn wound about her wrist._
+_Directed to the woman._
 
 **A young woman with yarn wound about her wrist:** “I trade spun yarn in the village when the household work allows.”
 
