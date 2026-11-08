@@ -49,7 +49,7 @@ bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's e
 
 - `js DIR` (frozen `npm ci`), `py` (`.venv-dev`), `playwright DIR` (Chromium), `tool NAME HINT` (fail naming the install command). Paths are relative to the repo root.
 - Freshness is a content-hash stamp inside the installed tree (`.rundale-deps.sha256`), not mtimes, which checkouts reset. The stamp is removed before and written only after a successful install.
-- Node comes from `use-node.sh`, which recipes source too: `eval "$(fnm env)"` alone puts fnm's _default_ Node on PATH, not `.nvmrc`'s, so a machine whose default is Node 22 failed `npm ci` in `limerick/apps/ui` on `engines` (EBADENGINE). `js` now fails first, naming both versions, when Node's major differs from `.nvmrc`. Source `use-node.sh` instead of calling `fnm env` in a new recipe.
+- Node comes from `use-node.sh`, which recipes source too: `eval "$(fnm env)"` alone puts fnm's _default_ Node on PATH, not `.nvmrc`'s, so a machine whose default is Node 22 failed `npm ci` in `limerick/apps/ui` on `engines` (EBADENGINE). `js` now fails first, naming both versions, when Node's major differs from `.nvmrc`. Source `use-node.sh` instead of calling `fnm env` in a new recipe. If you must call it, pass `--shell bash`: without it fnm infers the shell from the process tree and fails ("Can't infer shell") under git hooks or recipes started from an agent or IDE, leaving the wrong Node on PATH.
 - `tests/ensure-deps.test.sh` covers it hermetically with stub `npm`/`node`/`npx`/`python3` (and `fnm`).
 
 ### `publish-pr-page.sh` — Publish a PR's evidence page

@@ -800,6 +800,22 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertEqual(routine.problems, [])
         self.assertGreaterEqual(self.clock[0], sum(upkeep.GH_RETRY_DELAYS[:2]))
 
+    def test_only_stderr_decides_whether_a_failure_is_transient(self) -> None:
+        cmd = ("gh", "api", "x")
+        body = upkeep.Result(1, '{"message": "upload timed out"}', "HTTP 422")
+        world = self.world
+
+        def executor(c: Any, cwd: Any, timeout: Any, output: Any) -> upkeep.Result:
+            if tuple(c) == cmd:
+                return body
+            return world(c, cwd, timeout, output)
+
+        routine = self.make()
+        routine.sh.executor = executor
+        with self.assertRaises(upkeep.CommandError):
+            routine.gh(*cmd[1:])
+        self.assertEqual(self.clock[0], 0.0)
+
     def test_a_lasting_failure_is_still_reported_after_the_retries(self) -> None:
         self.world.list_resets = 10
         routine = self.make()

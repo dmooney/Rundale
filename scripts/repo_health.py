@@ -355,7 +355,9 @@ def newest_runs(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         workflow = (((suite.get("workflowRun") or {}).get("workflow")) or {}).get("name", "")
         key = (workflow, ctx.get("name", ""))
         held = newest.get(key)
-        if held is None or (ctx.get("startedAt") or "") > (held.get("startedAt") or ""):
+        # A queued run has no startedAt yet; it is still the newest attempt.
+        started, held_started = ctx.get("startedAt") or "~", (held or {}).get("startedAt") or "~"
+        if held is None or started > held_started:
             newest[key] = ctx
     return [*newest.values(), *others]
 
