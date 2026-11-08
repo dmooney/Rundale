@@ -14,11 +14,13 @@ these choices; you do. The rules come from
 ## Before the first round
 
 - Run from the repository root. `eval.sh` loads the keys from the repository's
-  `.env` (`GEMINI_API_KEY` or `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` and
-  `OPENAI_API_KEY`); keys already in the environment take precedence. Both Gemini models (`gemini-3.5-flash-lite`,
-  the production model, and `gemini-3.8-flash`, the larger one) and both
-  judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh) are billed
-  through those keys. promptfoo calls the judges itself for every reply.
+  `.env` (`GEMINI_API_KEY` or `GOOGLE_API_KEY`, and `OPENROUTER_API_KEY`);
+  keys already in the environment take precedence. Both Gemini models
+  (`gemini-3.5-flash-lite`, the production model, and `gemini-3.8-flash`, the
+  larger one) are called on Google's API, the way the Endpoint calls them.
+  Both judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh) are
+  billed through one OpenRouter balance, on its Anthropic Messages and OpenAI
+  Responses routes, so each gets its own API's request body. promptfoo calls the judges itself for every reply.
 - `bash promptfoo/prompt-lab/check.sh` passes (offline, no keys).
 - `npm ci --prefix promptfoo` if `promptfoo/node_modules` is missing.
 - Read `promptfoo/prompt-lab/log.md`. It says which round is next, the best

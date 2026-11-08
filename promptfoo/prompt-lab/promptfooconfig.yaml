@@ -1,7 +1,8 @@
 # NPC dialogue prompt lab (docs/design/npc-dialogue-prompt.md §6, issue 2294).
 # Driven by an agent with the prompt-lab skill (.agents/skills/prompt-lab/SKILL.md),
-# not by a script. Needs GEMINI_API_KEY (or GOOGLE_API_KEY), ANTHROPIC_API_KEY and
-# OPENAI_API_KEY; eval.sh loads them from the repository's .env.
+# not by a script. Needs GEMINI_API_KEY (or GOOGLE_API_KEY) for the models under
+# test and OPENROUTER_API_KEY for both judges; eval.sh loads them from the
+# repository's .env.
 #   Training round: bash eval.sh -c promptfooconfig.yaml --filter-prompts '^brief$'
 #   Held-out (once, at the end): add -t cases/heldout.yaml
 description: Rundale NPC dialogue prompt lab
@@ -116,20 +117,28 @@ defaultTest:
       weight: 0
       value: "!output.startsWith('MALFORMED: ')"
     # Two judges from other families (§6.4); the test's score is their mean.
+    # Both go through OpenRouter's Anthropic Messages and OpenAI Responses
+    # routes, so each judge gets the same request body as on its own API
+    # (Opus keeps native effort; OpenRouter's chat route would turn effort
+    # into a thinking budget instead).
     - type: llm-rubric
       metric: opus
       value: *rubric
       provider:
-        id: anthropic:messages:claude-opus-5-5
+        id: anthropic:messages:anthropic/claude-opus-5.5
         config:
+          apiBaseUrl: https://openrouter.ai/api
+          apiKeyEnvar: OPENROUTER_API_KEY
           effort: high
           max_tokens: 16000
     - type: llm-rubric
       metric: gpt
       value: *rubric
       provider:
-        id: openai:responses:gpt-6.1-sol
+        id: openai:responses:openai/gpt-6.1-sol
         config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
           reasoning:
             effort: xhigh
 

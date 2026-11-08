@@ -314,7 +314,10 @@ is kept, not the last.
 run on the provider APIs rather than subscriptions, whose quotas the owner
 often uses up, and their spend counts against the $25. With these judges $25
 may buy only a few rounds, so the cap rather than the plateau may end the
-first run; the owner re-evaluates the cap and the stopping rule after it. The
+first run; the owner re-evaluates the cap and the stopping rule after it.
+From 2026-11-08 both judges are billed through one OpenRouter balance (the
+OpenAI key ran dry mid-run on 2026-11-01); the models under test stay on
+Google's API so they are called as the Endpoint calls them. The
 larger Gemini of §6.2 is `gemini-3.8-flash`. The lab may change how the request is laid out, key
 order included; production then matches what the lab freezes. Today the
 phone's bridge sorts every key (`.sortedKeys` in `LimerickRuntime.swift`), so

@@ -108,12 +108,23 @@ jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAs
     exit 1
 }
 
-# A malformed reply stays malformed when the judges fail too. Fake keys and a
+# A malformed reply stays malformed when the judges fail too. A fake key and a
 # closed local port make both judges fail at once, without touching a network.
-PROMPTFOO_REQUEST_BACKOFF_MS=1 ANTHROPIC_API_KEY=offline OPENAI_API_KEY=offline \
-    ANTHROPIC_BASE_URL=http://127.0.0.1:9 OPENAI_BASE_URL=http://127.0.0.1:9/v1 \
-    $pf eval -c promptfooconfig.yaml -r echo --filter-pattern '^t07-' --filter-prompts '^brief$' \
-    --no-cache --no-progress-bar -o "$tmp/offline.json" >/dev/null 2>&1 || true
+# The judges set apiBaseUrl in the config, which wins over the *_BASE_URL
+# variables, so the port goes into a copy of the config.
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const fs = require("fs");
+  const cfg = yaml.load(fs.readFileSync("promptfooconfig.yaml", "utf8"));
+  for (const a of cfg.defaultTest.assert) {
+    if (a.metric !== "opus" && a.metric !== "gpt") continue;
+    a.provider.config.apiBaseUrl = a.metric === "opus" ? "http://127.0.0.1:9" : "http://127.0.0.1:9/v1";
+  }
+  fs.writeFileSync(process.argv[1], yaml.dump(cfg));
+' "$tmp/offline.yaml"
+(cd "$tmp" && PROMPTFOO_REQUEST_BACKOFF_MS=1 OPENROUTER_API_KEY=offline \
+    $pf eval -c offline.yaml -r echo --filter-pattern '^t07-' --filter-prompts '^brief$' \
+    --no-cache --no-progress-bar -o offline.json >/dev/null 2>&1) || true
 jq -f summary.jq "$tmp/offline.json" | jq -e '.prompts[0].all_models | .malformed == 1 and (.outages | length) == 0' >/dev/null || {
     echo "check: a malformed reply with failed judges was not scored as malformed" >&2
     exit 1
