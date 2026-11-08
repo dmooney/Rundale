@@ -314,6 +314,7 @@ class ReleaseTests(unittest.TestCase):
             "Limerick Endpoints consumer key": b"sfk_live_0123456789ab_" + b"x" * 43,
             "Anthropic API key": b"sk-ant-" + b"a" * 40,
             "OpenAI-style API key": b"sk-proj-" + b"bQ7x" * 10,
+            "OpenRouter API key": b"sk-or-v1-" + b"0123456789abcdef" * 4,
             "Google API key": b"AIza" + b"G" * 35,
             "provider secret variable": b"OPENAI_API_KEY=abc",
         }
@@ -339,6 +340,13 @@ class ReleaseTests(unittest.TestCase):
             b"stacksweeptake_care_ofsee_to'don't"
         )
         (app / "Rundale").write_bytes(b"binary " + packed)
+        runner.validate_archive(expected_build=8)
+
+        # Nor are ones that run into a capitalised word (the upload after #2325).
+        (app / "Rundale").write_bytes(
+            b"binary ding right here.blocked-weatherplayer-task-progression"
+            b"arrival-reactions---Local time out"
+        )
         runner.validate_archive(expected_build=8)
 
         (app / "Rundale").write_bytes(b"binary")
@@ -449,6 +457,21 @@ class ReleaseTests(unittest.TestCase):
     def test_archive_signs_automatically_without_a_distribution_profile(self):
         self.assertEqual(release.archive_signing_args({}), ["CODE_SIGN_STYLE=Automatic"])
 
+    def test_exports_sign_with_the_archives_named_distribution_profile(self):
+        self.assertEqual(release.export_signing_options({}), {"signingStyle": "automatic"})
+        env = {"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}
+        runner = release.Release(self.paths, runner=self.runner)
+        with patch.dict(release.os.environ, env):
+            for upload in (False, True):
+                with self.subTest(upload=upload):
+                    path = runner.write_export_options(upload=upload)
+                    options = plistlib.loads(path.read_bytes())
+                    self.assertEqual(options["signingStyle"], "manual")
+                    self.assertEqual(options["signingCertificate"], "Apple Distribution")
+                    self.assertEqual(
+                        options["provisioningProfiles"], {release.BUNDLE_ID: "CI App Store"}
+                    )
+
     def test_archive_signs_manually_with_a_named_distribution_profile(self):
         self.assertEqual(
             release.archive_signing_args({"RUNDALE_DISTRIBUTION_PROFILE": "CI App Store"}),
@@ -476,7 +499,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("CODE_SIGN_STYLE=Manual", command)
             self.assertNotIn("CODE_SIGN_STYLE=Automatic", command)
             self.assertIn("RUNDALE_DISTRIBUTION_PROFILE=CI App Store", command)
-        # The exports keep automatic App Store Connect signing.
+        # The exports take their signing from the export options plist (manual
+        # with this profile; see test_exports_sign_with_the_archives_named_
+        # distribution_profile), never from build settings.
         exports = [c for c in self.commands if "-exportArchive" in c]
         self.assertEqual(len(exports), 2)
         for command in exports:

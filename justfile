@@ -66,7 +66,7 @@ web PORT="3001":
 # (CI's OSV-Scanner scan-pr), full Python quality job, the script unit tests
 # from CI's "Shell quality" job, then the engine's format, lint, tests,
 # placeholder scan, and doc-paths
-check: docs-check osv-changed endpoints-changed python-quality script-tests
+check: docs-check osv-changed endpoints-changed python-quality dependabot-coverage script-tests
     cd limerick && just check
 
 # CI's Endpoints job (format, lint, typecheck, tests, build: `pnpm check` in
@@ -102,7 +102,7 @@ repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh
 
 # Pre-push gate: check + game harness walkthrough
-verify: docs-check osv-changed endpoints-changed python-quality
+verify: docs-check osv-changed endpoints-changed python-quality dependabot-coverage
     cd limerick && just verify
 
 # Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
@@ -117,13 +117,13 @@ test:
 mobile-verify *ARGS:
     python3 mobile/scripts/verify.py {{ARGS}}
 
-# Play the app's game on Linux as Markdown frames; not app UI evidence (tools/linux-host/README.md)
-linux-host *ARGS:
-    bash tools/linux-host/run.sh {{ARGS}}
+# Play the app's game from the command line as Markdown frames; not app UI evidence (tools/rundale-cli/README.md)
+rundale-cli *ARGS:
+    bash tools/rundale-cli/run.sh {{ARGS}}
 
-# Run the Linux host's golden-frame tests (tools/linux-host/README.md)
-linux-host-test *ARGS:
-    bash tools/linux-host/run.sh --test {{ARGS}}
+# Run the Rundale CLI's golden-frame tests (tools/rundale-cli/README.md)
+rundale-cli-test *ARGS:
+    bash tools/rundale-cli/run.sh --test {{ARGS}}
 
 # Post HEAD's full mobile-verify pass to GitHub after pushing (CI checks for it)
 mobile-verify-record:
@@ -137,9 +137,10 @@ dependabot-upkeep *ARGS: setup-py
 mobile-build *ARGS:
     python3 mobile/scripts/release.py build {{ARGS}}
 
-# Verify, sign, and upload an internal TestFlight build (mobile/testflight.md)
+# Verify, sign, and upload an internal TestFlight build (mobile/testflight.md).
+# Takes the App Store Connect API key from .env when the environment lacks it.
 testflight-update *ARGS:
-    python3 mobile/scripts/release.py testflight {{ARGS}}
+    bash limerick/scripts/testflight-update.sh {{ARGS}}
 
 # Run the save-lock tests on the iOS Simulator (macOS + Xcode)
 ios-sim-save-lock:
@@ -253,6 +254,11 @@ test-py: setup-py
 
 # Run the complete Python quality job using the pinned local dev environment.
 python-quality: lint-py test-py
+
+# Fail when a tracked lockfile has no .github/dependabot.yml entry or reasoned
+# exclusion (CI's python-quality job runs the same check)
+dependabot-coverage: setup-py
+    .venv-dev/bin/python scripts/check_dependabot_coverage.py
 
 # ─── Shell tooling (shellcheck + shfmt) ───────────────────────────────────────
 # shfmt flags (-i 4 -ci -bn) mirror .editorconfig so editors agree.

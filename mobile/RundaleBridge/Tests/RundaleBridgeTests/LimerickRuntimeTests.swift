@@ -19,6 +19,19 @@ final class LimerickRuntimeTests: XCTestCase {
         )
     }
 
+    func testNewGameReturnsSnapshotWithoutRequiringATurnReceipt() async throws {
+        let runtime = try LimerickRuntime.openNew()
+        let snapshot = try await runtime.newGame()
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: snapshot) as? [String: String], [:])
+        try await runtime.close()
+        do {
+            _ = try await runtime.newGame()
+            XCTFail("A closed runtime cannot start a new game")
+        } catch {
+            XCTAssertEqual(error as? LimerickRuntimeError, .closed)
+        }
+    }
+
     func testStopSurfacesBridgeDecodeFailure() async throws {
         let runtime = try LimerickRuntime.openNew()
         do {

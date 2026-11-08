@@ -22,3 +22,5 @@ pub mod backend;
 pub mod jsonrpc;
 pub mod mcp;
 pub mod tools;
+
+pub mod session_host;

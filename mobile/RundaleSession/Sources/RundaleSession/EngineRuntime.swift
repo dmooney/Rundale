@@ -7,6 +7,8 @@ import RundaleKit
 public protocol EngineRuntime: SessionAdapter, AnyObject {
     func close() async throws
     func snapshotJSON() async throws -> Data
+    /// Starts and selects a fresh game, keeping the current save; returns its snapshot.
+    func newGame() async throws -> Data
     func readEventPageBefore(before cursor: EventCursor, limit: Int) async throws -> LimerickEventPage
     func bugReport(description: String, build: String?) async throws -> String
     func pendingInvocation() async throws -> LimerickPendingInvocation?

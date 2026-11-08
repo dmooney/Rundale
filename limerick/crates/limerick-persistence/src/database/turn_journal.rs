@@ -55,6 +55,35 @@ pub(super) fn migrate(conn: &Connection) -> Result<(), LimerickError> {
     .db_err()
 }
 
+impl super::Database {
+    /// Seed a fresh ledger's durable transcript sequence before its first event.
+    /// This preserves a host's monotonic cursor across replacement and restart.
+    pub fn seed_empty_transcript_sequence(&self, cursor: u64) -> Result<(), LimerickError> {
+        let cursor = i64::try_from(cursor)
+            .ok()
+            .filter(|value| *value < i64::MAX)
+            .ok_or_else(|| {
+                LimerickError::Config("transcript cursor exceeds SQLite range".into())
+            })?;
+        let inserted = self
+            .conn
+            .execute(
+                "INSERT INTO sqlite_sequence(name, seq)
+             SELECT 'transcript_events', ?1
+             WHERE NOT EXISTS (SELECT 1 FROM transcript_events)
+               AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'transcript_events')",
+                [cursor],
+            )
+            .db_err()?;
+        if inserted != 1 {
+            return Err(LimerickError::Config(
+                "transcript sequence is not fresh".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// One row of the `requests` table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TurnRequestRow {

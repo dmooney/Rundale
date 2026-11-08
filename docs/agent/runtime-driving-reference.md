@@ -80,3 +80,111 @@ LIMERICK_SERVER=http://localhost:3001 limerick "look"
 
 Use `limerick --script` for proof transcripts requiring real NPC inference.
 Use `just run-headless --script` for deterministic, fast harness-level testing.
+
+## Portable app session through MCP
+
+The session-host backend drives the app's shared Swift controller/presenter,
+Rust FFI, and Endpoint client from a terminal on macOS or Linux. It requires
+Swift and Rust toolchains, not Xcode, a simulator, an iOS GUI, or the Apple
+Firebase SDK. It is separate from the default desktop/server HTTP backend.
+See [ADR-028](../adr/028-portable-session-mcp-driver.md).
+
+Build once, then launch MCP with explicit absolute paths:
+
+```sh
+just rundale-cli --help
+(cd limerick && cargo build -p limerick-mcp)
+limerick/target/debug/limerick-mcp --backend session-host \
+  --host-executable "$PWD/tools/rundale-cli/.build/debug/rundale-cli" \
+  --mod-dir "$PWD/mods/rundale" --save-dir /absolute/path/to/session-save \
+  --inference mock
+```
+
+`mock` is the default. `fixture` uses the deterministic presentation fixture;
+`sse --sse-fixture /absolute/path/to/dialogue-v1.sse` replays recorded dialogue
+with mock intent; `live` uses the deployed `limerick-prod` Endpoints. The child
+is managed by MCP; do not connect another MCP implementation to it. Its
+`--protocol` JSON-lines interface is private and versioned independently of MCP.
+
+### Actions and asynchronous output
+
+The selected backend advertises only its supported tools:
+
+| Tool suffix (after `limerick_`) | Arguments                          | Behavior                                                                   |
+| ------------------------------- | ---------------------------------- | -------------------------------------------------------------------------- |
+| `new_game`                      | optional `replaceExisting` boolean | Opens a new game; refuses existing files unless replacement is explicit.   |
+| `resume_session`                | none                               | Opens the existing save; missing/corrupt saves fail without resetting.     |
+| `submit_input`                  | `text`                             | Dispatches the line and returns before inference finishes.                 |
+| `answer_clarification`          | `questionID`, `choiceID`           | Answers the currently offered question; stale identifiers fail.            |
+| `stop`                          | none                               | Requests the shared session's Stop action.                                 |
+| `retry`                         | none                               | Retries when the shared presenter offers Retry.                            |
+| `persist_session`               | none                               | Persists an idle session and reports failure rather than claiming success. |
+| `session_presentation`          | none                               | Reads current presentation and bounded recent snapshots.                   |
+| `close_session`                 | none                               | Persists and closes an idle session.                                       |
+
+Starting MCP leaves the save unopened. Call new or resume explicitly. To replace
+an open session, close it first. Overlapping turns and save/context operations
+while busy are rejected. Inspection and Stop remain responsive. A dispatched control
+can report `controlPending` before the controller starts work;
+wait for both `isStreaming` and `controlPending` to clear before saving.
+
+Each successful action returns Markdown in MCP `content` and a structured result
+in `structuredContent`: `presentation`, `markdown`, and `history`. Presentation
+includes available actions, header, transcript row states, composer draft,
+clarification identifiers, failures, and explicit persistence status. Dispatch
+is an acknowledgment, not a committed gameplay result: inspect until the turn
+settles. Provisional and interrupted output must not be treated as committed.
+History retains at most 32 recent snapshots and two megabytes of encoded history,
+so it is a latest-state inspection aid, not a complete event log.
+
+A save-directory kernel lock prevents competing managed hosts. EOF Stops an
+active turn, saves committed state, and closes the engine. The MCP parent allows
+10 seconds for shutdown, then terminates and reaps a stalled child. Protocol
+failure, timeout, or child exit is reported; there is no silent restart. Restart
+MCP and explicitly resume the last durable save after a crash. Never assume a
+failed persistence request saved the presentation projection.
+
+### Live credentials
+
+Supply `RUNDALE_FIREBASE_API_KEY` and `RUNDALE_APPCHECK_DEBUG_TOKEN` as private
+process environment values. On Claude Code cloud, use the environment's secret
+configuration; in a local terminal, load private values without echoing them.
+Do not put secrets in MCP arguments, checked-in configuration, shell tracing,
+logs, frames, evidence, or game saves. The API key must belong to the configured
+iOS Firebase app; a web key or `sfk_live_` consumer key does not prove this path.
+
+The defaults are project `limerick-prod`, app
+`1:877612517009:ios:586f98a2cc3e7d0c676130`, and bundle `com.rundale.mobile`.
+`RUNDALE_FIREBASE_PROJECT_ID`, `RUNDALE_FIREBASE_APP_ID`, and
+`RUNDALE_FIREBASE_BUNDLE_ID` override those identifiers when deliberately testing
+another matching deployment. Live Endpoint routing remains the deployed Rundale
+`limerick-demo` binding. Restricted Firebase API requests carry the iOS bundle
+identifier header; the credential provider does not relax API-key restrictions.
+
+Use the existing `endpoints/deploy/limerick-prod.sh appcheck-token create NAME`
+command to register a temporary debug token. Name it for the terminal/cloud
+session, capture its output privately, and delete it afterward with
+`endpoints/deploy/limerick-prod.sh appcheck-token delete NAME`, including on failed
+runs. Live testing and debug-token registration in `limerick-prod` are already
+authorized. This is mobile-path authorization, not device attestation.
+
+Credentials remain in memory. Each host process signs in anonymously once;
+refresh preserves that authenticated user and rotates its refresh token.
+Restarting the host creates a new anonymous identity while the local game save
+remains independent. Credential failures fail closed rather than signing in
+again to conceal a refresh failure.
+
+### Verification and evidence
+
+Run `just rundale-cli-test`, `cargo test -p limerick-mcp` from `limerick/`, and
+`python3 tools/rundale-cli/test_mcp_session.py` after building both binaries.
+Linux CI runs the host suites and cross-language MCP test with mock inference.
+A live terminal playthrough on macOS or Linux must additionally show streamed
+output, committed replies, and persist/close/resume continuity. Missing live
+credentials leave live acceptance incomplete; unavailable Linux cloud access
+alone does not block acceptance when Linux CI and live Mac-terminal validation pass.
+
+Label every receipt with its actual host platform and inference mode. Host
+frames prove neither app layout, accessibility, iOS lifecycle, device attestation,
+simulator behavior, nor physical-iPhone acceptance. Do not label a Mac-terminal
+run as an observed Linux run.

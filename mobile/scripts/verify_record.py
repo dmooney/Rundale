@@ -18,7 +18,10 @@ CI and the TestFlight workflow need neither Xcode nor a second run.
 its base had it (nothing to test), and 1 otherwise. `--latest` never exits 3.
 
 The status is the author's attestation that `mobile-verify --phase all` passed
-on that tree with their toolchain; it is not an independent run.
+on that tree with their toolchain; it is not an independent run. The pass file
+notes whether the XCUITest journeys ran (`--journeys on`) or were left to the
+nightly report-only run (`off`); both stand in for the PR gate, which no longer
+includes the journeys.
 """
 
 from __future__ import annotations
@@ -112,7 +115,13 @@ def record() -> int:
         "-f", "state=success", "-f", f"context={CONTEXT}",
         "-f", f"description=input tree {tree}",
     )  # fmt: skip
-    print(f"Recorded {CONTEXT} for {sha[:12]} (input tree {tree}).")
+    stored = json.loads((PASSES / f"{tree}.json").read_text(encoding="utf-8"))
+    print(
+        f"Recorded {CONTEXT} for {sha[:12]} (input tree {tree}); "
+        f"journeys {stored.get('journeys', 'on')}, "
+        f"{len(stored.get('suites_run', []))} suites passed, "
+        f"{len(stored.get('suites_skipped', []))} skipped."
+    )
     return 0
 
 

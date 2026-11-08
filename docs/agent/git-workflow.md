@@ -52,8 +52,11 @@ ready if repository ownership changes.
 ## Dependency updates
 
 Dependabot opens its weekly pull requests on Monday at 06:17 UTC
-([`.github/dependabot.yml`](../../.github/dependabot.yml)). No workflow merges
-them. A LaunchAgent on the owner's Mac runs
+([`.github/dependabot.yml`](../../.github/dependabot.yml)). Every tracked
+lockfile must have an entry there or a reasoned exclusion in
+[`scripts/check_dependabot_coverage.py`](../../scripts/check_dependabot_coverage.py);
+CI's `python-quality` job and `just dependabot-coverage` fail otherwise. No
+workflow merges them. A LaunchAgent on the owner's Mac runs
 [`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py) every
 Monday at about 09:00 UTC (issue #2098). For each open Dependabot pull request
 it:
@@ -77,13 +80,16 @@ it:
    (`release.yml` never runs on pull requests; CI's `workflow-quality` job
    checks every workflow's action inputs statically);
 5. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
-   merges it, sends it back, or hands it to the owner. The routine's fixer is
-   Claude, so the gatekeeper is Claude while every commit is Dependabot's and
-   Codex once any other author has committed.
+   merges it, sends it back, or hands it to the owner. The gatekeeper is
+   a headless Claude run (`claude -p`) in a fresh context, whether the
+   commits are Dependabot's or the routine's own fix.
 
 It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first
-run. Logs are under `~/Library/Application Support/rundale-dependabot-upkeep/logs/`.
+run. The comment is posted by the `upkeep-summary.yml` workflow (dispatched on
+`main`) as github-actions[bot] with an `@dmooney` mention, because GitHub does not
+notify you of your own comments; if the dispatch is refused or its run fails or times out the routine logs it and
+comments directly, without a notification. Logs are under `~/Library/Application Support/rundale-dependabot-upkeep/logs/`.
 
 ```sh
 just dependabot-upkeep run --dry-run      # plan only: no pushes, runs, or comments

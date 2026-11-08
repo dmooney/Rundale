@@ -13,8 +13,10 @@ vision requires ("Phase N" is spec Milestone N). It runs on macOS with Xcode;
 and exits nonzero on a blocking gate. Suites that passed with identical inputs are
 reused; `--no-cache` reruns them. Options, the gates in each phase, and UI
 recording are in the [mobile scripts README](../../mobile/scripts/README.md).
-Simulator suites run with Xcode parallel testing (6 cloned-simulator workers by
-default; `--parallel-workers 1` is serial). A full or Phase 4 run puts every
+Simulator suites run with Xcode parallel testing on a developer Mac (6
+cloned-simulator workers by default; `--parallel-workers 1` is serial). A
+GitHub-hosted runner (the nightly gate and the PR smoke gate) runs them with one
+worker, and `verify.py` refuses more there (#2301). A full or Phase 4 run puts every
 simulator suite that has no cached pass into one `xcodebuild`; a cold full run
 takes about 10 minutes on an M5 Pro. While iterating, do not run the full
 gate: build once, then run only the affected class with
@@ -30,15 +32,35 @@ files over 3 MB are listed, not copied; the first 20 failed tests get a digest a
 `index.md` counts the rest), and `diagnostics/` (test runner logs and
 any crash reports). `summary.txt` and `verify.json` (`details.failure_evidence`)
 name the paths. The newest three failed runs keep their evidence and `.xcresult`.
-Per-PR CI jobs upload none of it: the agent that ran the gate reads that evidence
-and diagnoses the failure before re-running or calling a test flaky. Only the
-unwatched nightly full gate (`testflight.yml`) uploads `failures/` and the
-`.xcresult` bundles, when it fails, and its "Nightly mobile-verify failed" issue
-links that artifact. UI test classes
+CI report artifacts include the bounded exported `failures/` tree for diagnosis;
+they omit `.xcresult` bundles. The unwatched nightly full gate (`testflight.yml`)
+also uploads the `.xcresult` bundles when it fails, and its "Nightly mobile-verify
+failed" issue links that artifact. UI test classes
 derive from `RundaleUITestCase`, which attaches the app's element hierarchy and a
 screenshot at the moment any assertion fails.
 The engine's `just verify` below is a different gate; it is not an iPhone
 acceptance gate.
+
+### Which layer tests a UI behaviour (#2319)
+
+A XCUITest costs about 30 seconds and asks the accessibility tree whether an
+animating view is ready, so it is the slowest and flakiest place to test a rule.
+Put a new behaviour test in the lowest layer that can see it:
+
+| The behaviour is                                                                                                                                             | Test it in                                                                                                                                                                  | Run by                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| A rule about state: what a row's spoken label says, when Send is enabled, what a completion inserts, whether Retry shows, which row the reading anchor keeps | `RundaleKit` or `RundaleSession` (move the decision out of the view into a plain value type or the presenter), a unit test over the fixture controller (`FixtureRuleTests`) | `swift test`, any host, milliseconds |
+| An engine scenario: commands, travel, clarification, stop and retry, fault recovery, relaunch from the save                                                  | `RundaleTests/EngineScenarioTests`: the real engine, save and mock Endpoint with the real presenter, app-hosted                                                             | the simulator, seconds, no UI        |
+| Layout and gestures only the real tree has: the keyboard, Dynamic Type, a grown composer, scrolling, rotation                                                | a `RundaleUITests` journey test                                                                                                                                             | the simulator, serial on hosted CI   |
+| The process lifecycle: launch, background, force quit, relaunch                                                                                              | a `RundaleUITests` journey test                                                                                                                                             | the simulator                        |
+
+Keep the XCUITest set to journeys (launch, a streamed turn, completion, reading
+history, save and restore, accessibility). When you move a rule down, delete the
+XCUITest in the same change and name it in the new test's comment, as
+`EngineScenarioTests` does; never drop coverage. Do not add a test to
+`TIME_SENSITIVE_TESTS` to hide a flake: serial hosted runs are the fix. Only a
+test that still fails alone on the hosted runner, with that run linked and an
+issue to fix it, belongs there.
 
 `just mobile-verify --fast` runs pinned SwiftLint and SwiftFormat checks and
 the three Swift package suites. Swift builds treat warnings as errors, and each
@@ -46,8 +68,16 @@ Swift package must hold its line-coverage baseline. CI's `Swift quality` job
 runs it on Linux. The phase gates run the package suites too, against Apple's
 Foundation, but not the style checks; `--smoke` leaves out both.
 The full simulator gate runs on a Mac; without a recorded pass, CI runs
-`--smoke` on a PR (the full gate on one labelled `mobile-verify-full`) and the
-TestFlight workflow runs the full gate nightly. The
+`--smoke` on a PR (the full gate with the journeys on one labelled
+`mobile-verify-full`) and the TestFlight workflow runs the gate nightly.
+The XCUITest journeys are not part of every gate (#2319): `--journeys auto`
+(the default) runs them on a Mac only when the change touches Swift GUI code
+(`mobile/Rundale/`, `mobile/RundaleUITests/`, `mobile/project.yml`), prints
+which way it went and why, and `--journeys on|off` forces it; hosted PR and
+nightly gates leave them out, and a separate nightly `journeys` job runs them
+report-only, opening a "Nightly mobile-verify journeys failed" issue on a failure.
+Presenter, kit and engine changes are covered by the unit and engine-scenario
+tests that stay in every gate. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
 
@@ -58,12 +88,12 @@ unavailable, and human/device gates. Keep real-inference integration opt-in and
 separate from deterministic regression tests. Physical-iPhone interaction and
 VoiceOver judgment require recorded evidence, even when automated checks pass.
 
-### Linux host frames
+### Rundale CLI frames
 
-`just linux-host` plays the app's game on Linux and prints each meaningful
-screen state as a Markdown frame; `just linux-host-test` runs its golden-frame
-tests, which CI's `Linux host golden frames` job runs too
-([tools/linux-host](../../tools/linux-host/README.md)). The host runs the
+`just rundale-cli` plays the app's game from the command line and prints each meaningful
+screen state as a Markdown frame; `just rundale-cli-test` runs its golden-frame
+tests, which CI's `Rundale CLI tests (Linux)` job runs too
+([tools/rundale-cli](../../tools/rundale-cli/README.md)). The host runs the
 app's `RundaleSession` controllers and presenter against the real engine,
 linked from `liblimerick_mobile_ffi.a` built for Linux, on `mods/rundale`,
 with the scripted mock Endpoint, a recorded Endpoint stream, or the fixture
@@ -73,9 +103,9 @@ What frames prove: the session logic the app runs, on the engine and world it
 ships, produces this transcript, composer state, and choices for this input,
 including streaming, Stop, an Endpoint failure and Retry, a clarification, and
 a save and resume. What they do not: anything about the app's UI. Frames show
-no layout, styling, keyboard, scrolling, or accessibility, and run on
-swift-corelibs Foundation rather than Apple's. Every frame is labelled "Linux
-host"; never present one as app UI, simulator, or physical-iPhone evidence,
+no layout, styling, keyboard, scrolling, or accessibility, and identify the actual host platform (Linux or macOS terminal). Linux runs use
+swift-corelibs Foundation; terminal runs on macOS use Foundation without an iOS
+GUI. Never present a frame as app UI, simulator, or physical-iPhone evidence,
 or as live gameplay unless it was played against a live Endpoint.
 
 ## Existing engine and client commands
@@ -331,3 +361,9 @@ See [../design/testing.md](../design/testing.md) §Eval baselines for the schema
 ## Coverage
 
 Run `just coverage` to generate the Tarpaulin HTML/JSON report. Run `just coverage-check` to enforce the current Rust coverage ratchet. Raise the ratchet floor as coverage-recovery work lands; the long-term target is 90%.
+
+The same host supports macOS terminal runs and a managed MCP backend; see
+[portable app-session MCP setup](runtime-driving-reference.md#portable-app-session-through-mcp).
+The private protocol and real MCP adapter are tested together by
+`python3 tools/rundale-cli/test_mcp_session.py` after both binaries are built.
+Linux CI runs this deterministic test in addition to the golden frames.

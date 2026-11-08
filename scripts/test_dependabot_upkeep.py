@@ -96,6 +96,8 @@ class FakeWorld:
         self.ls_tree_fails = False
         self.pinned = True
         self.dispatch_fails = False
+        self.summary_status = "completed"
+        self.summary_conclusion: str | None = "success"
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
 
@@ -132,6 +134,9 @@ class FakeWorld:
     def ran(self, *prefix: str) -> list[tuple[str, ...]]:
         return [cmd for cmd, _ in self.calls if cmd[: len(prefix)] == prefix]
 
+    def gatekept(self) -> list[tuple[str, ...]]:
+        return [c for c in self.ran("claude") if c[-1].startswith("Run the gatekeeper skill")]
+
     @staticmethod
     def ok(payload: Any = None, rc: int = 0) -> Result:
         return Result(rc, json.dumps(payload) if payload is not None else "")
@@ -156,12 +161,12 @@ class FakeWorld:
             return Result(self.verify_rc)
         if cmd[:2] == ("just", "mobile-verify-record"):
             return Result(0)
-        if cmd[0] in ("claude", "codex"):
-            if cwd == self.work:  # a fix attempt
-                assert self.work_pr is not None
-                return Result(0)
+        if cmd[0] == "claude" and cmd[-1].startswith("Run the gatekeeper skill"):
             number = int(cmd[-1].rsplit(" ", 1)[1].rstrip("."))
-            self.gatekeeper[number]("codex" if cmd[0] == "codex" else "claude")
+            self.gatekeeper[number]("claude")
+            return Result(0)
+        if cmd[0] == "claude":  # a fix attempt
+            assert cwd == self.work and self.work_pr is not None
             return Result(0)
         raise AssertionError(f"unexpected command {cmd}")
 
@@ -204,7 +209,18 @@ class FakeWorld:
         if args[:2] == ("issue", "create"):
             return Result(0, f"https://github.com/{REPO}/issues/77\n")
         if args[:2] == ("workflow", "run"):
-            return Result(1, "", "HTTP 422") if self.dispatch_fails else self.ok()
+            if self.dispatch_fails:
+                return Result(1, "", "HTTP 422")
+            if args[2] == "upkeep-summary.yml":  # the dispatched run appears and finishes
+                self.runs.append(
+                    {
+                        "databaseId": 500 + len(self.runs),
+                        "status": self.summary_status,
+                        "conclusion": self.summary_conclusion,
+                        "url": "https://github.com/run/500",
+                    }
+                )
+            return self.ok()
         if args[:2] == ("run", "list"):
             return self.ok(self.runs)
         if args[:2] == ("run", "rerun"):
@@ -281,7 +297,6 @@ MUTATING = (
     ("git", "reset"),
     ("just",),
     ("claude",),
-    ("codex",),
 )
 
 
@@ -318,15 +333,6 @@ class UpkeepCase(unittest.TestCase):
 
 
 class PureLogicTests(unittest.TestCase):
-    def test_gatekeeper_is_never_the_author_family(self) -> None:
-        bump = {"dependabot[bot]"}
-        self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=False), "claude")
-        self.assertEqual(upkeep.gatekeeper_family(bump, routine_fixed=True), "codex")
-        # A fix from an earlier run has a non-Dependabot author, possibly one
-        # GitHub cannot match to a login.
-        self.assertEqual(upkeep.gatekeeper_family({*bump, ""}, routine_fixed=False), "codex")
-        self.assertEqual(upkeep.gatekeeper_family({*bump, "dmooney"}, routine_fixed=False), "codex")
-
     def test_latest_verdict_takes_the_newest_marker(self) -> None:
         reviews = [
             {"body": "<!-- gatekeeper: sha=aaa verdict=changes round=1 -->"},
@@ -415,9 +421,11 @@ class FlowTests(UpkeepCase):
         self.assertEqual(outcome.status, "merged")
         self.assertFalse(outcome.app_input)
         self.assertEqual(len(self.world.ran("gh", "api", "-X", "PUT")), 1)
-        self.assertEqual(self.world.ran("claude")[0][-1], "Run the gatekeeper skill on PR 10.")
+        gatekeeper = self.world.gatekept()[0]
+        self.assertEqual(gatekeeper[-1], "Run the gatekeeper skill on PR 10.")
+        self.assertEqual(gatekeeper[:2], ("claude", "-p"))
         self.assertEqual(self.world.ran("just"), [])
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertEqual(len(self.world.ran("claude")), 1)  # only the gatekeeper
 
     def test_current_green_pr_is_not_updated(self) -> None:
         self.world.add(11)
@@ -509,7 +517,7 @@ class FlowTests(UpkeepCase):
         self.assertEqual(outcome.status, "error")
         self.assertEqual(self.world.ran("just"), [])
 
-    def test_red_pr_gets_one_fix_then_a_codex_gatekeeper(self) -> None:
+    def test_red_pr_gets_one_fix_then_the_gatekeeper(self) -> None:
         self.world.add(30)
         red = [{"name": "CI gate", "bucket": "fail", "link": "l"}]
         green = [{"name": "CI gate", "bucket": "pass", "link": "l"}]
@@ -518,10 +526,9 @@ class FlowTests(UpkeepCase):
         self.world.gatekeeper[30] = self.world.approve_and_merge(30)
         outcome = self.outcome(30)
         self.assertEqual(outcome.status, "merged")
-        self.assertIn("(codex)", outcome.detail)
-        self.assertEqual(len(self.world.ran("claude", "-p")), 1)  # the fix, not a gatekeeper
-        codex = self.world.ran("codex")[0]
-        self.assertEqual(codex[:3], ("codex", "exec", "-C"))
+        self.assertIn("(gatekeeper)", outcome.detail)
+        self.assertEqual(len(self.world.gatekept()), 1)  # one gatekeeper
+        self.assertEqual(len(self.world.ran("claude")), 2)  # the fix and the gatekeeper
         self.assertEqual(len(self.world.ran("git", "push")), 1)
 
     def test_a_fix_that_touches_app_inputs_is_verified_and_recorded(self) -> None:
@@ -547,7 +554,7 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(31)
         self.assertEqual(outcome.status, "red")
         self.assertIn("the fix attempt made no commit", outcome.notes)
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertEqual(self.world.gatekept(), [])
         self.assertEqual(self.world.ran("git", "push"), [])
         self.assertEqual(len(self.world.ran("claude")), 1)  # only the fix attempt
 
@@ -556,6 +563,7 @@ class FlowTests(UpkeepCase):
         self.world.checks[32] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
         self.assertEqual(self.outcome(32, fix=False).status, "red")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_checks_not_yet_registered_count_as_pending(self) -> None:
         self.world.add(35)
@@ -572,12 +580,14 @@ class FlowTests(UpkeepCase):
             self.assertEqual(outcome.status, "error", failure)
             self.assertIn("gh pr checks", outcome.detail)
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_checks_that_never_finish_time_out(self) -> None:
         self.world.add(33)
         self.world.checks[33] = [[{"name": "CI gate", "bucket": "pending", "link": "l"}]]
         self.assertEqual(self.outcome(33).status, "timeout")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_a_base_merge_keeps_the_claude_gatekeeper(self) -> None:
         self.world.add(42)
@@ -587,8 +597,7 @@ class FlowTests(UpkeepCase):
         self.world.gatekeeper[42] = self.world.approve_and_merge(42)
         outcome = self.outcome(42)
         self.assertEqual(outcome.status, "merged")
-        self.assertIn("(claude)", outcome.detail)
-        self.assertEqual(self.world.ran("codex"), [])
+        self.assertIn("(gatekeeper)", outcome.detail)
 
     def test_conflict_asks_dependabot_to_rebase_or_recreate(self) -> None:
         self.world.add(40, behind=1)
@@ -653,6 +662,7 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(73)
         self.assertEqual(outcome.status, "error")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_unreadable_workflows_are_an_error_not_a_skipped_probe(self) -> None:
         self.world.add(72)
@@ -664,6 +674,7 @@ class FlowTests(UpkeepCase):
         self.assertIn("ls-tree", outcome.detail)
         self.assertEqual(self.world.ran("gh", "workflow", "run"), [])
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_failed_release_dry_run_blocks_the_gatekeeper(self) -> None:
         self.world.add(71)
@@ -682,8 +693,10 @@ class FlowTests(UpkeepCase):
         outcome = self.outcome(71)
         self.assertEqual(outcome.status, "red")
         self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.gatekept(), [])  # no gatekeeper
 
     def test_summary_goes_to_an_existing_tracking_issue(self) -> None:
+        self.world.dispatch_fails = True
         self.world.issues = [{"number": 5, "body": f"{upkeep.TRACKING_MARKER}\nreports"}]
         self.make().post_summary("hello")
         self.assertEqual(self.world.ran("gh", "issue", "create"), [])
@@ -698,6 +711,7 @@ class FlowTests(UpkeepCase):
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "5")
 
     def test_tracking_issue_is_created_and_pinned_once(self) -> None:
+        self.world.dispatch_fails = True
         self.make().post_summary("hello")
         self.assertEqual(len(self.world.ran("gh", "issue", "create")), 1)
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "77")
@@ -752,7 +766,7 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertEqual([o.status for o in outcomes], ["error", "error", "merged"])
         self.assertIn("could not ask Dependabot to rebuild it", outcomes[0].detail)
         self.assertIn("could not ask Dependabot to rebuild it", outcomes[1].detail)
-        self.assertEqual(len(self.world.ran("gh", "issue", "comment")), 1)
+        self.assertEqual(len(self.world.ran("gh", "workflow", "run")), 1)
 
     def test_github_failures_outside_a_pr_are_reported_in_the_summary(self) -> None:
         self.world.add(92)
@@ -770,13 +784,65 @@ class SweepAndSummaryTests(UpkeepCase):
         self.assertEqual(outcomes, [])
         self.assertIn("could not list the open Dependabot pull requests", summary)
 
+    def test_summary_is_dispatched_to_the_posting_workflow(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("hello")
+        (cmd,) = self.world.ran("gh", "workflow", "run")
+        self.assertEqual(cmd[3], "upkeep-summary.yml")
+        self.assertEqual(cmd[cmd.index("--ref") + 1], "main")
+        self.assertIn("issue=5", cmd)
+        self.assertIn("summary=hello", cmd)
+        self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
+
+    def test_dry_run_plans_the_dispatch_without_polling_or_falling_back(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        routine = self.make(dry_run=True)
+        routine.post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "run", "list"), [])
+        self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
+        self.assertIn("would run: gh workflow run upkeep-summary.yml", self.log.getvalue())
+        self.assertNotIn("dispatch failed", self.log.getvalue())
+
+    def test_dispatched_summary_is_capped_below_the_input_limit(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.make().post_summary("x" * 100_000)
+        (cmd,) = self.world.ran("gh", "workflow", "run")
+        value = next(a for a in cmd if a.startswith("summary="))[len("summary=") :]
+        self.assertLessEqual(len(value), int(upkeep.SUMMARY_DISPATCH_LIMIT * 0.9))
+        self.assertTrue(value.endswith("chars]"))
+
+    def test_failed_dispatch_falls_back_to_a_direct_comment_and_logs_it(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.dispatch_fails = True
+        routine = self.make()
+        routine.post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("dispatch failed", self.log.getvalue())
+
+    def test_dispatch_accepted_but_run_failed_falls_back_and_logs_it(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.summary_conclusion = "failure"
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("ended failure", self.log.getvalue())
+
+    def test_dispatch_accepted_but_run_never_finishes_falls_back(self) -> None:
+        self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.summary_status = "in_progress"
+        self.world.summary_conclusion = None
+        self.make().post_summary("hello")
+        self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "5")
+        self.assertIn("did not finish in time", self.log.getvalue())
+
     def test_undelivered_summary_fails_the_run(self) -> None:
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
+        self.world.dispatch_fails = True
         self.world.comment_rc = 1
         with self.assertRaises(upkeep.CommandError):
             self.make().post_summary("hello")
 
     def test_summary_is_capped_below_githubs_body_limit(self) -> None:
+        self.world.dispatch_fails = True
         self.world.issues = [{"number": 5, "body": upkeep.TRACKING_MARKER}]
         self.make().post_summary("x" * 100_000)
         body = self.world.ran("gh", "issue", "comment")[0][-1]

@@ -6673,7 +6673,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [block-buffer 0.12.0](https://github.com/RustCrypto/utils)
+- [block-buffer 0.12.1](https://github.com/RustCrypto/utils)
 
 ```
 Copyright (c) 2018-2025 The RustCrypto Project Developers
@@ -8154,7 +8154,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [ctutils 0.4.2](https://github.com/RustCrypto/utils)
+- [ctutils 0.4.7](https://github.com/RustCrypto/utils)
 
 ```
 Copyright (c) 2025-2026 The RustCrypto Project Developers

@@ -1,0 +1,45 @@
+# Posts the weekly Dependabot upkeep summary as github-actions[bot] and mentions
+# the owner. The routine (scripts/dependabot_upkeep.py) runs under the owner's
+# own gh login, and GitHub never notifies you of your own comments, so the
+# routine dispatches this workflow instead. It uses the workflow's GITHUB_TOKEN;
+# no secret is involved.
+name: Post Dependabot upkeep summary
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Number of the pinned "Dependabot upkeep reports" issue
+        required: true
+        type: string
+      summary:
+        description: Markdown summary to post (the routine caps it below the input limit)
+        required: true
+        type: string
+
+permissions:
+  issues: write
+
+concurrency:
+  group: upkeep-summary
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Comment the summary on the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ inputs.issue }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          set -euo pipefail
+          case "$ISSUE" in
+            '' | *[!0-9]*) echo "issue must be a number, got: $ISSUE" >&2; exit 1 ;;
+          esac
+          body="$(mktemp)"
+          printf '@dmooney Weekly Dependabot upkeep summary.\n\n%s\n' "$SUMMARY" > "$body"
+          gh issue comment "$ISSUE" --body-file "$body"

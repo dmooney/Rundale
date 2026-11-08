@@ -116,10 +116,18 @@ EXPECTED_FIREBASE = {
 FORBIDDEN_CREDENTIALS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ("Limerick Endpoints consumer key", re.compile(rb"sfk_live_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}")),
     ("Anthropic API key", re.compile(rb"sk-ant-[A-Za-z0-9_-]{20,}")),
-    # A key is random, so its body has a capital or a digit; the lookahead
-    # demands one. Without it, "ta" + "sk-" + the engine's lowercase string
-    # constants, packed side by side in the binary, read as a key.
-    ("OpenAI-style API key", re.compile(rb"sk-(?:proj-)?(?=[a-z_-]*[A-Z0-9])[A-Za-z0-9_-]{32,}")),
+    # A key is random base62, so its body has both a capital and a digit; the
+    # lookaheads demand both. Without them, "ta" + "sk-" + the engine's string
+    # constants, packed side by side in the binary, read as a key: lowercase
+    # ones (build 1271), and ones that run into a capitalised word such as
+    # "reactions---Local" (the upload after #2325).
+    (
+        "OpenAI-style API key",
+        re.compile(rb"sk-(?:proj-)?(?=[A-Za-z_-]*[0-9])(?=[a-z0-9_-]*[A-Z])[A-Za-z0-9_-]{32,}"),
+    ),
+    # OpenRouter's body is lowercase hex, which the capital the OpenAI-style
+    # pattern demands would miss.
+    ("OpenRouter API key", re.compile(rb"sk-or-v1-[0-9a-f]{32,}")),
     ("Google API key", re.compile(rb"AIza[0-9A-Za-z_-]{35}")),
     ("private key block", re.compile(rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----")),
     (
@@ -207,6 +215,25 @@ def signing_auth_args(env: dict[str, str] | None = None) -> list[str]:
 # profile here; the archive then signs manually with them. Without it,
 # automatic signing uses the signed-in Xcode account, as on the owner's Mac.
 DISTRIBUTION_PROFILE_ENV = "RUNDALE_DISTRIBUTION_PROFILE"
+
+
+def export_signing_options(env: dict[str, str] | None = None) -> dict[str, object]:
+    """The export's signing: the archive's named distribution profile, or automatic.
+
+    An automatic export re-resolves a profile through the Xcode account, which
+    the GitHub runner does not have, so it fails with "No profiles for
+    'com.rundale.mobile' were found" after a manually signed archive.
+    """
+
+    env = dict(os.environ) if env is None else env
+    profile = env.get(DISTRIBUTION_PROFILE_ENV, "")
+    if not profile:
+        return {"signingStyle": "automatic"}
+    return {
+        "signingStyle": "manual",
+        "signingCertificate": "Apple Distribution",
+        "provisioningProfiles": {BUNDLE_ID: profile},
+    }
 
 
 def archive_signing_args(env: dict[str, str] | None = None) -> list[str]:
@@ -747,7 +774,7 @@ class Release:
             "method": "app-store-connect",
             "destination": "upload" if upload else "export",
             "teamID": TEAM_ID,
-            "signingStyle": "automatic",
+            **export_signing_options(),
             "testFlightInternalTestingOnly": True,
             # Only the upload may renumber; the local export keeps the
             # archive's build so its number can be checked. A number taken

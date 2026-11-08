@@ -337,6 +337,17 @@ public struct SessionState: Codable, Equatable, Sendable {
         requests.first { $0.id == id }
     }
 
+    /// The request Retry would run again: the newest request, and only when it
+    /// ended failed, cancelled, or interrupted without committing. An older
+    /// failure is superseded once the player moves on with a newer request,
+    /// and a request that recovered has nothing left to retry (#2329).
+    public var retryableRequest: RequestRecord? {
+        guard let latest = requests.last,
+              latest.phase.canRetry,
+              !latest.hasCommittedGameplay else { return nil }
+        return latest
+    }
+
     public var activeRequest: RequestRecord? {
         guard let activeRequestID else { return nil }
         return request(for: activeRequestID)

@@ -40,6 +40,21 @@ final class EngineControllerInferenceTests: XCTestCase {
         return controller
     }
 
+    /// `/new` replaces the presented session with the engine's new one and
+    /// leaves no request or draft from the old game behind.
+    func testANewGamePresentsTheEnginesNewSession() async throws {
+        let runtime = ScriptedEngineRuntime()
+        let controller = await started(runtime, transport: RecordingEndpointTransport())
+        controller.updateDraft("a thought from the old game")
+        try await controller.newGame()
+        XCTAssertEqual(controller.state.sessionID, SessionID("scripted-new-game"))
+        XCTAssertEqual(controller.state.draft.text, "")
+        XCTAssertTrue(controller.state.requests.isEmpty)
+        XCTAssertTrue(controller.state.viewport.isFollowingNewest)
+        let calls = await runtime.calls
+        XCTAssertEqual(calls, [.newGame])
+    }
+
     func testATurnDecidesOnTheJSONRouteThenStreamsTheReplyFrameByFrame() async throws {
         let runtime = ScriptedEngineRuntime()
         let transport = RecordingEndpointTransport()

@@ -1,0 +1,10 @@
+# The mobile rules (mobile/.swiftlint.yml), over the Rundale CLI's sources.
+parent_config: ../../mobile/.swiftlint.yml
+
+included:
+  - Package.swift
+  - Sources
+  - Tests
+
+excluded:
+  - .build

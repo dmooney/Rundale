@@ -21,12 +21,15 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
 5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
 6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
-   hands it to the owner. The gatekeeper is never the author's model family:
-   Claude for Dependabot's own commits, Codex once this routine (Claude) has
-   added a fix.
+   hands it to the owner. The gatekeeper is a headless Claude run in a fresh
+   context (AGENTS.md, Gatekeeper review), whether the commits are
+   Dependabot's or this routine's own fix.
 
-It then comments a summary on the pinned "Dependabot upkeep reports" issue,
-creating and pinning that issue the first time. Nothing here merges a PR;
+It then posts a summary on the pinned "Dependabot upkeep reports" issue,
+creating and pinning that issue the first time. The summary goes through the
+`upkeep-summary.yml` workflow so github-actions[bot] posts it and mentions the
+owner; if the dispatch fails the routine comments directly, without a
+notification. Nothing here merges a PR;
 merging is the gatekeeper's decision alone.
 
     dependabot_upkeep.py run --dry-run            # plan only: no pushes, runs, comments
@@ -68,7 +71,6 @@ TRACKING_TITLE = "Dependabot upkeep reports"
 TRACKING_MARKER = "<!-- dependabot-upkeep:tracking -->"
 OWNER_LABEL = "needs-owner"
 CLAUDE_MODEL = "claude-opus-5-5"
-CODEX_MODEL = "gpt-6.1-sol"
 # Another tool's mobile-verify run: `just mobile-verify ...` or its script.
 VERIFY_PROCESS = r"just mobile-verify( |$)|mobile/scripts/verify\.py"
 VERDICT = re.compile(r"<!--\s*gatekeeper:\s*sha=([0-9a-f]+)\s+verdict=([a-z-]+)")
@@ -88,6 +90,9 @@ SECONDS = {
     "verify_wait": 6 * 3600,
 }
 POLL = 60
+SUMMARY_WORKFLOW = "upkeep-summary.yml"
+SUMMARY_WAIT = 300  # seconds to wait for the posting workflow to finish
+SUMMARY_DISPATCH_LIMIT = 60000  # characters; a dispatch's inputs share a 65535-character payload
 GITHUB_BODY_LIMIT = 65536  # characters in an issue or comment body
 
 # verify_record.py check exit statuses.
@@ -184,7 +189,7 @@ def subprocess_executor(
 ) -> Result:
     """Run a command in its own process group with stdin closed.
 
-    `claude -p` and `codex exec` wait forever on an open stdin. On a timeout
+    `claude -p` waits forever on an open stdin. On a timeout
     the whole group is stopped, not just the direct child.
     """
 
@@ -306,17 +311,6 @@ class Outcome:
     detail: str
     app_input: bool | None = None
     notes: list[str] = field(default_factory=list)
-
-
-def gatekeeper_family(authors: set[str], *, routine_fixed: bool) -> str:
-    """The reviewer family for a PR: never the family that wrote any of its commits.
-
-    Only this routine adds commits to a Dependabot branch, and its fixer is Claude,
-    so any commit not from Dependabot means Claude wrote code and Codex reviews.
-    """
-
-    fixed = routine_fixed or bool(authors - {"dependabot[bot]"})
-    return "codex" if fixed else "claude"
 
 
 def latest_verdict(reviews: Sequence[dict[str, Any]]) -> tuple[str, str] | None:
@@ -857,22 +851,15 @@ class Upkeep:
         outcome.notes.append(f"{name} dry run did not finish within an hour")
         return False
 
-    def gatekeeper(self, pr: PullRequest, family: str) -> Result:
+    def gatekeeper(self, pr: PullRequest) -> Result:
         self.read(["git", "fetch", "-q", "origin"], self.review)
         reset = ["git", "reset", "-q", "--hard", "origin/main"]
         moved = self.sh.run(reset, cwd=self.review, mutating=True)
         if not moved.ok:
             raise CommandError(reset, moved)
         prompt = f"Run the gatekeeper skill on PR {pr.number}."
-        output = self.logs / f"pr-{pr.number}-gatekeeper-{family}.log"
-        if family == "codex":
-            report = self.logs / f"pr-{pr.number}-gatekeeper-report.md"
-            cmd = [
-                "codex", "exec", "-C", str(self.review), "-m", CODEX_MODEL,
-                "-c", "model_reasoning_effort=high", "-o", str(report), prompt,
-            ]  # fmt: skip
-        else:
-            cmd = ["claude", "-p", "--model", CLAUDE_MODEL, prompt]
+        output = self.logs / f"pr-{pr.number}-gatekeeper.log"
+        cmd = ["claude", "-p", "--model", CLAUDE_MODEL, prompt]
         return self.sh.run(
             cmd, cwd=self.review, timeout=SECONDS["gatekeeper"], mutating=True, output=output
         )
@@ -985,19 +972,15 @@ class Upkeep:
         if not self.probe_workflows(pr, outcome):
             outcome.status, outcome.detail = "red", "a workflow dry run failed"
             return outcome
-        # A base merge (GitHub's update-branch) writes no code, so it does not count.
-        family = gatekeeper_family(self.commit_authors(pr, merges=False), routine_fixed=fixed)
-        ran = self.gatekeeper(pr, family)
+        ran = self.gatekeeper(pr)
         if ran.skipped:
-            outcome.detail = f"would run the {family} gatekeeper"
+            outcome.detail = "would run the gatekeeper"
             return outcome
-        outcome.notes.append(
-            f"gatekeeper log: {self.logs / f'pr-{pr.number}-gatekeeper-{family}.log'}"
-        )
+        outcome.notes.append(f"gatekeeper log: {self.logs / f'pr-{pr.number}-gatekeeper.log'}")
         if not ran.ok:
-            outcome.notes.append(f"{family} gatekeeper exited {ran.returncode}")
+            outcome.notes.append(f"gatekeeper exited {ran.returncode}")
         outcome.status, outcome.detail = self.verdict(pr)
-        outcome.detail += f" ({family})"
+        outcome.detail += " (gatekeeper)"
         return outcome
 
     # Summary ------------------------------------------------------------------
@@ -1115,10 +1098,64 @@ class Upkeep:
         if number is None:  # dry run, no tracking issue yet
             self.sh.say(f"[dry-run] would comment the summary on a new '{TRACKING_TITLE}' issue")
             return
+        if self.dispatch_summary(number, summary):
+            return
         cmd = ["gh", "issue", "comment", str(number), "-R", self.repo, "--body", cap_body(summary)]
         posted = self.sh.run(cmd, mutating=True)
         if not posted.ok:
             raise CommandError(cmd[:4], posted)
+
+    def dispatch_summary(self, number: int, summary: str) -> bool:
+        """Have the posting workflow comment the summary as github-actions[bot].
+
+        GitHub does not notify an account of its own activity, so a comment the
+        owner's `gh` login makes never reaches the owner. The workflow comments
+        with its `GITHUB_TOKEN` and mentions the owner. Returns False, after
+        logging why, when the dispatch fails, so the caller can comment directly.
+        """
+
+        list_runs = [
+            "run", "list", "-R", self.repo, "--workflow", SUMMARY_WORKFLOW,
+            "--branch", "main", "--event", "workflow_dispatch",
+            "--json", "databaseId,status,conclusion,url", "--limit", "20",
+        ]  # fmt: skip
+        before: set[int] = set()
+        if not self.sh.dry_run:  # a dry run dispatches nothing, so there is nothing to tell apart
+            try:
+                before = {r["databaseId"] for r in self.gh(*list_runs) or []}
+            except RECOVERABLE as error:
+                return self.dispatch_failed(f"it could not list earlier runs: {error}")
+        cmd = [
+            "gh", "workflow", "run", SUMMARY_WORKFLOW, "-R", self.repo, "--ref", "main",
+            "-f", f"issue={number}",
+            "-f", f"summary={cap_body(summary, SUMMARY_DISPATCH_LIMIT)}",
+        ]  # fmt: skip
+        dispatched = self.sh.run(cmd, mutating=True)
+        if dispatched.skipped:
+            return True
+        if not dispatched.ok:
+            return self.dispatch_failed("GitHub refused the dispatch")
+        # An accepted dispatch only queues the run; wait for its result.
+        deadline = self.clock() + SUMMARY_WAIT
+        while self.clock() < deadline:
+            self.sleep(POLL)
+            try:
+                runs = self.gh(*list_runs) or []
+            except RECOVERABLE:
+                continue
+            run = next((r for r in runs if r["databaseId"] not in before), None)
+            if run and run["status"] == "completed":
+                if run["conclusion"] == "success":
+                    return True
+                return self.dispatch_failed(f"the run ended {run['conclusion']} ({run['url']})")
+        return self.dispatch_failed("the run did not finish in time")
+
+    def dispatch_failed(self, reason: str) -> bool:
+        self.sh.say(
+            f"the {SUMMARY_WORKFLOW} dispatch failed ({reason}); commenting the summary "
+            "directly (the owner will not be notified)"
+        )
+        return False
 
 
 # Install / uninstall ------------------------------------------------------------

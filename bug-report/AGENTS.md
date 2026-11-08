@@ -35,3 +35,8 @@ bash bug-report/deploy/limerick-prod.sh pull <dir>
   download arrives; the local `~/.cache/limerick/bug-reports/<id>/` is then the
   only copy. Never commit it.
 - **Never log request bodies.** They hold player text and screenshots.
+- **`google-gax@<6` is overridden to 6.x.** `@google-cloud/firestore` pins
+  `@google-cloud/firestore-api@0.2.x`, which asks for `google-gax` 5 and, through
+  it, `rimraf` 5 and `glob` 10 (flagged by OSV-Scanner). The service uses only
+  `firebase-admin` app, app-check and auth, never Firestore. Drop the override
+  in `pnpm-workspace.yaml` once Firestore moves to a newer `firestore-api`.

@@ -33,7 +33,12 @@ and reported as `LIMERICK_MOBILE_INTERNAL_ERROR`. Symbol names use the
 The open request is `{"save_path": ..., "mod_dir": ...}`: the SQLite save and
 the world's mod directory (the app bundles `mods/rundale`). `OPEN_NEW` refuses
 a save that exists (`save_exists`); `OPEN_RESUME` continues the save, or starts
-a new game there when the file does not exist. A new game journals the opening
+a new game there when the file does not exist. Terminal drivers can opt into
+strict resume with `"require_existing": true` in the `OPEN_RESUME` payload:
+missing, incompatible, and unfinished saves are refused without replacement or
+set-aside recovery. Other callers retain the ordinary recovery policy. The
+option must be a boolean and is rejected on `OPEN_NEW` when true.
+A new game journals the opening
 scene as its first transcript event: a `scene_changed` event titled by
 `metadata.sceneName`, whose content is the location's description and who is
 there (time of day and weather are the header's; exits are `/exits`'s). Opening a save
@@ -56,6 +61,7 @@ without the refusal notice.
 
 | `op`                     | Fields                                                                               | Result                                             |
 | ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `new_game`               | none                                                                                 | select a fresh game and return its snapshot        |
 | `snapshot`               | none                                                                                 | read model, requests, newest 100 events            |
 | `submit`                 | `text`, optional `draft_id`, `logical_request_id`                                    | operation result                                   |
 | `retry`                  | `logical_request_id`                                                                 | operation result (new attempt)                     |
@@ -171,3 +177,5 @@ retry, restart interruption, clarification across restart, a reply committed
 unchanged, and bounded paging. `mobile/RundaleTests/RundaleEngineLifecycleTests.swift`
 runs the RundaleKit lifecycle tests through the same boundary in the
 simulator.
+
+`new_game` requires no open request (including clarification). It preserves the old save, commits a new active-save marker, and returns the fresh snapshot. Resume follows that marker. A selected save this build cannot open is set aside and replaced the way the launch save is; a marker that names no readable save is itself set aside (`.active-save.refused-<seconds>.json`) and a new game is selected. Both open with the refusal notice and keep every existing save. The host intercepts `/new` and `/new-game` and calls this operation.

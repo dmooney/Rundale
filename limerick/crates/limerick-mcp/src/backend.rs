@@ -51,6 +51,14 @@ pub trait TauriBackend: Send + Sync {
     /// will be the Tauri IPC command name passed to `invoke()` in the
     /// webview.
     async fn invoke(&self, command: &str, args: Value) -> Result<Value, BackendError>;
+
+    fn tools(&self) -> Vec<crate::tools::ToolDef> {
+        crate::tools::registry()
+    }
+    fn structured_results(&self) -> bool {
+        false
+    }
+    async fn shutdown(&self) {}
 }
 
 // ── LimerickHttpBackend ────────────────────────────────────────────────────────

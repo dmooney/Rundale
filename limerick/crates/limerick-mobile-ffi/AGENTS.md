@@ -44,3 +44,7 @@ just ios-sim-save-lock                                             # save-lock t
   mobile configuration ignores a test its "only the expected mobile tests are
   ignored" step does not name. Name an opt-in harness there, as
   `tests::addressee_baseline` is.
+- **Keep replacement cursors durable.** Swift persists transcript cursors for
+  history restoration. Seed a fresh save's journal sequence before its opening
+  event through the persistence API; an in-memory cursor offset disappears on
+  relaunch and points the saved viewport at the wrong history page.

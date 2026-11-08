@@ -35,8 +35,8 @@ impl<T> IntoLimerickDbError<T> for Result<T, rusqlite::Error> {
 }
 
 pub use active_identity::{
-    ActiveSaveIdentity, read_active_save_identity, read_active_save_identity_candidate,
-    write_active_save_identity,
+    ACTIVE_IDENTITY_FILENAME, ActiveSaveIdentity, read_active_save_identity,
+    read_active_save_identity_candidate, write_active_save_identity,
 };
 pub use database::{
     AsyncDatabase, BranchInfo, Database, InspectedBranch, NewTranscriptEvent, RecoveryData,

@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::IntoLimerickDbError as _;
 
-const ACTIVE_IDENTITY_FILENAME: &str = ".active-save.json";
+/// The marker file, in the saves directory, that names the selected save.
+pub const ACTIVE_IDENTITY_FILENAME: &str = ".active-save.json";
 const ACTIVE_IDENTITY_VERSION: u8 = 1;
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 

@@ -53,6 +53,9 @@ pub struct CommandSpec {
     pub advertised: bool,
     /// What may follow it.
     pub argument: CommandArgument,
+    /// Whether the host runs it instead of the engine: [`LocalCommand::parse`]
+    /// does not accept it, so a host that offers it must intercept it.
+    pub host_runs: bool,
 }
 
 /// What may follow a command's name.
@@ -75,54 +78,71 @@ pub const COMMANDS: &[CommandSpec] = &[
         summary: "Look around",
         advertised: true,
         argument: CommandArgument::None,
+        host_runs: false,
     },
     CommandSpec {
         name: "/people",
         summary: "Who is here",
         advertised: true,
         argument: CommandArgument::None,
+        host_runs: false,
     },
     CommandSpec {
         name: "/exits",
         summary: "Where you can go",
         advertised: true,
         argument: CommandArgument::None,
+        host_runs: false,
     },
     CommandSpec {
         name: "/help",
         summary: "These commands",
         advertised: true,
         argument: CommandArgument::None,
+        host_runs: false,
+    },
+    // `/new` (alias `/new-game`) replaces the session, so the host runs it.
+    CommandSpec {
+        name: "/new",
+        summary: "Start a new game",
+        advertised: true,
+        argument: CommandArgument::None,
+        host_runs: true,
     },
     CommandSpec {
         name: "/wait",
         summary: "Let time pass",
         advertised: false,
         argument: CommandArgument::Minutes(&[15, 30, 60]),
+        host_runs: false,
     },
     CommandSpec {
         name: "/pause",
         summary: "Hold the clock",
         advertised: false,
         argument: CommandArgument::None,
+        host_runs: false,
     },
     CommandSpec {
         name: "/resume",
         summary: "Let the clock run",
         advertised: false,
         argument: CommandArgument::None,
+        host_runs: false,
     },
     CommandSpec {
         name: "/debug",
         summary: "Inspect engine state",
         advertised: false,
         argument: CommandArgument::DebugView,
+        host_runs: false,
     },
     CommandSpec {
         name: "/flags",
         summary: "Feature flags",
         advertised: false,
         argument: CommandArgument::None,
+        host_runs: false,
     },
 ];
 
@@ -270,9 +290,14 @@ mod tests {
     #[test]
     fn every_completion_parses_as_the_command_it_names() {
         let names: Vec<_> = advertised().map(|command| command.name).collect();
-        assert_eq!(names, ["/look", "/people", "/exits", "/help"]);
+        assert_eq!(names, ["/look", "/people", "/exits", "/help", "/new"]);
         for command in COMMANDS {
             let tree = command.completion();
+            if command.host_runs {
+                assert_eq!(LocalCommand::parse(&tree.word), None, "{}", tree.word);
+                assert!(tree.next.is_empty(), "{}", tree.word);
+                continue;
+            }
             assert!(LocalCommand::parse(&tree.word).is_some(), "{}", tree.word);
             for next in &tree.next {
                 let text = format!("{} {}", tree.word, next.word);

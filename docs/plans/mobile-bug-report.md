@@ -85,7 +85,7 @@ own cap.
 - `cargo test -p limerick-diagnostics` (with and without default features) and
   `cargo test -p limerick-mobile-ffi`.
 - `just mobile-verify --phase all`, including `RundaleBugReportTests` and
-  `RundaleCommandsUITests.testBugCommandSendsAReportWithoutATurn`.
+  `EngineScenarioTests.testBugCommandSendsAReportWithoutATurn`.
 - Live: the simulator app, with an App Check debug token, sent a shake report
   to the deployed service. `limerick-prod.sh pull` retrieved the report and
   screenshot and emptied the inbox.

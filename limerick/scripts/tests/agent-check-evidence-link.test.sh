@@ -14,6 +14,10 @@
 # And in both modes:
 #   6. A .proofs/ path in the diff fails.
 #   7. A placeholder debt marker in a changed file fails.
+# And in PR mode with no AGENT_CHECK_BASE_REF:
+#   8. A stacked PR is compared against its own base branch, so the lower
+#      PR's runtime files need no link here; an unreadable base falls back
+#      to origin/main.
 set -euo pipefail
 
 scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,11 +43,14 @@ stub_dir="$tmp/bin"
 mkdir -p "$repo" "$stub_dir"
 export PR_BODY_FILE="$tmp/body.md"
 
-# The gh stub serves the PR body from $PR_BODY_FILE.
+# The gh stub serves the PR body from $PR_BODY_FILE and the base branch
+# from $PR_BASE_REF (empty: none reported).
+export PR_BASE_REF=""
 cat >"$stub_dir/gh" <<'STUB'
 #!/usr/bin/env bash
 case "$*" in
     *"--json body"*) cat "$PR_BODY_FILE" ;;
+    *"--json baseRefName"*) printf '%s\n' "$PR_BASE_REF" ;;
     *) exit 1 ;;
 esac
 STUB
@@ -155,6 +162,34 @@ git commit -qm "test: placeholder"
 check "local: placeholder debt marker fails" "$(run_gate)" "fail"
 grep -Fq 'placeholder-like debt markers' "$tmp/out.txt" && said=yes || said=no
 check "local: failure names the debt markers" "$said" "yes"
+
+# 8: a stacked PR. origin/stack holds the lower PR's runtime change; this PR
+# adds only tooling on top. No AGENT_CHECK_BASE_REF, as in CI.
+run_gate_pr_base() {
+    if PATH="$stub_dir:$PATH" bash "$checker" --source=pr 42 >"$tmp/out.txt" 2>&1; then
+        echo pass
+    else
+        echo fail
+    fi
+}
+commit_change mobile/RundaleSession/Sources/RundaleSession/Presenter.swift
+git update-ref refs/remotes/origin/stack HEAD
+git update-ref refs/remotes/origin/main base
+mkdir -p tools/cli
+printf 'change\n' >tools/cli/main.swift
+git add -A
+git commit -qm "test: stacked tooling change"
+body "No link here."
+PR_BASE_REF=stack
+check "pr: stacked PR is compared against its base branch" "$(run_gate_pr_base)" "pass"
+grep -Fq 'against origin/stack' "$tmp/out.txt" && said=yes || said=no
+check "pr: names the base branch it compared against" "$said" "yes"
+PR_BASE_REF=main
+check "pr: the same commits against main need the link" "$(run_gate_pr_base)" "fail"
+PR_BASE_REF=gone
+check "pr: a base branch missing locally falls back to origin/main" "$(run_gate_pr_base)" "fail"
+PR_BASE_REF=""
+check "pr: no reported base falls back to origin/main" "$(run_gate_pr_base)" "fail"
 
 if [[ "$fails" -ne 0 ]]; then
     echo "agent-check-evidence-link.test.sh: $fails assertion(s) failed." >&2

@@ -83,6 +83,35 @@ finishing, or a gate you skipped for the files you changed. Say which in your re
 Close a missing-gate gap in its own tooling PR straight away, not as a later offer.
 A local gate that failed or did not finish has not passed.
 
+### Close process gaps, not just instances
+
+Treat every failure, stall, or manual workaround you meet as two problems: the
+instance, and the process gap that let it happen or let it sit unnoticed. That
+covers anything you come across, not only your own work: a check red on `main`
+for more than a day, a PR stuck or approved but unmerged, a report nobody was
+notified of, a scheduled job that stopped running, or a fix you made by hand
+that will be needed again. Ask what should have caught it, and why nothing
+fixed it. Then:
+
+- Fix the instance, and close the gap in its own PR in the same session: a
+  check, test, workflow, or rule that makes the whole class fix itself, or at
+  least fail loudly. When the gap is larger than the task at hand, file an issue
+  with the evidence and say so in your report; do not leave it as an offer.
+- Prefer self-repair to escalation. When an agent or workflow can fix the
+  automation itself (update a lockfile, rerun a gate, retry a merge, repair a
+  broken job), build that path, and route the result through the usual review.
+  Bring in the owner only for what automation cannot fix or what is theirs to
+  decide: accepting a risk, spending money, changing a product requirement.
+- Prefer mechanisms to memory. A CI check or scheduled job beats a note to be
+  careful, and a gap closed by a rule only an agent reads will reopen.
+- Never let a failure sit unseen. A red scheduled or `main` workflow opens or
+  updates an issue that a fixing routine picks up, a stalled PR is flagged, and
+  anything left for the owner reaches them as a notification.
+- Give every exception an expiry. An ignored advisory, excluded file, or
+  skipped test carries a written reason and is checked again on a schedule or
+  when what it covers changes, so it cannot outlive its justification.
+- Report the gap you found and how you closed it, separately from the instance.
+
 When instructions conflict (an issue criterion, plan order, a gate, and a delivery
 rule cannot all be satisfied), stop and ask the owner which gives way, naming the
 conflict. Do not circle between them. Standing answers:
@@ -127,14 +156,18 @@ For a PR that changes what the app ships (`mobile/`, `mods/`, `limerick/crates`,
 clean checkout of the commit on a Mac, push, then `just mobile-verify-record`.
 Without a Mac (a Linux cloud session), push: CI's "Recorded mobile-verify pass"
 job finds no recorded pass for the PR's input tree and runs `verify.py --smoke`
-on a hosted macOS runner: every Mac gate but the full UI suites and the Swift
+on a hosted macOS runner: every Mac gate but the XCUITest journeys and the Swift
 package suites (CI's Linux "Swift quality" job runs those and the style checks),
-plus a few core-loop UI tests. It records no full pass. Hosted runs pass
+plus the one launch journey. It records no full pass. `just mobile-verify` runs
+the journeys only when the change touches Swift GUI code (`mobile/Rundale/`,
+`mobile/RundaleUITests/`, `mobile/project.yml`); it prints which way it went and
+why, and `--journeys on|off` forces it. The journeys otherwise run nightly on the
+hosted runner, report-only. Hosted runs pass
 `--skip-time-sensitive`, so tests whose result depends on machine speed
 (`TIME_SENSITIVE_TESTS` in `verify.py`) run only in a local
-`just mobile-verify`; never pass it locally. To prove a change to the UI suites
+`just mobile-verify`; never pass it locally. To prove a change to the journeys
 before merge, label the PR `mobile-verify-full` and push: that job then runs and records
-the full gate (over an hour on that runner). Run the gate once, after review rounds,
+the full gate with the journeys (about 40 minutes on that runner). Run the gate once, after review rounds,
 not after each fix. A PR that changes no app input (the verification
 tools in `mobile/scripts`, CI, docs) needs no run; documentation commits keep a pass valid.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI
@@ -184,44 +217,26 @@ A hand-off waits for the owner: report it, and move on to work that does not
 depend on it. The one exception is the owner asking to land a PR directly, which
 the [`land`](.agents/skills/land/SKILL.md) skill does.
 
-The gatekeeper is a different model from the author, and the agent that calls it
-chooses which, since commits do not record their author model. Claude- or
-Gemini-authored work is reviewed by GPT through Codex, which reads the same skill
-(`.codex/skills` links to `.agents/skills`); read its report from the `-o` file:
+The gatekeeper is a fresh-context Claude subagent, whoever wrote the code. Spawn
+it as a new subagent (never a fork of your session) and give it only the checkout
+path or PR number and the instruction to run the gatekeeper skill; it must not
+see your session. Its independence comes from that fresh context: it judges the
+repository, the issue and the PR alone. A tool that cannot spawn a subagent (a
+scheduled routine, a Codex session) runs it headless from the review checkout
+(your worktree, or a clean detached worktree of `origin/main` for a PR):
 
 ```sh
-codex exec -C <checkout> -m gpt-6.1-sol -c model_reasoning_effort=high \
-  -o <report file> "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
+claude -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
 ```
 
-Run Codex reviews only under the owner's ChatGPT sign-in, never an API key: do not
-log Codex in with `OPENAI_API_KEY` or any other key found in the environment. If
-Codex is not signed in, report the blocker.
-
-Close stdin (`</dev/null`): from a background shell, `codex exec` otherwise waits
+Close stdin (`</dev/null`): from a background shell, `claude -p` otherwise waits
 for input forever. Run a local review in its own worktree so branch switches in
 the main checkout cannot change what it reads, and check its output within a few
 minutes of starting it.
 
-**Exemption: Claude Code in the cloud.** A Claude Code cloud session
-(claude.ai/code, where `CLAUDE_CODE_REMOTE=true`) has its own work reviewed by a
-regular Claude subagent instead of a cross-model reviewer. Spawn a fresh-context
-subagent (never a fork of your session) and give it only the checkout path or PR
-number and the instruction to run the gatekeeper skill.
-
-Codex-authored changes are cross-reviewed by Gemini through **agy using the
-owner's Google subscription**, run from the review checkout:
-
-```sh
-env -u GOOGLE_API_KEY -u GEMINI_API_KEY -u AGY_ADC_AUTH -u GOOGLE_GENAI_USE_VERTEXAI \
-  agy --model gemini-3.8-flash-high --output-format text \
-  -p "Run the gatekeeper skill on <this checkout | PR N>." </dev/null
-```
-
-Use agy's personal Google-account sign-in, without an API-key provider override.
-Do not use Gemini CLI (`gemini`) or paid APIs for cross-reviews. If subscription
-authentication or quota fails, report the blocker; a paid API fallback requires
-explicit owner approval. See the [gatekeeper authentication policy](.agents/skills/gatekeeper/SKILL.md#gemini-cross-reviews-agy-and-subscription-only).
+Earlier cross-model reviewers (Codex, then Gemini through agy) were dropped: each
+depended on one account's usage limit or on headless permission rules, and
+stalled every review when those ran out or refused a command.
 
 ### Keep the iPhone beta current
 

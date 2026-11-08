@@ -30,6 +30,23 @@ per simulator at the end. Never edit a worktree while a gate is building from it
 Demo `hold(_:)` pauses are no-ops unless `TEST_RUNNER_RUNDALE_DEMO_HOLD=<seconds>`
 is set (recording only).
 
+## Which layer tests a UI behaviour
+
+Test a rule about state in `RundaleKit` or `RundaleSession` (move the decision
+out of the view into a value type or the presenter, then `swift test`), an
+engine scenario in `RundaleTests/EngineScenarioTests`, and only layout,
+gestures and the process lifecycle in `RundaleUITests` (#2319). The table is in
+[build-test.md](../docs/agent/build-test.md#which-layer-tests-a-ui-behaviour-2319).
+Delete the XCUITest when you move its rule down; add to
+`TIME_SENSITIVE_TESTS` only for a test that fails alone on the hosted runner.
+
+The XCUITest journeys are not in every gate: `just mobile-verify` runs them only
+when the change touches `mobile/Rundale/`, `mobile/RundaleUITests/` or
+`mobile/project.yml` (it prints which way it went; `--journeys on|off` forces
+it), the hosted PR gate runs just the launch journey, and a nightly report-only
+`journeys` job runs the rest. Presenter and engine changes are covered by the
+tests that stay in every gate.
+
 ## Evidence
 
 - The simulator is not a physical iPhone. Report simulator runs as simulator
@@ -48,14 +65,23 @@ is set (recording only).
 - **Session logic lives in `RundaleSession`, not the app target.** The app
   keeps views, `RundalePresentationModel` (it forwards the presenter to
   SwiftUI), and the Firebase, OSLog, and UIKit wiring
-  (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule a Linux host
+  (`RundaleSessionWiring.swift`, `ScreenCapture.swift`). A rule the app CLI
   must share goes in the package, or the two drift (#2272).
+- **Do not retain a session controller across its event-stream wait.** A
+  controller-owned task must keep only a weak reference while awaiting the
+  next event, or the task and controller retain each other and prevent teardown.
 - **A synchronous test in a `@MainActor` XCTestCase crashes Linux test
   discovery** (`swift_dynamicCastFailure` in `__allTests`, before any test
   runs). Make the test `async` with a real `await`; SwiftFormat's
   `redundantAsync` strips an `async` with none. Pure helpers can be
   `nonisolated` instead, declared in a `nonisolated extension`: SwiftLint and
   SwiftFormat disagree on the order of `nonisolated` beside an access modifier.
+- **Hosted simulator runs are serial.** `verify.py` runs one worker when
+  `GITHUB_ACTIONS=true` and errors on more: parallel simulator clones on the
+  hosted VM raced the UI suites' fixed waits (#2301). An app-hosted test that
+  reopens a save must wait for the old `RundaleEngineController` to deallocate
+  (not just the presenter), or the engine answers `save_locked`
+  (`EngineScenarioTests.Game.relaunch`).
 - **A failed gate leaves evidence; read it before re-running.** On a simulator
   test failure `verify.py` writes `mobile/.verification/failures/<run>/`
   (`failure.md`, screenshot, UI hierarchy, runner and crash logs) and prints the
@@ -106,6 +132,12 @@ is set (recording only).
   executable (`Rundale.app/rundale`) breaks the macOS link on a
   case-insensitive file system (`errno=21`). `project.yml` uses a `copyFiles`
   subpath.
+- **Retry is for the newest request only.** `SessionState.retryableRequest` is the
+  newest request, and only while it ended failed, cancelled, or interrupted
+  uncommitted. Asking "does any request in history `canRetry`" leaves Retry up
+  after the stopped question recovers or a newer one succeeds, and a tap then
+  re-runs an old request against the Endpoint (#2329). A Retry tap with nothing
+  retryable is a no-op in the presenter, not an error.
 - **XCUITest cannot see rows scrolled out of the lazy transcript.** Assert on
   what a command produced, not on a command row a long narration pushed
   off-screen.
@@ -123,3 +155,13 @@ is set (recording only).
   revision URLs alone.
 - **Build for the iOS Simulator with rustup's cargo, not Homebrew's.** `/opt/homebrew/bin/cargo` comes first on some PATHs and its toolchain has no `aarch64-apple-ios-sim` std (`can't find crate for core`). Use `~/.cargo/bin/cargo` (the pinned `rust-toolchain.toml` channel) and `rustup target add aarch64-apple-ios-sim` for that channel; `just ios-sim-save-lock` does both.
 - **`XCTExpectFailure` is a fourth xcresult bucket.** `xcresulttool get test-results summary` reports it as `expectedFailures`, outside `passedTests`/`failedTests`/`skippedTests`; a validator that reconciles only those three against `totalTestCount` fails a green run (#2081's wrapped test did this to `just mobile-verify` in #2045). The runner's Xcode builds and its host Rust test build go to `mobile/.verification/` and its iOS Rust libraries to `mobile/.build/rust-mobile/`, without sccache, so its first run recompiles the engine from scratch.
+
+- **Keep pending controls busy until their receipt arrives.** Session state
+  notifications can precede submit, retry, or clarification receipts. The shared
+  presenter must retain its pending-control busy state during those notifications;
+  otherwise terminal polling and the app can submit again before acceptance.
+
+- **Reuse a captured ID for streaming-row visibility checks.** XCUITest can
+  observe a chunk, then lose its label query when the next chunk arrives.
+  Capture the row ID once and pass that ID to later geometry assertions; do
+  not re-read it through the old text-label query.

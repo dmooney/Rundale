@@ -11,4 +11,13 @@
 #
 # Upstream fix status: none available as of 2026-05 (rsa crate; see advisory).
 # Revisit when jsonwebtoken ships an aws-lc-rs default or rsa publishes a fix.
-ignore = ["RUSTSEC-2023-0071"]
+#
+# RUSTSEC-2026-0387: timing variability in `crypto-bigint` 0.5.5 operations
+# meant to be constant-time. The same `jsonwebtoken` `rust_crypto` feature
+# pulls it in through p256/p384 (elliptic-curve 0.13) for ES256/ES384 JWT
+# *verification*, which uses only public keys and public signatures; no
+# secret scalar is processed, so timing reveals nothing. The fix is in
+# crypto-bigint 0.7.6 or later, which needs elliptic-curve 0.14;
+# jsonwebtoken 11 pins p256/p384 0.13. Absent from the iOS mobile dependency
+# tree. Revisit when jsonwebtoken moves to p256/p384 0.14.
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0387"]

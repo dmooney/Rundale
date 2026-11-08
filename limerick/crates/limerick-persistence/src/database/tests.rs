@@ -1033,3 +1033,27 @@ fn test_lock_recovered_with_database_after_poison() {
         .expect("find_branch should still work after poison recovery");
     assert!(loaded.is_some());
 }
+
+#[test]
+fn transcript_sequence_seed_is_durable_and_only_allowed_on_unused_journals() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("save.db");
+    let db = Database::open(&path).unwrap();
+    assert!(db.seed_empty_transcript_sequence(i64::MAX as u64).is_err());
+    db.seed_empty_transcript_sequence(123).unwrap();
+    assert!(db.seed_empty_transcript_sequence(456).is_err());
+    drop(db);
+    let db = Database::open(&path).unwrap();
+    db.conn.execute("INSERT INTO transcript_events(event_id, branch_id, kind, event) VALUES ('test', 1, 'test', '{}')", []).unwrap();
+    let sequence: i64 = db
+        .conn
+        .query_row("SELECT sequence FROM transcript_events", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(sequence, 124);
+    db.conn
+        .execute("DELETE FROM transcript_events", [])
+        .unwrap();
+    assert!(db.seed_empty_transcript_sequence(0).is_err());
+}

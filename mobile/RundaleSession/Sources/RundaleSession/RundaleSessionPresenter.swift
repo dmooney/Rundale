@@ -30,6 +30,52 @@ public struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     public var unappliedReplyNote: String? {
         kind == .npcDialogue && isInterrupted ? "Not applied" : nil
     }
+
+    /// The row's kind as VoiceOver and UI tests name it.
+    public var kindLabel: String {
+        switch kind {
+        case .playerCommand: return "Player command"
+        case .commandInterpreted: return "Interpretation"
+        case .npcDialogue: return "Dialogue"
+        case .actionResult: return "Result"
+        case .sceneChanged: return "Scene"
+        case .error: return "Error"
+        case .progress: return "Progress"
+        case .responseCompleted: return "Response"
+        case .clarificationRequired: return "Clarification"
+        case .clarificationSelected: return "Direction"
+        default: return "Narration"
+        }
+    }
+
+    /// The text the row shows. A clarification choice reads as a direction.
+    public var displayText: String {
+        switch kind {
+        case .clarificationSelected: return "Directed to \(text)."
+        default: return text
+        }
+    }
+
+    /// The row's spoken label: kind, scene name, speaker, text, then whether
+    /// the reply is still arriving or was not applied.
+    public var accessibilityLabel: String {
+        var parts = [kindLabel]
+        if kind == .sceneChanged, let sceneName = metadata["sceneName"], !sceneName.isEmpty {
+            parts.append(sceneName)
+        }
+        if let speaker, !speaker.isEmpty {
+            parts.append(speaker)
+        }
+        if !displayText.isEmpty {
+            parts.append(displayText)
+        }
+        if isInterrupted {
+            parts.append("Interrupted; not applied")
+        } else if isProvisional {
+            parts.append("In progress")
+        }
+        return parts.joined(separator: ". ")
+    }
 }
 
 public struct PresentedHeader: Equatable, Sendable {
@@ -41,6 +87,11 @@ public struct PresentedHeader: Equatable, Sendable {
         self.location = location
         self.timeOfDay = timeOfDay
         self.weather = weather
+    }
+
+    /// The header region's spoken summary.
+    public var accessibilityLabel: String {
+        "Current place, \(location). \(timeOfDay). \(weather)."
     }
 }
 
@@ -184,10 +235,28 @@ public final class RundaleSessionPresenter {
     private var activeSourceDraftID: DraftID?
     private var lifecycleGeneration: UInt64 = 0
     private var allowsSubmission = true
+    private var pendingControlCount = 0
+
+    /// A submitted control has not yet received its shared-session receipt.
+    /// Snapshot notifications during that interval must not advertise idle.
+    public var isDispatching: Bool { pendingControlCount > 0 }
+
+    private func beginControl() {
+        pendingControlCount += 1
+        isStreaming = true
+    }
+
+    private func finishControl() {
+        pendingControlCount -= 1
+        refreshFromSession()
+    }
+
     private var isLoadingOlderTranscript = false
     private var lastAnnouncedEventID: SemanticEventID?
     private var lifecycleTask: Task<Void, Never>?
     private var presentedCursor = EventCursor(0)
+    private var presentedSessionID: SessionID?
+    private var isReplacingGame = false
 
     public var initialFollowsNewest: Bool { session.initialFollowsNewest }
     public var initialUnreadCount: Int { session.initialUnreadCount }
@@ -213,6 +282,7 @@ public final class RundaleSessionPresenter {
         header = self.session.currentHeader
         transcript = state.transcript.map(Self.presentedItem)
         draft = launch.initialDraft ?? self.session.restoredDraft()?.text ?? ""
+        presentedSessionID = self.session.state.sessionID
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = Self.isWorking(state)
         isFollowingNewest = state.viewport.isFollowingNewest
@@ -315,6 +385,10 @@ public final class RundaleSessionPresenter {
             reportBug(description: description, clearingDraft: draft)
             return
         }
+        if Self.isNewGameCommand(command) {
+            startNewGame()
+            return
+        }
         guard !command.isEmpty, !isStreaming, allowsSubmission else { return }
 
         submissionMessage = nil
@@ -324,9 +398,10 @@ public final class RundaleSessionPresenter {
         let sourceDraftRevision = draftRevision
         let sourceDraft = draft
         let submissionGeneration = lifecycleGeneration
-        isStreaming = true
+        beginControl()
 
         Task {
+            defer { finishControl() }
             do {
                 // A scene transition can happen after the button callback but
                 // before the actor call starts. Do not begin new inference
@@ -379,6 +454,48 @@ public final class RundaleSessionPresenter {
     }
 
     /// The description after `/bug`, or `nil` when `command` is not `/bug`.
+    public static func isNewGameCommand(_ command: String) -> Bool {
+        ["/new", "/new-game"].contains(command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    private func startNewGame() {
+        guard allowsSubmission else { return }
+        guard !isStreaming, session.state.activeRequestID == nil,
+              session.state.pendingClarification == nil else {
+            submissionMessage = "Stop the current request before starting a new game."
+            return
+        }
+        submissionMessage = nil
+        bugReportNotice = nil
+        let generation = lifecycleGeneration
+        isReplacingGame = true
+        isStreaming = true
+        Task {
+            defer {
+                isReplacingGame = false
+                refreshFromSession()
+            }
+            do {
+                guard allowsSubmission, lifecycleGeneration == generation else {
+                    isStreaming = false
+                    return
+                }
+                try await session.newGame()
+                activeSourceDraftID = nil
+                lastAnnouncedEventID = nil
+                lastComposerReturnEventID = nil
+                draft = ""
+                draftRevision &+= 1
+                accessibilityNotice = "New game started."
+                refreshFromSession()
+            } catch {
+                submissionMessage = error.localizedDescription
+                isStreaming = false
+                refreshFromSession()
+            }
+        }
+    }
+
     public static func bugDescription(in command: String) -> String? {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.lowercased().hasPrefix(bugCommandWord) else { return nil }
@@ -515,12 +632,24 @@ public final class RundaleSessionPresenter {
     }
 
     public var canRetry: Bool {
-        session.state.requests.contains { $0.phase.canRetry }
+        session.state.retryableRequest != nil
     }
 
     /// The draft has something to send.
     public var canSubmitDraft: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// What VoiceOver reads on Send: whether tapping it would do anything.
+    public var sendAccessibilityValue: String {
+        canSubmitDraft ? "Ready to send" : "Enter a command to enable"
+    }
+
+    /// The Celtic knot beside the composer shows while the engine works. A
+    /// compact layout (an accessibility size or a short screen) drops it to
+    /// keep the room for the transcript.
+    public func showsWaitingKnot(compactLayout: Bool) -> Bool {
+        isStreaming && !compactLayout
     }
 
     /// The composer offers Stop in place of Send while the engine works.
@@ -535,11 +664,14 @@ public final class RundaleSessionPresenter {
     public var showsFixtureStep: Bool { launch.isUITesting && launch.manualStream && isStreaming }
 
     public func retryLastFailed() {
-        guard !isStreaming, allowsSubmission else { return }
+        // With no retryable failure (it recovered, or a newer request
+        // replaced it) a stale tap does nothing: no attempt, no error.
+        guard !isStreaming, allowsSubmission, canRetry else { return }
         let retryGeneration = lifecycleGeneration
-        let retryRequestID = session.state.requests.last(where: { $0.phase.canRetry })?.id
-        isStreaming = true
+        let retryRequestID = session.state.retryableRequest?.id
+        beginControl()
         Task {
+            defer { finishControl() }
             do {
                 guard allowsSubmission, lifecycleGeneration == retryGeneration else {
                     isStreaming = false
@@ -665,10 +797,12 @@ public final class RundaleSessionPresenter {
     }
 
     public func selectClarification(_ option: PresentedClarification.Option) {
-        guard allowsSubmission else { return }
+        guard !isStreaming, allowsSubmission else { return }
         let clarificationGeneration = lifecycleGeneration
         let clarificationRequestID = session.state.pendingClarification?.requestID
+        beginControl()
         Task {
+            defer { finishControl() }
             do {
                 guard allowsSubmission, lifecycleGeneration == clarificationGeneration else { return }
                 try await session.answerClarification(choiceID: option.id)
@@ -697,6 +831,16 @@ public final class RundaleSessionPresenter {
 
     private func refreshFromSession() {
         let state = session.state
+        if presentedSessionID != state.sessionID {
+            presentedSessionID = state.sessionID
+            draft = state.draft.text
+            draftRevision &+= 1
+            activeSourceDraftID = nil
+            lastAnnouncedEventID = nil
+            lastComposerReturnEventID = nil
+            completionBrowser = nil
+            completions = []
+        }
         let nextHeader = session.currentHeader
         if nextHeader != header { header = nextHeader }
         let previousRevision = streamRevision
@@ -710,7 +854,7 @@ public final class RundaleSessionPresenter {
         }
         presentedCursor = state.eventCursor
         clarification = state.pendingClarification.map(Self.presentedClarification)
-        isStreaming = Self.isWorking(state)
+        isStreaming = isReplacingGame || isDispatching || Self.isWorking(state)
         if state.viewport.isFollowingNewest != isFollowingNewest {
             isFollowingNewest = state.viewport.isFollowingNewest
         }
