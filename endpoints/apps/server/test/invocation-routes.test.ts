@@ -447,8 +447,8 @@ describe("invocation data plane", () => {
       headers: { authorization: `Bearer ${secret}`, "content-type": encoded["content-type"] },
       payload: encoded.payload,
     });
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe("INVALID_INPUT");
+    expect(response.statusCode).toBe(413);
+    expect(response.json().error.code).toBe("REQUEST_TOO_LARGE");
     expect(store.created).toBe(0);
     expect(providerCalls).toBe(0);
   });
@@ -498,8 +498,8 @@ describe("invocation data plane", () => {
       headers: { authorization: `Bearer ${secret}`, "content-type": encoded["content-type"] },
       payload: encoded.payload,
     });
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error.code).toBe("INVALID_INPUT");
+    expect(response.statusCode).toBe(413);
+    expect(response.json().error.code).toBe("REQUEST_TOO_LARGE");
     expect(store.created).toBe(0);
     expect(providerCalls).toBe(0);
   });
