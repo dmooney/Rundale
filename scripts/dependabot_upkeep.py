@@ -455,7 +455,8 @@ class Upkeep:
             try:
                 return self.sh.json(["gh", *args], **kwargs)
             except CommandError as error:
-                detail = f"{error.result.stderr}\n{error.result.stdout}"
+                # stderr only: a response body that mentions "EOF" is not a network fault.
+                detail = error.result.stderr
                 if delay is None or not TRANSIENT_GH.search(detail):
                     raise
                 self.sh.say(

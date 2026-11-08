@@ -565,6 +565,8 @@ class CheckStateTests(unittest.TestCase):
 
         self.assertEqual(self.state(run("CANCELLED", 2), run("SUCCESS", 1)), "green")
         self.assertEqual(self.state(run("SUCCESS", 2), run("FAILURE", 1)), "red")
+        queued = {**run("SUCCESS", 0), "status": "QUEUED", "conclusion": None, "startedAt": None}
+        self.assertEqual(self.state(run("CANCELLED", 2), queued), "pending")
         # The same job name in another workflow is a separate check.
         self.assertEqual(self.state(run("SUCCESS", 1), run("FAILURE", 2, "CI")), "red")
 

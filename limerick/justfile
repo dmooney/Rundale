@@ -54,7 +54,7 @@ setup:
         export PATH="$HOME/.local/share/fnm:$PATH"
     fi
     if command -v fnm &>/dev/null; then
-        eval "$(fnm env)"
+        eval "$(fnm env --shell bash)"
         echo "Installing Node.js $want_node..."
         fnm install "$want_node"
         fnm use "$want_node"
