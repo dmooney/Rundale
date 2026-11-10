@@ -130,15 +130,15 @@ jq -f summary.jq "$tmp/offline.json" | jq -e '.prompts[0].all_models | .malforme
     exit 1
 }
 
-# summary.jq on the fixture: one row of each kind, with reasoning tokens for
-# every provider (added for Gemini only).
+# summary.jq on the fixture: one row of each kind; the models under test are
+# billed from each row's OpenRouter charge, the judges from their tokens.
 jq -f summary.jq test/fixture-results.json | jq -e '
   .prompts[0].all_models as $a
   | $a.scored == 2 and $a.malformed == 1 and ($a.outages | map(.case)) == ["request-failed", "judge-failed"]
   and $a.mean == 43.3
   and $a.by_requirement == {"B1": 80, "B3": 65, "B5": 0}
   and ($a.judges_split_over_20 | map(.case)) == ["scored-split"]
-  and ($a.spend_usd * 10000 | round) == 277
+  and ($a.spend_usd * 10000 | round) == 279
   and ($a.worst | map(.points)) == [0, 50, 80]
   and .prompts[0].by_model["flash-lite"].mean == 40
   and .unpriced_models == []

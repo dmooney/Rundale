@@ -1,8 +1,7 @@
 # NPC dialogue prompt lab (docs/design/npc-dialogue-prompt.md §6, issue 2294).
 # Driven by an agent with the prompt-lab skill (.agents/skills/prompt-lab/SKILL.md),
-# not by a script. Needs GEMINI_API_KEY (or GOOGLE_API_KEY) for the models under
-# test and OPENROUTER_API_KEY for both judges; eval.sh loads them from the
-# repository's .env.
+# not by a script. Needs only OPENROUTER_API_KEY, for the models under test and
+# both judges; eval.sh loads it from the repository's .env.
 #   Training round: bash eval.sh -c promptfooconfig.yaml --filter-prompts '^brief$'
 #   Held-out (once, at the end): add -t cases/heldout.yaml
 description: Rundale NPC dialogue prompt lab
@@ -14,52 +13,44 @@ prompts:
     label: baseline
 
 providers:
-  # The production model, called the way the Endpoint calls it: system
-  # instruction, one user part, and the v1 output schema as the response schema.
-  - id: google:gemini-3.5-flash-lite
+  # Both models under test go through OpenRouter, on the same balance as the
+  # judges, so the lab bills one account. OpenRouter's chat route takes the
+  # system instruction, one user part and the v1 output schema as a strict
+  # json_schema response format, and passes them to Google as the Endpoint's
+  # system instruction and response schema. No reasoning setting is sent, so
+  # each model thinks at its own default, as in production.
+  - id: openrouter:google/gemini-3.5-flash-lite
     label: flash-lite
     config:
-      generationConfig:
-        responseMimeType: application/json
-        maxOutputTokens: 1024
-        # The v1 output schema, as production sends it (responseJsonSchema,
-        # not the OpenAPI-subset responseSchema, which rejects $schema and $id).
-        responseJsonSchema:
-          $schema: http://json-schema.org/draft-07/schema#
-          $id: rundale-dialogue-output-v1
-          title: Rundale NPC dialogue result v1
-          description: The sole structured candidate accepted by the Phase 2 engine.
-          type: object
-          additionalProperties: false
-          properties:
-            dialogue:
-              type: string
-              minLength: 1
-              maxLength: 8192
-              description: One plain-text NPC utterance.
-          required: [dialogue]
+      # The production model's output limit.
+      max_tokens: 1024
+      response_format: &v1-output
+        type: json_schema
+        json_schema:
+          name: rundale-dialogue-output-v1
+          strict: true
+          # The v1 output schema, as production sends it.
+          schema:
+            $schema: http://json-schema.org/draft-07/schema#
+            $id: rundale-dialogue-output-v1
+            title: Rundale NPC dialogue result v1
+            description: The sole structured candidate accepted by the Phase 2 engine.
+            type: object
+            additionalProperties: false
+            properties:
+              dialogue:
+                type: string
+                minLength: 1
+                maxLength: 8192
+                description: One plain-text NPC utterance.
+            required: [dialogue]
   # A larger Gemini (§6.2), to tell a prompt problem from a model limit. Its
   # output limit is above production's so thinking does not cut replies short.
-  - id: google:gemini-3.8-flash
+  - id: openrouter:google/gemini-3.8-flash
     label: flash
     config:
-      generationConfig:
-        responseMimeType: application/json
-        maxOutputTokens: 8192
-        responseJsonSchema:
-          $schema: http://json-schema.org/draft-07/schema#
-          $id: rundale-dialogue-output-v1
-          title: Rundale NPC dialogue result v1
-          description: The sole structured candidate accepted by the Phase 2 engine.
-          type: object
-          additionalProperties: false
-          properties:
-            dialogue:
-              type: string
-              minLength: 1
-              maxLength: 8192
-              description: One plain-text NPC utterance.
-          required: [dialogue]
+      max_tokens: 8192
+      response_format: *v1-output
 
 x-rubric:
   # The judges' rubric, shared by both judges. Kept inline: promptfoo does not
@@ -103,12 +94,16 @@ defaultTest:
     prose: false
   options:
     # Judges read the spoken text, not the JSON envelope. A reply that is not
-    # the output schema's JSON becomes "MALFORMED: <raw reply>". This transform
-    # must never throw: a throwing transform makes promptfoo drop the reply.
+    # the output schema's JSON becomes "MALFORMED: <raw reply>". promptfoo
+    # hands over a json_schema reply already parsed, and a raw reply as text.
+    # This transform must never throw: a throwing transform makes promptfoo
+    # drop the reply.
     transform: >-
-      (() => { try { const d = JSON.parse(output).dialogue;
+      (() => { try { const v = typeof output === 'string' ? JSON.parse(output) : output;
+      const d = v && v.dialogue;
       if (typeof d === 'string' && d.trim()) return d; } catch (e) {}
-      return 'MALFORMED: ' + String(output); })()
+      let raw; try { raw = typeof output === 'string' ? output : JSON.stringify(output); } catch (e) { raw = String(output); }
+      return 'MALFORMED: ' + raw; })()
   assert:
     # Records a malformed reply (score 0) without counting toward the mean;
     # summary.jq scores such a reply 0 whatever the judges say.

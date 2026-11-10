@@ -171,3 +171,26 @@ All runs clean: no outages, no unpriced models.
 - Noise reading: control 77.5 against round 02's flash-lite 77.7, 0.2. The
   first control (78.9, other judge route) differs by 1.4.
 - Spend: $5.21. Running total: $18.59.
+
+## Models under test moved to OpenRouter (2026-11-10)
+
+- Both Gemini models now run through OpenRouter's chat route, on the same
+  balance as the judges, so the lab needs only `OPENROUTER_API_KEY`. Each
+  request carries the system instruction, one user part and the v1 output
+  schema as a strict `json_schema` response format, the same output limits
+  (1024 for flash-lite, 8192 for flash) and no reasoning setting, so each
+  model thinks at its own default as before. The models are the same, but
+  the route is new, so earlier scores are not directly comparable: a new
+  round starts with a control run on this route.
+- promptfoo hands a `json_schema` reply over already parsed, so the transform
+  now accepts an object as well as text; without that change every reply
+  read as malformed.
+- Spend for the models under test is now OpenRouter's charge for each reply
+  (`response.metadata.openrouter.accountCharge`), not a token count at list
+  price: the chat route counts reasoning inside output tokens, so the old
+  Gemini reasoning top-up would have counted it twice. The charges in the
+  smoke run matched Google's list prices.
+- One-case smokes (t01, brief, both models), $0.15 in all. The first showed
+  the parsed-reply problem; two more lost the Opus judge to a sandboxed
+  network proxy, not to the config; the last scored cleanly: both judges,
+  nothing unpriced. Running total: $18.74.

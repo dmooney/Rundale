@@ -33,6 +33,6 @@ matches the order the lab freezes, and #2299 changes the bridge where needed.
 To run a round, follow the skill's commands; they pass `--no-cache` (so a
 changed prompt is never answered from cache) and `--filter-prompts '^brief$'`
 (so the baseline is billed only in round 00). They run through `eval.sh`, which loads the
-repository's `.env`. Each needs `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) for the
-Gemini models and `OPENROUTER_API_KEY` for both judges. Raw output goes to `output/`, which
-git ignores.
+repository's `.env`. Each needs only `OPENROUTER_API_KEY`: the Gemini models
+under test and both judges bill one OpenRouter balance. Raw output goes to
+`output/`, which git ignores.

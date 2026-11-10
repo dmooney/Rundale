@@ -23,6 +23,11 @@
             "completionDetails": {
               "reasoning": 40
             }
+          },
+          "metadata": {
+            "openrouter": {
+              "accountCharge": 0.00065
+            }
           }
         },
         "gradingResult": {
@@ -91,7 +96,12 @@
         },
         "response": {
           "output": "Up the boreen.",
-          "tokenUsage": {}
+          "tokenUsage": {},
+          "metadata": {
+            "openrouter": {
+              "accountCharge": 0.0001
+            }
+          }
         },
         "gradingResult": {
           "componentResults": [
@@ -159,7 +169,12 @@
         },
         "response": {
           "output": "MALFORMED: not json",
-          "tokenUsage": {}
+          "tokenUsage": {},
+          "metadata": {
+            "openrouter": {
+              "accountCharge": 0.0001
+            }
+          }
         },
         "gradingResult": {
           "componentResults": [
@@ -248,7 +263,12 @@
         },
         "response": {
           "output": "Who?",
-          "tokenUsage": {}
+          "tokenUsage": {},
+          "metadata": {
+            "openrouter": {
+              "accountCharge": 0.0001
+            }
+          }
         },
         "gradingResult": {
           "componentResults": [
