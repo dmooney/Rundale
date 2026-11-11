@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Offline check of the prompt lab: no model or judge calls, no keys needed.
+# Renders every case under both prompts with promptfoo's echo provider, checks
+# the anachronism switch, and checks summary.jq on real promptfoo output and on
+# a fixture.
+set -euo pipefail
+cd "$(dirname "$0")"
+pf="$(cd .. && pwd)/node_modules/.bin/promptfoo"
+export PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE=1
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+$pf validate -c promptfooconfig.yaml >/dev/null
+
+# The same config with the judges removed, so rendering every case costs
+# nothing. The echo reply is not the output schema's JSON, so every row must
+# come out malformed.
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const fs = require("fs");
+  const cfg = yaml.load(fs.readFileSync("promptfooconfig.yaml", "utf8"));
+  cfg.defaultTest.assert = cfg.defaultTest.assert.filter((a) => a.metric === "schema");
+  fs.writeFileSync(process.argv[1], yaml.dump(cfg));
+' "$tmp/nojudge.yaml"
+cp -r prompts cases content "$tmp/"
+
+brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
+for split in train heldout; do
+    cases=$(grep -c '^- description:' "cases/$split.yaml")
+    (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
+    jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '
+    .results.results as $r
+    | ($r | length) == $want
+    and all($r[]; .prompt.raw | fromjson
+      | .[0].role == "system" and .[1].role == "user"
+      and (.[1].content | startswith("Endpoint input values:\n"))
+      and (.[1].content | split("\n")[1:] | join("\n") | fromjson | type == "object"))
+    and all($r[] | select(.prompt.label == "brief"); .prompt.raw | fromjson | .[1].content
+      | split("\n")[1:] | join("\n") | fromjson | keys == $keys)
+  ' "$tmp/$split.json" >/dev/null || {
+        echo "check: $split cases did not all render" >&2
+        exit 1
+    }
+    jq -f summary.jq "$tmp/$split.json" | jq -e --argjson want "$((cases * 2))" '
+    .unpriced_models == ["echo"] and ([.prompts[].all_models] | (map(.malformed) | add) == $want and (map(.outages | length) | add) == 0)
+  ' >/dev/null || {
+        echo "check: summary.jq did not score every echo reply as malformed" >&2
+        exit 1
+    }
+done
+
+# The notice follows the case's anachronism value, and --var noflag=true drops it.
+notice='not a thing you have ever heard of'
+jq -e --arg n "$notice" '[.results.results[] | select(.prompt.label == "brief" and .vars.anachronism) | .prompt.raw | test($n)] | length > 0 and all' "$tmp/train.json" >/dev/null \
+    || {
+        echo "check: flagged cases lack the anachronism notice" >&2
+        exit 1
+    }
+jq -e --arg n "$notice" '[.results.results[] | select(.prompt.label == "brief" and (.vars.anachronism | not)) | .prompt.raw | test($n)] | any | not' "$tmp/train.json" >/dev/null \
+    || {
+        echo "check: unflagged cases carry the anachronism notice" >&2
+        exit 1
+    }
+(cd "$tmp" && $pf eval -c nojudge.yaml -r echo --filter-prompts '^brief$' --var noflag=true --no-cache --no-progress-bar -o noflag.json >/dev/null 2>&1) || true
+jq -e --arg n "$notice" '[.results.results[] | .prompt.raw | test($n)] | any | not' "$tmp/noflag.json" >/dev/null \
+    || {
+        echo "check: noflag=true kept the anachronism notice" >&2
+        exit 1
+    }
+
+# The §8 switches: by default the brief carries the backstory, shared common
+# knowledge and structured values; nobackstory, shaded and prose change only
+# what they name.
+values='.results.results[] | .prompt.raw | fromjson | .[1].content | split("\n")[1:] | join("\n") | fromjson'
+jq -e "[$values | select(.aboutYou | type == \"object\")] | length > 0 and all(.aboutYou | has(\"backstory\")) and all(.commonKnowledge | type == \"array\")" "$tmp/train.json" >/dev/null \
+    || {
+        echo "check: the default brief lost its backstory or shared common knowledge" >&2
+        exit 1
+    }
+(cd "$tmp" && $pf eval -c nojudge.yaml -r echo --filter-prompts '^brief$' --var nobackstory=true --var shaded=true --no-cache --no-progress-bar -o switches.json >/dev/null 2>&1) || true
+jq -e "[$values] | length > 0 and all(.aboutYou | has(\"backstory\") | not) and all(.aboutYou | has(\"personality\")) and all(.commonKnowledge.howYouKnowIt | type == \"string\")" "$tmp/switches.json" >/dev/null \
+    || {
+        echo "check: nobackstory=true or shaded=true did not change the brief as documented" >&2
+        exit 1
+    }
+(cd "$tmp" && $pf eval -c nojudge.yaml -r echo --filter-prompts '^brief$' --var prose=true --no-cache --no-progress-bar -o prose.json >/dev/null 2>&1) || true
+jq -e "[$values] | length > 0 and all(to_entries | all(.value | type == \"string\" and length > 0))" "$tmp/prose.json" >/dev/null \
+    || {
+        echo "check: prose=true did not render every section as text" >&2
+        exit 1
+    }
+
+# The judges' rubric renders with the case and the true world filled in. An
+# echo grader returns the rendered rubric instead of a verdict.
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const fs = require("fs");
+  const cfg = yaml.load(fs.readFileSync("promptfooconfig.yaml", "utf8"));
+  const judge = cfg.defaultTest.assert.find((a) => a.metric === "opus");
+  cfg.defaultTest.assert = [{ ...judge, provider: "echo" }];
+  cfg.defaultTest.options.transform = "\"Good day.\"";
+  fs.writeFileSync(process.argv[1], yaml.dump(cfg));
+' "$tmp/rubric.yaml"
+(cd "$tmp" && $pf eval -c rubric.yaml -r echo --filter-pattern '^t07-' --filter-prompts '^brief$' --no-cache --no-progress-bar -o rubric.json >/dev/null 2>&1) || true
+jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAssertionValue
+  | test("REQUIREMENTS UNDER TEST\nB5: ") and test("\"name\":\"Peig Hannigan\"") and test("Kilteevan") and (test("[{][{]") | not)' "$tmp/rubric.json" >/dev/null || {
+    echo "check: the judges' rubric did not render with the case filled in" >&2
+    exit 1
+}
+
+# A malformed reply stays malformed when the judges fail too. A fake key and a
+# closed local port make both judges fail at once, without touching a network.
+# The judges set apiBaseUrl in the config, which wins over the *_BASE_URL
+# variables, so the port goes into a copy of the config.
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const fs = require("fs");
+  const cfg = yaml.load(fs.readFileSync("promptfooconfig.yaml", "utf8"));
+  for (const a of cfg.defaultTest.assert) {
+    if (a.metric !== "opus" && a.metric !== "gpt") continue;
+    a.provider.config.apiBaseUrl = a.metric === "opus" ? "http://127.0.0.1:9" : "http://127.0.0.1:9/v1";
+  }
+  fs.writeFileSync(process.argv[1], yaml.dump(cfg));
+' "$tmp/offline.yaml"
+(cd "$tmp" && PROMPTFOO_REQUEST_BACKOFF_MS=1 OPENROUTER_API_KEY=offline \
+    $pf eval -c offline.yaml -r echo --filter-pattern '^t07-' --filter-prompts '^brief$' \
+    --no-cache --no-progress-bar -o offline.json >/dev/null 2>&1) || true
+jq -f summary.jq "$tmp/offline.json" | jq -e '.prompts[0].all_models | .malformed == 1 and (.outages | length) == 0' >/dev/null || {
+    echo "check: a malformed reply with failed judges was not scored as malformed" >&2
+    exit 1
+}
+
+# summary.jq on the fixture: one row of each kind; the models under test are
+# billed from each row's OpenRouter charge, the judges from their tokens.
+jq -f summary.jq test/fixture-results.json | jq -e '
+  .prompts[0].all_models as $a
+  | $a.scored == 2 and $a.malformed == 1 and ($a.outages | map(.case)) == ["request-failed", "judge-failed"]
+  and $a.mean == 43.3
+  and $a.by_requirement == {"B1": 80, "B3": 65, "B5": 0}
+  and ($a.judges_split_over_20 | map(.case)) == ["scored-split"]
+  and ($a.spend_usd * 10000 | round) == 279
+  and ($a.worst | map(.points)) == [0, 50, 80]
+  and .prompts[0].by_model["flash-lite"].mean == 40
+  and .unpriced_models == []
+' >/dev/null || {
+    echo "check: summary.jq gave the wrong summary for test/fixture-results.json" >&2
+    jq -f summary.jq test/fixture-results.json >&2
+    exit 1
+}
+
+echo "prompt-lab check passed"

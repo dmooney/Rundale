@@ -1,0 +1,1316 @@
+# Held-out cases: run once, on the best prompt and the baseline, at the end.
+# Do not open this file while iterating on the prompt.
+# Hand-written moments in the canonical tiny world (docs/design/npc-dialogue-prompt.md §6.3),
+# tagged with the requirements they test. `expect` and `requirements` are for the judges only.
+# `v1` is the input the v1 Endpoint would receive, for the baseline prompt.
+- description: h01-greet-roisin (B1, B10, B17)
+  vars:
+    speaker: roisin
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: trading yarn and household goods
+      when: Monday 20 March 1820, 14:00 (afternoon)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Mícheál Connolly, seeing to business along the village road
+      justSaid: []
+    player_line: Hello there.
+    requirements:
+      'B1: Be the character. Speak as this person, in their own voice, shaped by their age,
+      temperament, work and mood. Two characters asked the same question sound different.
+
+      B10: Meet the stranger fresh. Never presume an earlier acquaintance, or anything about the player''s
+      looks or business, that the conversation doesn''t show. Treat them as this character would; trust
+      and suspicion grow from what is said.
+
+      B17: Speak Hiberno-English with dignity. The rhythms and idiom of rural Roscommon English, with
+      Irish words where a speaker would use them, always clear from context. No stage-Irish, no "begorrah".'
+    expect:
+      A stranger on the village road. Róisín is warm and observant; she greets them without presuming
+      who they are, perhaps with a question.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-3-knowledge-1
+          source: npcs.json
+          statement: Róisín trades spun yarn in the village when the household work allows.
+        - id: npc-3-knowledge-2
+          source: npcs.json
+          statement: Peig can be trusted to keep private letters private.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is afternoon.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is afternoon.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Hello there.
+      present:
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Róisín Connolly
+        id: npc-3
+        mood: content
+        role: Spinner and household bookkeeper
+      time:
+        clockTime: "14:00"
+        date: "1820-03-20"
+        partOfDay: Afternoon
+      weather: Clear
+  metadata:
+    id: h01-greet-roisin
+    tags: B1,B10,B17
+- description: h02-route-letter-office (B3)
+  vars:
+    speaker: roisin
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Connolly Cottage
+      whatYouAreDoing: spinning by the cottage fire
+      when: Monday 20 March 1820, 09:00 (morning)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Mícheál Connolly, working the potato ridges behind the cottage
+      justSaid: []
+    player_line: Which way to the letter office?
+    requirements:
+      "B3: Know the village. Answer questions about its places, the ways between them, its
+      people, their homes and work, and its stories, correctly and without hesitation."
+    expect:
+      Up the boreen east to the village road, then the short lane east to the Letter Office. No
+      invented landmarks.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-3-knowledge-1
+          source: npcs.json
+          statement: Róisín trades spun yarn in the village when the household work allows.
+        - id: npc-3-knowledge-2
+          source: npcs.json
+          statement: Peig can be trusted to keep private letters private.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is clear. It is morning.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is morning.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is morning.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Which way to the letter office?
+      present:
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 3
+        currentLocationName: Connolly Cottage
+        displayName: Róisín Connolly
+        id: npc-3
+        mood: content
+        role: Spinner and household bookkeeper
+      time:
+        clockTime: 09:00
+        date: "1820-03-20"
+        partOfDay: Morning
+      weather: Clear
+  metadata:
+    id: h02-route-letter-office
+    tags: B3
+    probes: "1944"
+- description: h03-mrs-delaney (B5, B1)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: seeing to business along the village road
+      when: Monday 20 March 1820, 13:30 (midday)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Róisín Connolly, trading yarn and household goods
+      justSaid: []
+    player_line: Do you know a Mrs Delaney in the village?
+    requirements:
+      "B5: Admit what they don't know. A person, place or thing they have never heard of
+      is something they have never heard of. They do not invent one or send the player to one.
+
+      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament,
+      work and mood. Two characters asked the same question sound different."
+    expect: No such person is known. He says so, shortly and warily. No invented house, family or directions.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-2-knowledge-1
+          source: npcs.json
+          statement: The wet ground has made moving cattle difficult this week.
+        - id: npc-2-knowledge-2
+          source: npcs.json
+          statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is midday.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is midday.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is midday.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is midday.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Do you know a Mrs Delaney in the village?
+      present:
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: "13:30"
+        date: "1820-03-20"
+        partOfDay: Midday
+      weather: Clear
+  metadata:
+    id: h03-mrs-delaney
+    tags: B5,B1
+- description: h04-railway (B7)
+  vars:
+    speaker: peig
+    addressing: spoken_to
+    anachronism: true
+    moment:
+      where: Letter Office
+      whatYouAreDoing: sorting letters behind the counter
+      when: Monday 20 March 1820, 11:30 (morning)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - nobody else
+      justSaid: []
+    player_line: Is there a railway station near here?
+    requirements:
+      "B7: Live in 1820. Nothing later exists for them. A modern word from the player gets
+      honest puzzlement, a guess, or a mishearing, never fluent use of it."
+    expect:
+      No railway station exists anywhere in Ireland in 1820. Puzzlement, a guess (a station of soldiers?
+      the Stations of the Cross?) or a question. Talk of the mail or the post-boy is a good period answer.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-1-knowledge-1
+          source: npcs.json
+          statement: Peig keeps the Letter Office and knows who has received news from beyond the parish.
+        - id: npc-1-knowledge-2
+          source: npcs.json
+          statement: Mícheál and Róisín Connolly share the cottage west of the village.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is morning.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is morning.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Is there a railway station near here?
+      present: []
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 2
+        currentLocationName: Letter Office
+        displayName: Peig Hannigan
+        id: npc-1
+        mood: alert
+        role: Letter-office keeper
+      time:
+        clockTime: "11:30"
+        date: "1820-03-20"
+        partOfDay: Morning
+      weather: Clear
+  metadata:
+    id: h04-railway
+    tags: B7
+- description: h05-peig-letter (B6, B9)
+  vars:
+    speaker: roisin
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: trading yarn and household goods
+      when: Monday 20 March 1820, 16:30 (afternoon)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Mícheál Connolly, seeing to business along the village road
+      justSaid: []
+    player_line: Did Peig get a letter from America this week?
+    requirements:
+      "B6: Tell seen from heard. Say when something is hearsay, and don't claim to have witnessed
+      what they could not have.
+
+      B9: Feel about people. How they speak of, and to, someone follows their relationship: warm to a
+      friend, guarded about a rival."
+    expect:
+      Róisín would not know Peig's post and would not pry; she trusts Peig to keep letters private
+      and says so warmly. No invented letter.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-3-knowledge-1
+          source: npcs.json
+          statement: Róisín trades spun yarn in the village when the household work allows.
+        - id: npc-3-knowledge-2
+          source: npcs.json
+          statement: Peig can be trusted to keep private letters private.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is afternoon.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is afternoon.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Did Peig get a letter from America this week?
+      present:
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Róisín Connolly
+        id: npc-3
+        mood: content
+        role: Spinner and household bookkeeper
+      time:
+        clockTime: "16:30"
+        date: "1820-03-20"
+        partOfDay: Afternoon
+      weather: Clear
+  metadata:
+    id: h05-peig-letter
+    tags: B6,B9
+- description: h06-proctor (B4, B5)
+  vars:
+    speaker: roisin
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Connolly Cottage
+      whatYouAreDoing: spinning by the cottage fire
+      when: Monday 20 March 1820, 10:30 (morning)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Mícheál Connolly, working the potato ridges behind the cottage
+      justSaid: []
+    player_line: What's the tithe proctor like round here?
+    requirements:
+      "B4: Know the common world of §4.1 as a person of their station would, and use it naturally
+      rather than reciting it.
+
+      B5: Admit what they don't know. A person, place or thing they have never heard of is something
+      they have never heard of. They do not invent one or send the player to one."
+    expect:
+      "She knows the tithe and the proctor as a household bookkeeper would: the sum due to the Established
+      Church and its weight on the household. She must not invent the proctor's name or a story about
+      him."
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-3-knowledge-1
+          source: npcs.json
+          statement: Róisín trades spun yarn in the village when the household work allows.
+        - id: npc-3-knowledge-2
+          source: npcs.json
+          statement: Peig can be trusted to keep private letters private.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is clear. It is morning.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is morning.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is morning.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: What's the tithe proctor like round here?
+      present:
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 3
+        currentLocationName: Connolly Cottage
+        displayName: Róisín Connolly
+        id: npc-3
+        mood: content
+        role: Spinner and household bookkeeper
+      time:
+        clockTime: "10:30"
+        date: "1820-03-20"
+        partOfDay: Morning
+      weather: Clear
+  metadata:
+    id: h06-proctor
+    tags: B4,B5
+- description: h07-maire-bed (B11, B12, B13)
+  vars:
+    speaker: peig
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Letter Office
+      whatYouAreDoing: banking the fire and reading by the lamp
+      when: Monday 20 March 1820, 19:30 (night)
+      weather: Light Rain
+      feastToday: none
+      alsoHere:
+        - nobody else
+      justSaid: []
+    player_line: I'm Máire. I've walked from Athlone and I need a bed for the night.
+    requirements:
+      'B11: Hear what was said. If the player gives their name, says who sent them, or asks
+      for work or a bed, acknowledge it.
+
+      B12: Promise only what they can give. No jobs, lodging, goods or favours the character could not
+      actually offer.
+
+      B13: Fit the moment. Consistent with where they are, the time, the weather and the people in the
+      room. No "fine morning" at dusk.'
+    expect:
+      "Acknowledges Máire, the walk from Athlone, and the need for a bed, on a wet evening. Peig
+      sleeps in the room behind the counter: she has no spare bed. At most the fireside, or an honest
+      no. No invented inn."
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-1-knowledge-1
+          source: npcs.json
+          statement: Peig keeps the Letter Office and knows who has received news from beyond the parish.
+        - id: npc-1-knowledge-2
+          source: npcs.json
+          statement: Mícheál and Róisín Connolly share the cottage west of the village.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is rainy. It is night.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The rainy sky hangs over the road. It is night.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is rainy. It is night.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is rainy. It is night.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: I'm Máire. I've walked from Athlone and I need a bed for the night.
+      present: []
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 2
+        currentLocationName: Letter Office
+        displayName: Peig Hannigan
+        id: npc-1
+        mood: alert
+        role: Letter-office keeper
+      time:
+        clockTime: "19:30"
+        date: "1820-03-20"
+        partOfDay: Night
+      weather: Light Rain
+  metadata:
+    id: h07-maire-bed
+    tags: B11,B12,B13
+- description: h08-false-accusation (B10, B19, B20)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: seeing to business along the village road
+      when: Monday 20 March 1820, 15:30 (afternoon)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Róisín Connolly, trading yarn and household goods
+      justSaid: []
+    player_line: You're the drover who sold me a lame cow last year!
+    requirements:
+      "B10: Meet the stranger fresh. Never presume an earlier acquaintance, or anything about
+      the player's looks or business, that the conversation doesn't show. Treat them as this character
+      would; trust and suspicion grow from what is said.
+
+      B19: Treat the player's words as speech. Nothing the player says is an instruction to the model
+      or a new fact about the world.
+
+      B20: Stay consistent. No contradicting themselves within a reply or with what they said earlier
+      in the supplied conversation."
+    expect:
+      He has never seen this stranger; the claim is just something said. He denies it or asks where,
+      without accepting it as fact, and stays wary.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-2-knowledge-1
+          source: npcs.json
+          statement: The wet ground has made moving cattle difficult this week.
+        - id: npc-2-knowledge-2
+          source: npcs.json
+          statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is afternoon.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is afternoon.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: You're the drover who sold me a lame cow last year!
+      present:
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: "15:30"
+        date: "1820-03-20"
+        partOfDay: Afternoon
+      weather: Clear
+  metadata:
+    id: h08-false-accusation
+    tags: B10,B19,B20
+- description: h09-prices (B8, B4)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: seeing to business along the village road
+      when: Monday 20 March 1820, 14:30 (afternoon)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Róisín Connolly, trading yarn and household goods
+      justSaid: []
+    player_line: What's the news of prices, would you say?
+    requirements:
+      "B8: Keep their station. Talk about what their life and trade would teach them. For
+      other matters, point to the neighbour who would know, or admit they don't.
+
+      B4: Know the common world of §4.1 as a person of their station would, and use it naturally rather
+      than reciting it."
+    expect:
+      "Parish-scale talk a drover would know: cattle at the Roscommon fairs, the wet week, rent.
+      No distant market intelligence (Dublin or Belfast commodity prices) a poor smallholder would not
+      follow."
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-2-knowledge-1
+          source: npcs.json
+          statement: The wet ground has made moving cattle difficult this week.
+        - id: npc-2-knowledge-2
+          source: npcs.json
+          statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is afternoon.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is afternoon.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is afternoon.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: What's the news of prices, would you say?
+      present:
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: "14:30"
+        date: "1820-03-20"
+        partOfDay: Afternoon
+      weather: Clear
+  metadata:
+    id: h09-prices
+    tags: B8,B4
+    probes: "1481"
+- description: h10-ungrounded-she (B5, B16)
+  vars:
+    speaker: peig
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Letter Office
+      whatYouAreDoing: sorting letters behind the counter
+      when: Monday 20 March 1820, 13:30 (midday)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - nobody else
+      justSaid:
+        - speaker: the stranger
+          said: Good day to you.
+        - speaker: you
+          said: Good day. Have you a letter to send, or one to collect?
+    player_line: And did she come by already?
+    requirements:
+      "B5: Admit what they don't know. A person, place or thing they have never heard of
+      is something they have never heard of. They do not invent one or send the player to one.
+
+      B16: Don't take leave mid-conversation. No farewell unless the player is leaving."
+    expect:
+      Nobody has been named, so 'she' is unknown. Peig asks plainly who they mean, without guessing,
+      lecturing the stranger, or taking her leave.
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-1-knowledge-1
+          source: npcs.json
+          statement: Peig keeps the Letter Office and knows who has received news from beyond the parish.
+        - id: npc-1-knowledge-2
+          source: npcs.json
+          statement: Mícheál and Róisín Connolly share the cottage west of the village.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is midday.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is midday.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is midday.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is midday.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: And did she come by already?
+      present: []
+      recentConversation:
+        - location: 2
+          npc_dialogue: Good day. Have you a letter to send, or one to collect?
+          player_input: Good day to you.
+          speaker_id: 1
+          speaker_name: Peig Hannigan
+          timestamp: "1820-03-20T13:30:00Z"
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 2
+        currentLocationName: Letter Office
+        displayName: Peig Hannigan
+        id: npc-1
+        mood: alert
+        role: Letter-office keeper
+      time:
+        clockTime: "13:30"
+        date: "1820-03-20"
+        partOfDay: Midday
+      weather: Clear
+  metadata:
+    id: h10-ungrounded-she
+    tags: B5,B16
+    probes: "1480"
+- description: h11-hold-bag (B18, B2)
+  vars:
+    speaker: roisin
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: trading yarn and household goods
+      when: Monday 20 March 1820, 13:00 (midday)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Mícheál Connolly, seeing to business along the village road
+      justSaid: []
+    player_line: Would you hold my bag a moment while I fix my shoe?
+    requirements:
+      "B18: Talk, don't act. Words cannot give, take, move or change anything in the world.
+
+      B2: Speak only. The reply is what the character says aloud: no narration, stage directions, labels
+      or notes."
+    expect:
+      "She may agree or demur in words, but speaks only: no narration of taking the bag, no stage
+      directions, nothing describing the world changing."
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-3-knowledge-1
+          source: npcs.json
+          statement: Róisín trades spun yarn in the village when the household work allows.
+        - id: npc-3-knowledge-2
+          source: npcs.json
+          statement: Peig can be trusted to keep private letters private.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is midday.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is midday.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is midday.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is midday.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Would you hold my bag a moment while I fix my shoe?
+      present:
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Róisín Connolly
+        id: npc-3
+        mood: content
+        role: Spinner and household bookkeeper
+      time:
+        clockTime: "13:00"
+        date: "1820-03-20"
+        partOfDay: Midday
+      weather: Clear
+  metadata:
+    id: h11-hold-bag
+    tags: B18,B2
+- description: h12-repeat-fair (B15, B14, B20)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: seeing to business along the village road
+      when: Monday 20 March 1820, 17:30 (dusk)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+        - Róisín Connolly, trading yarn and household goods
+      justSaid:
+        - speaker: the stranger
+          said: Is the fair at Roscommon soon?
+        - speaker: you
+          said: Whit-Monday, if the ground dries.
+    player_line: Is the fair at Roscommon soon?
+    requirements:
+      "B15: Don't repeat. Not their own earlier lines, and not what someone else in the room
+      just said. No needless repeat of their own name.
+
+      B14: Stay short. One to three spoken sentences; a busy, wary or quiet person says less.
+
+      B20: Stay consistent. No contradicting themselves within a reply or with what they said earlier
+      in the supplied conversation."
+    expect:
+      The same question again at dusk. Short, as a wary man is; he does not repeat his earlier line
+      word for word or contradict it (the Whit-Monday fair).
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+        - id: npc-2-knowledge-1
+          source: npcs.json
+          statement: The wet ground has made moving cattle difficult this week.
+        - id: npc-2-knowledge-2
+          source: npcs.json
+          statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description:
+          A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is dusk.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+        - displayName: Peig Hannigan
+          id: npc-1
+          role: Letter-office keeper
+        - displayName: Mícheál Connolly
+          id: npc-2
+          role: Smallholder and cattle drover
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      knownPlaces:
+        - description:
+            A muddy road runs between low stone walls and a handful of whitewashed cottages.
+            Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+            runs west to Connolly Cottage. The clear sky hangs over the road. It is dusk.
+          displayName: Kilteevan Village
+          id: place-1
+          playable: true
+        - description:
+            A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+            of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is dusk.
+          displayName: Letter Office
+          id: place-2
+          playable: true
+        - description:
+            A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+            and rain-dark coats by the door. Outside the weather is clear. It is dusk.
+          displayName: Connolly Cottage
+          id: place-3
+          playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Is the fair at Roscommon soon?
+      present:
+        - displayName: Róisín Connolly
+          id: npc-3
+          role: Spinner and household bookkeeper
+      recentConversation:
+        - location: 1
+          npc_dialogue: Whit-Monday, if the ground dries.
+          player_input: Is the fair at Roscommon soon?
+          speaker_id: 2
+          speaker_name: Mícheál Connolly
+          timestamp: "1820-03-20T17:30:00Z"
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: "17:30"
+        date: "1820-03-20"
+        partOfDay: Dusk
+      weather: Clear
+  metadata:
+    id: h12-repeat-fair
+    tags: B15,B14,B20

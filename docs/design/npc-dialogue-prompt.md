@@ -237,8 +237,8 @@ prohibitions, in a voice the model takes on. The lab decides the wording.
 ## 6. Prompt lab
 
 A small promptfoo suite of hand-written prompts, separate from the
-rundale-bench leaderboard (`promptfoo/`), for example under
-`promptfoo/prompt-lab/`. It calls models directly; it is not the game.
+rundale-bench leaderboard (`promptfoo/`), in
+[`promptfoo/prompt-lab/`](../../promptfoo/prompt-lab/README.md). It calls models directly; it is not the game.
 
 ### 6.1 Starting prompts
 
@@ -287,10 +287,10 @@ the loop sees and a **held-out set** it never sees. At least:
 An agent improves the prompt in rounds:
 
 1. Run every training case on both models.
-2. Two judges from families other than the model under test, Claude Sonnet
-   through the Claude CLI and a GPT model through the Codex CLI, both under the
-   owner's subscriptions, score each reply 0 to 100 against the requirements
-   its case is tagged with. The mean of the two counts; a gap of more than 20
+2. Two judges from families other than the model under test, Claude Opus 5.5
+   at high effort and GPT 6.1 Sol at xhigh, both called through their
+   providers' APIs, score each reply 0 to 100 against the requirements its
+   case is tagged with. The mean of the two counts; a gap of more than 20
    points between them is flagged.
 3. The agent reads the misses and rewrites the prompt.
 
@@ -306,9 +306,22 @@ runs without an owner sign-off first.
 **Stopping:** the training score is the mean judge score over all training
 replies, 0 to 100. The loop stops after three rounds in a row that each improve
 it by less than 2 points, or when model spend reaches $25, whichever comes
-first. Judges run on subscriptions and do not count against the cap; their
-rate limits may slow the loop. The best prompt is kept,
-not the last.
+first. The cap covers all model spend, the judges included. The best prompt
+is kept, not the last.
+
+**Owner decisions (2026-11-01).** An agent drives the loop through the
+`prompt-lab` skill on a promptfoo config, with no research script. The judges
+run on the provider APIs rather than subscriptions, whose quotas the owner
+often uses up, and their spend counts against the $25. With these judges $25
+may buy only a few rounds, so the cap rather than the plateau may end the
+first run; the owner re-evaluates the cap and the stopping rule after it.
+From 2026-11-08 both judges are billed through one OpenRouter balance (the
+OpenAI key ran dry mid-run on 2026-11-01); the models under test stay on
+Google's API so they are called as the Endpoint calls them. The
+larger Gemini of §6.2 is `gemini-3.8-flash`. The lab may change how the request is laid out, key
+order included; production then matches what the lab freezes. Today the
+phone's bridge sorts every key (`.sortedKeys` in `LimerickRuntime.swift`), so
+where the frozen prompt's order differs, #2299 changes that serialisation.
 
 **Record:** every round's prompt, replies, scores and the agent's reasoning
 for its change, plus the spend. The write-up goes in

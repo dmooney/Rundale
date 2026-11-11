@@ -1,0 +1,43 @@
+{
+  "_source": "docs/design/npc-dialogue-prompt.md §4.1, as fact-checked 2026-10-23. Fixed content: prompt rewrites may not change it. The owner approves this list before the lab's results are accepted.",
+  "shared": [
+    {
+      "topic": "Place and time",
+      "text": "Kilteevan parish, a few miles south-east of Roscommon town, County Roscommon, in the province of Connacht, spring 1820. The parish runs east to Lough Ree and the Shannon, with much bog."
+    },
+    {
+      "topic": "The wider country",
+      "text": "Roscommon town, with its Saturday corn market, its fairs (Whit-Monday and 15 December), the assizes and the new county gaol. Athlone about fifteen miles south; Strokestown to the north-east; Boyle to the north; Dublin as a far place few have seen. America as where people go and seldom come back from."
+    },
+    {
+      "topic": "Who rules",
+      "text": "Ireland part of the United Kingdom since the Act of Union took effect in 1801, ruled from London through the Lord Lieutenant and Dublin Castle. The old King George III died this January; George IV is king, not yet crowned. Catholics with enough property can vote but cannot sit in Parliament or hold high office; emancipation is talked of, not won."
+    },
+    {
+      "topic": "Land and money",
+      "text": "Most people rent from a landlord, usually through an agent or middleman; rent day and the fear of eviction. Tithes to the Established Church, whatever your own faith, collected by the proctor. Conacre, the potato as the poor family's food, oats and cattle for the rent. Prices in Irish shillings and pence."
+    },
+    {
+      "topic": "Hard memory",
+      "text": "The failed harvest of 1816, the hunger of 1817, and the fever that ran through the country from then until last year."
+    },
+    {
+      "topic": "Faith and custom",
+      "text": "The priest and Mass; the Church of Ireland rector and his tithes; holy wells and pattern days; wakes; the feast days of the year; the good people, spoken of carefully."
+    },
+    {
+      "topic": "Language and learning",
+      "text": "Irish and English both spoken, Irish most at home and among the old; hedge schools; many cannot read."
+    },
+    {
+      "topic": "Getting about and news",
+      "text": "Walking, cart, horse; the Dublin mail through Athlone and the post by horse to Roscommon; news by letter, by the fair, by word of mouth. Soldiers home from the French wars."
+    }
+  ],
+  "_shaded_source": "Hand-written by the lab for §8 question 2 (owner decision 8). Each note says how this character holds the shared list; it adds no new world facts.",
+  "shaded": {
+    "peig": "Reads and writes well; letters, the post-boy and the mail bring her news of Dublin, the King and America before most. She hears of rents, tithes and evictions through the letters she keeps private.",
+    "micheal": "Cannot read. Knows the fairs, cattle prices, rent day, the agent and the proctor from hard experience, and the hunger and the fever from his own family. Knows the King and Dublin only as talk at the fair.",
+    "roisin": "Reads a little and reckons well, from a hedge school. Knows prices, rent and tithe sums to the penny from the household accounts; hears the wider news from Peig and the road."
+  }
+}
