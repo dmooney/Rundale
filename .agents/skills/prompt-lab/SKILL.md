@@ -111,12 +111,14 @@ For the control, leave out `--var`; write it to `output/control.json`.
 
 - **Compare** each switch's flash-lite mean with the control's, on the same
   cases (for `noflag`, the control's B7 cases only).
-- **Noise.** The control's difference from the best round's flash-lite mean
-  is the noise reading: it is how far the same prompt moves on a rerun.
+- **Noise.** The absolute difference between the control's mean and the best
+  round's flash-lite mean is the noise reading: it is how far the same prompt
+  moves on a rerun, in either direction.
 - **What counts as an answer.** A switch answers its question only when its
   difference from the control is larger than the noise reading and larger
-  than 2 points. Otherwise the write-up says the question is unanswered at
-  this sample size, with both numbers.
+  than 2 points. The write-up gives both numbers for every question, answered
+  or not, and says a question is unanswered at this sample size when its
+  difference does not clear both bars.
 - Pass `true` only. If the loop already adopted a setting (for example
   prose), compare against its opposite by editing a copy of the best prompt
   instead, and say so.
