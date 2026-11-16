@@ -26,9 +26,10 @@
 
     Reply with JSON matching the output schema: a single dialogue string holding only the words you say aloud, with no narration, actions, stage directions, labels or notes.
 - role: user
-  # Each section is always rendered as sentences (the layout brief.yaml uses
-  # under --var prose=true), so the prose switch has no effect here.
-  # nobackstory and shaded work as in brief.yaml.
+  # Switches for the §8 questions, each passed only as "true" on the command
+  # line (see the prompt-lab skill): nobackstory leaves out the character's
+  # backstory, shaded adds how this character holds the common knowledge, and
+  # prose renders each section as sentences instead of structured values.
   content: |-
     Endpoint input values:
     {%- set full = (characters | load).characters[speaker] -%}
@@ -68,6 +69,7 @@
       "notice": "Something in what the stranger just said is not a thing you have ever heard of. Work out what puzzles you and react as you would: puzzlement, a guess, a mishearing, or a question."
     } -%}
     {%- endif -%}
+    {%- if (prose | string) == "true" -%}
     {%- set ch_text -%}
     You are {{ ch.name }}, {{ ch.age }} ({{ ch.pronouns }}), {{ ch.appearance }}. {{ ch.occupation }}. {{ ch.personality }} You live at {{ ch.home }} and work at {{ ch.workplace }}. Your day this season: {{ ch.day | join("; ") }}. Your people: {% for r in ch.relationships %}{{ r.who }}, {{ r.kind }}: {{ r.feeling }}{{ "; " if not loop.last }}{% endfor %}. What you know: {{ ch.knows | join(" ") }}{% if ch.backstory %} Your past: {{ ch.backstory | join(" ") }}{% endif %} Your mood: {{ ch.mood }}.
     {%- endset -%}
@@ -84,5 +86,11 @@
       "aboutYou": ch_text | trim, "commonKnowledge": ck_text | trim,
       "theVillage": vil_text | trim, "thisMoment": now_text | trim,
       "whatTheStrangerSays": player_line
-    } %}
+    } -%}
+    {%- else -%}
+    {%- set values = {
+      "aboutYou": ch, "commonKnowledge": common, "theVillage": vil,
+      "thisMoment": now, "whatTheStrangerSays": player_line
+    } -%}
+    {%- endif %}
     {{ values | dump | safe }}

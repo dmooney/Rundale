@@ -7,9 +7,9 @@ subagents judge with the lab's rubric. The rules are the
 [prompt-lab skill](../../../.agents/skills/prompt-lab/SKILL.md)'s, with a cap
 of 8 rounds. `cases/heldout.yaml` is not opened until the loop stops.
 
-- Next round: 03 (replies collected; judging stopped by the Fable usage limit, to resume).
-- Best: round 01, 89.7.
-- Plateau count: 1 (round 02).
+- Loop stopped after round 04: three rounds in a row (02, 03, 04) each gained under 2 points. Next: the held-out run.
+- Best: round 01, 89.7; `prompts/brief-fable.yaml` is round 01's prompt.
+- Plateau count: 3.
 - Researcher model: Fable 5.2 for rounds 00 to 03 (analysis and rewrites);
   from 2026-11-16, during round 03's judging, the owner switched the session
   to Opus 5.5 because Fable used up the five-hour quota within minutes. Judges
@@ -113,12 +113,58 @@ stand-in's own sampling noise is not measured here and is likely larger.
 
 ### Round 03: prose sections (round 01's wording)
 
+- Score: **83.3**. Gain over best before (89.7): -6.4 (plateau count 2).
+- By requirement: B1 84.3, B2 93.5, B3 83.3, B4 91, B5 46.5, B6 92, B7 91,
+  B8 45, B9 60, B10 84.6, B11 72, B12 79.5, B13 88.4, B14 90, B15 85, B16 88,
+  B17 82.7, B18 95, B19 92, B20 87.5. Malformed: 1.
 - Change (from round 01): the user part's five values are sentences, not nested
   JSON, using the brief's existing `prose` rendering; the system instruction is
-  round 01's, word for word. The template now always renders prose (the `prose`
-  switch has no effect in `brief-fable.yaml`). Nothing else changed.
+  round 01's, word for word. Nothing else changed.
 - Why: the 2026-11-08 comparisons found prose 2.1 points over its control on
   flash-lite, just past the 2-point bar, and a small model may read sentences
   more readily than nested keys. Round 02 showed that more instruction wording
   now mostly moves Haiku sideways.
-- Score: pending (replies collected; judging stopped by the Fable usage limit).
+- The malformed reply (t10) is a stand-in artefact: Haiku handed back the right
+  JSON, then a sentence owning up to an extra tool call it had made in the
+  subagent harness. By the experiment's rule it is not the bare JSON, so it
+  scores 0; it drags B5 and B8 to about 46. Without it the round is 86.8,
+  still below round 01, so the reading does not change.
+- Otherwise: t12 again leaves out the name Seán (72); t05 again gives Peig's
+  place with no warmth (60). Prose did not help this stand-in; the structured
+  layout stays.
+- Judged on 2026-11-16, after the Fable limit reset; from here the researcher
+  is Opus 5.5 (see above).
+
+### Round 04: a narrower rule for what the stranger said (round 01 base)
+
+- Score: **87.2**. Gain over best before (89.7): -2.5 (plateau count 3).
+- By requirement: B1 81.9, B2 91.5, B3 92.3, B4 91, B5 87.5, B6 90, B7 89.7,
+  B8 82.5, B9 93, B10 86.2, B11 90, B12 85, B13 87.8, B14 71.5, B15 70, B16 93,
+  B17 87.3, B18 93, B19 90, B20 85. Malformed: 0.
+- Change (from round 01, written by Opus): the stranger sentence becomes
+  conditional: answer only what they actually said; if they give their name,
+  use it back to them; if they say a person you know sent them, let your view
+  of that person show; give a plain answer to a request for work, a bed or
+  help; never ask who sent them or their name when they have not raised it.
+- Why: t12 left out the name in rounds 01 and 03, and round 02's broad wording
+  ("say the name, weigh the sender") made Haiku ask "who sent you" at plain
+  greetings.
+- Result: t12 now names Seán (90), and no greeting asks who sent the stranger.
+  B9 rose to 93 (t05 warm), though nothing in the change aimed at it. But t03
+  fell to 55 again: Róisín hands her brother's question back to the stranger
+  ("Tell my brother ... what brings you"), and t01's greeting was generic (78).
+  Net -2.5.
+
+### Stop
+
+Three rounds in a row (02, 03, 04) each gained under 2 points on the best
+before them. The best prompt is round 01's (89.7), saved as
+`prompts/brief-fable.yaml`.
+
+A caution on what "best" means here: each round is one sample of 25 replies
+on one stand-in, and the cases that decide a round (t03, t05, t12) swing by
+30 points between rounds with no change aimed at them. Judge noise is about 3
+points per reply; the stand-in's own sampling noise is larger and was not
+measured. Round 01's lead over the 2026-11-08 brief (+3.3) is about the size of
+that noise, which is why the held-out run below matters more than the
+training numbers.
