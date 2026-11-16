@@ -86,7 +86,8 @@ test.describe('Chat feed rendering', () => {
 		}
 		const bar = chat.locator('.bubble-row.player [data-testid="reaction-bar"]');
 		await expect(bar).toBeVisible();
-		await expect(bar).toHaveCSS('justify-content', 'flex-end');
+		// Chromium 158+ serializes the computed `flex-end` as its alias `flow-end`.
+		await expect(bar).toHaveCSS('justify-content', /^(flex|flow)-end$/);
 		await expect(bar).toHaveCSS('flex-wrap', 'wrap');
 		await expect(bar.locator('.reaction-badge')).toHaveCount(reactors.length);
 	});

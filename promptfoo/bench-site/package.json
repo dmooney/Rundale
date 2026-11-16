@@ -13,10 +13,10 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/svelte": "^9.1.2",
-    "astro": "^7.4.4",
-    "cookie": "^2.0.1",
-    "simple-icons": "^16.36.0",
+    "@astrojs/svelte": "^9.1.5",
+    "astro": "^7.4.11",
+    "cookie": "^2.0.2",
+    "simple-icons": "^16.37.0",
     "svelte": "^5.57.3"
   },
   "devDependencies": {
