@@ -7,7 +7,7 @@ subagents judge with the lab's rubric. The rules are the
 [prompt-lab skill](../../../.agents/skills/prompt-lab/SKILL.md)'s, with a cap
 of 8 rounds. `cases/heldout.yaml` is not opened until the loop stops.
 
-- Loop stopped after round 04: three rounds in a row (02, 03, 04) each gained under 2 points. Next: the held-out run.
+- Loop stopped after round 04: three rounds in a row (02, 03, 04) each gained under 2 points. Held-out run done; run complete. Write-up: docs/test-plans/results/2026-11-16-prompt-lab-fable-insession.md
 - Best: round 01, 89.7; `prompts/brief-fable.yaml` is round 01's prompt.
 - Plateau count: 3.
 - Researcher model: Fable 5.2 for rounds 00 to 03 (analysis and rewrites);
@@ -168,3 +168,26 @@ points per reply; the stand-in's own sampling noise is larger and was not
 measured. Round 01's lead over the 2026-11-08 brief (+3.3) is about the size of
 that noise, which is why the held-out run below matters more than the
 training numbers.
+
+## Held-out run (once, 2026-11-16)
+
+`cases/heldout.yaml` was opened for the first time here. 12 cases, three
+prompts, one Haiku reply each (36), judged in four blind batches with all
+three prompts mixed together.
+
+| Prompt                               | Held-out mean | Malformed |
+| ------------------------------------ | ------------- | --------- |
+| Baseline (v1 instructions)           | 73.4          | 0         |
+| 2026-11-08 brief (`brief.yaml`)      | **84.9**      | 0         |
+| In-session best (`brief-fable.yaml`) | 80.1          | 0         |
+
+Round 01's 3.3-point training lead over the 2026-11-08 brief did not carry
+over: on held-out it trails by 4.8. With one reply per case and per-case
+swings of 30 points, neither difference is clearly real, but the training
+gain is not supported. The largest held-out losses for `brief-fable` are
+h08 (Mícheál claims he has "sold a fair few beasts", against his station:
+70 against 92), h01 (a guarded Róisín: 60 against 85) and h06 (deflects the
+tithe question to her brother: 60 against 72). It does better on h03 (85
+against 75), h05 (88 against 80) and h10 (90 against 86), where a short,
+plain admission of not knowing is the right answer, and worse where a fuller
+answer in character is wanted.
