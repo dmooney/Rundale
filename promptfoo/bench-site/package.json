@@ -25,6 +25,13 @@
     "typescript": "^6.0.3"
   },
   "pnpm": {
+    "packageExtensions": {
+      "@astrojs/astro2tsx@0": {
+        "dependencies": {
+          "@emnapi/runtime": "^1.11.1"
+        }
+      }
+    },
     "overrides": {
       "fast-uri": "3.1.9",
       "http-cache-semantics": "4.3.0",
