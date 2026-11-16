@@ -127,7 +127,6 @@ wiremock = "0.6"
 tokio-test = "0.4"
 serial_test = "4"
 rand_chacha = "0.10"
-tracing-test = "0.2"
 windows-sys = "0.61"
 libc = "0.2"
 
