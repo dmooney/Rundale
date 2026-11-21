@@ -288,3 +288,33 @@ seen this log or any rewrite; the researcher does not open it while iterating.
 - Result: t12 now names Seán but drops Peig (60); Peig is still brusque
   ("no time to be standing about"); and t14 contradicts her own earlier
   Dublin news (45). B15 and B20 fall to 61.5 and 66.
+
+### Round 07: earlier words stand; never hand a question back (round 05 base)
+
+- Score (Opus): **82.1**. Gain over best before (85.3): -3.2 (plateau count 3).
+- By requirement: B1 82.3, B2 89, B3 85.5, B4 86.8, B5 86.5, B6 82, B7 80, B8 84,
+  B9 87, B10 81, B11 60, B12 69, B13 85.2, B14 87.5, B15 71, B16 92, B17 75,
+  B18 92, B19 86, B20 71.5. Malformed: 0.
+- Change: the consistency sentence becomes "What you said earlier in justSaid
+  stands: if you are asked the same again, say you have told them already and
+  keep to it, or add to it; never deny it, doubt it or say it over. When
+  someone else in the room has just spoken, answer in your own words and never
+  hand their question back to the stranger."
+- Why: round 06's B15 and B20 misses (t14 contradicting her own news, t03
+  handing her brother's question back).
+- Result: t14 now keeps to her earlier line but restates it almost word for
+  word (55); t03 recovered (87); Peig's greeting is curt again (60); t12
+  drops the name Seán again (60).
+
+### Stop (second loop)
+
+Three rounds in a row (05, 06, 07) each gained under 2 points on the best
+before them, so the loop stops after round 07, inside the cap of 12. The best
+round on Opus scores is still round 01 (85.3); round 05 tied it without
+beating it. `prompts/brief-fable.yaml` stays round 01's prompt.
+
+The cases that decide a round keep swinging with no change aimed at them:
+t01 (Peig's greeting) 85, 60, 85, 60 over rounds 01, 05, 06, 07; t12 (Seán)
+65, 65, 60, 60 except in round 04 (90). Seven rounds of wording changes have
+not moved the Haiku stand-in's training score beyond what one sample of 25
+replies can tell apart.
