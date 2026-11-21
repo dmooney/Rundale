@@ -25,7 +25,7 @@ node -e '
 cp -r prompts cases content "$tmp/"
 
 brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
-for split in train heldout; do
+for split in train heldout heldout-2; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
     jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '

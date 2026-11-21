@@ -7,9 +7,8 @@ subagents judge with the lab's rubric. The rules are the
 [prompt-lab skill](../../../.agents/skills/prompt-lab/SKILL.md)'s, with a cap
 of 8 rounds. `cases/heldout.yaml` is not opened until the loop stops.
 
-- Loop stopped after round 04: three rounds in a row (02, 03, 04) each gained under 2 points. Held-out run done; run complete. Write-up: docs/test-plans/results/2026-11-16-prompt-lab-fable-insession.md
-- Best: round 01, 89.7; `prompts/brief-fable.yaml` is round 01's prompt.
-- Plateau count: 3.
+- First loop (Fable judges) stopped after round 04; second loop (Opus judges, plateau count reset at round 05) stopped after round 07. Both held-out runs done; run complete. Write-up: docs/test-plans/results/2026-11-21-prompt-lab-fable-insession.md
+- Best: round 01 (Fable 89.7, Opus 85.3); `prompts/brief-fable.yaml` is round 01's prompt.
 - Researcher model: Fable 5.2 for rounds 00 to 03 (analysis and rewrites);
   from 2026-11-16, during round 03's judging, the owner switched the session
   to Opus 5.5 because Fable used up the five-hour quota within minutes. Judges
@@ -318,3 +317,26 @@ t01 (Peig's greeting) 85, 60, 85, 60 over rounds 01, 05, 06, 07; t12 (Seán)
 65, 65, 60, 60 except in round 04 (90). Seven rounds of wording changes have
 not moved the Haiku stand-in's training score beyond what one sample of 25
 replies can tell apart.
+
+## Fresh held-out run (once, 2026-11-21, Opus judges)
+
+`cases/heldout-2.yaml` was written by a separate Opus 5.5 subagent at xhigh
+that had not seen this log or any rewrite, from `content/` and the case format
+alone, covering B1 to B20 across all three characters. The researcher did not
+open it until the second loop had stopped. The cases are agent-written and
+await the owner's review. 36 replies (12 cases, three prompts), judged in four
+blind Opus batches with the prompts mixed.
+
+| Prompt                               | Held-out 2 (Opus) | Malformed |
+| ------------------------------------ | ----------------- | --------- |
+| Baseline (v1 instructions)           | 54.9              | 0         |
+| 2026-11-08 brief (`brief.yaml`)      | 73.1              | 0         |
+| In-session best (`brief-fable.yaml`) | **77.0**          | 0         |
+
+Round 01 leads the brief by 3.9 here; on the first held-out set it was level
+under Opus (80.1 against 80.3) and 4.8 behind under Fable. Pooled over all 24
+held-out cases on Opus: round 01 78.6, the brief 76.7, the baseline 61.5. The
+case-level swings (n01: 88, 77, 50; n05: 40, 45, 72) are as large as in
+training, so a 2-point pooled lead is not a finding. The one case all three
+prompts fail alike is n03 (a thank-you in a storm, 25 to 30): each takes
+leave of the stranger, which the case forbids.

@@ -16,6 +16,7 @@ rundale-bench leaderboard in the parent directory.
 | `prompts/baseline.yaml`    | The v1 Endpoint's instructions with a reconstruction of the v1 input the engine builds, for reference                                                                                  |
 | `cases/train.yaml`         | 25 moments in the tiny world the loop scores and reads, each tagged with the requirements it tests and the #2024 probes it rephrases                                                   |
 | `cases/heldout.yaml`       | 12 more, covering B1 to B20, run once at the end                                                                                                                                       |
+| `cases/heldout-2.yaml`     | 12 more, written by a separate agent for the in-session experiment once the first held-out set was spent; agent-written, awaiting the owner's review                                   |
 | `content/`                 | Fixed facts: §4.1 common knowledge and each character's shaded note, the §4.2 characters with hand-written backstory, and the §4.3 village                                             |
 | `summary.jq`               | A round's mean score, score per requirement, judge splits, spend and worst replies                                                                                                     |
 | `check.sh`, `test/`        | The offline check (`npm --prefix promptfoo test` runs it): every case renders under both prompts, the anachronism switch, and `summary.jq` against a fixture                           |
