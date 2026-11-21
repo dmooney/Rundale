@@ -12,7 +12,8 @@ of 8 rounds. `cases/heldout.yaml` is not opened until the loop stops.
 - Researcher model: Fable 5.2 for rounds 00 to 03 (analysis and rewrites);
   from 2026-11-16, during round 03's judging, the owner switched the session
   to Opus 5.5 because Fable used up the five-hour quota within minutes. Judges
-  stay Fable for every round.
+  are Fable for rounds 00 to 04; every reply was then rejudged by Opus 5.5 at
+  xhigh, and from round 05 the judges are Opus only.
 
 ## Method in brief
 
@@ -340,3 +341,13 @@ case-level swings (n01: 88, 77, 50; n05: 40, 45, 72) are as large as in
 training, so a 2-point pooled lead is not a finding. The one case all three
 prompts fail alike is n03 (a thank-you in a storm, 25 to 30): each takes
 leave of the stranger, which the case forbids.
+
+### Correction to the fresh held-out run: case n05
+
+The review before the PR found that n05 as written expected "Mícheál cannot
+read, and says so plainly", which `content/` does not give. Its expectation
+was rewritten to rest on the content, and its three replies (which do not
+depend on the expectation) were rejudged once by a fresh Opus judge: baseline
+40 to 72, brief 45 to 62, round 01 72 to 90. Corrected fresh-set means:
+baseline 57.6, brief 74.5, round 01 78.5 (round 01 4.0 ahead; 1.9 ahead with
+n05 left out: 56.3, 75.6, 77.5). Pooled over 24 cases: 62.8, 77.4, 79.3.

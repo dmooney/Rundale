@@ -49,6 +49,17 @@ for split in train heldout heldout-2; do
     }
 done
 
+# The in-session experiment's best prompt (prompts/brief-fable.yaml), put
+# forward for the owner's Gemini run, renders every case of every split.
+for split in train heldout heldout-2; do
+    cases=$(grep -c '^- description:' "cases/$split.yaml")
+    bash insession/render.sh prompts/brief-fable.yaml "cases/$split.yaml" "$tmp/brief-fable-$split" 2>/dev/null \
+        | grep -qx "rendered $cases cases to .*" || {
+        echo "check: prompts/brief-fable.yaml did not render every $split case" >&2
+        exit 1
+    }
+done
+
 # The notice follows the case's anachronism value, and --var noflag=true drops it.
 notice='not a thing you have ever heard of'
 jq -e --arg n "$notice" '[.results.results[] | select(.prompt.label == "brief" and .vars.anachronism) | .prompt.raw | test($n)] | length > 0 and all' "$tmp/train.json" >/dev/null \

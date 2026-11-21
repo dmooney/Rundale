@@ -37,8 +37,17 @@ node -e '
   cfg.defaultTest.options.transform = "\"Good day.\"";
   fs.writeFileSync(process.argv[1] + "/rubric.yaml", yaml.dump(cfg));
 ' "$tmp"
-(cd "$tmp" && $pf eval -c request.yaml -r echo --no-cache --no-progress-bar -o request.json >/dev/null 2>&1) || true
-(cd "$tmp" && $pf eval -c rubric.yaml -r echo --no-cache --no-progress-bar -o rubric.json >/dev/null 2>&1) || true
+# promptfoo exits non-zero for every row here (the echo reply is never the v1
+# JSON), so its status is ignored; a missing output file is the real failure,
+# and then its log is shown.
+for run in request rubric; do
+    (cd "$tmp" && $pf eval -c "$run.yaml" -r echo --no-cache --no-progress-bar -o "$run.json" >"$run.log" 2>&1) || true
+    if [ ! -s "$tmp/$run.json" ]; then
+        echo "render: promptfoo wrote no $run.json:" >&2
+        tail -20 "$tmp/$run.log" >&2
+        exit 1
+    fi
+done
 
 node -e '
   const fs = require("fs");

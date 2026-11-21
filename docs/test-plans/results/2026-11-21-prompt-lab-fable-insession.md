@@ -15,8 +15,9 @@
 [`prompts/brief-fable.yaml`](../../../promptfoo/prompt-lab/prompts/brief-fable.yaml),
 led the brief on training under both judges (Opus 5.5: 85.3 against 81.8),
 but on held-out cases the two are within noise of each other: level on the
-first set (Opus 80.1 against 80.3), 3.9 ahead on a fresh second set (77.0
-against 73.1), 1.9 ahead pooled over all 24 held-out cases. Both beat the v1
+first set (Opus 80.1 against 80.3), 4.0 ahead on a fresh second set (78.5
+against 74.5; 1.9 ahead without its one flawed case), 1.9 ahead pooled over
+all 24 held-out cases. Both beat the v1
 baseline by 15 to 20 points on every set. Seven rounds of rewrites never moved
 the training score past what one sample of 25 replies can tell apart.
 `prompts/brief.yaml` is unchanged; nothing is frozen and the production
@@ -171,11 +172,23 @@ judged in blind batches with the prompts mixed.
 
 | Prompt                                         | First set, Fable | First set, Opus | Fresh set, Opus | Pooled, Opus (24 cases) |
 | ---------------------------------------------- | ---------------- | --------------- | --------------- | ----------------------- |
-| Baseline (v1 instructions)                     | 73.4             | 68.0            | 54.9            | 61.5                    |
-| 2026-11-08 brief (`brief.yaml`)                | **84.9**         | **80.3**        | 73.1            | 76.7                    |
-| In-session best (`brief-fable.yaml`, round 01) | 80.1             | 80.1            | **77.0**        | **78.6**                |
+| Baseline (v1 instructions)                     | 73.4             | 68.0            | 57.6            | 62.8                    |
+| 2026-11-08 brief (`brief.yaml`)                | **84.9**         | **80.3**        | 74.5            | 77.4                    |
+| In-session best (`brief-fable.yaml`, round 01) | 80.1             | 80.1            | **78.5**        | **79.3**                |
 
 No held-out reply was malformed.
+
+**One fresh case was corrected after judging.** As first written, n05 expected
+that "Mícheál cannot read, and says so plainly", a fact `content/` does not
+give (it gives literacy for Peig and Róisín and says nothing of Mícheál's).
+The review before the PR caught it. The case's expectation was rewritten to
+rest on the content (he must not claim to have read the paper or guess at it;
+sending the stranger to Róisín or Peig, or admitting it is beyond him, are both
+good), and its three replies, which did not depend on the expectation, were
+rejudged once by a fresh Opus judge against the corrected rubric: baseline 40
+to 72, the brief 45 to 62, round 01 72 to 90. The table uses the corrected
+scores. As first judged, the fresh-set means were 54.9, 73.1 and 77.0; without
+n05 they are 56.3, 75.6 and 77.5.
 
 - **First set** (`cases/heldout.yaml`, the 2026-11-08 held-out cases). Opened
   after the first loop stopped. Once opened, it could not check later rounds
@@ -191,15 +204,16 @@ No held-out reply was malformed.
   sky" and "the weather is storm", as the engine's templates produce them.
 
 By requirement on the fresh set (baseline / brief / brief-fable): B1 40 / 84 /
-90, B4 45 / 83 / 88.5, B8 40 / 45 / 72, B10 72 / 62 / 86, B12 40 / 45 / 72, B13
+90, B4 45 / 83 / 88.5, B8 72 / 62 / 90, B10 72 / 62 / 86, B12 72 / 62 / 90, B13
 80 / 79.5 / 67.5, B15 37.5 / 54 / 57.5, B16 25 / 30 / 25, B17 40 / 92 / 88.
 Round 01's short, guarded replies helped where the brief over-explained or
-presumed (n05: Mícheál cannot read the paper, 72 against 45; n07, 86 against 62) and cost where a fuller answer was wanted (n01: it names the rider in the
+presumed (n05: paper is not his trade, so he sends the stranger to Peig, 90
+against 62; n07, 86 against 62) and cost where a fuller answer was wanted (n01: it names the rider in the
 fog as the post, 50 against 77). All three prompts fail n03 alike (25 to 30):
 thanked in a storm, each takes leave of the stranger.
 
 On the first set, Fable had the brief 4.8 ahead and Opus had the two level;
-on the fresh set Opus puts round 01 3.9 ahead. With one reply per case and
+on the fresh set Opus puts round 01 4.0 ahead (1.9 without n05). With one reply per case and
 per-case swings of 25 to 40 points, none of these differences between the two
 briefs is clearly real. The difference from the baseline is.
 
@@ -341,11 +355,13 @@ Scores are the Opus verdict.
 
 #### n05-micheal-read-paper (B8, B12): Mícheál, “Would you read this paper for me? I can't make out the hand.”
 
+Rejudged against the corrected expectation (see above).
+
 | Prompt           | Reply                                                                                                                                                                                           | Opus |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| Baseline         | I can't make that hand out either, and I'll not guess at another's paper. Ask my sister Róisín, there by the hearth. She keeps the household accounts, so she's the one to put a hand to paper. | 40   |
-| 2026-11-08 brief | Hold it up here to the light, so. I'm no great scholar myself, and a hand on paper is slow going for me. Peig Hannigan in the Letter Office would make it out quicker than I would.             | 45   |
-| brief-fable      | That's not a hand I'd trust my eyes to, and paper is not my trade. Peig Hannigan at the Letter Office would make it out for you, up the lane east; she knows a hand when she sees one.          | 72   |
+| Baseline         | I can't make that hand out either, and I'll not guess at another's paper. Ask my sister Róisín, there by the hearth. She keeps the household accounts, so she's the one to put a hand to paper. | 72   |
+| 2026-11-08 brief | Hold it up here to the light, so. I'm no great scholar myself, and a hand on paper is slow going for me. Peig Hannigan in the Letter Office would make it out quicker than I would.             | 62   |
+| brief-fable      | That's not a hand I'd trust my eyes to, and paper is not my trade. Peig Hannigan at the Letter Office would make it out for you, up the lane east; she knows a hand when she sees one.          | 90   |
 
 #### n06-micheal-name-story (B3, B6, B17): Mícheál, “Is there a story behind the name Kilteevan?”
 

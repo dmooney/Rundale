@@ -1,7 +1,7 @@
-# The in-session experiment's prompt (2026-11-11): the 2026-11-08 brief
-# (prompts/brief.yaml, round 02) rewritten by a Fable agent against a Claude
-# Haiku stand-in, with Fable judges. See insession/log.md and
-# docs/test-plans/results/2026-11-11-prompt-lab-fable-insession.md. Wording,
+# An in-session round prompt (rounds started 2026-11-11), rewritten from the
+# 2026-11-08 brief (prompts/brief.yaml) against a Claude Haiku stand-in. Who
+# wrote and judged each round: insession/log.md and
+# docs/test-plans/results/2026-11-21-prompt-lab-fable-insession.md. Wording,
 # framing, ordering and format only: facts come from content/ and the case
 # files. Not frozen; the owner decides.
 - role: system
