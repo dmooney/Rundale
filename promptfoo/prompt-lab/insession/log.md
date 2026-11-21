@@ -191,3 +191,57 @@ tithe question to her brother: 60 against 72). It does better on h03 (85
 against 75), h05 (88 against 80) and h10 (90 against 86), where a short,
 plain admission of not knowing is the right answer, and worse where a fuller
 answer in character is wanted.
+
+## Judges moved to Opus 5.5 at xhigh (2026-11-16 to 2026-11-21)
+
+By the owner's decision (relayed by the parent session on 2026-11-16), no more
+Fable usage: from here every judge is a fresh Opus 5.5 subagent at xhigh
+effort, seeing only the rendered rubric and the replies, as before. To keep
+every score on one judge, all 186 replies already collected (rounds 00 to 04,
+the baseline, and the held-out replies) were rejudged from disk, not
+regenerated, in 21 blind batches mixing every round and prompt. Before reading
+that decision, the session had already spent Fable on round 04's three judge
+batches and the four held-out judge batches.
+
+The usage limit stopped the rejudge on 2026-11-16; it resumed and finished
+on 2026-11-21.
+
+### Fable and Opus side by side
+
+| Run                        | Fable | Opus 5.5 xhigh | Opus minus Fable |
+| -------------------------- | ----- | -------------- | ---------------- |
+| Round 00, 2026-11-08 brief | 86.4  | 81.8           | -4.6             |
+| Round 00, baseline         | 59.9  | 59.0           | -0.9             |
+| Round 01                   | 89.7  | 85.3           | -4.4             |
+| Round 02                   | 84.3  | 82.0           | -2.3             |
+| Round 03                   | 83.3  | 79.4           | -3.9             |
+| Round 04                   | 87.2  | 84.4           | -2.8             |
+| Held-out, baseline         | 73.4  | 68.0           | -5.4             |
+| Held-out, 2026-11-08 brief | 84.9  | 80.3           | -4.6             |
+| Held-out, round 01         | 80.1  | 80.1           | 0.0              |
+
+Reply by reply, over all 186: Pearson correlation 0.94; Opus is lower on 133
+of them and 3.2 points lower on average; the mean absolute difference is 4.9
+points, 20 replies differ by more than 10 and 2 by more than 20. Each judge
+against itself moves less: the stability check rejudged the same 18 replies,
+and Fable moved 3.1 points per reply (largest 10), Opus 3.2 (largest 8, means
+66.4 and 65.1).
+
+So the owner's claim holds in the sense that matters for the loop: Opus at
+xhigh ranks replies and rounds as Fable did, with a steady offset of about 3
+points and a little more disagreement than either judge has with itself. Opus
+is stricter, most of all on the baseline's held-out replies and on length.
+
+### The loop on Opus scores
+
+| Round | Opus | Gain on best before | Plateau count |
+| ----- | ---- | ------------------- | ------------- |
+| 00    | 81.8 | n/a                 | 0             |
+| 01    | 85.3 | +3.5                | 0             |
+| 02    | 82.0 | -3.3                | 1             |
+| 03    | 79.4 | -5.9                | 2             |
+| 04    | 84.4 | -0.9                | 3             |
+
+The same best round (01) and the same stop after round 04. On the old
+held-out cases, Opus puts the 2026-11-08 brief and round 01 level (80.3 and
+80.1) where Fable had the brief 4.8 ahead.
