@@ -7,7 +7,10 @@
 // names output/insession/render/<run>/request/<case>.txt is a stand-in reply;
 // one that names output/insession/judge/<batch>.md is a judge's verdicts.
 // Writes output/insession/replies/<run>.json and output/insession/judgments/<batch>.json.
-// A case answered by more than one subagent keeps the first answer and reports the rest.
+// A case answered by more than one subagent in these transcripts keeps the
+// first answer and reports the rest. Replies are merged into the run's file:
+// a case already stored there from an earlier collection keeps its stored
+// answer silently, and the counts printed are of this collection only.
 import fs from 'node:fs';
 import path from 'node:path';
 import { data, writeJson } from './lib.mjs';
