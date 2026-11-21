@@ -91,8 +91,16 @@ for (const { f } of files) {
 	}
 }
 
-for (const [run, byCase] of Object.entries(replies))
-	writeJson(path.join(data, 'replies', `${run}.json`), byCase);
+// Merge into what is already collected, so collecting from a second session's
+// transcripts never drops replies gathered from the first; a case already
+// collected keeps its earlier answer.
+for (const [run, byCase] of Object.entries(replies)) {
+	const file = path.join(data, 'replies', `${run}.json`);
+	const before = fs.existsSync(file)
+		? JSON.parse(fs.readFileSync(file, 'utf8'))
+		: {};
+	writeJson(file, { ...byCase, ...before });
+}
 for (const [batch, value] of Object.entries(judgments))
 	writeJson(path.join(data, 'judgments', `${batch}.json`), value);
 console.log(

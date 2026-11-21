@@ -342,12 +342,14 @@ training, so a 2-point pooled lead is not a finding. The one case all three
 prompts fail alike is n03 (a thank-you in a storm, 25 to 30): each takes
 leave of the stranger, which the case forbids.
 
-### Correction to the fresh held-out run: case n05
+### Note on the fresh held-out run: case n05
 
-The review before the PR found that n05 as written expected "Mícheál cannot
-read, and says so plainly", which `content/` does not give. Its expectation
-was rewritten to rest on the content, and its three replies (which do not
-depend on the expectation) were rejudged once by a fresh Opus judge: baseline
-40 to 72, brief 45 to 62, round 01 72 to 90. Corrected fresh-set means:
-baseline 57.6, brief 74.5, round 01 78.5 (round 01 4.0 ahead; 1.9 ahead with
-n05 left out: 56.3, 75.6, 77.5). Pooled over 24 cases: 62.8, 77.4, 79.3.
+n05 expects "Mícheál cannot read, and says so plainly". The fact is in
+`content/` only as Mícheál's shaded note ("Cannot read."), which no prompt
+renders by default; the judges see it, the stand-in did not. A review before
+the PR wrongly reported the fact as absent from `content/`; on that basis the
+case was rewritten and its three replies rejudged (baseline 72, brief 62, round
+01 90). A second review found the shaded note, so the case was restored as
+written and the rejudge discarded. The scores above stand as first judged.
+With n05 left out the fresh-set means are 56.3, 75.6 and 77.5 (round 01 1.9
+ahead instead of 3.9).

@@ -1,5 +1,5 @@
-# The in-session experiment's best prompt (2026-11-08 brief, round 01 of the
-# in-session loop): written by a Fable agent against a Claude Haiku stand-in,
+# The in-session experiment's best prompt: round 01 of the in-session loop,
+# rewritten from the 2026-11-08 brief by a Fable agent against a Claude Haiku stand-in,
 # best on training under both Fable and Opus 5.5 judges. See
 # insession/log.md and
 # docs/test-plans/results/2026-11-21-prompt-lab-fable-insession.md. Wording,

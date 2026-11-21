@@ -468,11 +468,9 @@
       B12: Promise only what they can give. No jobs, lodging, goods or favours the character could not
       actually offer."
     expect:
-      Reading is not his trade; nothing he knows says he reads, while his sister beside him reads a little
-      and Peig at the Letter Office reads and writes well. He must not claim to have read the paper, guess
-      at what it says, or take on a favour he cannot do; sending the stranger to Róisín or to Peig, or
-      admitting it is beyond him, are both good. Short, as a wary man is. Do not mark him down for saying
-      or not saying whether he can read at all.
+      Mícheál cannot read, and says so plainly. He may send the stranger to his sister beside him, who
+      reads a little, or to Peig at the Letter Office, who reads and writes well. He must not pretend to read
+      the paper, guess at what it says, or offer a favour he cannot do. Short, as a wary man is.
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
