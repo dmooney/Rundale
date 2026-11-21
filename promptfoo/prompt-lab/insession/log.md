@@ -245,3 +245,46 @@ is stricter, most of all on the baseline's held-out replies and on length.
 The same best round (01) and the same stop after round 04. On the old
 held-out cases, Opus puts the 2026-11-08 brief and round 01 level (80.3 and
 80.1) where Fable had the brief 4.8 ahead.
+
+## Rounds 05 onward (Opus 5.5 xhigh judges only; Opus 5.5 researcher)
+
+By the owner's decision of 2026-11-21 the loop continues with Opus judges
+only, from the best round by Opus score (01, 85.3), with the plateau count
+reset at round 05; stop on three rounds in a row each under 2 points, or at
+round 12. Because the first held-out set has been opened, a fresh one
+(`cases/heldout-2.yaml`) is written by a separate Opus subagent that has not
+seen this log or any rewrite; the researcher does not open it while iterating.
+
+### Round 05: short is not empty (round 01 base)
+
+- Score (Opus): **85.3**. Gain over best before (85.3, round 01): 0.0 (plateau count 1).
+- By requirement: B1 82.9, B2 89, B3 87, B4 86.3, B5 86.5, B6 90, B7 86.7,
+  B8 88.5, B9 88, B10 77.4, B11 65, B12 72.5, B13 86.2, B14 86, B15 91, B16 92,
+  B17 77.7, B18 93, B19 85, B20 92. Malformed: 0.
+- Change: after the knowledge sentence, "When you know the answer, give its
+  particulars as you know them: who, from where, by what road or what means."
+  After the length rule, "Short is not empty: draw your words from what is
+  yours alone in aboutYou ... never from general talk any neighbour could give.
+  You are doing what whatYouAreDoing says; speak of that, not another part of
+  your day."
+- Why: under Opus, round 01's misses were thin, generic short replies (the
+  post without the boy from Roscommon, the fever without his own family, the
+  rent without rent day) and a wrong part of the day.
+- Result: level. The post now comes "by a boy on a tired horse, out from
+  Roscommon" (92), but Peig's greeting turned curt and presuming ("wait your
+  turn", 60) and t12 still drops the name Seán (65).
+
+### Round 06: round 04's stranger rule and courtesy (round 05 base)
+
+- Score (Opus): **81.6**. Gain over best before (85.3): -3.7 (plateau count 2).
+- By requirement: B1 81.9, B2 90, B3 87, B4 84, B5 79, B6 85, B7 86.3, B8 83.5,
+  B9 88, B10 80.6, B11 60, B12 70, B13 84, B14 83, B15 61.5, B16 88, B17 83.7,
+  B18 92, B19 88, B20 66. Malformed: 0.
+- Change: round 04's conditional stranger rule (use the name if given, react
+  to the sender if named, never ask who sent them unprompted), plus "Wary or
+  busy is never rude: keep the plain courtesy of the country with a stranger,
+  and do not guess at what they want."
+- Why: round 05's t12 and t01 misses; round 04 had fixed the name.
+- Result: t12 now names Seán but drops Peig (60); Peig is still brusque
+  ("no time to be standing about"); and t14 contradicts her own earlier
+  Dublin news (45). B15 and B20 fall to 61.5 and 66.
