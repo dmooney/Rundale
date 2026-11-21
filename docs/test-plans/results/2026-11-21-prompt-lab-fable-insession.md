@@ -14,11 +14,13 @@
 2026-11-08 brief. Its best prompt, round 01, now
 [`prompts/brief-fable.yaml`](../../../promptfoo/prompt-lab/prompts/brief-fable.yaml),
 led the brief on training under both judges (Opus 5.5: 85.3 against 81.8),
-but on held-out cases the two are within noise of each other: level on the
-first set (Opus 80.1 against 80.3), 4.0 ahead on a fresh second set (78.5
-against 74.5; 1.9 ahead without its one flawed case), 1.9 ahead pooled over
-all 24 held-out cases. Both beat the v1
-baseline by 15 to 20 points on every set. Seven rounds of rewrites never moved
+but on held-out cases the two are within noise of each other: 1.9 ahead
+pooled over all 24 held-out cases on Opus, level on the first set (80.1
+against 80.3), and 1.9 ahead on a fresh second set with its one flawed case
+left out (4.0 with that case rejudged against a corrected rubric). Both beat
+the v1 baseline on every set, by 12 points on the first held-out set under
+Opus (7 to 12 under Fable), 17 to 21 on the fresh set and 23 to 26 on
+training. Seven rounds of rewrites never moved
 the training score past what one sample of 25 replies can tell apart.
 `prompts/brief.yaml` is unchanged; nothing is frozen and the production
 Endpoint is untouched. None of these scores can be set beside the 2026-11-08

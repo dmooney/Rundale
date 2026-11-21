@@ -21,7 +21,19 @@ const notes = [];
 const files = fs
 	.readdirSync(dir)
 	.filter((f) => /^agent-.*\.jsonl$/.test(f) && !f.includes('.prefix.'))
-	.map((f) => ({ f, t: fs.statSync(path.join(dir, f)).birthtimeMs }))
+	.map((f) => {
+		// Order by the transcript's first timestamp, so "the first answer" does
+		// not depend on whether the filesystem records birth time.
+		const first = fs
+			.readFileSync(path.join(dir, f), 'utf8')
+			.split('\n')
+			.find((l) => l.includes('"timestamp"'));
+		let t = Infinity;
+		try {
+			t = Date.parse(JSON.parse(first).timestamp);
+		} catch {}
+		return { f, t: Number.isNaN(t) ? Infinity : t };
+	})
 	.sort((a, b) => a.t - b.t);
 
 for (const { f } of files) {
