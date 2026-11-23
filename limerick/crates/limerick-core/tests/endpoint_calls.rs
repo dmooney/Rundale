@@ -1907,10 +1907,10 @@ async fn each_npc_is_sent_its_own_character_and_village_and_nothing_private_to_a
             );
         }
         for other in PEOPLE.into_iter().filter(|other| *other != name) {
-            for secret in private(other, &npcs) {
+            for fact in private(other, &npcs) {
                 assert!(
-                    !text.contains(&secret),
-                    "{name}'s input holds {other}'s {secret:?}"
+                    !text.contains(&fact),
+                    "{name}'s input holds {other}'s {fact:?}"
                 );
             }
         }
