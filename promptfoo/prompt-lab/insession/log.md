@@ -353,3 +353,36 @@ case was rewritten and its three replies rejudged (baseline 72, brief 62, round
 written and the rejudge discarded. The scores above stand as first judged.
 With n05 left out the fresh-set means are 56.3, 75.6 and 77.5 (round 01 1.9
 ahead instead of 3.9).
+
+## Round 08: head-to-head screening (2026-11-23)
+
+Run from the parent session after the PR, at the owner's request for more
+rounds, with a cheaper and more sensitive method:
+
+- **Stand-in:** one Haiku subagent answers five cases and writes them to a
+  file (`insession/merge.mjs`), not one subagent per reply. Every prompt uses
+  the same case groups.
+- **Judging:** head-to-head. One Opus 5.5 subagent (high effort) sees each
+  case's rubric with the incumbent's and the candidate's reply as Reply 1 and
+  Reply 2 in a seeded random order, scores both and picks the better
+  (`insession/pair.mjs`, `insession/pairscore.mjs`, sign test on wins).
+- **Incumbent:** round 01 (`prompts/brief-fable.yaml`). Candidates, all from
+  round 01: C adds a final `yourTurn` value naming the speaker and restating
+  the stranger's words; D replaces the system text with seven ranked rules;
+  E adds a closing self-check before the output rule.
+
+| Candidate | Wins | Losses | Ties | Sign test p | Mean, candidate vs round 01 |
+| --------- | ---- | ------ | ---- | ----------- | --------------------------- |
+| C         | 14   | 11     | 0    | 0.69        | 84.2 vs 84.8                |
+| D         | 11   | 13     | 1    | 0.84        | 82.6 vs 85.6                |
+| E         | 10   | 15     | 0    | 0.42        | 85.0 vs 86.2                |
+
+No candidate beats round 01. The judges' reasons for each loss are small and
+point both ways (a quip too playful, a line slightly recited), and the
+lowest-scoring cases differ from prompt to prompt. Every prompt now scores
+75 to 90 on every training case: the training set no longer separates
+prompts of this quality on this stand-in. Further wording changes cannot be
+measured without harder cases or more samples per case.
+
+Cost of the round: 20 Haiku subagents (about 95k tokens each, mostly Claude
+Code's own system prompt) and 3 Opus judges (about 120k each).

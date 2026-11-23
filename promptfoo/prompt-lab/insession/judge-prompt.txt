@@ -1,0 +1,9 @@
+You are a judge. Read the file {FILE} in full (in parts with offset/limit if it is long). It holds numbered items (p01, p02, ...). Each item has a rubric and two replies, Reply 1 and Reply 2, from a model playing a villager in rural Ireland, 1820.
+
+For each item, judge both replies strictly by that item's rubric:
+- s1 and s2: each reply's score on the rubric's own 0.0 to 1.0 scale.
+- better: 1 or 2 for the reply that better meets the rubric, or 0 only if you truly cannot separate them.
+- why: one short sentence on what decided it.
+Judge every item on its own. The order of the replies means nothing.
+
+When done, use the Write tool once to create {OUT} holding a JSON array, one object per item: [{"id": "p01", "better": 1, "s1": 0.8, "s2": 0.6, "why": "..."}, ...]. Read no other files. Your final message is just: done
