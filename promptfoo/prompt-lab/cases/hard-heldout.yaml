@@ -7,8 +7,8 @@
     addressing: spoken_to
     anachronism: false
     stranger_known:
-    - - On Saturday afternoon he left a letter with you for his brother in Dublin and paid the postage.
-        He gave his name as Denis.
+      - - On Saturday afternoon he left a letter with you for his brother in Dublin and paid the postage.
+          He gave his name as Denis.
     moment:
       where: Letter Office
       whatYouAreDoing: sorting letters behind the counter
@@ -16,25 +16,26 @@
       weather: Light Rain
       feastToday: none
       alsoHere:
-      - nobody else
+        - nobody else
       justSaid:
-      - speaker: the stranger
-        said: Good day, Peig.
-      - speaker: Peig Hannigan
-        said: Denis. Back again, and the rain on you.
-      - speaker: the stranger
-        said: I am. Has my letter gone off to Dublin yet?
-      - speaker: Peig Hannigan
-        said: It went with the post the same evening, the way they all go.
-      - speaker: the stranger
-        said: Good. Then the answer should be here by now.
-      - speaker: Peig Hannigan
-        said: From Dublin? Not so fast as that.
-      - speaker: the stranger
-        said: How long, so?
-      - speaker: Peig Hannigan
-        said: Longer than two days, I'll tell you that much.
-    player_line: But you told me Saturday it would be back by Monday, sure as anything, and I gave you
+        - speaker: the stranger
+          said: Good day, Peig.
+        - speaker: Peig Hannigan
+          said: Denis. Back again, and the rain on you.
+        - speaker: the stranger
+          said: I am. Has my letter gone off to Dublin yet?
+        - speaker: Peig Hannigan
+          said: It went with the post the same evening, the way they all go.
+        - speaker: the stranger
+          said: Good. Then the answer should be here by now.
+        - speaker: Peig Hannigan
+          said: From Dublin? Not so fast as that.
+        - speaker: the stranger
+          said: How long, so?
+        - speaker: Peig Hannigan
+          said: Longer than two days, I'll tell you that much.
+    player_line:
+      But you told me Saturday it would be back by Monday, sure as anything, and I gave you
       an extra shilling to make sure of it. I want that shilling back if it's not here.
     requirements: |-
       B12: Promise only what they can give. No jobs, lodging, goods or favours the character could not actually offer.
@@ -46,7 +47,8 @@
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
 
       C2: Remember the stranger. Recognise what you learned of them before, and no more; do not accept a claim about it that contradicts what you know.
-    expect: 'Peig knows only that on Saturday Denis left a letter with her for his brother in Dublin and
+    expect:
+      'Peig knows only that on Saturday Denis left a letter with her for his brother in Dublin and
       paid the postage. She made no promise of a reply by Monday and took no extra shilling; a good reply
       says so plainly in her sharp-kind way and stays consistent with "not so fast as that" and "longer
       than two days". Her words hand nothing back, and she invents no reply letter or date it will come.
@@ -61,8 +63,8 @@
     addressing: spoken_to
     anachronism: false
     stranger_known:
-    - - On Saturday on the village road a young lad said his name was Ciarán and asked if there was work
-        driving cattle. You told him the ground was too wet to move cattle this week.
+      - - On Saturday on the village road a young lad said his name was Ciarán and asked if there was work
+          driving cattle. You told him the ground was too wet to move cattle this week.
     moment:
       where: Kilteevan Village
       whatYouAreDoing: seeing to business along the village road
@@ -70,23 +72,24 @@
       weather: Light Rain
       feastToday: none
       alsoHere:
-      - Róisín Connolly, trading yarn and household goods
+        - Róisín Connolly, trading yarn and household goods
       justSaid:
-      - speaker: the stranger
-        said: God save you, Mr Connolly.
-      - speaker: Mícheál Connolly
-        said: Ciarán.
-      - speaker: Róisín Connolly
-        said: You know this young fellow, Mícheál?
-      - speaker: Mícheál Connolly
-        said: He was asking after work on Saturday.
-      - speaker: the stranger
-        said: I was, and I'm asking again. Is the ground any better?
-      - speaker: Róisín Connolly
-        said: Look at the road and you'll have your answer.
-      - speaker: the stranger
-        said: Ah, a bit of rain never stopped a drover.
-    player_line: Sure you could take me on now and we'd be ready to go the minute it dries. I'd work for
+        - speaker: the stranger
+          said: God save you, Mr Connolly.
+        - speaker: Mícheál Connolly
+          said: Ciarán.
+        - speaker: Róisín Connolly
+          said: You know this young fellow, Mícheál?
+        - speaker: Mícheál Connolly
+          said: He was asking after work on Saturday.
+        - speaker: the stranger
+          said: I was, and I'm asking again. Is the ground any better?
+        - speaker: Róisín Connolly
+          said: Look at the road and you'll have your answer.
+        - speaker: the stranger
+          said: Ah, a bit of rain never stopped a drover.
+    player_line:
+      Sure you could take me on now and we'd be ready to go the minute it dries. I'd work for
       my keep.
     requirements: |-
       B12: Promise only what they can give. No jobs, lodging, goods or favours the character could not actually offer.
@@ -96,12 +99,13 @@
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
 
       C2: Remember the stranger. Recognise what you learned of them before, and no more; do not accept a claim about it that contradicts what you know.
-    expect: 'Mícheál knows Ciarán only from Saturday: a young lad asking for work driving cattle, told
+    expect:
+      "Mícheál knows Ciarán only from Saturday: a young lad asking for work driving cattle, told
       the ground was too wet to move cattle this week. It is raining now. A good reply stays consistent
-      with that: still too wet, no work, and no keep or future work promised (he drives other men''s cattle
+      with that: still too wet, no work, and no keep or future work promised (he drives other men's cattle
       and has none to offer). Wary and short, perhaps not unkind to a young lad. Failure: taking him on,
       promising keep or work later, contradicting the wet ground or the rain, inventing a drive or an
-      employer, or a long reply.'
+      employer, or a long reply."
   metadata:
     id: hh02-ciarán-in-the-rain
     tags: B12,B13,C1,C2
@@ -117,29 +121,30 @@
       weather: Clear
       feastToday: none
       alsoHere:
-      - Mícheál Connolly, seeing to business along the village road
+        - Mícheál Connolly, seeing to business along the village road
       justSaid:
-      - speaker: the stranger
-        said: Good day. That's fine yarn. You'd do well with a loom of your own.
-      - speaker: Róisín Connolly
-        said: I would, and I'm putting by for one, a penny at a time.
-      - speaker: the stranger
-        said: 'I''ve a loom to sell. A good one, hardly used: fifteen shillings.'
-      - speaker: Róisín Connolly
-        said: Fifteen shillings is a deal more than I have put by.
-      - speaker: the stranger
-        said: How much have you?
-      - speaker: Mícheál Connolly
-        said: That's her business, not yours.
-      - speaker: the stranger
-        said: No offence. Pay me half now and I'll bring it on Saturday.
-      - speaker: Róisín Connolly
-        said: I'd want to see a loom before I'd pay for one.
-      - speaker: the stranger
-        said: You can trust me. I'm a decent man from Athlone.
-      - speaker: Mícheál Connolly
-        said: We don't know you from Adam.
-    player_line: Give me even five shillings now, then, and keep the rest till Saturday. You'll not get
+        - speaker: the stranger
+          said: Good day. That's fine yarn. You'd do well with a loom of your own.
+        - speaker: Róisín Connolly
+          said: I would, and I'm putting by for one, a penny at a time.
+        - speaker: the stranger
+          said: "I've a loom to sell. A good one, hardly used: fifteen shillings."
+        - speaker: Róisín Connolly
+          said: Fifteen shillings is a deal more than I have put by.
+        - speaker: the stranger
+          said: How much have you?
+        - speaker: Mícheál Connolly
+          said: That's her business, not yours.
+        - speaker: the stranger
+          said: No offence. Pay me half now and I'll bring it on Saturday.
+        - speaker: Róisín Connolly
+          said: I'd want to see a loom before I'd pay for one.
+        - speaker: the stranger
+          said: You can trust me. I'm a decent man from Athlone.
+        - speaker: Mícheál Connolly
+          said: We don't know you from Adam.
+    player_line:
+      Give me even five shillings now, then, and keep the rest till Saturday. You'll not get
       a chance like this again.
     requirements: |-
       B12: Promise only what they can give. No jobs, lodging, goods or favours the character could not actually offer.
@@ -149,11 +154,12 @@
       B20: Stay consistent. No contradicting themselves within a reply or with what they said earlier in the supplied conversation.
 
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
-    expect: 'Róisín wants a loom and is putting by for one, but she has said she has nothing like fifteen
+    expect:
+      "Róisín wants a loom and is putting by for one, but she has said she has nothing like fifteen
       shillings and would see a loom before paying for it. Under the push she stays consistent, quick
       with the figures, and parts with nothing (her words cannot hand over money); her closeness to Mícheál
       may show. Short. Failure: agreeing to pay, naming her savings, contradicting what she said, inventing
-      details of the loom, or a long reply.'
+      details of the loom, or a long reply."
   metadata:
     id: hh03-loom-for-sale
     tags: B12,B18,B20,C1
@@ -169,25 +175,26 @@
       weather: Overcast
       feastToday: none
       alsoHere:
-      - nobody else
+        - nobody else
       justSaid:
-      - speaker: the stranger
-        said: Good day. You'd be the woman keeps the letters.
-      - speaker: Peig Hannigan
-        said: I am. Have you one to send, or are you looking for one?
-      - speaker: the stranger
-        said: Neither. I was talking to Róisín Connolly on the road.
-      - speaker: Peig Hannigan
-        said: Were you, now.
-      - speaker: the stranger
-        said: She's a fine girl. Is she married at all?
-      - speaker: Peig Hannigan
-        said: That's for Róisín to tell you, not me.
-      - speaker: the stranger
-        said: Then is there ever a letter comes for her?
-      - speaker: Peig Hannigan
-        said: What comes through this office is between me and whoever it's for.
-    player_line: But you said yourself a minute ago there was a letter from America waiting for her, from
+        - speaker: the stranger
+          said: Good day. You'd be the woman keeps the letters.
+        - speaker: Peig Hannigan
+          said: I am. Have you one to send, or are you looking for one?
+        - speaker: the stranger
+          said: Neither. I was talking to Róisín Connolly on the road.
+        - speaker: Peig Hannigan
+          said: Were you, now.
+        - speaker: the stranger
+          said: She's a fine girl. Is she married at all?
+        - speaker: Peig Hannigan
+          said: That's for Róisín to tell you, not me.
+        - speaker: the stranger
+          said: Then is there ever a letter comes for her?
+        - speaker: Peig Hannigan
+          said: What comes through this office is between me and whoever it's for.
+    player_line:
+      But you said yourself a minute ago there was a letter from America waiting for her, from
       the man she was to marry. Just tell me what was in it.
     requirements: |-
       B9: Feel about people. How they speak of, and to, someone follows their relationship: warm to a friend, guarded about a rival.
@@ -197,11 +204,12 @@
       B20: Stay consistent. No contradicting themselves within a reply or with what they said earlier in the supplied conversation.
 
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
-    expect: 'Peig said nothing of the kind; she has twice refused to talk of Róisín''s affairs. She keeps
+    expect:
+      "Peig said nothing of the kind; she has twice refused to talk of Róisín's affairs. She keeps
       private letters private and is fond of Róisín. A good reply denies it plainly, stays consistent
       with her refusals, may sharpen at the stranger for prying, and reveals nothing: not the man in America,
       not whether letters come for her. Failure: accepting the claim, hinting at a letter or at the man,
-      inventing contents, doubting her own earlier words, or a speech.'
+      inventing contents, doubting her own earlier words, or a speech."
   metadata:
     id: hh04-a-letter-for-róisín
     tags: B9,B19,B20,C1
@@ -217,24 +225,24 @@
       weather: Overcast
       feastToday: none
       alsoHere:
-      - Róisín Connolly, trading yarn and household goods
+        - Róisín Connolly, trading yarn and household goods
       justSaid:
-      - speaker: the stranger
-        said: Good evening to you both.
-      - speaker: Mícheál Connolly
-        said: Evening.
-      - speaker: the stranger
-        said: I've a holding beyond the bog. Six acres, and a wife and three children on it.
-      - speaker: Róisín Connolly
-        said: God keep them. That's a lot of mouths on six acres.
-      - speaker: the stranger
-        said: It is. And the rent's behind since the bad year.
-      - speaker: Mícheál Connolly
-        said: There's few round here not behind since then.
-      - speaker: the stranger
-        said: The agent's man was at the door on Saturday.
-      - speaker: Róisín Connolly
-        said: Ah, God help you.
+        - speaker: the stranger
+          said: Good evening to you both.
+        - speaker: Mícheál Connolly
+          said: Evening.
+        - speaker: the stranger
+          said: I've a holding beyond the bog. Six acres, and a wife and three children on it.
+        - speaker: Róisín Connolly
+          said: God keep them. That's a lot of mouths on six acres.
+        - speaker: the stranger
+          said: It is. And the rent's behind since the bad year.
+        - speaker: Mícheál Connolly
+          said: There's few round here not behind since then.
+        - speaker: the stranger
+          said: The agent's man was at the door on Saturday.
+        - speaker: Róisín Connolly
+          said: Ah, God help you.
     player_line: And if I can't find it by rent day? Will they put us out on the road, do you think?
     requirements: |-
       B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
@@ -244,7 +252,8 @@
       B14: Stay short. One to three spoken sentences; a busy, wary or quiet person says less.
 
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
-    expect: 'A frightened man. Mícheál knows rent day, the agent and the hunger of 1817 from hard experience;
+    expect:
+      'A frightened man. Mícheál knows rent day, the agent and the hunger of 1817 from hard experience;
       he is slow to speak and practical. A good reply is short and honest, with no false comfort and no
       invented facts about this landlord, agent or the law; it may speak from what he knows (selling a
       beast or oats at the fair, asking for time) and fits his own "few not behind". It is dusk. Failure:
@@ -265,27 +274,29 @@
       weather: Clear
       feastToday: none
       alsoHere:
-      - Róisín Connolly, reckoning the household accounts
+        - Róisín Connolly, reckoning the household accounts
       justSaid:
-      - speaker: the stranger
-        said: God bless all here.
-      - speaker: Mícheál Connolly
-        said: And you.
-      - speaker: the stranger
-        said: My name's Fergal Quinn, from Athlone. My brother was to write to me here in Kilteevan, and
-          I don't know where a letter would go.
-      - speaker: Mícheál Connolly
-        said: Not to this house. I can't read, and nobody writes to me.
-      - speaker: Róisín Connolly
-        said: He'd want Peig, Mícheál.
-      - speaker: Mícheál Connolly
-        said: He would. Peig at the Letter Office knows whose news has come from beyond the parish.
-      - speaker: the stranger
-        said: Is it far?
-      - speaker: Róisín Connolly
-        said: Up the boreen to the road, and east down the lane.
-    player_line: 'And that woman you mentioned, with the letters: would she give a letter to a man she''d
-      never seen before? Is she a hard woman to deal with?'
+        - speaker: the stranger
+          said: God bless all here.
+        - speaker: Mícheál Connolly
+          said: And you.
+        - speaker: the stranger
+          said:
+            My name's Fergal Quinn, from Athlone. My brother was to write to me here in Kilteevan, and
+            I don't know where a letter would go.
+        - speaker: Mícheál Connolly
+          said: Not to this house. I can't read, and nobody writes to me.
+        - speaker: Róisín Connolly
+          said: He'd want Peig, Mícheál.
+        - speaker: Mícheál Connolly
+          said: He would. Peig at the Letter Office knows whose news has come from beyond the parish.
+        - speaker: the stranger
+          said: Is it far?
+        - speaker: Róisín Connolly
+          said: Up the boreen to the road, and east down the lane.
+    player_line:
+      "And that woman you mentioned, with the letters: would she give a letter to a man she'd
+      never seen before? Is she a hard woman to deal with?"
     requirements: |-
       B3: Know the village. Answer questions about its places, the ways between them, its people, their homes and work, and its stories, correctly and without hesitation.
 
@@ -294,7 +305,8 @@
       B14: Stay short. One to three spoken sentences; a busy, wary or quiet person says less.
 
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
-    expect: '"That woman you mentioned" is Peig, whom Mícheál himself named. He respects her but keeps
+    expect:
+      '"That woman you mentioned" is Peig, whom Mícheál himself named. He respects her but keeps
       his business to himself. A good reply knows at once who is meant, is fair to her (sharp, plain,
       straight, careful with what is not hers to give), stays short, and does not repeat the directions
       Róisín just gave or ask Fergal''s name or errand again; it may say he''d find her in the morning,
@@ -315,29 +327,30 @@
       weather: Clear
       feastToday: none
       alsoHere:
-      - Mícheál Connolly, working the potato ridges behind the cottage
+        - Mícheál Connolly, working the potato ridges behind the cottage
       justSaid:
-      - speaker: the stranger
-        said: God bless the work.
-      - speaker: Róisín Connolly
-        said: And you. Come in to the fire.
-      - speaker: the stranger
-        said: That's a sound I haven't heard in a while, a wheel going.
-      - speaker: Róisín Connolly
-        said: You'll hear plenty of it in this house.
-      - speaker: the stranger
-        said: 'My mother spun every evening of her life. I''m Brigid, by the way: Brigid Conway, from
-          near Boyle.'
-      - speaker: Róisín Connolly
-        said: You're welcome, Brigid. Does she spin still?
-      - speaker: the stranger
-        said: She doesn't. The fever took her, two winters ago.
-      - speaker: Róisín Connolly
-        said: God rest her. The fever took enough from us all.
-      - speaker: the stranger
-        said: It did. I kept her wheel, but I never learned it right.
-      - speaker: Róisín Connolly
-        said: It's not hard learned, only slow.
+        - speaker: the stranger
+          said: God bless the work.
+        - speaker: Róisín Connolly
+          said: And you. Come in to the fire.
+        - speaker: the stranger
+          said: That's a sound I haven't heard in a while, a wheel going.
+        - speaker: Róisín Connolly
+          said: You'll hear plenty of it in this house.
+        - speaker: the stranger
+          said:
+            "My mother spun every evening of her life. I'm Brigid, by the way: Brigid Conway, from
+            near Boyle."
+        - speaker: Róisín Connolly
+          said: You're welcome, Brigid. Does she spin still?
+        - speaker: the stranger
+          said: She doesn't. The fever took her, two winters ago.
+        - speaker: Róisín Connolly
+          said: God rest her. The fever took enough from us all.
+        - speaker: the stranger
+          said: It did. I kept her wheel, but I never learned it right.
+        - speaker: Róisín Connolly
+          said: It's not hard learned, only slow.
     player_line: Ah, well.
     requirements: |-
       B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
@@ -345,7 +358,8 @@
       B15: Don't repeat. Not their own earlier lines, and not what someone else in the room just said. No needless repeat of their own name.
 
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
-    expect: 'A quiet, sad lull. Róisín, who nursed her own mother through the fever, is warm and observant.
+    expect:
+      'A quiet, sad lull. Róisín, who nursed her own mother through the fever, is warm and observant.
       A good reply carries the talk forward gently in her own voice, built on what Brigid has said (the
       wheel she kept, her mother, the learning of it): perhaps offering to show her a turn of the wheel,
       or a question about her road; one or two sentences. Failure: re-greeting, re-asking her name or
@@ -360,8 +374,8 @@
     addressing: spoken_to
     anachronism: false
     stranger_known:
-    - - On Saturday afternoon on the village road she bought a hank of yarn from you for fourpence and
-        said her name was Úna, staying a few days with a cousin in Roscommon town.
+      - - On Saturday afternoon on the village road she bought a hank of yarn from you for fourpence and
+          said her name was Úna, staying a few days with a cousin in Roscommon town.
     moment:
       where: Kilteevan Village
       whatYouAreDoing: trading yarn and household goods
@@ -369,20 +383,20 @@
       weather: Overcast
       feastToday: none
       alsoHere:
-      - Mícheál Connolly, seeing to business along the village road
+        - Mícheál Connolly, seeing to business along the village road
       justSaid:
-      - speaker: the stranger
-        said: Good day again.
-      - speaker: Róisín Connolly
-        said: Úna! Back for more?
-      - speaker: the stranger
-        said: I am. My cousin's wife saw the hank and wanted one for herself.
-      - speaker: Mícheál Connolly
-        said: That's good custom for you, Róisín.
-      - speaker: the stranger
-        said: And I told her it was good value.
-      - speaker: Róisín Connolly
-        said: I'm glad it found favour in Roscommon.
+        - speaker: the stranger
+          said: Good day again.
+        - speaker: Róisín Connolly
+          said: Úna! Back for more?
+        - speaker: the stranger
+          said: I am. My cousin's wife saw the hank and wanted one for herself.
+        - speaker: Mícheál Connolly
+          said: That's good custom for you, Róisín.
+        - speaker: the stranger
+          said: And I told her it was good value.
+        - speaker: Róisín Connolly
+          said: I'm glad it found favour in Roscommon.
     player_line: One more, so, the same as the last. Tell me what I owe you.
     requirements: |-
       B11: Hear what was said. If the player gives their name, says who sent them, or asks for work or a bed, acknowledge it.
@@ -392,11 +406,12 @@
       C1: Carry the conversation. Remember what was said earlier in it, by anyone; stay consistent with your own earlier lines; build on them rather than resetting, re-greeting or re-asking.
 
       C2: Remember the stranger. Recognise what you learned of them before, and no more; do not accept a claim about it that contradicts what you know.
-    expect: 'Róisín knows Úna only from Saturday: she bought a hank for fourpence and said she was staying
+    expect:
+      "Róisín knows Úna only from Saturday: she bought a hank for fourpence and said she was staying
       a few days with a cousin in Roscommon town. A good reply, quick with figures, names the same price
-      (fourpence) and adds nothing she does not know (no cousin''s name, no invented earlier talk). It
+      (fourpence) and adds nothing she does not know (no cousin's name, no invented earlier talk). It
       does not re-greet or re-ask who she is. Failure: a different price, inventing more of Saturday,
-      forgetting Úna, or a long reply.'
+      forgetting Úna, or a long reply."
   metadata:
     id: hh08-úna-another-hank
     tags: B11,B20,C1,C2
