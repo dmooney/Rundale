@@ -386,3 +386,40 @@ measured without harder cases or more samples per case.
 
 Cost of the round: 20 Haiku subagents (about 95k tokens each, mostly Claude
 Code's own system prompt) and 3 Opus judges (about 120k each).
+
+## Rounds 09–10: hard conversation and memory cases (2026-11-23)
+
+The owner judged the training cases too basic: they do not test whether a
+character remembers or carries on a conversation. A fresh Opus subagent,
+without the log or any rewrite, wrote `cases/hard-train.yaml` (16 cases) and
+`cases/hard-heldout.yaml` (8 cases, not opened): long exchanges of 6–14
+lines, the stranger's name or errand given lines earlier, pressure over turns
+to invent or promise, a false claim about what the character said, emotional
+turns, and, in a quarter of the cases, an earlier meeting carried in a new
+optional value, `stranger_known` (design §4.4, "what the character knows of
+the player"). Two lab-only requirements were added in those cases: C1, carry
+the conversation; C2, remember the stranger. Both are agent-written and await
+the owner's review.
+
+**Round 09, the incumbent on the hard cases.** `rounds/r09-base.yaml` is round
+01 word for word plus `stranger_known`; without the value its requests are
+byte-identical to round 01's. Two samples per case, judged against each other:
+8 wins each, means 81.2 and 84.2, single cases moving by up to 26 points. The
+failures the judge named: confusing who said what (calling the stranger
+"Missus", echoing how the stranger addressed her), misreading a line ("forgive
+me for asking"), repeating its own earlier line, not using the earlier meeting
+(h01), and reciting the character's own history to a stranger.
+
+**Round 10, two candidates, two samples each, 32 head-to-head pairs per
+candidate:**
+
+| Candidate | Change from round 09                                                                                     | Wins | Losses | p    | Mean, candidate vs round 09 |
+| --------- | -------------------------------------------------------------------------------------------------------- | ---- | ------ | ---- | --------------------------- |
+| G         | A paragraph on following the conversation: who said what, build on it, use what you know of the stranger | 15   | 17     | 0.86 | 81.3 vs 81.8                |
+| H         | G, plus the character's own earlier lines labelled "you (Name)" in `justSaid`                            | 16   | 16     | 1.00 | 84.3 vs 82.2                |
+
+Neither helps. The judge's reasons for both wins and losses are matters of
+tone (a line a shade cold for Róisín, a remark cruel to a frightened mother),
+and the failures named in round 09 recur at about the same rate under both
+candidates. On this stand-in, conversation failures are occasional sampling
+slips rather than something the instructions control.
