@@ -41,8 +41,12 @@ public final class SSEFixtureEndpointTransport: EndpointTransport, @unchecked Se
               let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
               let input = root["input"] as? [String: Any],
               input["role"] as? String != "player_intent",
-              let requestID = input["logicalRequestID"] as? String,
-              let invocationID = input["idempotencyKey"] as? String,
+              // Since issue 2299 the dialogue input is the frozen prompt's
+              // request with no envelope; its identities travel as headers.
+              let requestID = input["logicalRequestID"] as? String
+                ?? request.value(forHTTPHeaderField: "X-Request-Id"),
+              let invocationID = input["idempotencyKey"] as? String
+                ?? request.value(forHTTPHeaderField: "Idempotency-Key"),
               let attemptID = request.value(forHTTPHeaderField: "X-Attempt-Id") else {
             return intent.open(request)
         }
