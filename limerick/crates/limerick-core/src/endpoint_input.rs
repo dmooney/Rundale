@@ -122,7 +122,9 @@ impl EndpointCall {
     /// owner decision 2026-11-01); a host must send these bytes unchanged.
     pub fn request_input(&self, envelope: &InvocationEnvelope) -> String {
         match &self.input {
-            EndpointInput::Dialogue(input) => serde_json::to_string(input).unwrap_or_default(),
+            EndpointInput::Dialogue(input) => {
+                serde_json::to_string(input).expect("the dialogue input is plain JSON data")
+            }
             EndpointInput::Intent(_) => self.invocation(envelope).to_string(),
         }
     }

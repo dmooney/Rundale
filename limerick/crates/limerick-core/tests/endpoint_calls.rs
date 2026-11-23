@@ -1827,6 +1827,20 @@ fn the_endpoint_instructions_are_the_frozen_system_text() {
     let catalog = canonical_mod().endpoints;
     let definition = &catalog.dialogue.as_ref().expect("dialogue").definition;
     assert_eq!(definition.instructions, system);
+
+    // The request's fixed wording is the template's, word for word.
+    let template = std::fs::read_to_string(lab_path("prompts/frozen.yaml")).unwrap();
+    let wording = [
+        NEVER_MET,
+        limerick_core::endpoint_input::MET_BEFORE,
+        limerick_core::endpoint_input::ANACHRONISM_NOTICE,
+        Addressing::SpokenTo.sentence(),
+        Addressing::PartOfAll.sentence(),
+        Addressing::JoiningMentioned.sentence(),
+    ];
+    for text in wording {
+        assert!(template.contains(text), "frozen.yaml lacks {text:?}");
+    }
 }
 
 /// Issue 2299, done-when: on the production turn path, each NPC's input
