@@ -398,6 +398,18 @@ impl Npc {
         self.grounding_revision = next_grounding_revision();
     }
 
+    /// What the NPC is doing at `game_time` by their authored schedule, when
+    /// they are where the schedule puts them; `None` otherwise.
+    pub fn authored_activity_at(&self, game_time: DateTime<Utc>) -> Option<&str> {
+        let game_date = game_time.date_naive();
+        self.authored_activity_entry_at(
+            game_time.hour() as u8,
+            Season::from_date(game_date),
+            DayType::from_date(game_date),
+        )
+        .map(|entry| entry.activity.trim())
+    }
+
     pub(crate) fn authored_activity_entry_at(
         &self,
         hour: u8,

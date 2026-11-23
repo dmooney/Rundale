@@ -319,9 +319,9 @@ From 2026-11-08 both judges are billed through one OpenRouter balance (the
 OpenAI key ran dry mid-run on 2026-11-01); the models under test stay on
 Google's API so they are called as the Endpoint calls them. The
 larger Gemini of §6.2 is `gemini-3.8-flash`. The lab may change how the request is laid out, key
-order included; production then matches what the lab freezes. Today the
-phone's bridge sorts every key (`.sortedKeys` in `LimerickRuntime.swift`), so
-where the frozen prompt's order differs, #2299 changes that serialisation.
+order included; production then matches what the lab freezes. The phone's
+bridge used to sort every key (`.sortedKeys` in `LimerickRuntime.swift`);
+issue 2299 made it send the engine's input bytes unchanged (§7.1).
 
 **Record:** every round's prompt, replies, scores and the agent's reasoning
 for its change, plus the spend. The write-up goes in
@@ -333,6 +333,17 @@ When the loop stops, the best prompt runs once on the held-out set. The owner
 reads the held-out replies side by side with the baseline's. The prompt is
 frozen for implementation when the owner accepts it; otherwise the owner's
 notes go into another run.
+
+**Frozen (2026-11-23).** The owner froze the in-session lab's round 09
+incumbent ([#2421](https://github.com/dmooney/Rundale/pull/2421),
+[#2422](https://github.com/dmooney/Rundale/pull/2422)): its round 01 brief,
+word for word, plus one optional value, what the character learned of the
+player at earlier meetings. It scored level with the 2026-11-08 brief on the
+held-out cases (pooled 78.6 against 76.7) and better on the owner's hard
+conversation cases. The copy is
+[`promptfoo/prompt-lab/prompts/frozen.yaml`](../../promptfoo/prompt-lab/prompts/frozen.yaml).
+It answers §8: structured JSON values, one shared common-knowledge list, and
+backstory as mod content.
 
 ### 6.6 Anachronism threshold
 
@@ -368,6 +379,45 @@ and chosen threshold go in the write-up.
 - **New authored content** the lab shows is needed (for example, a few lines of
   each character's past) is proposed as mod content with the world sheet
   updated.
+
+### 7.1 How the game builds the frozen prompt (issue 2299)
+
+The `rundale-dialogue` Endpoint's instructions are the frozen system text,
+word for word. Its input is the frozen request, in the frozen key order, with
+nothing else in it: the model reads the whole input, so the invocation
+envelope moved to the request headers. The engine
+(`limerick_core::endpoint_input::dialogue_input`) builds it per speaker:
+
+| Section               | From                                                                                                                                                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aboutYou`            | The speaker's entry in `npcs.json` (name, age, pronouns, look, occupation, personality, home, workplace, the season's schedule, relationships with their strength, knowledge, mood), plus their backstory and the words for each relationship from `dialogue.json`         |
+| `commonKnowledge`     | `dialogue.json`, the same for every character (§4.1)                                                                                                                                                                                                                       |
+| `theVillage`          | The village `dialogue.json` puts the speaker in: its name, how its places look and how its people's work is spoken of, with each place's story and ways from `world.json`, its people's look, home and workplace from `npcs.json`, and the festivals from `festivals.json` |
+| `thisMoment`          | Live state, as the [dynamic NPC context](dynamic-npc-context.md) §6 defines it                                                                                                                                                                                             |
+| `whatTheStrangerSays` | The player's line, at most 4,096 characters                                                                                                                                                                                                                                |
+
+Common knowledge, village looks and backstory are authored in
+`mods/rundale/dialogue.json` (`[files] dialogue`), copied unchanged from the
+lab's `content/`. Every NPC gets their own character and their own village;
+the village's people carry only what the village sees (name, look, work, home,
+workplace), so no character receives another's personality, knowledge, mood,
+backstory or feelings. A speaker the content puts in no village knows the
+whole world. Lists are capped at 32 entries and `justSaid` at the last 8
+exchanges the speaker witnessed.
+
+`thisMoment.theStranger` renders the frozen prompt's `stranger_known`. The
+engine's only per-NPC knowledge of the player is the name they gave, so a
+speaker who learned it before this line meets "someone you have met before"
+who told them their name; otherwise a stranger. Remembering more of what the
+player said across meetings is issue 2196. `thisMoment.notice` waits for the
+`rundale-intent` anachronism question (§6.6).
+
+The phone's bridge sends the engine's input bytes unchanged
+(`inputJSON` from the FFI) instead of re-serialising them with sorted keys.
+`limerick-core/tests/endpoint_calls.rs` checks that each NPC's input holds
+its own character and village and nothing private to another, and that the
+request for every lab moment the engine can stage (31 of 37) is the frozen
+template's request byte for byte.
 
 ## 8. Open questions
 
