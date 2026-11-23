@@ -1988,7 +1988,7 @@ async fn the_request_is_the_frozen_prompts_request_for_the_labs_moments() {
             if vars["anachronism"].as_bool() == Some(true) {
                 let limerick_core::endpoint_input::EndpointInput::Dialogue(input) = call.input
                 else {
-                    unreachable!()
+                    panic!("dialogue_endpoint builds a dialogue input")
                 };
                 call.input = limerick_core::endpoint_input::EndpointInput::Dialogue(Box::new(
                     input.with_anachronism_notice(),
