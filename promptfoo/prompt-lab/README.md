@@ -13,6 +13,7 @@ rundale-bench leaderboard in the parent directory.
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `promptfooconfig.yaml`  | The production model (`gemini-3.5-flash-lite`), a larger Gemini (`gemini-3.8-flash`), the two judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh), and the rubric they share |
 | `prompts/brief.yaml`    | The prompt under research: the instructions and the request, built from the content and the case                                                                                       |
+| `prompts/frozen.yaml`   | The prompt the owner froze on 2026-11-23 (in-session round 09 from #2422), which production builds from game data (#2299)                                                              |
 | `prompts/baseline.yaml` | The v1 Endpoint's instructions with a reconstruction of the v1 input the engine builds, for reference                                                                                  |
 | `cases/train.yaml`      | 25 moments in the tiny world the loop scores and reads, each tagged with the requirements it tests and the #2024 probes it rephrases                                                   |
 | `cases/heldout.yaml`    | 12 more, covering B1 to B20, run once at the end                                                                                                                                       |
@@ -26,9 +27,9 @@ The content was copied from `mods/rundale/` (`npcs.json`, `world.json`,
 and the cases were written for the lab and await the owner's review. The
 common knowledge is the fact-checked list in §4.1.
 
-Keys are sent in the order the prompt writes them. The phone's bridge sorts
-them today; by the owner's decision (design doc §6.4, 2026-11-01) production
-matches the order the lab freezes, and #2299 changes the bridge where needed.
+Keys are sent in the order the prompt writes them. By the owner's decision
+(design doc §6.4, 2026-11-01) production matches the frozen order: since #2299
+the phone sends the engine's input bytes unchanged instead of sorting them.
 
 To run a round, follow the skill's commands; they pass `--no-cache` (so a
 changed prompt is never answered from cache) and `--filter-prompts '^brief$'`
