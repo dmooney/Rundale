@@ -83,7 +83,7 @@ final class LimerickRuntimeTests: XCTestCase {
             JSONSerialization.data(withJSONObject: root)
         ))
         XCTAssertEqual(
-            String(decoding: try pending.requestBody(), as: UTF8.self),
+            try XCTUnwrap(String(bytes: pending.requestBody(), encoding: .utf8)),
             #"{"input":"# + ordered + "}"
         )
     }

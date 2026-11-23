@@ -76,7 +76,7 @@ final class FixtureEndpointTests: XCTestCase {
         }
 
         XCTAssertEqual(status, 200)
-        let stream = String(decoding: body, as: UTF8.self)
+        let stream = try XCTUnwrap(String(bytes: body, encoding: .utf8))
         XCTAssertTrue(stream.contains(#""request_id":"request-1""#), stream)
         XCTAssertTrue(stream.contains("The wet ground has made moving cattle difficult this week."), stream)
     }
