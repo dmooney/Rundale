@@ -7,44 +7,61 @@
 //! prompting; an in-process host ignores it and sends the call's rendered
 //! prompt as before.
 //!
-//! A host builds the request body with [`EndpointCall::invocation`], which
-//! adds the invocation envelope it owns (`contractVersion`, `sessionID`,
-//! `logicalRequestID`, `attemptID`, `baseRevision`, `idempotencyKey`) to the
-//! engine's input. The result matches the role's `inputSchema` in the mod's
-//! definition file.
+//! A host builds the request's `input` with [`EndpointCall::request_input`],
+//! which keeps the key order the Endpoint expects. The result matches the
+//! role's `inputSchema` in the mod's definition file.
+//!
+//! The dialogue input is the frozen NPC dialogue prompt's request
+//! (`promptfoo/prompt-lab/prompts/frozen.yaml`, issue 2299): the Endpoint's
+//! model reads the whole input as "Endpoint input values:" followed by its
+//! JSON, so the input is exactly the frozen five sections, in the frozen key
+//! order, and carries no invocation envelope. Its correlation identities
+//! travel in the request headers. The intent input adds the invocation
+//! envelope ([`EndpointCall::invocation`]).
 //!
 //! [`InferenceCall`]: crate::turn_inference::InferenceCall
 
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::game_mod::{EndpointCatalog, EndpointRef, EndpointRole};
+use crate::game_mod::{DialogueContext, EndpointCatalog, EndpointRef, EndpointRole};
 use crate::npc::manager::NpcManager;
 use crate::npc::{Npc, NpcId};
 use crate::turn::{ExecutionAttemptId, LogicalRequestId, StateRevision};
 use crate::world::WorldState;
-use crate::world::description::render_description;
-use chrono::{DateTime, Utc};
-use limerick_types::{ConversationExchange, ConversationLog, LocationId};
+use chrono::Datelike;
+use limerick_types::{ConversationLog, DayType, LocationId, Season};
 
-/// Most people, places, or authored facts sent with one dialogue call.
-pub const MAX_GROUNDING_ENTRIES: usize = 32;
-/// Most recent witnessed exchanges sent with one dialogue call.
+/// Most entries in any one list of the dialogue input: places, people,
+/// relationships, knowledge, the day's schedule, festivals, common
+/// knowledge and backstory.
+pub const MAX_LIST_ENTRIES: usize = 32;
+/// Most recent witnessed exchanges sent with one dialogue call. Each is up
+/// to two lines of `justSaid`.
 pub const MAX_RECENT_CONVERSATION: usize = 8;
 /// Longest player input, in characters, the definitions accept.
 pub const MAX_PLAYER_INPUT_CHARS: usize = 4096;
-/// Dialogue character budget fixed by the dialogue definition v1.
-pub const DIALOGUE_MAX_OUTPUT_CHARS: usize = 8192;
-/// Provisional stream budget, in bytes, fixed by the dialogue definition v1.
-pub const DIALOGUE_MAX_STREAM_BYTES: usize = 16 * 1024;
-/// The dialogue input's fixed `role` value.
-pub const DIALOGUE_ROLE: &str = "npc_dialogue";
 pub use crate::intent_decision::{INTENT_ROLE, IntentEndpointInput, IntentOptions};
 /// Invocation contract version the v1 definitions accept.
 pub const INVOCATION_CONTRACT_VERSION: (u32, u32) = (1, 0);
 
-/// The identities a host adds to every invocation. They come from the
-/// pending request, not from game state.
+/// How the player appears in `justSaid` and is described in `theStranger`.
+pub const STRANGER: &str = "the stranger";
+/// `theStranger` for a character who knows nothing of the player.
+pub const NEVER_MET: &str = "A stranger you have never seen before. You know nothing of them but what they have said to you here.";
+/// The start of `theStranger` for a character who knows something of the
+/// player from before this line; what they know follows.
+pub const MET_BEFORE: &str = "Someone you have met before. What you know of them: ";
+/// `notice` when the player's line holds something foreign to the
+/// character's time (design §4.4, decision 16).
+pub const ANACHRONISM_NOTICE: &str = "Something in what the stranger just said is not a thing you have ever heard of. Work out what puzzles you and react as you would: puzzlement, a guess, a mishearing, or a question.";
+/// `alsoHere` when nobody else is in the room.
+pub const NOBODY_ELSE: &str = "nobody else";
+/// `feastToday` on a day with no festival.
+pub const NO_FEAST: &str = "none";
+
+/// The identities a host adds to every intent invocation. They come from
+/// the pending request, not from game state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationEnvelope {
     /// Opaque host session identity.
@@ -67,28 +84,49 @@ pub struct EndpointCall {
 }
 
 impl EndpointCall {
-    /// The Endpoint request's `input` object: the envelope's identities,
-    /// then the engine's input fields.
+    /// The Endpoint request's `input` object as a value. The dialogue input
+    /// is sent as built; the intent input gains the envelope's identities.
+    ///
+    /// `serde_json::Value` sorts object keys, so use [`Self::request_input`]
+    /// for the bytes a host sends.
     pub fn invocation(&self, envelope: &InvocationEnvelope) -> Value {
-        let (major, minor) = INVOCATION_CONTRACT_VERSION;
-        let mut body = json!({
-            "contractVersion": {"major": major, "minor": minor},
-            "sessionID": envelope.session_id,
-            "logicalRequestID": envelope.request_id.as_str(),
-            "attemptID": envelope.attempt_id.as_str(),
-            "baseRevision": {"rawValue": envelope.base_revision.0},
-            "idempotencyKey": format!(
-                "{}:{}",
-                envelope.request_id.as_str(),
-                envelope.attempt_id.as_str()
-            ),
-        });
-        if let (Value::Object(body), Ok(Value::Object(input))) =
-            (&mut body, serde_json::to_value(&self.input))
-        {
-            body.extend(input);
+        match &self.input {
+            EndpointInput::Dialogue(input) => serde_json::to_value(input).unwrap_or(Value::Null),
+            EndpointInput::Intent(input) => {
+                let (major, minor) = INVOCATION_CONTRACT_VERSION;
+                let mut body = json!({
+                    "contractVersion": {"major": major, "minor": minor},
+                    "sessionID": envelope.session_id,
+                    "logicalRequestID": envelope.request_id.as_str(),
+                    "attemptID": envelope.attempt_id.as_str(),
+                    "baseRevision": {"rawValue": envelope.base_revision.0},
+                    "idempotencyKey": format!(
+                        "{}:{}",
+                        envelope.request_id.as_str(),
+                        envelope.attempt_id.as_str()
+                    ),
+                });
+                if let (Value::Object(body), Ok(Value::Object(input))) =
+                    (&mut body, serde_json::to_value(input))
+                {
+                    body.extend(input);
+                }
+                body
+            }
         }
-        body
+    }
+
+    /// The Endpoint request's `input` object as JSON text, in the key order
+    /// the Endpoint expects. The dialogue Endpoint's model reads this text
+    /// as written, so its keys keep the frozen prompt's order (design §6.4,
+    /// owner decision 2026-11-01); a host must send these bytes unchanged.
+    pub fn request_input(&self, envelope: &InvocationEnvelope) -> String {
+        match &self.input {
+            EndpointInput::Dialogue(input) => {
+                serde_json::to_string(input).expect("the dialogue input is plain JSON data")
+            }
+            EndpointInput::Intent(_) => self.invocation(envelope).to_string(),
+        }
     }
 }
 
@@ -96,91 +134,131 @@ impl EndpointCall {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum EndpointInput {
-    /// Input for the dialogue role (boxed: it carries the grounding lists).
+    /// Input for the dialogue role (boxed: it carries the character, the
+    /// village and the common knowledge).
     Dialogue(Box<DialogueEndpointInput>),
     /// Input for the intent role.
     Intent(Box<IntentEndpointInput>),
 }
 
-/// A person the dialogue Endpoint may refer to. Carries no location: a
-/// speaker learns who is in the room from `present`, and nothing about
-/// anyone's whereabouts elsewhere.
+/// One of the speaker's relationships (`aboutYou.relationships`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedPerson {
-    /// Stable id (`npc-<engine id>`).
-    pub id: String,
-    /// Full name.
-    pub display_name: String,
-    /// Occupation.
-    pub role: String,
+pub struct Relationship {
+    /// The other person's name.
+    pub who: String,
+    /// What the relationship is, in the speaker's words.
+    pub kind: String,
+    /// How the speaker feels about them, with the relationship's strength.
+    pub feeling: String,
 }
 
-/// The NPC who speaks.
+/// The speaker (`aboutYou`): their own character, and nobody else's.
+/// Fields serialize in the frozen prompt's order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedSpeaker {
-    /// Stable id (`npc-<engine id>`).
-    pub id: String,
+pub struct AboutYou {
     /// Full name.
-    pub display_name: String,
+    pub name: String,
+    /// Age in years.
+    pub age: u8,
+    /// Pronouns, e.g. `she/her`.
+    pub pronouns: String,
+    /// How they look (`brief_description`).
+    pub appearance: String,
     /// Occupation.
-    pub role: String,
-    /// Engine id of the speaker's current location.
-    pub current_location_id: u32,
-    /// Name of the speaker's current location.
-    pub current_location_name: String,
-    /// The speaker's mood, as authored in the mod's `npcs.json`.
+    pub occupation: String,
+    /// Personality.
+    pub personality: String,
+    /// The name of their home, when they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
+    /// The name of their workplace, when they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workplace: Option<String>,
+    /// Their day this season: `HH:00-HH:59 activity (place)`.
+    pub day: Vec<String>,
+    /// Their relationships, by the other person's id.
+    pub relationships: Vec<Relationship>,
+    /// What they know that others don't (`knowledge`).
+    pub knows: Vec<String>,
+    /// Their mood.
     pub mood: String,
+    /// A few lines of their past, when the mod authors them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub backstory: Vec<String>,
 }
 
-/// A place the dialogue Endpoint may refer to.
+/// One topic of common knowledge (`commonKnowledge`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedPlace {
-    /// Stable id (`place-<engine id>`).
-    pub id: String,
-    /// Place name.
-    pub display_name: String,
-    /// The place's description rendered for the current time and weather.
-    /// Only the current location's names the people there.
-    pub description: String,
-    /// Whether the player can go there.
-    pub playable: bool,
+pub struct KnowledgeTopic {
+    /// Heading.
+    pub topic: String,
+    /// What everyone of the time and place knows of it.
+    pub text: String,
 }
 
-/// One authored fact the speaker knows.
+/// A place in the speaker's village.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedFact {
-    /// Stable id (`npc-<engine id>-knowledge-<n>`).
-    pub id: String,
-    /// The fact.
-    pub statement: String,
-    /// Where the fact is authored.
-    pub source: String,
+pub struct VillagePlace {
+    /// Its name.
+    pub name: String,
+    /// How it looks, when the mod authors it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub looks: Option<String>,
+    /// Its old story (`mythological_significance`), or null.
+    pub story: Option<String>,
+    /// The ways out of it (`path_description` of each connection).
+    pub ways: Vec<String>,
 }
 
-/// The present moment on the game clock.
+/// A person of the village, as the village sees them: nothing private.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedTime {
-    /// Game date, `YYYY-MM-DD`.
+pub struct VillagePerson {
+    /// Full name.
+    pub name: String,
+    /// How they look (`brief_description`).
+    pub looks: String,
+    /// Their work, as the village would put it.
+    pub work: String,
+    /// The name of their home, when they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
+    /// The name of their workplace, when they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workplace: Option<String>,
+}
+
+/// A festival of the year.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct VillageFestival {
+    /// Its name.
+    pub name: String,
+    /// Its date, e.g. `1 May`.
     pub date: String,
-    /// Game clock time, 24-hour `HH:MM`.
-    pub clock_time: String,
-    /// Part of the day (`Dawn`, `Morning`, … `Midnight`).
-    pub part_of_day: String,
+    /// What it is.
+    pub about: String,
 }
 
-/// What the speaker knows of the player.
+/// The speaker's village (`theVillage`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroundedPlayer {
-    /// Whether the speaker has learned the player's name.
-    pub knows_name: bool,
-    /// The player's name when the speaker knows it, otherwise null.
+pub struct TheVillage {
+    /// The village's name, when the mod authors one.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Its places.
+    pub places: Vec<VillagePlace>,
+    /// Its people.
+    pub people: Vec<VillagePerson>,
+    /// The feasts of the year.
+    pub festivals: Vec<VillageFestival>,
+}
+
+/// One line of the conversation the speaker witnessed (`justSaid`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SaidLine {
+    /// [`STRANGER`] for the player, otherwise the NPC's full name.
+    pub speaker: String,
+    /// What they said.
+    pub said: String,
 }
 
 /// How a speaker came to answer the player's line (dynamic NPC context §6).
@@ -195,253 +273,455 @@ pub enum Addressing {
     JoiningMentioned,
 }
 
-/// One exchange the speaker witnessed. Keeps the snake_case field names of
-/// [`ConversationExchange`]; who else witnessed it is not sent.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct GroundedExchange {
-    /// When the exchange happened in game time.
-    pub timestamp: DateTime<Utc>,
-    /// Where it took place.
-    pub location: LocationId,
-    /// The NPC who answered.
-    pub speaker_id: NpcId,
-    /// That NPC's name.
-    pub speaker_name: String,
-    /// What the player said.
-    pub player_input: String,
-    /// What the NPC said back.
-    pub npc_dialogue: String,
-}
-
-impl From<&ConversationExchange> for GroundedExchange {
-    fn from(exchange: &ConversationExchange) -> Self {
-        Self {
-            timestamp: exchange.timestamp,
-            location: exchange.location,
-            speaker_id: exchange.speaker_id,
-            speaker_name: exchange.speaker_name.clone(),
-            player_input: exchange.player_input.clone(),
-            npc_dialogue: exchange.npc_dialogue.clone(),
+impl Addressing {
+    /// `howYouCameToAnswer`, as the frozen prompt words it.
+    pub fn sentence(self) -> &'static str {
+        match self {
+            Self::SpokenTo => "The stranger is speaking to you.",
+            Self::PartOfAll => {
+                "The stranger spoke to everyone here, and you are the one answering."
+            }
+            Self::JoiningMentioned => {
+                "You were not spoken to, but you were mentioned, and you are joining in."
+            }
         }
     }
 }
 
-/// Input for the dialogue role: one speaker's snapshot of the present
-/// moment, holding only what that speaker could know (dynamic NPC context
-/// §6).
+/// The present moment (`thisMoment`, design §4.4, dynamic NPC context §6).
+/// Fields serialize in the frozen prompt's order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThisMoment {
+    /// The place of the conversation.
+    pub r#where: String,
+    /// What the speaker is doing by their schedule, when they are where it
+    /// puts them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub what_you_are_doing: Option<String>,
+    /// Day, date, clock time and part of day, e.g.
+    /// `Monday 20 March 1820, 10:00 (morning)`.
+    pub when: String,
+    /// The current weather.
+    pub weather: String,
+    /// Today's festival, or [`NO_FEAST`].
+    pub feast_today: String,
+    /// The other people in the room, `Name, activity`, or [`NOBODY_ELSE`].
+    pub also_here: Vec<String>,
+    /// What the speaker knows of the player: [`NEVER_MET`], or
+    /// [`MET_BEFORE`] followed by what they know.
+    pub the_stranger: String,
+    /// [`Addressing::sentence`].
+    pub how_you_came_to_answer: String,
+    /// The recent conversation the speaker witnessed, oldest first.
+    pub just_said: Vec<SaidLine>,
+    /// [`ANACHRONISM_NOTICE`] when the player's line holds something foreign
+    /// to the speaker's time; absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
+}
+
+/// Input for the dialogue role: the frozen prompt's request for one speaker,
+/// holding only what that speaker could know. Fields serialize in the
+/// frozen order.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DialogueEndpointInput {
-    /// Always [`DIALOGUE_ROLE`].
-    pub role: String,
+    /// The speaker's engine id, for the host's own use (labelling the
+    /// committed line); never sent.
+    #[serde(skip)]
+    pub speaker: NpcId,
+    /// The speaker's own character.
+    pub about_you: AboutYou,
+    /// What everyone in the speaker's time and place knows.
+    pub common_knowledge: Vec<KnowledgeTopic>,
+    /// The speaker's village.
+    pub the_village: TheVillage,
+    /// The present moment.
+    pub this_moment: ThisMoment,
     /// The player's words (or the autonomous prompt), bounded.
-    pub player_input: String,
-    /// The NPC who speaks.
-    pub speaker: GroundedSpeaker,
-    /// How the speaker came to answer.
-    pub addressing: Addressing,
-    /// Where the conversation happens, naming the people there.
-    pub current_location: GroundedPlace,
-    /// The game date, clock time and part of day.
-    pub time: GroundedTime,
-    /// The current weather.
-    pub weather: String,
-    /// Today's festival, if any.
-    pub festival: Option<String>,
-    /// The other people in the room with the speaker.
-    pub present: Vec<GroundedPerson>,
-    /// Everyone in the world, by engine id, without their whereabouts.
-    pub known_people: Vec<GroundedPerson>,
-    /// Every place in the world, by engine id, without its occupants.
-    pub known_places: Vec<GroundedPlace>,
-    /// The speaker's authored knowledge.
-    pub authored_facts: Vec<GroundedFact>,
-    /// Recent exchanges the speaker witnessed, oldest first.
-    pub recent_conversation: Vec<GroundedExchange>,
-    /// What the speaker knows of the player.
-    pub player: GroundedPlayer,
-    /// Always [`DIALOGUE_MAX_OUTPUT_CHARS`].
-    pub max_output_chars: usize,
-    /// Always [`DIALOGUE_MAX_STREAM_BYTES`].
-    pub max_stream_bytes: usize,
+    pub what_the_stranger_says: String,
+}
+
+impl DialogueEndpointInput {
+    /// Marks the player's line as holding something foreign to the
+    /// speaker's time (design §4.4). The engine does not set this yet: the
+    /// `rundale-intent` anachronism question (design §6.6) will.
+    pub fn with_anachronism_notice(mut self) -> Self {
+        self.this_moment.notice = Some(ANACHRONISM_NOTICE.to_string());
+        self
+    }
 }
 
 fn bounded_input(text: &str) -> String {
     text.chars().take(MAX_PLAYER_INPUT_CHARS).collect()
 }
 
-fn location_name(world: &WorldState, id: LocationId) -> String {
-    world
-        .graph
-        .get(id)
-        .map(|location| location.name.clone())
-        .unwrap_or_else(|| world.current_location().name.clone())
+fn location_name(world: &WorldState, id: LocationId) -> Option<String> {
+    world.graph.get(id).map(|location| location.name.clone())
 }
 
-fn grounded_person(npc: &Npc) -> GroundedPerson {
-    GroundedPerson {
-        id: format!("npc-{}", npc.id.0),
-        display_name: npc.name.clone(),
-        role: npc.occupation.clone(),
+/// A relationship strength as the lab wrote it: two decimals at most, no
+/// trailing zeros (`0.9`, `0.55`).
+fn strength(value: f64) -> String {
+    format!("{}", (value * 100.0).round() / 100.0)
+}
+
+/// `aboutYou` for `speaker`: their own character, from `npcs.json` and the
+/// mod's dialogue content.
+fn about_you(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    context: &DialogueContext,
+    speaker: &Npc,
+) -> AboutYou {
+    let authored = context.character(speaker.id.0);
+    let date = world.clock.now().date_naive();
+    let day = speaker
+        .schedule()
+        .and_then(|schedule| schedule.resolve(Season::from_date(date), DayType::from_date(date)))
+        .unwrap_or_default()
+        .iter()
+        .take(MAX_LIST_ENTRIES)
+        .map(|entry| {
+            let place = location_name(world, entry.location)
+                .map(|name| format!(" ({name})"))
+                .unwrap_or_default();
+            format!(
+                "{:02}:00-{:02}:59 {}{place}",
+                entry.start_hour,
+                entry.end_hour,
+                entry.activity.trim()
+            )
+        })
+        .collect();
+    let relationships = speaker
+        .relationships
+        .iter()
+        .filter_map(|(target, relationship)| {
+            let other = npc_manager.get(*target)?;
+            let words = authored.and_then(|character| {
+                character
+                    .relationships
+                    .iter()
+                    .find(|words| words.npc == target.0)
+            });
+            let (kind, feeling) = match words {
+                Some(words) => (
+                    words.kind.clone(),
+                    format!("{} ({})", words.feeling, strength(relationship.strength)),
+                ),
+                None => (
+                    relationship.kind.to_string(),
+                    strength(relationship.strength),
+                ),
+            };
+            Some(Relationship {
+                who: other.name.clone(),
+                kind,
+                feeling,
+            })
+        })
+        .take(MAX_LIST_ENTRIES)
+        .collect();
+    AboutYou {
+        name: speaker.name.clone(),
+        age: speaker.age,
+        pronouns: speaker.pronouns.clone(),
+        appearance: speaker.brief_description.clone(),
+        occupation: speaker.occupation.clone(),
+        personality: speaker.personality.clone(),
+        home: speaker.home.and_then(|id| location_name(world, id)),
+        workplace: speaker.workplace.and_then(|id| location_name(world, id)),
+        day,
+        relationships,
+        knows: speaker
+            .knowledge
+            .iter()
+            .take(MAX_LIST_ENTRIES)
+            .cloned()
+            .collect(),
+        mood: speaker.mood.clone(),
+        backstory: authored
+            .map(|character| {
+                character
+                    .backstory
+                    .iter()
+                    .take(MAX_LIST_ENTRIES)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default(),
     }
 }
 
-fn grounded_speaker(world: &WorldState, npc: &Npc) -> GroundedSpeaker {
-    let location = npc.location();
-    GroundedSpeaker {
-        id: format!("npc-{}", npc.id.0),
-        display_name: npc.name.clone(),
-        role: npc.occupation.clone(),
-        current_location_id: location.0,
-        current_location_name: location_name(world, location),
-        mood: npc.mood.clone(),
+/// A festival's `description` as a clause: "Start of spring — the feast of
+/// St. Brigid" becomes "start of spring, the feast of St. Brigid".
+fn festival_about(description: &str) -> String {
+    let text = description.trim().replace(" — ", ", ");
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 
-/// `id` rendered for the current time and weather, naming `people` there.
-fn grounded_place(world: &WorldState, id: LocationId, people: &[&str]) -> Option<GroundedPlace> {
-    let location = world.graph.get(id)?;
-    Some(GroundedPlace {
-        id: format!("place-{}", id.0),
-        display_name: location.name.clone(),
-        description: render_description(
-            location,
-            world.clock.time_of_day(),
-            &world.weather.to_string(),
-            people,
+fn month_name(month: u32) -> &'static str {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    MONTHS
+        .get(month.wrapping_sub(1) as usize)
+        .copied()
+        .unwrap_or("")
+}
+
+/// `theVillage` for `speaker`: the village the mod's dialogue content puts
+/// them in, or, when it names none, the whole world as one village.
+fn the_village(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    context: &DialogueContext,
+    speaker: &Npc,
+) -> TheVillage {
+    let village = context
+        .character(speaker.id.0)
+        .and_then(|character| context.village(&character.village));
+    let (name, place_ids, people_ids): (Option<String>, Vec<LocationId>, Vec<NpcId>) = match village
+    {
+        Some(village) => (
+            Some(village.name.clone()),
+            village
+                .places
+                .iter()
+                .map(|place| LocationId(place.location))
+                .collect(),
+            village
+                .people
+                .iter()
+                .map(|person| NpcId(person.npc))
+                .collect(),
         ),
-        playable: true,
-    })
+        None => {
+            let mut places = world.graph.location_ids();
+            places.sort();
+            let mut people: Vec<NpcId> = npc_manager.all_npcs().map(|npc| npc.id).collect();
+            people.sort();
+            (None, places, people)
+        }
+    };
+    let places = place_ids
+        .into_iter()
+        .filter_map(|id| {
+            let location = world.graph.get(id)?;
+            Some(VillagePlace {
+                name: location.name.clone(),
+                looks: village.and_then(|village| {
+                    village
+                        .places
+                        .iter()
+                        .find(|place| place.location == id.0)
+                        .map(|place| place.looks.clone())
+                }),
+                story: location.mythological_significance.clone(),
+                ways: location
+                    .connections
+                    .iter()
+                    .take(MAX_LIST_ENTRIES)
+                    .map(|connection| connection.path_description.clone())
+                    .collect(),
+            })
+        })
+        .take(MAX_LIST_ENTRIES)
+        .collect();
+    let people = people_ids
+        .into_iter()
+        .filter_map(|id| {
+            let npc = npc_manager.get(id)?;
+            let work = village
+                .and_then(|village| village.people.iter().find(|person| person.npc == id.0))
+                .map(|person| person.work.clone())
+                .unwrap_or_else(|| npc.occupation.clone());
+            Some(VillagePerson {
+                name: npc.name.clone(),
+                looks: npc.brief_description.clone(),
+                work,
+                home: npc.home.and_then(|place| location_name(world, place)),
+                workplace: npc.workplace.and_then(|place| location_name(world, place)),
+            })
+        })
+        .take(MAX_LIST_ENTRIES)
+        .collect();
+    let festivals = context
+        .festivals
+        .iter()
+        .take(MAX_LIST_ENTRIES)
+        .map(|festival| VillageFestival {
+            name: festival.name.clone(),
+            date: format!("{} {}", festival.day, month_name(festival.month)),
+            about: festival_about(&festival.description),
+        })
+        .collect();
+    TheVillage {
+        name,
+        places,
+        people,
+        festivals,
+    }
+}
+
+/// `justSaid`: the last exchanges the speaker witnessed, oldest first, as
+/// lines. A player's line said to several people is written once, before
+/// the first reply to it; an unprompted NPC line has no player line.
+fn just_said(world: &WorldState, speaker_id: NpcId) -> Vec<SaidLine> {
+    let exchanges = world
+        .conversation_log
+        .recent_witnessed_by(speaker_id, ConversationLog::capacity());
+    let start = exchanges.len().saturating_sub(MAX_RECENT_CONVERSATION);
+    let mut lines = Vec::new();
+    let mut previous: Option<(chrono::DateTime<chrono::Utc>, &str)> = None;
+    for exchange in &exchanges[start..] {
+        let player = exchange.player_input.trim();
+        if !player.is_empty() && previous != Some((exchange.timestamp, player)) {
+            lines.push(SaidLine {
+                speaker: STRANGER.to_string(),
+                said: player.to_string(),
+            });
+        }
+        previous = Some((exchange.timestamp, player));
+        let reply = exchange.npc_dialogue.trim();
+        if !reply.is_empty() {
+            lines.push(SaidLine {
+                speaker: exchange.speaker_name.clone(),
+                said: reply.to_string(),
+            });
+        }
+    }
+    lines
+}
+
+/// What `speaker_id` knows of the player from before this line: the name
+/// the player gave them, if any. The engine keeps no other per-NPC knowledge
+/// of the player yet (issue 2196).
+fn stranger_known(world: &WorldState, npc_manager: &NpcManager, speaker_id: NpcId) -> Vec<String> {
+    world
+        .player_name
+        .as_ref()
+        .map(|name| name.trim())
+        .filter(|name| !name.is_empty() && npc_manager.knows_player_name(speaker_id))
+        .map(|name| vec![format!("They told you their name is {name}.")])
+        .unwrap_or_default()
+}
+
+/// `thisMoment.theStranger` for what the speaker knows of the player.
+pub fn the_stranger(known: &[String]) -> String {
+    if known.is_empty() {
+        NEVER_MET.to_string()
+    } else {
+        format!("{MET_BEFORE}{}", known.join(" "))
+    }
+}
+
+fn this_moment(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    context: &DialogueContext,
+    speaker: &Npc,
+    addressing: Addressing,
+) -> ThisMoment {
+    let here = world.player_location;
+    let now = world.clock.now();
+    let mut others: Vec<&Npc> = npc_manager
+        .npcs_at(here)
+        .into_iter()
+        .filter(|npc| npc.id != speaker.id)
+        .collect();
+    others.sort_by_key(|npc| npc.id);
+    let mut also_here: Vec<String> = others
+        .into_iter()
+        .take(MAX_LIST_ENTRIES)
+        .map(|npc| match npc.authored_activity_at(now) {
+            Some(activity) => format!("{}, {activity}", npc.name),
+            None => npc.name.clone(),
+        })
+        .collect();
+    if also_here.is_empty() {
+        also_here.push(NOBODY_ELSE.to_string());
+    }
+    let feast_today = context
+        .festivals
+        .iter()
+        .find(|festival| festival.month == now.month() && festival.day == now.day())
+        .map(|festival| festival.name.clone())
+        .or_else(|| {
+            world
+                .clock
+                .check_festival()
+                .map(|festival| festival.to_string())
+        })
+        .unwrap_or_else(|| NO_FEAST.to_string());
+    ThisMoment {
+        r#where: location_name(world, here)
+            .unwrap_or_else(|| world.current_location().name.clone()),
+        what_you_are_doing: speaker.authored_activity_at(now).map(str::to_string),
+        when: format!(
+            "{}, {} ({})",
+            now.format("%A %-d %B %Y"),
+            now.format("%H:%M"),
+            world.clock.time_of_day().to_string().to_lowercase()
+        ),
+        weather: world.weather.to_string(),
+        feast_today,
+        also_here,
+        the_stranger: the_stranger(&stranger_known(world, npc_manager, speaker.id)),
+        how_you_came_to_answer: addressing.sentence().to_string(),
+        just_said: just_said(world, speaker.id),
+        notice: None,
+    }
 }
 
 /// Builds the dialogue role's input for `speaker_id` answering `player_input`
-/// at the player's location, from the state the attempt reads. Each speaker
-/// of a line gets their own snapshot when their call is built, so a later
-/// speaker sees the replies already committed. `None` when the speaker is
+/// at the player's location, from the state the attempt reads, before the
+/// line is applied. Each speaker of a line gets their own input when their
+/// call is built, so a later speaker sees the replies already committed.
+/// `context` is the mod's authored dialogue content
+/// ([`EndpointCatalog::dialogue_context`]). `None` when the speaker is
 /// unknown.
 pub fn dialogue_input(
     world: &WorldState,
     npc_manager: &NpcManager,
+    context: &DialogueContext,
     speaker_id: NpcId,
     player_input: &str,
     addressing: Addressing,
 ) -> Option<DialogueEndpointInput> {
     let speaker = npc_manager.get(speaker_id)?;
-    let here = world.player_location;
-
-    let mut people: Vec<&Npc> = npc_manager.all_npcs().collect();
-    people.sort_by_key(|npc| npc.id);
-    let known_people = people
-        .into_iter()
-        .take(MAX_GROUNDING_ENTRIES)
-        .map(grounded_person)
-        .collect();
-
-    // The room is the conversation's place, the same one `currentLocation`
-    // describes, so the two can never disagree.
-    let mut present: Vec<&Npc> = npc_manager
-        .npcs_at(here)
-        .into_iter()
-        .filter(|npc| npc.id != speaker_id)
-        .collect();
-    present.sort_by_key(|npc| npc.id);
-    let present = present
-        .into_iter()
-        .take(MAX_GROUNDING_ENTRIES)
-        .map(grounded_person)
-        .collect();
-
-    // Other places are described without occupants: the speaker cannot see
-    // who is there now.
-    let mut place_ids = world.graph.location_ids();
-    place_ids.sort();
-    let known_places = place_ids
-        .into_iter()
-        .filter_map(|id| grounded_place(world, id, &[]))
-        .take(MAX_GROUNDING_ENTRIES)
-        .collect();
-
-    let occupants: Vec<&str> = npc_manager
-        .npcs_at(here)
-        .into_iter()
-        .map(|npc| npc_manager.display_name(npc))
-        .collect();
-    let current_location = grounded_place(world, here, &occupants).unwrap_or_else(|| {
-        let location = world.current_location();
-        GroundedPlace {
-            id: format!("place-{}", here.0),
-            display_name: location.name.clone(),
-            description: location.description.clone(),
-            playable: true,
-        }
-    });
-
-    let authored_facts = speaker
-        .knowledge
-        .iter()
-        .enumerate()
-        .take(MAX_GROUNDING_ENTRIES)
-        .map(|(index, statement)| GroundedFact {
-            id: format!("npc-{}-knowledge-{}", speaker.id.0, index + 1),
-            statement: statement.clone(),
-            source: "npcs.json".to_string(),
-        })
-        .collect();
-
-    // Only exchanges the speaker witnessed. The definition requires both
-    // sides of an exchange; an exchange with an empty side (an unprompted
-    // line) is not sent.
-    let recent_conversation = world
-        .conversation_log
-        .recent_witnessed_by(speaker_id, ConversationLog::capacity())
-        .into_iter()
-        .filter(|exchange| {
-            !exchange.player_input.trim().is_empty() && !exchange.npc_dialogue.trim().is_empty()
-        })
-        .rev()
-        .take(MAX_RECENT_CONVERSATION)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .map(GroundedExchange::from)
-        .collect();
-
-    let now = world.clock.now();
-    let time = GroundedTime {
-        date: now.format("%Y-%m-%d").to_string(),
-        clock_time: now.format("%H:%M").to_string(),
-        part_of_day: world.clock.time_of_day().to_string(),
-    };
-
-    let player_name = world
-        .player_name
-        .as_ref()
-        .filter(|name| !name.trim().is_empty() && npc_manager.knows_player_name(speaker_id))
-        .cloned();
-
     Some(DialogueEndpointInput {
-        role: DIALOGUE_ROLE.to_string(),
-        player_input: bounded_input(player_input),
-        speaker: grounded_speaker(world, speaker),
-        addressing,
-        current_location,
-        time,
-        weather: world.weather.to_string(),
-        festival: world
-            .clock
-            .check_festival()
-            .map(|festival| festival.to_string()),
-        present,
-        known_people,
-        known_places,
-        authored_facts,
-        recent_conversation,
-        player: GroundedPlayer {
-            knows_name: player_name.is_some(),
-            name: player_name,
-        },
-        max_output_chars: DIALOGUE_MAX_OUTPUT_CHARS,
-        max_stream_bytes: DIALOGUE_MAX_STREAM_BYTES,
+        speaker: speaker_id,
+        about_you: about_you(world, npc_manager, context, speaker),
+        common_knowledge: context
+            .common_knowledge
+            .iter()
+            .take(MAX_LIST_ENTRIES)
+            .map(|topic| KnowledgeTopic {
+                topic: topic.topic.clone(),
+                text: topic.text.clone(),
+            })
+            .collect(),
+        the_village: the_village(world, npc_manager, context, speaker),
+        this_moment: this_moment(world, npc_manager, context, speaker, addressing),
+        what_the_stranger_says: bounded_input(player_input),
     })
 }
 
@@ -475,9 +755,44 @@ pub fn dialogue_endpoint(
     addressing: Addressing,
 ) -> Option<EndpointCall> {
     let reference = catalog.reference(EndpointRole::Dialogue)?.clone();
-    let input = dialogue_input(world, npc_manager, speaker_id, player_input, addressing)?;
+    let input = dialogue_input(
+        world,
+        npc_manager,
+        &catalog.dialogue_context,
+        speaker_id,
+        player_input,
+        addressing,
+    )?;
     Some(EndpointCall {
         reference,
         input: EndpointInput::Dialogue(Box::new(input)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strengths_and_festivals_read_as_the_lab_wrote_them() {
+        assert_eq!(strength(0.55), "0.55");
+        assert_eq!(strength(0.9), "0.9");
+        assert_eq!(strength(0.72), "0.72");
+        assert_eq!(strength(0.899_999_9), "0.9");
+        assert_eq!(
+            festival_about("Start of spring — the feast of St. Brigid"),
+            "start of spring, the feast of St. Brigid"
+        );
+        assert_eq!(month_name(5), "May");
+        assert_eq!(month_name(13), "");
+    }
+
+    #[test]
+    fn the_stranger_is_never_met_until_the_speaker_knows_something() {
+        assert_eq!(the_stranger(&[]), NEVER_MET);
+        assert_eq!(
+            the_stranger(&["They told you their name is Seán.".to_string()]),
+            "Someone you have met before. What you know of them: They told you their name is Seán."
+        );
+    }
 }
