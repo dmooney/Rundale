@@ -1416,6 +1416,24 @@ class VerificationRun:
             reason=reason,
         )
 
+    def _fresh_content_key(self) -> str | None:
+        """Recompute the content key now, bypassing and leaving the run's memoized key."""
+
+        saved = (
+            self._content_key_value,
+            self._content_key_reason,
+            self._content_key_computed,
+        )
+        self._content_key_computed = False
+        try:
+            return self._content_key()
+        finally:
+            (
+                self._content_key_value,
+                self._content_key_reason,
+                self._content_key_computed,
+            ) = saved
+
     def _content_key(self) -> str | None:
         """Hash every input that can change a suite's result, or None.
 
@@ -3651,8 +3669,22 @@ class VerificationRun:
         else:
             self._phases(phase)
         end_tree = self._attestation_tree() if records_pass else None
-        if records_pass:
-            self._check_stable_checkout(start_tree, end_tree)
+        stable = self._check_stable_checkout(start_tree, end_tree) if records_pass else True
+        # Cache entries are keyed by the content key memoized at the first
+        # suite, so a checkout that moved since then would file results under
+        # inputs they never ran on (phase-limited runs fill the same cache).
+        if (
+            not fast
+            and self._content_key_computed
+            and self._content_key_value is not None
+            and self._fresh_content_key() != self._content_key_value
+        ):
+            stable = False
+            print(
+                "mobile-verify: the checkout changed during the run; no suite result is cached",
+                file=sys.stderr,
+                flush=True,
+            )
         summary = self._summary()
         report = {
             "schema_version": 1,
@@ -3696,23 +3728,26 @@ class VerificationRun:
             "suites": self.records,
         }
         self._write_reports(report)
-        self._store_cached_passes(self.report_dir / "verify.json")
+        if stable:
+            self._store_cached_passes(self.report_dir / "verify.json")
         # A smoke pass leaves the UI suites untested, so it never stands in
         # for a full pass.
         if records_pass and report["status"] == PASSED and end_tree is not None:
             self._store_full_pass(report, end_tree)
         return report
 
-    def _check_stable_checkout(self, start_tree: str | None, end_tree: str | None) -> None:
+    def _check_stable_checkout(self, start_tree: str | None, end_tree: str | None) -> bool:
         """Fail the run when its input tree is unknown or changed while it ran.
 
         A pass is attested to GitHub by input tree, so a `git pull`, branch
         switch or edit during the run would otherwise store a pass for a tree
-        the suites never tested.
+        the suites never tested. Returns whether the checkout was stable. It
+        compares only the start and the end, so a change that is reverted
+        before the run ends is not seen.
         """
 
         if start_tree is not None and start_tree == end_tree:
-            return
+            return True
         if start_tree is None or end_tree is None:
             reason = (
                 "could not compute the input tree "
@@ -3727,12 +3762,15 @@ class VerificationRun:
         self._record(
             identifier="checkout-stable",
             name="Checkout unchanged during the run",
-            phase=4,
+            # The phase only labels the JUnit class; this gate spans every
+            # phase, so it takes the last one, where the full run's gates end.
+            phase=LAST_PHASE,
             status=FAILED,
             required=True,
             kind="attestation",
             reason=reason,
         )
+        return False
 
     def _attestation_tree(self) -> str | None:
         """Return the tested working tree's ATTESTATION_PATHSPECS, less the ignored paths."""

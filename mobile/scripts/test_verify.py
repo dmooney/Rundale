@@ -2415,6 +2415,33 @@ class VerificationCacheTests(unittest.TestCase):
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
             self.assertIn("8 passed suite(s) reused", summary)
 
+    def test_a_checkout_that_changes_mid_run_writes_no_cache_entries(self):
+        class ChangingRunner(GitBackedRunner):
+            def __init__(self, root):
+                super().__init__()
+                self.root = root
+                self.changed = False
+
+            def run(self, argv, *, cwd, env=None, timeout_seconds=None):
+                suite = argv[0] != "git" and (
+                    argv[:2] == ("swift", "test")
+                    or argv[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test")
+                    or (argv[0] == "xcodebuild" and argv[-1] in {"test", "build"})
+                )
+                if suite and not self.changed:
+                    self.changed = True
+                    (self.root / "mobile" / "Midrun.swift").write_text("let x = 1\n")
+                return super().run(argv, cwd=cwd, env=env, timeout_seconds=timeout_seconds)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            fake = ChangingRunner(root)
+            VerificationRun(root, command_runner=fake).run(2)
+            self.assertTrue(fake.changed)
+            cache = root / "mobile" / ".verification" / "cache"
+            self.assertEqual(list(cache.glob("*.json")) if cache.exists() else [], [])
+
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
