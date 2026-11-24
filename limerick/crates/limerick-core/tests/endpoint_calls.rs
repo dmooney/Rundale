@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{
-    Addressing, DIALOGUE_MAX_OUTPUT_CHARS, DIALOGUE_ROLE, EndpointCall, INTENT_ROLE,
-    InvocationEnvelope, dialogue_endpoint, intent_endpoint,
+    Addressing, EndpointCall, INTENT_ROLE, InvocationEnvelope, NEVER_MET, NOBODY_ELSE, STRANGER,
+    dialogue_endpoint, intent_endpoint,
 };
 use limerick_core::game_loop::{GameLoopContext, InferenceSlots, rebuild_inference_worker};
 use limerick_core::game_mod::{EndpointCatalog, EndpointRole, GameMod, NO_ENDPOINTS};
@@ -256,29 +256,27 @@ async fn turn_engine_calls_carry_the_mod_endpoint_references_and_inputs() {
         endpoints.reference(EndpointRole::Dialogue)
     );
     let input = serde_json::to_value(&call.input).unwrap();
-    assert_eq!(input["role"], DIALOGUE_ROLE);
-    assert_eq!(input["playerInput"], PLAYER_LINE);
-    assert_eq!(input["speaker"]["displayName"], npc.as_str());
-    assert_eq!(input["maxOutputChars"], DIALOGUE_MAX_OUTPUT_CHARS);
+    assert_eq!(input["whatTheStrangerSays"], PLAYER_LINE);
+    assert_eq!(input["aboutYou"]["name"], npc.as_str());
     let names = |key: &str| -> Vec<String> {
-        input[key]
+        input["theVillage"][key]
             .as_array()
             .unwrap()
             .iter()
-            .map(|entry| entry["displayName"].as_str().unwrap().to_string())
+            .map(|entry| entry["name"].as_str().unwrap().to_string())
             .collect()
     };
     assert_eq!(
-        names("knownPeople"),
+        names("people"),
         ["Peig Hannigan", "Mícheál Connolly", "Róisín Connolly"]
     );
     assert_eq!(
-        names("knownPlaces"),
+        names("places"),
         ["Kilteevan Village", "Letter Office", "Connolly Cottage"]
     );
     let world = live.world.lock().await;
     assert_eq!(
-        input["currentLocation"]["displayName"],
+        input["thisMoment"]["where"],
         world.current_location().name.as_str()
     );
     let npcs = live.npc_manager.lock().await;
@@ -286,11 +284,11 @@ async fn turn_engine_calls_carry_the_mod_endpoint_references_and_inputs() {
         .all_npcs()
         .find(|candidate| candidate.name == npc)
         .expect("speaker");
-    let facts: Vec<&str> = input["authoredFacts"]
+    let facts: Vec<&str> = input["aboutYou"]["knows"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|fact| fact["statement"].as_str().unwrap())
+        .map(|fact| fact.as_str().unwrap())
         .collect();
     assert_eq!(facts, speaker.knowledge);
 }
@@ -430,18 +428,23 @@ fn fixture_path(name: &str) -> PathBuf {
     repo_root().join("mobile/endpoint").join(name)
 }
 
-/// Compares `value` with a checked-in fixture; `UPDATE_ENDPOINT_FIXTURES=1`
-/// rewrites it.
-fn assert_fixture(name: &str, value: &Value) {
+/// Compares the JSON text `sent` with a checked-in fixture, key order
+/// included but not layout (the repository's formatter may re-wrap it);
+/// `UPDATE_ENDPOINT_FIXTURES=1` rewrites it.
+fn assert_fixture(name: &str, sent: &str) {
     let path = fixture_path(name);
-    let rendered = format!("{}\n", serde_json::to_string_pretty(value).unwrap());
+    let in_order = |text: &str| {
+        let value: serde_yaml::Value = serde_yaml::from_str(text).expect("JSON parses as YAML");
+        value
+    };
     if std::env::var_os("UPDATE_ENDPOINT_FIXTURES").is_some() {
-        std::fs::write(&path, &rendered).unwrap();
+        let pretty = serde_json::to_string_pretty(&in_order(sent)).unwrap();
+        std::fs::write(&path, format!("{pretty}\n")).unwrap();
     }
     let expected = std::fs::read_to_string(&path).expect("read fixture");
     assert_eq!(
-        serde_json::from_str::<Value>(&expected).unwrap(),
-        *value,
+        serde_json::to_string(&in_order(&expected)).unwrap(),
+        serde_json::to_string(&in_order(sent)).unwrap(),
         "{name} is stale; rerun with UPDATE_ENDPOINT_FIXTURES=1"
     );
 }
@@ -518,19 +521,22 @@ async fn example_invocations_are_the_engine_output_on_the_canonical_world() {
         Addressing::SpokenTo,
     )
     .expect("dialogue Endpoint");
+    let sent = dialogue.request_input(&envelope());
     let dialogue = dialogue.invocation(&envelope());
+    assert_eq!(serde_json::from_str::<Value>(&sent).unwrap(), dialogue);
     assert_matches_input_schema(&dialogue, catalog, EndpointRole::Dialogue);
-    assert_fixture("example-engine-invocation.json", &dialogue);
+    assert_fixture("example-engine-invocation.json", &sent);
 
     let (intent, _) = intent_endpoint(catalog, &world, &npcs, "Let's make for the Letter Office")
         .expect("intent Endpoint");
     let intent = intent.invocation(&envelope());
     assert_matches_input_schema(&intent, catalog, EndpointRole::Intent);
-    assert_fixture("example-intent-invocation.json", &intent);
+    assert_fixture("example-intent-invocation.json", &intent.to_string());
 }
 
 /// Inputs stay inside the definition's bounds: over-long player input is cut
-/// to the schema maximum, and exchanges missing a side are not sent.
+/// to the schema maximum, and an exchange missing a side sends only the side
+/// that was said.
 #[tokio::test]
 async fn dialogue_inputs_respect_the_definition_bounds() {
     let live = Live::canonical();
@@ -566,12 +572,21 @@ async fn dialogue_inputs_respect_the_definition_bounds() {
     .expect("dialogue Endpoint")
     .invocation(&envelope());
     assert_eq!(
-        invocation["playerInput"].as_str().unwrap().chars().count(),
+        invocation["whatTheStrangerSays"]
+            .as_str()
+            .unwrap()
+            .chars()
+            .count(),
         limerick_core::endpoint_input::MAX_PLAYER_INPUT_CHARS
     );
-    let exchanges = invocation["recentConversation"].as_array().unwrap();
-    assert_eq!(exchanges.len(), 1);
-    assert_eq!(exchanges[0]["npc_dialogue"], "Good day.");
+    assert_eq!(
+        invocation["thisMoment"]["justSaid"],
+        json!([
+            {"speaker": "Peig Hannigan", "said": "Unprompted remark."},
+            {"speaker": STRANGER, "said": "Hello."},
+            {"speaker": "Peig Hannigan", "said": "Good day."},
+        ])
+    );
 }
 
 const VILLAGE: LocationId = LocationId(1);
@@ -694,22 +709,41 @@ async fn resolve(
         .expect("resume")
 }
 
+/// The NPC lines of a snapshot's `justSaid`.
 fn exchange_lines(snapshot: &Value) -> Vec<String> {
-    snapshot["recentConversation"]
+    snapshot["thisMoment"]["justSaid"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|exchange| exchange["npc_dialogue"].as_str().unwrap().to_string())
+        .filter(|line| line["speaker"] != STRANGER)
+        .map(|line| line["said"].as_str().unwrap().to_string())
         .collect()
 }
 
-fn ids(snapshot: &Value, key: &str) -> Vec<String> {
-    snapshot[key]
+/// A snapshot's `thisMoment.alsoHere`.
+fn also_here(snapshot: &Value) -> Vec<String> {
+    snapshot["thisMoment"]["alsoHere"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|person| person["id"].as_str().unwrap().to_string())
+        .map(|person| person.as_str().unwrap().to_string())
         .collect()
+}
+
+/// How a snapshot says its speaker came to answer, as the `Addressing` id.
+fn addressing(snapshot: &Value) -> String {
+    let sentence = snapshot["thisMoment"]["howYouCameToAnswer"]
+        .as_str()
+        .unwrap();
+    [
+        (Addressing::SpokenTo, "spoken_to"),
+        (Addressing::PartOfAll, "part_of_all"),
+        (Addressing::JoiningMentioned, "joining_mentioned"),
+    ]
+    .into_iter()
+    .find(|(addressing, _)| addressing.sentence() == sentence)
+    .map(|(_, id)| id.to_string())
+    .unwrap_or_else(|| panic!("unknown howYouCameToAnswer {sentence:?}"))
 }
 
 /// Dynamic NPC context §8 row 23: a speaker's snapshot on the production
@@ -720,7 +754,7 @@ fn ids(snapshot: &Value, key: &str) -> Vec<String> {
 async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     let live = Live::canonical();
     let endpoints = live.game_mod.endpoints.clone();
-    live.set_time("1820-03-20T08:00:00Z").await;
+    live.set_time("1820-03-20T10:00:00Z").await;
     live.arrange(
         LETTER_OFFICE,
         &[
@@ -730,7 +764,6 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
         ],
     )
     .await;
-    let peig = live.id_of("Peig Hannigan").await;
     let mut engine = canonical_engine(&live);
 
     let call = first_dialogue_call(
@@ -742,47 +775,31 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     .await;
     let snapshot = dialogue_snapshot(&call);
 
-    assert_eq!(snapshot["speaker"]["id"], format!("npc-{}", peig.0));
-    assert_eq!(snapshot["speaker"]["mood"], "alert", "authored mood");
-    assert_eq!(snapshot["addressing"], "spoken_to");
+    assert_eq!(snapshot["aboutYou"]["name"], "Peig Hannigan");
+    assert_eq!(snapshot["aboutYou"]["mood"], "alert", "authored mood");
+    let moment = &snapshot["thisMoment"];
+    assert_eq!(addressing(&snapshot), "spoken_to");
+    assert_eq!(moment["where"], "Letter Office");
     assert_eq!(
-        snapshot["time"],
-        json!({"date": "1820-03-20", "clockTime": "08:00", "partOfDay": "Morning"})
+        moment["whatYouAreDoing"],
+        "sorting letters behind the counter"
     );
+    assert_eq!(moment["when"], "Monday 20 March 1820, 10:00 (morning)");
     let weather = live.world.lock().await.weather.to_string();
-    assert_eq!(snapshot["weather"], weather.as_str());
-    assert_eq!(snapshot["festival"], Value::Null);
-    assert_eq!(
-        snapshot["player"],
-        json!({"knowsName": false, "name": null})
-    );
-    assert!(
-        ids(&snapshot, "present").is_empty(),
-        "Peig is alone in the Letter Office"
-    );
-    for person in snapshot["knownPeople"].as_array().unwrap() {
-        let keys: Vec<&String> = person.as_object().unwrap().keys().collect();
-        assert_eq!(keys, ["displayName", "id", "role"], "{person}");
+    assert_eq!(moment["weather"], weather.as_str());
+    assert_eq!(moment["feastToday"], "none");
+    assert_eq!(moment["theStranger"], NEVER_MET);
+    assert_eq!(also_here(&snapshot), [NOBODY_ELSE], "Peig is alone");
+    let text = snapshot["thisMoment"].to_string();
+    for name in ["Mícheál", "Róisín"] {
+        assert!(
+            !text.contains(name),
+            "no one's live whereabouts reach Peig: {text}"
+        );
     }
-    assert_eq!(ids(&snapshot, "knownPeople").len(), 3);
-    for place in snapshot["knownPlaces"].as_array().unwrap() {
-        let description = place["description"].as_str().unwrap();
-        for name in ["Peig", "Mícheál", "Róisín"] {
-            assert!(
-                !description.contains(name),
-                "{} names {name}: {description}",
-                place["displayName"]
-            );
-        }
-    }
-    let text = snapshot.to_string();
-    assert!(
-        !text.contains("currentLocationName\":\"Connolly Cottage"),
-        "no one's live location but the speaker's is sent: {text}"
-    );
 
     // In the cottage, each Connolly is present for the other, and a speaker
-    // who has learned the player's name is told it.
+    // who has learned the player's name knows them from before.
     live.arrange(
         COTTAGE,
         &[("Mícheál Connolly", COTTAGE), ("Róisín Connolly", COTTAGE)],
@@ -791,7 +808,10 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     let micheal = live.id_of("Mícheál Connolly").await;
     let roisin = live.id_of("Róisín Connolly").await;
     live.world.lock().await.player_name = Some("Cormac".to_string());
-    live.npc_manager.lock().await.teach_player_name(roisin);
+    live.npc_manager
+        .lock()
+        .await
+        .teach_player_name(roisin, "Cormac");
     let world = live.world.lock().await;
     let npcs = live.npc_manager.lock().await;
     let snapshot = |speaker| {
@@ -810,18 +830,223 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
         .unwrap()
     };
     let for_roisin = snapshot(roisin);
-    assert_eq!(ids(&for_roisin, "present"), [format!("npc-{}", micheal.0)]);
     assert_eq!(
-        for_roisin["player"],
-        json!({"knowsName": true, "name": "Cormac"})
+        also_here(&for_roisin),
+        ["Mícheál Connolly, working the potato ridges behind the cottage"]
+    );
+    assert_eq!(
+        for_roisin["thisMoment"]["theStranger"],
+        "Someone you have met before. What you know of them: They told you their name is Cormac."
     );
     let for_micheal = snapshot(micheal);
-    assert_eq!(ids(&for_micheal, "present"), [format!("npc-{}", roisin.0)]);
     assert_eq!(
-        for_micheal["player"],
-        json!({"knowsName": false, "name": null}),
+        also_here(&for_micheal),
+        ["Róisín Connolly, spinning by the cottage fire"]
+    );
+    assert_eq!(
+        for_micheal["thisMoment"]["theStranger"], NEVER_MET,
         "Mícheál has not learned the player's name"
     );
+}
+
+/// The speaker learns a name given in the line only once it is said: the
+/// call that answers "My name is Cormac" still meets a stranger, and the
+/// line itself is `whatTheStrangerSays`.
+#[tokio::test]
+async fn a_name_given_in_the_line_is_not_known_from_before() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.set_time("1820-03-20T10:00:00Z").await;
+    live.arrange(LETTER_OFFICE, &[("Peig Hannigan", LETTER_OFFICE)])
+        .await;
+    let mut engine = canonical_engine(&live);
+    let line = "Good morning. My name is Cormac.";
+    let call = first_dialogue_call(
+        &mut engine,
+        &live,
+        &endpoints,
+        spoken_to(line, &["Peig Hannigan"]),
+    )
+    .await;
+    let snapshot = dialogue_snapshot(&call);
+    assert_eq!(snapshot["whatTheStrangerSays"], line);
+    assert_eq!(snapshot["thisMoment"]["theStranger"], NEVER_MET);
+}
+
+/// Says `line` to `person` on the production turn path, answers the
+/// dialogue call, and returns that call's `thisMoment.theStranger`.
+async fn stranger_when_saying(
+    engine: &mut TurnEngine,
+    live: &Live,
+    endpoints: &EndpointCatalog,
+    line: &str,
+    person: &str,
+) -> String {
+    let call = first_dialogue_call(engine, live, endpoints, spoken_to(line, &[person])).await;
+    let snapshot = dialogue_snapshot(&call);
+    let step = resolve(
+        engine,
+        live,
+        endpoints,
+        &call,
+        completed(dialogue_reply("Ye're welcome here.")),
+    )
+    .await;
+    assert!(
+        matches!(step.status, TurnStatus::Completed { .. }),
+        "{:?}",
+        step.status
+    );
+    snapshot["thisMoment"]["theStranger"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn told(name: &str) -> String {
+    format!(
+        "Someone you have met before. What you know of them: They told you their name is {name}."
+    )
+}
+
+/// Each NPC knows the name the player gave *it*: telling Peig "I'm Seán"
+/// and Mícheál "I'm Tomás" sends each their own name in `theStranger`, a
+/// new introduction to Peig changes only Peig's, and a save keeps both.
+#[tokio::test]
+async fn each_speaker_knows_the_name_the_player_gave_them() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.set_time("1820-03-20T10:00:00Z").await;
+    let mut engine = canonical_engine(&live);
+    let at_the_letter_office = || {
+        live.arrange(
+            LETTER_OFFICE,
+            &[
+                ("Peig Hannigan", LETTER_OFFICE),
+                ("Mícheál Connolly", COTTAGE),
+            ],
+        )
+    };
+    let at_the_cottage = || {
+        live.arrange(
+            COTTAGE,
+            &[
+                ("Peig Hannigan", LETTER_OFFICE),
+                ("Mícheál Connolly", COTTAGE),
+            ],
+        )
+    };
+
+    at_the_letter_office().await;
+    let first = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Good morning. I'm Seán.",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(first, NEVER_MET);
+    at_the_cottage().await;
+    let first = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "God bless the work. I'm Tomás.",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(first, NEVER_MET);
+
+    let for_micheal = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "How are the ridges?",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(for_micheal, told("Tomás"));
+    at_the_letter_office().await;
+    let for_peig = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Any letters today?",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(for_peig, told("Seán"));
+    assert_eq!(
+        live.world.lock().await.player_name.as_deref(),
+        Some("Seán"),
+        "the global name is the first one given"
+    );
+
+    // A new introduction to Peig replaces her name for the player, and
+    // only hers.
+    stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Call me Séamus, so.",
+        "Peig Hannigan",
+    )
+    .await;
+    let for_peig = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Will the post come Thursday?",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(for_peig, told("Séamus"));
+    at_the_cottage().await;
+    let for_micheal = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Grand weather.",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(for_micheal, told("Tomás"));
+
+    // A save and restore keeps each NPC's own name.
+    let (peig, micheal) = (
+        live.id_of("Peig Hannigan").await,
+        live.id_of("Mícheál Connolly").await,
+    );
+    let saved = {
+        let world = live.world.lock().await;
+        let npcs = live.npc_manager.lock().await;
+        serde_json::to_string(&limerick_core::persistence::GameSnapshot::capture(
+            &world, &npcs,
+        ))
+        .unwrap()
+    };
+    let mut world = live.world.lock().await;
+    let mut npcs = live.npc_manager.lock().await;
+    serde_json::from_str::<limerick_core::persistence::GameSnapshot>(&saved)
+        .unwrap()
+        .restore(&mut world, &mut npcs);
+    for (speaker, name) in [(peig, "Séamus"), (micheal, "Tomás")] {
+        let input = serde_json::to_value(
+            dialogue_endpoint(
+                &endpoints,
+                &world,
+                &npcs,
+                speaker,
+                "Hello again.",
+                Addressing::SpokenTo,
+            )
+            .unwrap()
+            .input,
+        )
+        .unwrap();
+        assert_eq!(input["thisMoment"]["theStranger"], told(name));
+    }
 }
 
 /// Dynamic NPC context §8 row 24: an exchange with Peig in the village at
@@ -892,7 +1117,10 @@ async fn a_speaker_is_sent_only_the_exchanges_they_witnessed() {
     )
     .await;
     let for_micheal = dialogue_snapshot(&call);
-    assert_eq!(for_micheal["time"]["clockTime"], "15:00");
+    assert_eq!(
+        for_micheal["thisMoment"]["when"],
+        "Monday 20 March 1820, 15:00 (afternoon)"
+    );
     assert!(
         exchange_lines(&for_micheal).is_empty(),
         "Mícheál was not there at 08:00: {for_micheal}"
@@ -947,7 +1175,7 @@ async fn a_later_speaker_in_a_line_sees_the_replies_already_given() {
     .await;
     let first_snapshot = dialogue_snapshot(&first);
     assert!(exchange_lines(&first_snapshot).is_empty());
-    let first_speaker = first_snapshot["speaker"]["id"]
+    let first_speaker = first_snapshot["aboutYou"]["name"]
         .as_str()
         .unwrap()
         .to_string();
@@ -961,20 +1189,20 @@ async fn a_later_speaker_in_a_line_sees_the_replies_already_given() {
     )
     .await;
     let second = dialogue_snapshot(awaiting(&step));
-    assert_ne!(second["speaker"]["id"], first_speaker.as_str());
-    // The first reply as committed to the attempt, after the engine's
-    // dialogue guards.
-    let seen = exchange_lines(&second);
-    assert_eq!(seen.len(), 1, "{second}");
-    assert!(seen[0].contains("And you too, traveller."), "{seen:?}");
+    assert_ne!(second["aboutYou"]["name"], first_speaker.as_str());
+    // The line said to both is written once, before the first reply to it,
+    // as the frozen prompt's lab cases write it.
     assert_eq!(
-        second["recentConversation"][0]["player_input"],
-        "God bless all here."
+        second["thisMoment"]["justSaid"],
+        json!([
+            {"speaker": STRANGER, "said": "God bless all here."},
+            {"speaker": first_speaker, "said": "And you too, traveller."},
+        ])
     );
 }
 
 /// Dynamic NPC context §8 row 34: on 1 May every speaker's snapshot names
-/// Bealtaine; on other days `festival` is null.
+/// Bealtaine as `feastToday`; on other days it is "none".
 #[tokio::test]
 async fn the_snapshot_names_todays_festival() {
     let live = Live::canonical();
@@ -982,7 +1210,7 @@ async fn the_snapshot_names_todays_festival() {
     let peig = live.id_of("Peig Hannigan").await;
     for (at, festival) in [
         ("1820-05-01T09:00:00Z", json!("Bealtaine")),
-        ("1820-05-02T09:00:00Z", Value::Null),
+        ("1820-05-02T09:00:00Z", json!("none")),
     ] {
         live.set_time(at).await;
         let world = live.world.lock().await;
@@ -1001,7 +1229,10 @@ async fn the_snapshot_names_todays_festival() {
                 .input,
             )
             .unwrap();
-            assert_eq!(input["festival"], festival, "{at}, speaker {speaker:?}");
+            assert_eq!(
+                input["thisMoment"]["feastToday"], festival,
+                "{at}, speaker {speaker:?}"
+            );
         }
         assert!(npcs.get(peig).is_some());
     }
@@ -1120,11 +1351,8 @@ async fn run_turn(
             InferenceSubrole::Dialogue => {
                 let input = dialogue_snapshot(&pending);
                 speakers.push((
-                    input["speaker"]["displayName"]
-                        .as_str()
-                        .unwrap()
-                        .to_string(),
-                    input["addressing"].as_str().unwrap().to_string(),
+                    input["aboutYou"]["name"].as_str().unwrap().to_string(),
+                    addressing(&input),
                 ));
                 dialogue_reply("Aye, indeed.")
             }
@@ -1438,10 +1666,12 @@ async fn row_11_naming_someone_elsewhere_reaches_the_person_present() {
     )
     .await;
     let snapshot = dialogue_snapshot(awaiting(&step));
-    assert_eq!(snapshot["speaker"]["displayName"], P);
-    for person in snapshot["knownPeople"].as_array().unwrap() {
-        assert!(person.get("location").is_none(), "{person}");
-    }
+    assert_eq!(snapshot["aboutYou"]["name"], P);
+    assert_eq!(also_here(&snapshot), [NOBODY_ELSE]);
+    assert!(
+        !snapshot["thisMoment"].to_string().contains("Mícheál"),
+        "nothing of where Mícheál is: {snapshot}"
+    );
     let rest = run_turn(&mut engine, &live, &endpoints, step, &NO_ONE).await;
     assert_eq!(names(&rest), [P]);
     no_absence_line(&rest);
@@ -1738,4 +1968,261 @@ async fn rows_31_and_32_nobody_present_gets_the_idle_message() {
         assert_eq!(input["present"], json!([]));
         assert_eq!(input["everyone"], json!([]));
     }
+}
+
+// ── The frozen dialogue prompt (issue 2299) ─────────────────────────────────
+//
+// The owner froze `promptfoo/prompt-lab/prompts/frozen.yaml` on 2026-11-23.
+// Its system text is the `rundale-dialogue` Endpoint's instructions, and its
+// request is "Endpoint input values:" followed by five sections the engine
+// now builds from game data and `mods/rundale/dialogue.json`.
+
+const PEOPLE: [&str; 3] = ["Peig Hannigan", "Mícheál Connolly", "Róisín Connolly"];
+
+fn lab_path(rel: &str) -> PathBuf {
+    repo_root().join("promptfoo/prompt-lab").join(rel)
+}
+
+/// A lab file parsed with its key order kept.
+fn lab_yaml(rel: &str) -> serde_yaml::Value {
+    let text = std::fs::read_to_string(lab_path(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
+    serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{rel}: {e}"))
+}
+
+/// The frozen prompt's system text is the Endpoint's instructions, word for
+/// word.
+#[test]
+fn the_endpoint_instructions_are_the_frozen_system_text() {
+    let frozen = lab_yaml("prompts/frozen.yaml");
+    let system = frozen
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .find(|message| message["role"].as_str() == Some("system"))
+        .expect("a system message")["content"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let catalog = canonical_mod().endpoints;
+    let definition = &catalog.dialogue.as_ref().expect("dialogue").definition;
+    assert_eq!(definition.instructions, system);
+
+    // The request's fixed wording is the template's, word for word.
+    let template = std::fs::read_to_string(lab_path("prompts/frozen.yaml")).unwrap();
+    let wording = [
+        NEVER_MET,
+        limerick_core::endpoint_input::MET_BEFORE,
+        limerick_core::endpoint_input::ANACHRONISM_NOTICE,
+        Addressing::SpokenTo.sentence(),
+        Addressing::PartOfAll.sentence(),
+        Addressing::JoiningMentioned.sentence(),
+    ];
+    for text in wording {
+        assert!(template.contains(text), "frozen.yaml lacks {text:?}");
+    }
+}
+
+/// Issue 2299, done-when: on the production turn path, each NPC's input
+/// carries its own character and its village, and nothing private to
+/// another NPC: no one else's personality, knowledge, backstory or feelings
+/// about anyone.
+#[tokio::test]
+async fn each_npc_is_sent_its_own_character_and_village_and_nothing_private_to_another() {
+    let game_mod = canonical_mod();
+    let dialogue = &game_mod.endpoints.dialogue_context;
+    let private = |name: &str, npcs: &NpcManager| -> Vec<String> {
+        let npc = npcs.all_npcs().find(|npc| npc.name == name).unwrap();
+        let mut texts = vec![npc.personality.clone()];
+        texts.extend(npc.knowledge.iter().cloned());
+        let authored = dialogue.character(npc.id.0).expect("authored");
+        texts.extend(authored.backstory.iter().cloned());
+        texts.extend(
+            authored
+                .relationships
+                .iter()
+                .map(|words| words.feeling.clone()),
+        );
+        texts
+    };
+    for name in PEOPLE {
+        let live = Live::canonical();
+        let endpoints = live.game_mod.endpoints.clone();
+        live.set_time("1820-03-20T10:00:00Z").await;
+        let others: Vec<(&str, LocationId)> = PEOPLE
+            .iter()
+            .map(|person| (*person, if *person == name { VILLAGE } else { COTTAGE }))
+            .collect();
+        live.arrange(VILLAGE, &others).await;
+        let mut engine = canonical_engine(&live);
+        let call = first_dialogue_call(
+            &mut engine,
+            &live,
+            &endpoints,
+            spoken_to("Good day to you.", &[name]),
+        )
+        .await;
+        let input = dialogue_snapshot(&call);
+        let text = input.to_string();
+        let npcs = live.npc_manager.lock().await;
+
+        assert_eq!(input["aboutYou"]["name"], name);
+        for own in private(name, &npcs) {
+            assert!(text.contains(&own), "{name} lacks {own:?}");
+        }
+        assert_eq!(input["theVillage"]["name"], "Kilteevan", "{name}");
+        let village_people: Vec<&str> = input["theVillage"]["people"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|person| person["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(village_people, PEOPLE, "every NPC knows their village");
+        for person in input["theVillage"]["people"].as_array().unwrap() {
+            let keys: Vec<&String> = person.as_object().unwrap().keys().collect();
+            assert_eq!(
+                keys,
+                ["home", "looks", "name", "work", "workplace"],
+                "only what the village sees: {person}"
+            );
+        }
+        for other in PEOPLE.into_iter().filter(|other| *other != name) {
+            for fact in private(other, &npcs) {
+                assert!(
+                    !text.contains(&fact),
+                    "{name}'s input holds {other}'s {fact:?}"
+                );
+            }
+        }
+    }
+}
+
+/// The request sent to the Endpoint for each held-out and training moment
+/// of the lab that the engine can stage (no earlier conversation) is the
+/// frozen prompt's request for that case, byte for byte and in key order:
+/// the lab's `content/` files are the mod's content as the engine renders
+/// it, and the present moment reads as the case wrote it.
+#[tokio::test]
+async fn the_request_is_the_frozen_prompts_request_for_the_labs_moments() {
+    let characters = lab_yaml("content/characters.json");
+    let common = lab_yaml("content/common-knowledge.json");
+    let village = lab_yaml("content/village.json");
+    let places = [
+        ("Kilteevan Village", VILLAGE),
+        ("Letter Office", LETTER_OFFICE),
+        ("Connolly Cottage", COTTAGE),
+    ];
+    let place = |name: &str| {
+        places
+            .iter()
+            .find(|(place, _)| *place == name)
+            .unwrap_or_else(|| panic!("unknown place {name}"))
+            .1
+    };
+    let mut checked = 0;
+    for file in ["cases/train.yaml", "cases/heldout.yaml"] {
+        for case in lab_yaml(file).as_sequence().unwrap() {
+            let vars = &case["vars"];
+            let moment = &vars["moment"];
+            if !moment["justSaid"].as_sequence().unwrap().is_empty()
+                || !vars["stranger_known"].is_null()
+            {
+                continue;
+            }
+            let description = case["description"].as_str().unwrap();
+            let character = &characters["characters"][vars["speaker"].as_str().unwrap()];
+            let speaker = character["name"].as_str().unwrap();
+            let addressing = match vars["addressing"].as_str().unwrap() {
+                "spoken_to" => Addressing::SpokenTo,
+                "part_of_all" => Addressing::PartOfAll,
+                "joining_mentioned" => Addressing::JoiningMentioned,
+                other => panic!("{description}: addressing {other}"),
+            };
+            let line = vars["player_line"].as_str().unwrap();
+
+            let live = Live::canonical();
+            let when = moment["when"].as_str().unwrap();
+            let at = chrono::NaiveDateTime::parse_from_str(
+                when.split(" (").next().unwrap(),
+                "%A %d %B %Y, %H:%M",
+            )
+            .unwrap_or_else(|e| panic!("{description}: {when}: {e}"));
+            live.set_time(&format!("{}Z", at.format("%Y-%m-%dT%H:%M:%S")))
+                .await;
+            live.world.lock().await.weather = moment["weather"].as_str().unwrap().parse().unwrap();
+            let here = place(moment["where"].as_str().unwrap());
+            let present: Vec<&str> = moment["alsoHere"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .map(|entry| entry.as_str().unwrap().split(", ").next().unwrap())
+                .collect();
+            let elsewhere = places.iter().find(|(_, id)| *id != here).unwrap().1;
+            let arrangement: Vec<(&str, LocationId)> = PEOPLE
+                .iter()
+                .map(|person| {
+                    let at_here = *person == speaker || present.contains(person);
+                    (*person, if at_here { here } else { elsewhere })
+                })
+                .collect();
+            live.arrange(here, &arrangement).await;
+
+            let world = live.world.lock().await;
+            let npcs = live.npc_manager.lock().await;
+            let speaker_id = npcs.all_npcs().find(|npc| npc.name == speaker).unwrap().id;
+            let mut call = dialogue_endpoint(
+                &live.game_mod.endpoints,
+                &world,
+                &npcs,
+                speaker_id,
+                line,
+                addressing,
+            )
+            .unwrap();
+            if vars["anachronism"].as_bool() == Some(true) {
+                let limerick_core::endpoint_input::EndpointInput::Dialogue(input) = call.input
+                else {
+                    panic!("dialogue_endpoint builds a dialogue input")
+                };
+                call.input = limerick_core::endpoint_input::EndpointInput::Dialogue(Box::new(
+                    input.with_anachronism_notice(),
+                ));
+            }
+
+            // The template's request, in its order.
+            let mut now = serde_yaml::Mapping::new();
+            for key in [
+                "where",
+                "whatYouAreDoing",
+                "when",
+                "weather",
+                "feastToday",
+                "alsoHere",
+            ] {
+                now.insert(key.into(), moment[key].clone());
+            }
+            now.insert("theStranger".into(), NEVER_MET.into());
+            now.insert("howYouCameToAnswer".into(), addressing.sentence().into());
+            now.insert("justSaid".into(), moment["justSaid"].clone());
+            if vars["anachronism"].as_bool() == Some(true) {
+                now.insert(
+                    "notice".into(),
+                    limerick_core::endpoint_input::ANACHRONISM_NOTICE.into(),
+                );
+            }
+            let mut request = serde_yaml::Mapping::new();
+            request.insert("aboutYou".into(), character.clone());
+            request.insert("commonKnowledge".into(), common["shared"].clone());
+            request.insert("theVillage".into(), village.clone());
+            request.insert("thisMoment".into(), now.into());
+            request.insert("whatTheStrangerSays".into(), line.into());
+
+            assert_eq!(
+                call.request_input(&envelope()),
+                serde_json::to_string(&request).unwrap(),
+                "{description}"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 30, "only {checked} lab moments checked");
 }

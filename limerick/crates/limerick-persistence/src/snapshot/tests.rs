@@ -596,6 +596,71 @@ fn the_conversation_partner_survives_save_and_load_while_present() {
     assert_eq!(legacy.conversation_partner, None, "older saves have none");
 }
 
+/// Each NPC's own name for the player survives save and load, and the
+/// legacy set still lists who knows a name, for older builds.
+#[test]
+fn player_names_given_to_each_npc_survive_save_and_load() {
+    let mut world = WorldState::new();
+    world.player_name = Some("Seán".to_string());
+    let mut npc_manager = NpcManager::new();
+    for id in 1..=3 {
+        npc_manager.add_npc(make_test_npc(id, 1));
+    }
+    npc_manager.teach_player_name(NpcId(1), "Seán");
+    npc_manager.teach_player_name(NpcId(2), "Tomás");
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    assert_eq!(
+        snapshot.npcs_who_know_player_name,
+        [NpcId(1), NpcId(2)].into_iter().collect()
+    );
+    let json = serde_json::to_string(&snapshot).unwrap();
+    let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+    let mut new_world = WorldState::new();
+    let mut new_npcs = NpcManager::new();
+    restored.restore(&mut new_world, &mut new_npcs);
+
+    assert_eq!(new_npcs.player_name_known_by(NpcId(1)), Some("Seán"));
+    assert_eq!(new_npcs.player_name_known_by(NpcId(2)), Some("Tomás"));
+    assert_eq!(new_npcs.player_name_known_by(NpcId(3)), None);
+    assert_eq!(new_world.player_name.as_deref(), Some("Seán"));
+}
+
+/// A save written before save format 5 kept one global `player_name` and
+/// the set of NPCs that knew it. Each listed NPC restores knowing that
+/// name; an unlisted one knows none.
+#[test]
+fn an_old_snapshot_gives_each_listed_npc_the_global_name() {
+    let json = r#"{
+        "player_location": 1,
+        "weather": "Clear",
+        "text_log": [],
+        "clock": {"game_time": "1820-03-20T08:00:00Z", "speed_factor": 36.0, "paused": false},
+        "npcs": [],
+        "last_tier2_game_time": null,
+        "player_name": "Seán",
+        "npcs_who_know_player_name": [1, 2]
+    }"#;
+    let snapshot: GameSnapshot = serde_json::from_str(json).unwrap();
+    assert!(snapshot.player_names_by_npc.is_empty());
+
+    let mut world = WorldState::new();
+    let mut npcs = NpcManager::new();
+    snapshot.restore(&mut world, &mut npcs);
+    assert_eq!(npcs.player_name_known_by(NpcId(1)), Some("Seán"));
+    assert_eq!(npcs.player_name_known_by(NpcId(2)), Some("Seán"));
+    assert_eq!(npcs.player_name_known_by(NpcId(3)), None);
+    assert_eq!(world.player_name.as_deref(), Some("Seán"));
+
+    // With no global name the old set carried nothing to restore.
+    let nameless: GameSnapshot =
+        serde_json::from_str(&json.replace(r#""player_name": "Seán","#, r#""player_name": null,"#))
+            .unwrap();
+    let mut npcs = NpcManager::new();
+    nameless.restore(&mut WorldState::new(), &mut npcs);
+    assert!(!npcs.knows_player_name(NpcId(1)));
+}
+
 /// Old saves predating the `introduced_npcs` field must deserialize
 /// cleanly with an empty set (serde `default`), so loading a legacy
 /// save doesn't produce a deserialization error.

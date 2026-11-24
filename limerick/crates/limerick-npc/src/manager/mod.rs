@@ -59,8 +59,10 @@ pub struct NpcManager {
     tier4_state: TierTickState,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
-    /// Set of NPC ids that know the player's name.
-    npcs_who_know_player_name: HashSet<NpcId>,
+    /// The name the player gave each NPC, keyed by that NPC. Each NPC knows
+    /// only the name it was told: introducing yourself to one NPC never
+    /// changes what another calls you.
+    player_names_by_npc: BTreeMap<NpcId, String>,
     /// The person the player is talking to: later unaddressed lines go to
     /// them (dynamic NPC context design §2, §3.2). Saved with the game.
     partner: Option<NpcId>,
@@ -107,7 +109,7 @@ impl NpcManager {
             tier3_state: TierTickState::default(),
             tier4_state: TierTickState::default(),
             introduced_npcs: HashSet::new(),
-            npcs_who_know_player_name: HashSet::new(),
+            player_names_by_npc: BTreeMap::new(),
             partner: None,
             recent_tier4_events: VecDeque::with_capacity(crate::tier4::RING_BUFFER_CAPACITY),
             reaction_emoji_buffer: VecDeque::with_capacity(REACTION_EMOJI_BUFFER_CAPACITY),

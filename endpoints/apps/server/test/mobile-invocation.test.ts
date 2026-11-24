@@ -391,19 +391,38 @@ describe("mobile invocation authentication", () => {
     ) as Record<string, unknown>;
     const validate = compileSchema(definition.inputSchema);
     expect(validate(input)).toBe(true);
-    const knownPeople = input.knownPeople as Record<string, unknown>[];
+    // The frozen prompt's request: exactly its five sections, in its order,
+    // with no invocation envelope (the model reads the whole input).
+    expect(Object.keys(input)).toEqual([
+      "aboutYou",
+      "commonKnowledge",
+      "theVillage",
+      "thisMoment",
+      "whatTheStrangerSays",
+    ]);
+    expect(validate({ ...input, sessionID: "s" })).toBe(false);
+    const moment = input.thisMoment as Record<string, unknown>;
+    expect(validate({ ...input, thisMoment: { ...moment, feastToday: "Bealtaine" } })).toBe(true);
+    expect(
+      validate({ ...input, thisMoment: { ...moment, howYouCameToAnswer: "Someone overheard." } }),
+    ).toBe(false);
+    const village = input.theVillage as Record<string, unknown>;
+    const people = village.people as Record<string, unknown>[];
     expect(
       validate({
         ...input,
-        knownPeople: [
-          { ...knownPeople[0], currentLocationId: 2, currentLocationName: "Letter Office" },
-        ],
+        theVillage: { ...village, people: [{ ...people[0], personality: "private" }] },
       }),
     ).toBe(false);
-    expect(validate({ ...input, festival: "Bealtaine" })).toBe(true);
-    expect(validate({ ...input, addressing: "overheard" })).toBe(false);
-    input.knownPeople = Array.from({ length: 33 }, () => structuredClone(knownPeople[0]));
-    expect(validate(input)).toBe(false);
+    expect(
+      validate({
+        ...input,
+        theVillage: {
+          ...village,
+          people: Array.from({ length: 33 }, () => structuredClone(people[0])),
+        },
+      }),
+    ).toBe(false);
   });
 
   it("accepts the engine's intent invocation and rejects unknown fields", async () => {

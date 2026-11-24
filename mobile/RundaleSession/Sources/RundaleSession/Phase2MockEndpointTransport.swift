@@ -46,7 +46,7 @@ public final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Se
                     }
                     let identities = try Self.identities(
                         from: request.httpBody,
-                        attemptID: request.value(forHTTPHeaderField: "X-Attempt-Id"),
+                        headers: request,
                         url: requestURL
                     )
                     let input = identities.input.lowercased()
@@ -145,19 +145,30 @@ public final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Se
         let intentInput: [String: Any]
     }
 
-    private static func identities(from body: Data?, attemptID headerAttemptID: String?, url: URL) throws -> Identities {
+    /// The request's identities. The intent input carries the invocation
+    /// envelope; the dialogue input is the frozen prompt's request, with no
+    /// envelope and no `role`, so its identities come from the headers the
+    /// Endpoint client sends.
+    private static func identities(from body: Data?, headers: URLRequest, url: URL) throws -> Identities {
         guard let body,
               let root = try JSONSerialization.jsonObject(with: body) as? [String: Any],
-              let input = root["input"] as? [String: Any],
-              let role = input["role"] as? String,
-              let requestID = input["logicalRequestID"] as? String,
-              let attemptID = headerAttemptID ?? input["attemptID"] as? String,
-              let invocationID = input["idempotencyKey"] as? String,
-              // The intent input carries the line as `line`; dialogue as `playerInput`.
-              let playerInput = input[role == "player_intent" ? "line" : "playerInput"] as? String else {
+              let input = root["input"] as? [String: Any] else {
             throw LimerickEndpointError.malformedEvent("mock request input is invalid")
         }
-        let speakerName = (input["speaker"] as? [String: Any])?["displayName"] as? String
+        let role = input["role"] as? String ?? "npc_dialogue"
+        let aboutYou = input["aboutYou"] as? [String: Any]
+        // The intent input carries the line as `line`; dialogue as
+        // `whatTheStrangerSays` (`playerInput` before issue 2299).
+        let lineKey = role == "player_intent" ? "line" : (aboutYou != nil ? "whatTheStrangerSays" : "playerInput")
+        let requestID = input["logicalRequestID"] as? String ?? headers.value(forHTTPHeaderField: "X-Request-Id")
+        let attemptID = headers.value(forHTTPHeaderField: "X-Attempt-Id") ?? input["attemptID"] as? String
+        let invocationID = input["idempotencyKey"] as? String ?? headers.value(forHTTPHeaderField: "Idempotency-Key")
+        guard let requestID, let attemptID, let invocationID,
+              let playerInput = input[lineKey] as? String else {
+            throw LimerickEndpointError.malformedEvent("mock request input is invalid")
+        }
+        let speakerName = aboutYou?["name"] as? String
+            ?? (input["speaker"] as? [String: Any])?["displayName"] as? String
         guard role == "player_intent" || speakerName != nil else {
             throw LimerickEndpointError.malformedEvent("mock dialogue input has no speaker")
         }

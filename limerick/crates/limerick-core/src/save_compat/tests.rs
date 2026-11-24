@@ -389,6 +389,9 @@ fn sample_snapshot() -> GameSnapshot {
     snapshot.last_tier4_game_time = Some(at);
     snapshot.introduced_npcs.insert(npc.id);
     snapshot.npcs_who_know_player_name.insert(npc.id);
+    snapshot
+        .player_names_by_npc
+        .insert(npc.id, "Ciarán".to_string());
     snapshot.visited_order = vec![crate::world::LocationId(1)];
     snapshot.edge_traversals.insert(
         (crate::world::LocationId(1), crate::world::LocationId(2)),

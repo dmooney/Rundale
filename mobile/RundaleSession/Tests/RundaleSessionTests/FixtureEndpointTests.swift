@@ -47,4 +47,37 @@ final class FixtureEndpointTests: XCTestCase {
         XCTAssertEqual(recipient["choice"] as? String, "no_one")
         XCTAssertNotNil(recipient["probabilities"] as? [String: Double])
     }
+
+    /// The dialogue call sends the frozen prompt's request (issue 2299),
+    /// which has no envelope: the fixture Endpoint takes the identities from
+    /// the headers and the speaker from `aboutYou`.
+    func testTheDialogueCallStreamsTheSpeakersReplyFromTheFrozenRequest() async throws {
+        let input: [String: Any] = [
+            "aboutYou": ["name": "Mícheál Connolly"],
+            "thisMoment": ["where": "Connolly Cottage"],
+            "whatTheStrangerSays": "Good day to you"
+        ]
+        var request = URLRequest(url: try XCTUnwrap(URL(
+            string: "https://example.test/v1/endpoints/limerick-demo/rundale-dialogue/versions/1/stream"
+        )))
+        request.httpMethod = "POST"
+        request.setValue("request-1", forHTTPHeaderField: "X-Request-Id")
+        request.setValue("attempt-1.2", forHTTPHeaderField: "X-Attempt-Id")
+        request.setValue("attempt-1#2", forHTTPHeaderField: "Idempotency-Key")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["input": input])
+
+        var status: Int?
+        var body = Data()
+        for try await event in Phase2MockEndpointTransport().open(request).events {
+            switch event {
+            case let .response(statusCode, _): status = statusCode
+            case let .bytes(bytes): body.append(bytes)
+            }
+        }
+
+        XCTAssertEqual(status, 200)
+        let stream = try XCTUnwrap(String(bytes: body, encoding: .utf8))
+        XCTAssertTrue(stream.contains(#""request_id":"request-1""#), stream)
+        XCTAssertTrue(stream.contains("The wet ground has made moving cattle difficult this week."), stream)
+    }
 }
