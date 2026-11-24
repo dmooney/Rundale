@@ -8,9 +8,10 @@ name: TestFlight
 # squash merge matches unless main moved under it; the upload runs
 # `release.py testflight --verify none`. `release.py` archives with a stored
 # Apple Distribution certificate and App Store profile, and exports and uploads
-# with an App Store Connect API key, instead of an Xcode account. Apple's
-# processing, export compliance and the Internal Beta **Testing** status still
-# follow the upload (mobile/testflight.md).
+# with an App Store Connect API key, instead of an Xcode account. After the
+# upload `release.py` polls App Store Connect until the build is **Testing** in
+# Internal Beta, and fails the job on a processing failure, missing export
+# compliance, or a 45-minute timeout (mobile/testflight.md).
 #
 # The nightly `gate` job checks what the smoke gate left out, after the build
 # shipped: when main's input tree has no recorded full pass, it runs the full
@@ -47,14 +48,22 @@ jobs:
     # Only main's builds ship: a Run workflow from another branch uploads nothing.
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     runs-on: macos-26
-    # About 15 minutes.
-    timeout-minutes: 60
+    # About 15 minutes to upload (up to 30 on a cold Rust cache), then up to 45
+    # waiting for Apple (release.py's default timeout) to put the build in
+    # Testing. The limit leaves 15 minutes of margin so release.py fails and
+    # records its receipt before the runner kills the job.
+    timeout-minutes: 90
     environment: testflight
     # One upload at a time, in merge order; a cancelled upload could leave App
-    # Store Connect holding a half-processed build.
+    # Store Connect holding a half-processed build. Each upload now holds the
+    # group up to about 45 more minutes while it waits for Apple.
     concurrency:
       group: testflight
       cancel-in-progress: false
+    permissions:
+      contents: read
+      # A failed upload or delivery opens or updates an issue.
+      issues: write
     steps:
       # Full history: without App Store Connect builds to count from, the
       # build number falls back to HEAD's commit count.
@@ -194,6 +203,41 @@ jobs:
         run: |
           rm -f "$RUNNER_TEMP/AuthKey.p8"
           if [ -n "${SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "$SIGNING_KEYCHAIN" || true; fi
+
+      - name: Report the failed upload in an issue
+        # A job timeout cancels the job, which failure() does not match.
+        if: (failure() || cancelled()) && steps.changed.outputs.upload == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="TestFlight upload or delivery failed"
+          body="The TestFlight upload or the wait for Testing in Internal Beta failed on ${GITHUB_SHA}. The job may have failed before the upload (signing, archive) or been cancelled by its timeout; the run's log names the failing step.
+
+          Run: ${RUN_URL}
+
+          The release log and receipt (testingStatus names the last state Apple reported) are in the run's testflight-report artifact."
+          number="$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+      # A build that reaches Testing closes the issue an earlier failure opened.
+      - name: Close the failed upload issue
+        if: success() && steps.changed.outputs.upload == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="TestFlight upload or delivery failed"
+          gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" |
+            while read -r number; do
+              gh issue close "$number" --comment "A build reached Testing in Internal Beta on ${GITHUB_SHA}: ${RUN_URL}"
+            done
 
   gate:
     name: Nightly full mobile-verify gate

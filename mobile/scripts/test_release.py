@@ -250,10 +250,15 @@ class ReleaseTests(unittest.TestCase):
         runner = release.Release(self.paths, runner=self.runner)
         with (
             patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(release, "asc_token_factory", return_value=self.factory),
+            patch.object(
+                release, "wait_for_testing", return_value="VALID/IN_BETA_TESTING"
+            ) as waited,
             patch.object(runner, "validate_archive") as validate,
             patch.object(runner, "validate_distribution_ipa"),
         ):
             runner.testflight()
+        waited.assert_called_once_with(self.factory, 1331, timeout_minutes=45)
         archive = next(c for c in self.commands if "archive" in c)
         self.assertIn("CURRENT_PROJECT_VERSION=1331", archive)
         validate.assert_called_once_with(expected_build=1331)
@@ -261,6 +266,364 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(upload_options["manageAppVersionAndBuildNumber"])
         receipt = json.loads(self.paths.receipt.read_text())
         self.assertEqual((receipt["requestedBuild"], receipt["uploadedBuild"]), (1331, 1331))
+        self.assertEqual(receipt["status"], "testing")
+        self.assertEqual(receipt["testingStatus"], "VALID/IN_BETA_TESTING")
+
+    def test_testflight_fails_and_records_the_state_when_apple_rejects_the_build(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        failure = release.TestFlightWaitError("rejected", "VALID/MISSING_EXPORT_COMPLIANCE")
+        with (
+            patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(release, "asc_token_factory", return_value=self.factory),
+            patch.object(release, "wait_for_testing", side_effect=failure),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+            self.assertRaises(release.TestFlightWaitError),
+        ):
+            runner.testflight()
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual(receipt["status"], "upload_requested")
+        self.assertEqual(receipt["testingStatus"], "VALID/MISSING_EXPORT_COMPLIANCE")
+
+    def test_testflight_records_lookup_failed_for_any_other_error(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(release, "asc_token_factory", return_value=self.factory),
+            patch.object(release, "wait_for_testing", side_effect=RuntimeError("HTTP 403")),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+            self.assertRaises(RuntimeError),
+        ):
+            runner.testflight()
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual(receipt["testingStatus"], "LOOKUP_FAILED")
+
+    def test_testflight_without_a_key_says_the_status_was_not_checked(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=(1259, False)),
+            patch.object(release, "wait_for_testing", side_effect=AssertionError("network")),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+            patch("sys.stdout", new_callable=io.StringIO) as out,
+        ):
+            runner.testflight()
+        self.assertIn("could not be checked", out.getvalue())
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual(receipt["testingStatus"], "pending_apple_processing")
+
+    def wait(self, states, timeout_minutes=45):
+        """Run `wait_for_testing` over scripted `(state, groups)` answers.
+
+        The clock advances only when the wait sleeps, so no real time passes.
+        """
+
+        now = [0.0]
+        sleeps: list[float] = []
+        answers = iter(states)
+
+        def sleep(seconds: float) -> None:
+            sleeps.append(seconds)
+            now[0] += seconds
+
+        def fetch(token: str, build: int):
+            self.assertEqual((token, build), ("TOKEN", 1354))
+            return next(answers)
+
+        with patch("sys.stdout", new_callable=io.StringIO):
+            result = release.wait_for_testing(
+                self.factory,
+                1354,
+                timeout_minutes=timeout_minutes,
+                fetch=fetch,
+                sleep=sleep,
+                clock=lambda: now[0],
+            )
+        return result, sleeps
+
+    BETA = ["Internal Beta"]
+
+    @staticmethod
+    def factory() -> str:
+        return "TOKEN"
+
+    def test_wait_mints_a_fresh_token_for_every_poll(self):
+        now = [0.0]
+        tokens = iter(f"T{n}" for n in range(100))
+        seen: list[str] = []
+        answers = iter([("PROCESSING/NONE", [])] * 12 + [("VALID/IN_BETA_TESTING", self.BETA)])
+
+        def fetch(token: str, build: int):
+            seen.append(token)
+            return next(answers)
+
+        def sleep(seconds: float) -> None:
+            now[0] += seconds
+
+        with patch("sys.stdout", new_callable=io.StringIO):
+            release.wait_for_testing(
+                lambda: next(tokens), 1354, fetch=fetch, sleep=sleep, clock=lambda: now[0]
+            )
+        self.assertGreater(now[0], 600)  # past one token's lifetime
+        self.assertEqual(seen, [f"T{n}" for n in range(13)])
+
+    def wait_with_failures(self, errors, timeout_minutes=45):
+        """Fail each scripted lookup with `errors`, then report Testing."""
+
+        now = [0.0]
+        queue = list(errors)
+
+        def fetch(token: str, build: int):
+            if queue:
+                raise queue.pop(0)
+            return "VALID/IN_BETA_TESTING", self.BETA
+
+        def sleep(seconds: float) -> None:
+            now[0] += seconds
+
+        with patch("sys.stdout", new_callable=io.StringIO):
+            return release.wait_for_testing(
+                self.factory,
+                1354,
+                timeout_minutes=timeout_minutes,
+                fetch=fetch,
+                sleep=sleep,
+                clock=lambda: now[0],
+            )
+
+    def test_wait_retries_a_transient_lookup_error(self):
+        transient = release.TransientLookupError("HTTP 503")
+        self.assertEqual(self.wait_with_failures([transient, transient]), "VALID/IN_BETA_TESTING")
+
+    def test_wait_timeout_names_the_last_lookup_error(self):
+        transient = release.TransientLookupError("HTTP 503")
+        with self.assertRaises(release.TestFlightWaitError) as raised:
+            self.wait_with_failures([transient] * 10, timeout_minutes=2)
+        self.assertIn("last lookup error: HTTP 503", str(raised.exception))
+
+    def test_wait_stops_on_a_fatal_refusal(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.wait_with_failures([RuntimeError("refused (HTTP 403)")])
+        self.assertNotIsInstance(raised.exception, release.TransientLookupError)
+
+    def lookup_error(self, error):
+        with (
+            patch.object(release.urllib.request, "urlopen", side_effect=error),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            release.build_testing_state("TOKEN", 9)
+        return raised.exception
+
+    def test_lookup_treats_network_errors_as_transient(self):
+        for error in (
+            release.urllib.error.URLError("connection reset"),
+            TimeoutError("timed out"),
+            ConnectionResetError("reset"),
+        ):
+            with self.subTest(error=error):
+                self.assertIsInstance(self.lookup_error(error), release.TransientLookupError)
+
+    def test_lookup_treats_5xx_and_429_as_transient(self):
+        for code in (429, 500, 503):
+            with self.subTest(code=code):
+                error = release.urllib.error.HTTPError(
+                    "https://api.appstoreconnect.apple.com/v1/builds",
+                    code,
+                    "x",
+                    {},
+                    io.BytesIO(b"{}"),
+                )
+                self.assertIsInstance(self.lookup_error(error), release.TransientLookupError)
+
+    def test_lookup_keeps_other_4xx_fatal_with_apples_reason(self):
+        for code in (400, 401, 403, 404):
+            with self.subTest(code=code):
+                body = {"errors": [{"code": "NOT_AUTHORIZED", "title": "No access"}]}
+                error = release.urllib.error.HTTPError(
+                    "https://api.appstoreconnect.apple.com/v1/builds",
+                    code,
+                    "x",
+                    {},
+                    io.BytesIO(json.dumps(body).encode()),
+                )
+                raised = self.lookup_error(error)
+                self.assertNotIsInstance(raised, release.TransientLookupError)
+                self.assertIn(f"HTTP {code}", str(raised))
+                self.assertIn("NOT_AUTHORIZED", str(raised))
+
+    def test_wait_succeeds_once_testing_in_internal_beta(self):
+        result, sleeps = self.wait(
+            [
+                ("NOT_LISTED", []),
+                ("PROCESSING/NONE", []),
+                ("VALID/READY_FOR_BETA_TESTING", []),
+                ("VALID/IN_BETA_TESTING", self.BETA),
+            ]
+        )
+        self.assertEqual(result, "VALID/IN_BETA_TESTING")
+        self.assertEqual(sleeps, [60, 60, 60])
+
+    def test_wait_keeps_polling_while_testing_but_not_in_internal_beta(self):
+        result, _ = self.wait(
+            [("VALID/IN_BETA_TESTING", ["External"]), ("VALID/IN_BETA_TESTING", self.BETA)]
+        )
+        self.assertEqual(result, "VALID/IN_BETA_TESTING")
+
+    def test_wait_times_out_naming_the_last_state(self):
+        with self.assertRaises(release.TestFlightWaitError) as raised:
+            self.wait([("NOT_LISTED", [])] * 10, timeout_minutes=3)
+        self.assertEqual(raised.exception.state, "NOT_LISTED")
+        self.assertIn("within 3 minutes", str(raised.exception))
+        self.assertIn("last state NOT_LISTED", str(raised.exception))
+
+    def test_wait_timeout_names_a_stuck_processing_state(self):
+        with self.assertRaises(release.TestFlightWaitError) as raised:
+            self.wait([("VALID/READY_FOR_BETA_TESTING", [])] * 10, timeout_minutes=2)
+        self.assertIn("last state VALID/READY_FOR_BETA_TESTING", str(raised.exception))
+
+    def test_wait_fails_at_once_on_each_terminal_state(self):
+        for state in (
+            "FAILED/NONE",
+            "INVALID/NONE",
+            "VALID/PROCESSING_EXCEPTION",
+            "VALID/MISSING_EXPORT_COMPLIANCE",
+            "VALID/EXPIRED",
+        ):
+            with self.subTest(state=state):
+                answers = iter([(state, []), ("VALID/IN_BETA_TESTING", self.BETA)])
+                sleeps: list[float] = []
+                with (
+                    patch("sys.stdout", new_callable=io.StringIO),
+                    self.assertRaises(release.TestFlightWaitError) as raised,
+                ):
+                    release.wait_for_testing(
+                        lambda: "TOKEN",
+                        1354,
+                        fetch=lambda _token, _build, answers=answers: next(answers),
+                        sleep=sleeps.append,
+                        clock=lambda: 0.0,
+                    )
+                self.assertEqual(raised.exception.state, state)
+                self.assertIn(state, str(raised.exception))
+                self.assertEqual(sleeps, [])
+
+    @staticmethod
+    def response(body):
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        return Response(json.dumps(body).encode())
+
+    def test_build_testing_state_reads_the_included_resources(self):
+        body = {
+            "data": [{"attributes": {"version": "1354", "processingState": "VALID"}}],
+            "included": [
+                {
+                    "type": "buildBetaDetails",
+                    "attributes": {"internalBuildState": "IN_BETA_TESTING"},
+                },
+                {"type": "betaGroups", "attributes": {"name": "Internal Beta"}},
+            ],
+        }
+        with patch.object(
+            release.urllib.request, "urlopen", return_value=self.response(body)
+        ) as urlopen:
+            state = release.build_testing_state("TOKEN", 1354)
+        self.assertEqual(state, ("VALID/IN_BETA_TESTING", ["Internal Beta"]))
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer TOKEN")
+        for part in (
+            "filter[app]=6811694290",
+            "filter[version]=1354",
+            "include=buildBetaDetail,betaGroups",
+        ):
+            self.assertIn(part, request.full_url)
+
+    def test_a_real_app_store_connect_response_reaches_testing(self):
+        """Parse a captured response, not a hand-written one.
+
+        `fixtures/asc_build_1354_testing.json` is the response to
+        `GET /v1/builds?filter[app]=6811694290&filter[version]=1354
+        &include=buildBetaDetail,betaGroups` captured on 2026-11-24 with the
+        repository's App Store Connect API key, then trimmed to the fields the
+        parser reads plus the type/id structure (no links, tokens or tester data).
+        """
+
+        fixture = json.loads(
+            (Path(__file__).parent / "fixtures" / "asc_build_1354_testing.json").read_text()
+        )
+        with patch.object(
+            release.urllib.request, "urlopen", side_effect=lambda *a, **k: self.response(fixture)
+        ):
+            self.assertEqual(
+                release.build_testing_state("TOKEN", 1354),
+                ("VALID/IN_BETA_TESTING", ["Internal Beta"]),
+            )
+            with patch("sys.stdout", new_callable=io.StringIO):
+                state = release.wait_for_testing(self.factory, 1354, sleep=lambda _: None)
+        self.assertEqual(state, "VALID/IN_BETA_TESTING")
+
+    def test_build_testing_state_reports_an_unlisted_build(self):
+        with patch.object(
+            release.urllib.request, "urlopen", return_value=self.response({"data": []})
+        ):
+            self.assertEqual(release.build_testing_state("TOKEN", 9), ("NOT_LISTED", []))
+
+    def test_build_testing_state_before_the_beta_detail_exists(self):
+        body = {"data": [{"attributes": {"processingState": "PROCESSING"}}]}
+        with patch.object(release.urllib.request, "urlopen", return_value=self.response(body)):
+            self.assertEqual(release.build_testing_state("TOKEN", 9), ("PROCESSING/NONE", []))
+
+    def test_build_testing_state_reports_a_refusal(self):
+        refusal = release.urllib.error.HTTPError(
+            "https://api.appstoreconnect.apple.com/v1/builds",
+            401,
+            "Unauthorized",
+            {},
+            io.BytesIO(b"{}"),
+        )
+        with (
+            patch.object(release.urllib.request, "urlopen", side_effect=refusal),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            release.build_testing_state("TOKEN", 9)
+        self.assertIn("HTTP 401", str(raised.exception))
+
+    def test_testflight_status_checks_an_existing_build(self):
+        runner = release.Release(self.paths, wait_minutes=7)
+        with (
+            patch.object(release, "asc_token_factory", return_value=self.factory),
+            patch.object(
+                release, "wait_for_testing", return_value="VALID/IN_BETA_TESTING"
+            ) as waited,
+            patch("sys.stdout", new_callable=io.StringIO) as out,
+        ):
+            runner.testflight_status(1354)
+        waited.assert_called_once_with(self.factory, 1354, timeout_minutes=7)
+        self.assertIn("Build 1354: VALID/IN_BETA_TESTING", out.getvalue())
+
+    def test_testflight_status_needs_a_key(self):
+        runner = release.Release(self.paths)
+        with (
+            patch.object(release, "asc_token_factory", return_value=None),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            runner.testflight_status(1354)
+        self.assertIn("ASC_KEY_PATH", str(raised.exception))
+
+    def test_main_exits_non_zero_when_the_build_never_reaches_testing(self):
+        failure = release.TestFlightWaitError("stuck", "FAILED/NONE")
+        with (
+            patch.object(release.Release, "testflight_status", side_effect=failure),
+            patch("sys.stderr", new_callable=io.StringIO),
+        ):
+            self.assertEqual(release.main(["testflight-status", "--build", "5"]), 1)
+            self.assertEqual(release.main(["testflight-status"]), 1)
 
     def test_build_orders_rust_xcodegen_and_unsigned_build(self):
         runner = release.Release(self.paths, runner=self.runner)

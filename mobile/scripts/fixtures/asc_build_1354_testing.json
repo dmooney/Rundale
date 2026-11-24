@@ -1,0 +1,48 @@
+{
+  "data": [
+    {
+      "type": "builds",
+      "id": "976f14c1-5504-4f8c-b073-7687a6fc51b3",
+      "attributes": {
+        "version": "1354",
+        "processingState": "VALID",
+        "buildAudienceType": "INTERNAL_ONLY",
+        "usesNonExemptEncryption": false
+      },
+      "relationships": {
+        "buildBetaDetail": {
+          "data": {
+            "type": "buildBetaDetails",
+            "id": "976f14c1-5504-4f8c-b073-7687a6fc51b3"
+          }
+        },
+        "betaGroups": {
+          "data": [
+            {
+              "type": "betaGroups",
+              "id": "b92a25e0-3e07-4ecf-abbe-892a9f00c914"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "type": "betaGroups",
+      "id": "b92a25e0-3e07-4ecf-abbe-892a9f00c914",
+      "attributes": {
+        "name": "Internal Beta",
+        "isInternalGroup": true
+      }
+    },
+    {
+      "type": "buildBetaDetails",
+      "id": "976f14c1-5504-4f8c-b073-7687a6fc51b3",
+      "attributes": {
+        "internalBuildState": "IN_BETA_TESTING",
+        "externalBuildState": "NOT_APPLICABLE"
+      }
+    }
+  ]
+}

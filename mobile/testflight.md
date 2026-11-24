@@ -45,9 +45,27 @@ require the configured Xcode account, local Firebase file, XcodeGen, and Rust
 toolchain described below. An unsigned local build does not require signing.
 
 An upload is not yet an installable update: Apple must finish processing it, and
-export compliance prompts may require completion in App Store Connect. The
-command reports that distinction; the releasing agent must finish the portal
-steps below and confirm **Testing** in **Internal Beta** before declaring delivery.
+export compliance prompts may require completion in App Store Connect. With an API
+key, `testflight` therefore waits after the upload, polling App Store Connect every
+minute until the build's `processingState` is `VALID`, its `internalBuildState` is
+`IN_BETA_TESTING` and it is in the **Internal Beta** group. It exits non-zero at
+once on `FAILED`, `INVALID`, `PROCESSING_EXCEPTION`, `MISSING_EXPORT_COMPLIANCE` or
+`EXPIRED`, and after 45 minutes (`--timeout MINUTES`), naming the last state seen.
+It mints a fresh API token for every poll, and retries network errors, 5xx and 429
+until the deadline; a 401, 403 or other 4xx fails at once with Apple's reason. In
+CI a failed run opens or updates a "TestFlight upload or delivery failed" issue,
+and a delivered build closes it. The receipt's
+`testingStatus` holds that state. Without a key the build number is not fixed, so
+the command says the status could not be checked and the releasing agent confirms
+it in App Store Connect. To check an existing build:
+
+```sh
+python3 mobile/scripts/release.py testflight-status --build 1354 [--timeout MINUTES]
+```
+
+It reads `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID` from the environment
+(`set -a; . ./.env; set +a` locally). A failure state needs the portal steps below
+before delivery is declared.
 
 ## Uploading from GitHub
 
@@ -58,7 +76,8 @@ with a recorded `mobile-verify` pass or the hosted smoke gate (see the
 [mobile scripts README](scripts/README.md#recorded-passes)); it tested the PR
 head's input tree, which the squash merge matches unless `main` moved under it.
 The `upload` job runs `release.py testflight --verify none` and goes straight to
-the Rust build, archive, distribution export check and upload, about 15 minutes.
+the Rust build, archive, distribution export check and upload, about 15 minutes,
+then waits for Testing (see above).
 A push that leaves every app input unchanged (its input tree equals `main`'s
 before the push, `verify_record.py tree`) uploads nothing.
 
@@ -115,8 +134,8 @@ secret. Do not let the workflow sign automatically again, and if the account
 reaches its certificate limit, list the certificates
 (`GET /v1/certificates`) and revoke only ones a runner created ("Created via
 API"), never the development certificate the owner's Mac signs with. As with a local upload,
-the run ends at "upload requested"; Apple's processing and the Internal Beta
-**Testing** status are confirmed in App Store Connect.
+the job waits for Apple's processing and the Internal Beta **Testing** status
+(its timeout leaves room for the 45-minute wait) and fails if the build does not get there.
 
 ## Reporting bugs from a beta build
 
