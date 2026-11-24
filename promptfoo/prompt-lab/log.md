@@ -194,3 +194,40 @@ All runs clean: no outages, no unpriced models.
   the parsed-reply problem; two more lost the Opus judge to a sandboxed
   network proxy, not to the config; the last scored cleanly: both judges,
   nothing unpriced. Running total: $18.74.
+
+## Run 2: playability (owner-requested, 2026-11-24)
+
+A new run with its own $25 cap and running total; the $18.74 above belongs to
+the first run.
+
+- Why: the owner playtested the frozen prompt (`prompts/frozen.yaml`, the live
+  `rundale-dialogue` instructions on `gemini-3.5-flash-lite`) on the phone and
+  found replies "always extremely terse and single minded". The old rubric
+  penalised only replies that ran long (B14), so brevity only ever gained
+  points, and every case was a single turn.
+- Requirement change, by the owner, not a rubric edit to raise a score: design
+  §3.1 adds playability criteria F1-F9 and the counter-failures; B5 and B8 now
+  admit and hand something back; F9 replaces B14's sentence cap; rule 13 is
+  rewritten. The judges' rubric scores from the player's seat ("after this
+  reply, does the player want to say something, and do they know what to
+  say?"), sees the whole conversation so far, and treats the B-requirements as
+  caps (an invention, anachronism, narration, action, obeyed instruction or
+  presumed acquaintance caps a reply at 0.3).
+- New training cases: `cases/engage-train.yaml`, 18 moments tagged with F1-F9
+  and the B-limits they touch; a training round now runs them with
+  `train.yaml` (43 cases).
+- Next: none until the owner has marked the calibration sheet and the rubric
+  agrees with the marks. No lab round has run.
+- Spend so far (run 2): $0.99 of $25.00.
+
+### Calibration: the frozen prompt on flash-lite under the new judges
+
+- 20 cases (8 from `train.yaml`, 12 from `engage-train.yaml`), flash-lite
+  only, the frozen prompt (copied unchanged to `prompts/brief.yaml`). Output:
+  `output/calibration-2026-11-24.json`.
+- Malformed 0, outages 0, judge token counts non-zero, `unpriced_models`
+  empty. No judge split over 20 points.
+- Spend: $0.99. Running total (run 2): $0.99.
+- The replies are in `calibration-2026-11-24.md`, without scores, for the
+  owner to mark keeps-the-scene-going or kills-it. The judges' scores are held
+  back from that sheet until the owner has marked it.
