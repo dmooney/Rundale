@@ -614,12 +614,9 @@ fn just_said(world: &WorldState, speaker_id: NpcId) -> Vec<SaidLine> {
 /// What `speaker_id` knows of the player from before this line: the name
 /// the player gave them, if any. The engine keeps no other per-NPC knowledge
 /// of the player yet (issue 2196).
-fn stranger_known(world: &WorldState, npc_manager: &NpcManager, speaker_id: NpcId) -> Vec<String> {
-    world
-        .player_name
-        .as_ref()
-        .map(|name| name.trim())
-        .filter(|name| !name.is_empty() && npc_manager.knows_player_name(speaker_id))
+fn stranger_known(npc_manager: &NpcManager, speaker_id: NpcId) -> Vec<String> {
+    npc_manager
+        .player_name_known_by(speaker_id)
         .map(|name| vec![format!("They told you their name is {name}.")])
         .unwrap_or_default()
 }
@@ -684,7 +681,7 @@ fn this_moment(
         weather: world.weather.to_string(),
         feast_today,
         also_here,
-        the_stranger: the_stranger(&stranger_known(world, npc_manager, speaker.id)),
+        the_stranger: the_stranger(&stranger_known(npc_manager, speaker.id)),
         how_you_came_to_answer: addressing.sentence().to_string(),
         just_said: just_said(world, speaker.id),
         notice: None,

@@ -808,7 +808,10 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     let micheal = live.id_of("Mícheál Connolly").await;
     let roisin = live.id_of("Róisín Connolly").await;
     live.world.lock().await.player_name = Some("Cormac".to_string());
-    live.npc_manager.lock().await.teach_player_name(roisin);
+    live.npc_manager
+        .lock()
+        .await
+        .teach_player_name(roisin, "Cormac");
     let world = live.world.lock().await;
     let npcs = live.npc_manager.lock().await;
     let snapshot = |speaker| {
@@ -868,6 +871,182 @@ async fn a_name_given_in_the_line_is_not_known_from_before() {
     let snapshot = dialogue_snapshot(&call);
     assert_eq!(snapshot["whatTheStrangerSays"], line);
     assert_eq!(snapshot["thisMoment"]["theStranger"], NEVER_MET);
+}
+
+/// Says `line` to `person` on the production turn path, answers the
+/// dialogue call, and returns that call's `thisMoment.theStranger`.
+async fn stranger_when_saying(
+    engine: &mut TurnEngine,
+    live: &Live,
+    endpoints: &EndpointCatalog,
+    line: &str,
+    person: &str,
+) -> String {
+    let call = first_dialogue_call(engine, live, endpoints, spoken_to(line, &[person])).await;
+    let snapshot = dialogue_snapshot(&call);
+    let step = resolve(
+        engine,
+        live,
+        endpoints,
+        &call,
+        completed(dialogue_reply("Ye're welcome here.")),
+    )
+    .await;
+    assert!(
+        matches!(step.status, TurnStatus::Completed { .. }),
+        "{:?}",
+        step.status
+    );
+    snapshot["thisMoment"]["theStranger"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn told(name: &str) -> String {
+    format!(
+        "Someone you have met before. What you know of them: They told you their name is {name}."
+    )
+}
+
+/// Each NPC knows the name the player gave *it*: telling Peig "I'm Seán"
+/// and Mícheál "I'm Tomás" sends each their own name in `theStranger`, a
+/// new introduction to Peig changes only Peig's, and a save keeps both.
+#[tokio::test]
+async fn each_speaker_knows_the_name_the_player_gave_them() {
+    let live = Live::canonical();
+    let endpoints = live.game_mod.endpoints.clone();
+    live.set_time("1820-03-20T10:00:00Z").await;
+    let mut engine = canonical_engine(&live);
+    let at_the_letter_office = || {
+        live.arrange(
+            LETTER_OFFICE,
+            &[
+                ("Peig Hannigan", LETTER_OFFICE),
+                ("Mícheál Connolly", COTTAGE),
+            ],
+        )
+    };
+    let at_the_cottage = || {
+        live.arrange(
+            COTTAGE,
+            &[
+                ("Peig Hannigan", LETTER_OFFICE),
+                ("Mícheál Connolly", COTTAGE),
+            ],
+        )
+    };
+
+    at_the_letter_office().await;
+    let first = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Good morning. I'm Seán.",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(first, NEVER_MET);
+    at_the_cottage().await;
+    let first = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "God bless the work. I'm Tomás.",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(first, NEVER_MET);
+
+    let for_micheal = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "How are the ridges?",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(for_micheal, told("Tomás"));
+    at_the_letter_office().await;
+    let for_peig = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Any letters today?",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(for_peig, told("Seán"));
+    assert_eq!(
+        live.world.lock().await.player_name.as_deref(),
+        Some("Seán"),
+        "the global name is the first one given"
+    );
+
+    // A new introduction to Peig replaces her name for the player, and
+    // only hers.
+    stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Call me Séamus, so.",
+        "Peig Hannigan",
+    )
+    .await;
+    let for_peig = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Will the post come Thursday?",
+        "Peig Hannigan",
+    )
+    .await;
+    assert_eq!(for_peig, told("Séamus"));
+    at_the_cottage().await;
+    let for_micheal = stranger_when_saying(
+        &mut engine,
+        &live,
+        &endpoints,
+        "Grand weather.",
+        "Mícheál Connolly",
+    )
+    .await;
+    assert_eq!(for_micheal, told("Tomás"));
+
+    // A save and restore keeps each NPC's own name.
+    let (peig, micheal) = (
+        live.id_of("Peig Hannigan").await,
+        live.id_of("Mícheál Connolly").await,
+    );
+    let saved = {
+        let world = live.world.lock().await;
+        let npcs = live.npc_manager.lock().await;
+        serde_json::to_string(&limerick_core::persistence::GameSnapshot::capture(
+            &world, &npcs,
+        ))
+        .unwrap()
+    };
+    let mut world = live.world.lock().await;
+    let mut npcs = live.npc_manager.lock().await;
+    serde_json::from_str::<limerick_core::persistence::GameSnapshot>(&saved)
+        .unwrap()
+        .restore(&mut world, &mut npcs);
+    for (speaker, name) in [(peig, "Séamus"), (micheal, "Tomás")] {
+        let input = serde_json::to_value(
+            dialogue_endpoint(
+                &endpoints,
+                &world,
+                &npcs,
+                speaker,
+                "Hello again.",
+                Addressing::SpokenTo,
+            )
+            .unwrap()
+            .input,
+        )
+        .unwrap();
+        assert_eq!(input["thisMoment"]["theStranger"], told(name));
+    }
 }
 
 /// Dynamic NPC context §8 row 24: an exchange with Peig in the village at
