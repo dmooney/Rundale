@@ -3642,10 +3642,17 @@ class VerificationRun:
         else:
             self._resolve_journeys()
         self._prune_previous_runs()
+        # Only a full run records a pass, so only it must prove the tree it
+        # tested is the tree it attests: take the tree before any suite runs.
+        records_pass = phase is None and not fast and not self.smoke and self.journeys != "only"
+        start_tree = self._attestation_tree() if records_pass else None
         if fast:
             self._fast()
         else:
             self._phases(phase)
+        end_tree = self._attestation_tree() if records_pass else None
+        if records_pass:
+            self._check_stable_checkout(start_tree, end_tree)
         summary = self._summary()
         report = {
             "schema_version": 1,
@@ -3692,15 +3699,40 @@ class VerificationRun:
         self._store_cached_passes(self.report_dir / "verify.json")
         # A smoke pass leaves the UI suites untested, so it never stands in
         # for a full pass.
-        if (
-            phase is None
-            and not fast
-            and not self.smoke
-            and self.journeys != "only"
-            and report["status"] == PASSED
-        ):
-            self._store_full_pass(report)
+        if records_pass and report["status"] == PASSED and end_tree is not None:
+            self._store_full_pass(report, end_tree)
         return report
+
+    def _check_stable_checkout(self, start_tree: str | None, end_tree: str | None) -> None:
+        """Fail the run when its input tree is unknown or changed while it ran.
+
+        A pass is attested to GitHub by input tree, so a `git pull`, branch
+        switch or edit during the run would otherwise store a pass for a tree
+        the suites never tested.
+        """
+
+        if start_tree is not None and start_tree == end_tree:
+            return
+        if start_tree is None or end_tree is None:
+            reason = (
+                "could not compute the input tree "
+                f"(start {start_tree}, end {end_tree}); no pass is recorded"
+            )
+        else:
+            reason = (
+                f"checkout changed during the run: input tree {start_tree} -> {end_tree}; "
+                "rerun on a stable checkout"
+            )
+        print(f"mobile-verify: FAILED: {reason}", file=sys.stderr, flush=True)
+        self._record(
+            identifier="checkout-stable",
+            name="Checkout unchanged during the run",
+            phase=4,
+            status=FAILED,
+            required=True,
+            kind="attestation",
+            reason=reason,
+        )
 
     def _attestation_tree(self) -> str | None:
         """Return the tested working tree's ATTESTATION_PATHSPECS, less the ignored paths."""
@@ -3726,12 +3758,12 @@ class VerificationRun:
             return None
         return tree_id
 
-    def _store_full_pass(self, report: Mapping[str, Any]) -> None:
-        """Note a full pass by input tree, for `verify_record.py record` to post."""
+    def _store_full_pass(self, report: Mapping[str, Any], tree: str) -> None:
+        """Note a full pass by input tree, for `verify_record.py record` to post.
 
-        tree = self._attestation_tree()
-        if tree is None:
-            return
+        `tree` is the input tree the run verified to be unchanged from start to end.
+        """
+
         passes = self.root / "mobile" / ".verification" / "passes"
         passes.mkdir(parents=True, exist_ok=True)
         (passes / f"{tree}.json").write_text(

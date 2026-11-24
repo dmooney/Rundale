@@ -161,6 +161,12 @@ combined with 6, and the full gate 15.7 and 10.1 minutes.
 
 ### Recorded passes
 
+The run takes that input tree before any suite starts and again at the end. If
+they differ (a pull, branch switch or edit mid-run) or either cannot be
+computed, the run fails with a `checkout-stable` record and stores no pass, so a
+pass is never attested for a tree the suites did not test; rerun on a stable
+checkout.
+
 A full run (`--phase all`) that passes saves
 `mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the
 tested inputs, limited to what a full run builds or reads
