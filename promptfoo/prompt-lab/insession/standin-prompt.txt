@@ -1,0 +1,7 @@
+You are standing in for a production language model. Each file below holds one separate request, exactly as an endpoint sends it to that model: the system instruction first, then the user message.
+
+{FILES}
+
+Handle them one at a time and independently, as if each were the only request you had ever seen. For each one, read it with `cat`, then decide the reply that model would give: the output JSON {"dialogue": "..."}, holding only the words spoken.
+
+When all of them are done, use the Write tool once to create {OUT} containing a single JSON object that maps each file's base name (without .txt) to its reply object, for example {"t01-greet-peig": {"dialogue": "..."}}. Read no other files and use no other tools. Your final message is just: done

@@ -163,6 +163,45 @@ class ReleaseTests(unittest.TestCase):
                 release.release_build_number(self.root, env=env, latest=lambda _: None), (42, False)
             )
 
+    def test_a_refused_build_lookup_reports_apples_reason(self):
+        body = {
+            "errors": [
+                {
+                    "status": "403",
+                    "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+                    "title": "A required agreement is missing or has expired.",
+                    "detail": "This request requires an in-effect agreement.",
+                }
+            ]
+        }
+        refusal = release.urllib.error.HTTPError(
+            release.APP_STORE_CONNECT_BUILDS_URL,
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(json.dumps(body).encode()),
+        )
+        with (
+            patch.object(release.urllib.request, "urlopen", side_effect=refusal),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            release.latest_uploaded_build("TOKEN")
+        message = str(raised.exception)
+        self.assertIn("HTTP 403", message)
+        self.assertIn("REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED", message)
+        self.assertIn("A required agreement is missing or has expired.", message)
+
+    def test_a_refusal_without_a_json_body_still_names_the_status(self):
+        refusal = release.urllib.error.HTTPError(
+            release.APP_STORE_CONNECT_BUILDS_URL, 403, "Forbidden", {}, io.BytesIO(b"<html>")
+        )
+        with (
+            patch.object(release.urllib.request, "urlopen", side_effect=refusal),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            release.latest_uploaded_build("TOKEN")
+        self.assertIn("(HTTP 403): no reason given", str(raised.exception))
+
     def test_latest_uploaded_build_takes_the_highest_number_across_pages(self):
         pages = [
             {

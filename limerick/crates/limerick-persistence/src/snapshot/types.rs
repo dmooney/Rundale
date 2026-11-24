@@ -198,9 +198,17 @@ pub struct GameSnapshot {
     /// Durable player task assignments and progression.
     #[serde(default)]
     pub player_progress: PlayerProgress,
-    /// Set of NPC ids that know the player's name.
+    /// NPC ids that know the player's name. Before save format 5 this was
+    /// the only record of who knew it, and each such NPC knew
+    /// [`Self::player_name`]. Still written (as the keys of
+    /// [`Self::player_names_by_npc`]) so an older build reads the same set;
+    /// on restore an id missing from that map falls back to `player_name`.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// The name the player gave each NPC (save format 5). Older saves have
+    /// none; see [`Self::npcs_who_know_player_name`].
+    #[serde(default)]
+    pub player_names_by_npc: BTreeMap<NpcId, String>,
     /// The person the player is talking to (dynamic NPC context design §2,
     /// §3.2). Older saves have none.
     #[serde(default)]

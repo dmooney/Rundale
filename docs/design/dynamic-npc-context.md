@@ -463,6 +463,15 @@ A snapshot is built for each speaker when that speaker's call is built. In a
 line with several speakers, each later speaker's snapshot includes the replies
 already committed.
 
+**Since issue 2299** the snapshot is sent in the frozen dialogue prompt's
+layout ([NPC dialogue prompt §7.1](npc-dialogue-prompt.md#71-how-the-game-builds-the-frozen-prompt-issue-2299)):
+the speaker, mood, people and places below become `aboutYou` and
+`theVillage`, and the present moment becomes `thisMoment` (`where`, `when`,
+`weather`, `feastToday`, `alsoHere`, `theStranger` for what the speaker knows
+of the player, `howYouCameToAnswer` for `addressing`, and `justSaid` for the
+witnessed exchanges). The rules in this section still hold; the field names
+in the table are those of the replaced v1 input.
+
 | Field                | Replaced v1                                                                                                         | Change                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | `speaker`            | Id, name, occupation, current location, **mood** (authored, static)                                                 | Adds mood                                      |

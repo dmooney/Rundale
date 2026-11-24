@@ -17,6 +17,8 @@ mod assets;
 
 pub(crate) mod discovery;
 
+pub mod dialogue_context;
+
 pub mod endpoints;
 
 pub mod manifest;
@@ -36,6 +38,9 @@ pub use types::*;
 
 // Re-export world bridge
 pub use world::world_state_from_mod;
+
+// Re-export the dialogue prompt's authored content
+pub use dialogue_context::DialogueContext;
 
 // Re-export Endpoint definition types
 pub use endpoints::{
@@ -254,9 +259,22 @@ impl GameMod {
                 .map(|rel| endpoints::load_definition(role, rel, read_text))
                 .transpose()
         };
+        // -- dialogue prompt content (optional) --------------------------------
+        let mut dialogue_context = if let Some(ref dialogue_file) = manifest.files.dialogue {
+            DialogueContext::parse(&read_json(dialogue_file)?).map_err(|e| {
+                LimerickError::Config(format!("failed to parse {dialogue_file}: {e}"))
+            })?
+        } else {
+            DialogueContext::default()
+        };
+        // Only the dialogue Endpoint's input reads it.
+        if manifest.endpoints.dialogue.is_some() {
+            dialogue_context.festivals = festivals.clone();
+        }
         let endpoints = EndpointCatalog {
             dialogue: load_endpoint(EndpointRole::Dialogue, &manifest.endpoints.dialogue)?,
             intent: load_endpoint(EndpointRole::Intent, &manifest.endpoints.intent)?,
+            dialogue_context,
         };
 
         Ok(Self {

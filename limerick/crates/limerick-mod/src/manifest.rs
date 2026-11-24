@@ -162,6 +162,11 @@ pub struct FileRefs {
     /// NPC arrival reaction templates JSON file (optional; defaults to hardcoded bank).
     #[serde(default)]
     pub reactions: Option<String>,
+    /// Authored content the NPC dialogue prompt draws on (optional): common
+    /// knowledge, villages, and each character's backstory and how they hold
+    /// their relationships. See [`crate::dialogue_context`].
+    #[serde(default)]
+    pub dialogue: Option<String>,
 }
 
 /// Relative paths to prompt template text files.

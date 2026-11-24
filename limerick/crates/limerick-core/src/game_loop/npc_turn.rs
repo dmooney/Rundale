@@ -166,6 +166,19 @@ pub async fn run_npc_turn_addressed(
         let mut npc_manager = ctx.npc_manager.lock().await;
         let config = ctx.config.lock().await;
 
+        // The Endpoint input says what the speaker knew of the player before
+        // this line (`thisMoment.theStranger`), so it is built before a name
+        // given in the line is recorded; the line itself is
+        // `whatTheStrangerSays`. Otherwise it reads the same locked state as
+        // the prompt, so both describe one world snapshot.
+        let endpoint = crate::endpoint_input::dialogue_endpoint(
+            ctx.endpoints,
+            &world,
+            &npc_manager,
+            speaker_id,
+            prompt_input,
+            addressing,
+        );
         // Detect player self-introduction before building the NPC prompt.
         crate::ipc::detect_and_record_player_name(
             &mut world,
@@ -189,16 +202,6 @@ pub async fn run_npc_turn_addressed(
             config.improv_enabled,
             &ctx.language,
             &npc_cfg,
-        );
-        // Built from the same locked state as the prompt, so both describe
-        // one world snapshot.
-        let endpoint = crate::endpoint_input::dialogue_endpoint(
-            ctx.endpoints,
-            &world,
-            &npc_manager,
-            speaker_id,
-            prompt_input,
-            addressing,
         );
         (setup, endpoint, action_narration)
     };

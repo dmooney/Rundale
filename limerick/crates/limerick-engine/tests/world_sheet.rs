@@ -38,6 +38,7 @@ struct SheetLocation {
 struct SheetNpc {
     home: String,
     knows: BTreeSet<String>,
+    village: String,
 }
 
 #[derive(Debug, Default)]
@@ -120,6 +121,7 @@ fn parse_sheet() -> Sheet {
                 match key.as_str() {
                     "home" => npc.home = value,
                     "knows" => npc.knows = parse_names(&value),
+                    "village" => npc.village = value,
                     other => panic!("unknown NPC field {other:?} under {heading}"),
                 }
             }
@@ -235,6 +237,58 @@ fn homes_and_relationships_match_the_sheet() {
             .map(|id| first_name(&manager.get(*id).expect("relationship target").name).to_string())
             .collect();
         assert_eq!(knows, expected.knows, "{} relationships", npc.name);
+    }
+}
+
+/// Each NPC's dialogue prompt describes the village the sheet names: the
+/// mod's dialogue content puts them in it, the village lists them, and it
+/// gives them a backstory and words for every relationship they have
+/// (issue 2299).
+#[test]
+fn dialogue_villages_match_the_sheet() {
+    let sheet = parse_sheet();
+    let h = harness();
+    let game_mod = limerick_core::game_mod::GameMod::load(&mod_dir()).expect("load the mod");
+    let dialogue = &game_mod.endpoints.dialogue_context;
+    for npc in h.app.npc_manager.all_npcs() {
+        let expected = &sheet.npcs[&first_name(&npc.name).to_uppercase()];
+        let character = dialogue
+            .character(npc.id.0)
+            .unwrap_or_else(|| panic!("{} has no dialogue content", npc.name));
+        assert_eq!(character.village, expected.village, "{} village", npc.name);
+        let village = dialogue
+            .village(&character.village)
+            .unwrap_or_else(|| panic!("{} is not a village", character.village));
+        assert!(
+            village.people.iter().any(|person| person.npc == npc.id.0),
+            "{} does not list {}",
+            village.name,
+            npc.name
+        );
+        assert!(!character.backstory.is_empty(), "{} backstory", npc.name);
+        let worded: BTreeSet<u32> = character
+            .relationships
+            .iter()
+            .map(|words| words.npc)
+            .collect();
+        let related: BTreeSet<u32> = npc.relationships.keys().map(|id| id.0).collect();
+        assert_eq!(worded, related, "{} relationship words", npc.name);
+    }
+    for village in &dialogue.villages {
+        let places: BTreeSet<u32> = village.places.iter().map(|place| place.location).collect();
+        let world: BTreeSet<u32> = h
+            .app
+            .world
+            .graph
+            .location_ids()
+            .iter()
+            .map(|id| id.0)
+            .collect();
+        assert!(
+            places.is_subset(&world),
+            "{} names unknown places",
+            village.name
+        );
     }
 }
 

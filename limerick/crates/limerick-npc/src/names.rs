@@ -2,29 +2,155 @@
 
 use super::*;
 
+/// A player's self-introduction found in a line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerIntroduction {
+    /// The name the player gave.
+    pub name: String,
+    /// Whether the line names the player outright ("my name is", "call
+    /// me", "the name's"), rather than with "I'm"/"I am", which also
+    /// introduces nationalities and moods ("I'm Irish", "I am Sorry").
+    pub explicit: bool,
+}
+
+/// Capitalised words that follow "I'm"/"I am" without being a name.
+///
+/// Deliberately small: a name must be capitalised, so this only needs the
+/// capitalised non-names a player plausibly types after "I'm" mid-line.
+/// "I'm X" also never replaces a name an NPC already knows (see
+/// [`PlayerIntroduction::explicit`]), which bounds what a miss costs.
+const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
+    "Irish",
+    "English",
+    "British",
+    "Scottish",
+    "Scots",
+    "Welsh",
+    "American",
+    "French",
+    "Spanish",
+    "German",
+    "Catholic",
+    "Protestant",
+    "Christian",
+    "Sorry",
+    "Fine",
+    "Grand",
+    "Glad",
+    "Afraid",
+    "Sure",
+    "Not",
+    "Just",
+    "Only",
+    "Here",
+    "Back",
+    "From",
+    "Going",
+    "Looking",
+    "Well",
+    "Tired",
+    "Lost",
+    "New",
+    "Happy",
+    "Delighted",
+    "Very",
+    "So",
+    "A",
+    "An",
+    "The",
+    "Your",
+    "His",
+    "Her",
+    "Their",
+    "Our",
+    "My",
+];
+
 /// Detects if the player is introducing themselves by name.
 ///
 /// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
-/// Returns the extracted name if found.
-pub fn detect_player_name(input: &str) -> Option<String> {
+/// Names may carry accented letters ("Seán", "Tomás", precomposed or with a
+/// combining accent) and the typographic apostrophe an iPhone keyboard
+/// types ("I’m"). Only "my name is"/"the name's" count, so someone else's
+/// name ("his name is Daniel", "Peig's name is Hannigan") is not the
+/// player's. A question whose clause ends at the name ("Why do you call me
+/// Seán?"), a refusal ("Don't call me Seán") and "I'm"/"I am" before a
+/// nationality or mood ("I'm Irish") are not introductions. Returns the
+/// first introduction found.
+pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
     use regex::Regex;
     use std::sync::LazyLock;
 
     static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
-            r"(?i)(?:my name(?:'s| is)|I'm|I am|they call me|call me|the name's|name is)\s+(?-i:([A-Z][a-zA-Z']+(?:\s+[A-Z][a-zA-Z']+)?))",
+            r"(?i)\b(?:(?:my|the)\s+name(?:['’]s|\s+is)|(?P<iam>I['’]m|I\s+am)|(?P<call>(?:they\s+)?call\s+me))\s+(?-i:(?P<name>\p{Lu}[\p{L}\p{M}'’]+(?:\s+\p{Lu}[\p{L}\p{M}'’]+)?))",
         )
         .unwrap()
     });
 
-    NAME_RE.captures(input).and_then(|caps| -> Option<String> {
-        let name = caps.get(1)?.as_str().to_string();
-        // Reject very short names (likely false positives)
-        if name.len() < 2 {
+    NAME_RE.captures_iter(input).find_map(|caps| {
+        let whole = caps.get(0)?;
+        // "Why do you call me Seán?" asks; it does not introduce. Only a
+        // question that ends the name's own clause counts: "My name is
+        // Seán, what's yours?" still introduces.
+        let rest = &input[whole.end()..];
+        if rest
+            .find(['.', ',', ';', '!', '?'])
+            .is_some_and(|at| rest[at..].starts_with('?'))
+        {
             return None;
         }
-        Some(name)
+        // "Don't call me Seán" refuses a name.
+        if caps.name("call").is_some() && negated_before(&input[..whole.start()]) {
+            return None;
+        }
+        let name = caps.name("name")?.as_str();
+        let explicit = caps.name("iam").is_none();
+        if !explicit {
+            let first = name.split_whitespace().next().unwrap_or(name);
+            if NOT_A_NAME_AFTER_I_AM.contains(&first) {
+                return None;
+            }
+        }
+        // "I'm Mícheál's neighbour" names someone else.
+        if name.ends_with("'s") || name.ends_with("’s") {
+            return None;
+        }
+        // Reject very short names (likely false positives)
+        if name.chars().count() < 2 {
+            return None;
+        }
+        Some(PlayerIntroduction {
+            name: name.to_string(),
+            explicit,
+        })
     })
+}
+
+/// Whether the last words of `before` negate what follows ("don't",
+/// "never").
+fn negated_before(before: &str) -> bool {
+    before
+        .split_whitespace()
+        .rev()
+        .take(2)
+        .map(|word| {
+            word.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '’')
+                .to_lowercase()
+                .replace('’', "'")
+        })
+        .any(|word| {
+            matches!(
+                word.as_str(),
+                "don't" | "dont" | "not" | "never" | "won't" | "can't" | "shouldn't"
+            )
+        })
+}
+
+/// The name in the player's self-introduction, if the line has one. See
+/// [`detect_player_introduction`].
+pub fn detect_player_name(input: &str) -> Option<String> {
+    detect_player_introduction(input).map(|intro| intro.name)
 }
 
 /// Returns a directive forbidding greetings that are wrong for the current time of day.

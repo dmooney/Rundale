@@ -38,7 +38,8 @@ impl GameSnapshot {
             conversation_log: world.conversation_log.clone(),
             player_name: world.player_name.clone(),
             player_progress: world.player_progress.clone(),
-            npcs_who_know_player_name: npc_manager.player_name_known_set(),
+            npcs_who_know_player_name: npc_manager.player_names_known().into_keys().collect(),
+            player_names_by_npc: npc_manager.player_names_known(),
             conversation_partner: npc_manager.partner(),
             active_session: world.active_session.clone(),
             content: world.content.clone(),
@@ -149,7 +150,7 @@ impl GameSnapshot {
         last_tier3_game_time: Option<chrono::DateTime<chrono::Utc>>,
         last_tier4_game_time: Option<chrono::DateTime<chrono::Utc>>,
         introduced_npcs: std::collections::HashSet<limerick_types::NpcId>,
-        npcs_who_know_player_name: std::collections::HashSet<limerick_types::NpcId>,
+        player_names_by_npc: std::collections::BTreeMap<limerick_types::NpcId, String>,
     ) {
         *npc_manager = limerick_npc::manager::NpcManager::new();
         for npc_snap in npcs {
@@ -165,7 +166,28 @@ impl GameSnapshot {
             npc_manager.record_tier4_tick(t);
         }
         npc_manager.restore_introduced_set(introduced_npcs);
-        npc_manager.restore_player_name_known(npcs_who_know_player_name);
+        npc_manager.restore_player_names_known(player_names_by_npc);
+    }
+
+    /// The name each NPC was told, from the snapshot's per-NPC names plus
+    /// any id only the legacy `npcs_who_know_player_name` set lists.
+    ///
+    /// A save written before format 5 kept one global name and the set of
+    /// NPCs that knew it, so each listed NPC is restored knowing that global
+    /// name: exactly what it was told under the old model's record. A listed
+    /// NPC with no global name knew nothing usable and is skipped. In a
+    /// format 5 save the set equals the map's keys, so nothing is added.
+    fn player_names_by_npc(
+        mut names: std::collections::BTreeMap<limerick_types::NpcId, String>,
+        legacy_known: &std::collections::HashSet<limerick_types::NpcId>,
+        legacy_name: Option<&str>,
+    ) -> std::collections::BTreeMap<limerick_types::NpcId, String> {
+        if let Some(name) = legacy_name.map(str::trim).filter(|name| !name.is_empty()) {
+            for id in legacy_known {
+                names.entry(*id).or_insert_with(|| name.to_string());
+            }
+        }
+        names
     }
 
     /// Restores this snapshot into live game state.
@@ -209,7 +231,11 @@ impl GameSnapshot {
             self.last_tier3_game_time,
             self.last_tier4_game_time,
             self.introduced_npcs,
-            self.npcs_who_know_player_name,
+            Self::player_names_by_npc(
+                self.player_names_by_npc,
+                &self.npcs_who_know_player_name,
+                self.player_name.as_deref(),
+            ),
         );
         // The partnership is current conversation state, saved like
         // presence (design §3.2); it ends if the partner is not with the

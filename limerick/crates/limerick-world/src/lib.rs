@@ -76,8 +76,11 @@ pub struct WorldState {
     pub gossip_network: GossipNetwork,
     /// Recent conversation exchanges for scene awareness and NPC memory.
     pub conversation_log: ConversationLog,
-    /// The player's name, learned from dialogue (e.g. "My name is Ciaran").
-    /// `None` until the player introduces themselves.
+    /// The first name the player gave anyone (e.g. "My name is Ciaran"),
+    /// for surfaces not tied to one NPC: the player's own log, status and
+    /// diagnostics. `None` until the player introduces themselves. What an
+    /// NPC calls the player is the name it was told
+    /// (`NpcManager::player_name_known_by`), never this.
     pub player_name: Option<String>,
     /// Durable task assignments and progression for the player.
     pub player_progress: PlayerProgress,

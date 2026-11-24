@@ -269,7 +269,7 @@ impl LocationLogManager {
                 if player_line.is_empty() && npc_line.is_empty() {
                     return Ok(());
                 }
-                let player_label = player_diary_label_for(world, npc_manager, *npc_id);
+                let player_label = player_diary_label_for(npc_manager, *npc_id);
                 let mut body = String::new();
                 if !player_line.is_empty() {
                     body.push_str(&format!("**{}:** {}\n", player_label, player_line));
