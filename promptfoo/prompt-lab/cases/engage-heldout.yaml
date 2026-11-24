@@ -1,11 +1,12 @@
-# Held-out engagement cases (B14 revised, B21 new): independent of train.yaml, run once at the end.
-# Written from the requirement table and content/ only, without reading the prompts or the lab logs.
-# Hand-written moments in the canonical tiny world (docs/design/npc-dialogue-prompt.md §6.3), tagged
-# with the requirements they test. `expect` and `requirements` are for the judges only.
-# `v1` is the input the v1 Endpoint would receive, for the baseline prompt.
-# Mix: four multi-turn cases that should pick up threads (e-h05 to e-h08), four fuller-answer questions
-# (e-h01 to e-h04) and two where brevity is right (e-h09, e-h10), so the set also catches chatter.
-- description: e-h01-peig-on-roisin (B1, B9, B14, B21)
+# Held-out playability cases (criteria F1 to F9, with the B-requirements that still apply): independent of
+# train.yaml, run once at the end. Written from the criteria and content/ only, without reading the prompts or
+# the lab logs. Hand-written moments in the canonical tiny world (docs/design/npc-dialogue-prompt.md §6.3).
+# `expect` and `requirements` are for the judges only. `v1` is the input the v1 Endpoint would receive.
+# Mix: four fuller-answer questions (e-h01 to e-h04), four multi-turn cases that must move the talk on
+# (e-h05 to e-h08), two where brevity is right (e-h09, e-h10), two where the player asks about someone or
+# somewhere not in the world and the character must admit it and still hand something back (e-h11, e-h12),
+# and one surly, curt reply that still offers a hook (e-h13).
+- description: e-h01-peig-on-roisin (F1, F3, F4, F8, F9, B9)
   vars:
     speaker: peig
     addressing: spoken_to
@@ -21,20 +22,26 @@
       justSaid: []
     player_line: What kind of a woman is Róisín Connolly?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B9: Feel about people. How they speak of, and to, someone follows their relationship: warm to a friend, guarded about a rival.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: A real question about a neighbour, asked of a friend, so it earns a full answer of three to
-      five sentences. Peig is fond of Róisín and trusts her; she is also sharp and keeps other people's
-      business private. A good reply gives an opinion in Peig's dry, kind voice, grounded in what she
-      plausibly knows (a friend, trusted, a Connolly of the cottage west of the village), shows she will
-      not gossip about private matters, and may turn the question back (why does the stranger ask?). A
-      miss is a one-line 'She's grand', a stock character sketch with no Peig in it, or invented facts
-      about Róisín (a husband, children, her letters' contents).
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'A real question about a neighbour, so a fuller answer (three to five sentences). Peig is
+      fond of Róisín and trusts her, and is also sharp and discreet about other people''s business. Good:
+      a judgement in Peig''s dry, kind voice with some feeling (F3, F8), built from what she can know
+      (a friend, trusted, a Connolly of the cottage west of the village, with her brother Mícheál), and
+      a door left open: she will not gossip about private matters but says what she will say, or asks
+      why the stranger wants to know (F1). Miss: ''She''s grand.'', a character reference with no Peig
+      in it, invented facts about Róisín (a husband, children, what is in her letters), or a wall of praise.'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -112,8 +119,8 @@
       weather: Overcast
   metadata:
     id: e-h01-peig-on-roisin
-    tags: B1,B9,B14,B21
-- description: e-h02-micheal-droving (B1, B8, B14, B21)
+    tags: F1,F3,F4,F8,F9,B9
+- description: e-h02-micheal-droving (F1, F3, F4, F7, F9, B1)
   vars:
     speaker: micheal
     addressing: spoken_to
@@ -129,20 +136,26 @@
       justSaid: []
     player_line: What's the droving like? Do you walk the cattle far?
     requirements: |-
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
+
       B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
 
-      B8: Keep their station. Talk about what their life and trade would teach them. For other matters, point to the neighbour who would know, or admit they don't.
-
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'A real question about his own trade. Mícheál is wary and sparing, but a question about work
-      he knows well earns two to four sentences, not a grunt. A good reply speaks from what his life taught
-      him: he drives other men''s cattle to the Roscommon fairs for a few shillings and has walked them
-      as far as Athlone, and the wet ground makes it harder this week. He may give a dry opinion of the
-      work or ask what the stranger''s interest is. A miss is ''Far enough.'' and nothing more, or a long
-      speech, or invented specifics (named buyers, exact prices, fair dates other than Whit-Monday and
-      15 December, a herd size).'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'A real question about his own trade. Mícheál is wary and sparing, so two to four sentences,
+      not a speech. Good: specifics from his life (he drives other men''s cattle to the Roscommon fairs
+      for a few shillings and has walked them as far as Athlone; the wet ground makes it hard this week)
+      with a judgement of his own (F3, F4), and a hint that there is more to tell for someone who asks
+      well, such as the heifer he hopes to have for the Whit-Monday fair, or a dry question back (F1,
+      F7). Miss: ''Far enough.'' and nothing to play off, a gush, or invented specifics (named dealers,
+      exact prices, a herd size, fair dates other than Whit-Monday and 15 December).'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -222,8 +235,8 @@
       weather: Clear
   metadata:
     id: e-h02-micheal-droving
-    tags: B1,B8,B14,B21
-- description: e-h03-roisin-name-story (B1, B3, B6, B14, B21)
+    tags: F1,F3,F4,F7,F9,B1
+- description: e-h03-roisin-name-story (F1, F3, F4, F8, F9, B3, B6)
   vars:
     speaker: roisin
     addressing: spoken_to
@@ -239,21 +252,28 @@
       justSaid: []
     player_line: What does the name Kilteevan mean? Is there a story to it?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B3: Know the village. Answer questions about its places, the ways between them, its people, their homes and work, and its stories, correctly and without hesitation.
 
       B6: Tell seen from heard. Say when something is hearsay, and don't claim to have witnessed what they could not have.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'A question about a place''s old story, so a full answer of three to five sentences. Róisín
-      knows it as the old people tell it: Cill Taobháin means Taobhán''s church, and the old people say
-      the saint kept his cell near where the road bends. A good reply gives that, marked as what the old
-      people say rather than something she witnessed, in her warm, observant voice, and may add her own
-      touch (she walks that bend, or asks whether the stranger has been along the road). A miss is a flat
-      one-line gloss, a lecture on Irish place-names, or invented lore: miracles, the saint''s dates or
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'A request for a place''s old story, so a story-length answer (three to five sentences) is
+      earned. Róisín knows it as the old people tell it: Cill Taobháin means Taobhán''s church, and the
+      old people say the saint kept his cell near where the road bends (F4). Good: she gives that marked
+      as what the old people say, not as something witnessed, with a touch of her own (she passes that
+      bend, a feeling for the place, or what she makes of the tale), and offers a next move such as asking
+      whether the stranger has walked the road or inviting them to look at the bend (F3, F8, F1). Miss:
+      a flat gloss, a lecture on Irish place-names, or invented lore: miracles, the saint''s dates or
       feast day, a well, a ruin, who built the church.'
     v1:
       addressing: spoken_to
@@ -334,8 +354,8 @@
       weather: Clear
   metadata:
     id: e-h03-roisin-name-story
-    tags: B1,B3,B6,B14,B21
-- description: e-h04-peig-bealtaine-fires (B4, B5, B13, B14, B21)
+    tags: F1,F3,F4,F8,F9,B3,B6
+- description: e-h04-peig-bealtaine-fires (F1, F3, F4, F5, F9, B4, B5, B13)
   vars:
     speaker: peig
     addressing: spoken_to
@@ -351,21 +371,30 @@
       justSaid: []
     player_line: Do they light bonfires hereabouts for Bealtaine?
     requirements: |-
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      F5: A life beyond the player. They have their own work, worries and company, without steering every line back to the player.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
+
       B4: Know the common world of §4.1 as a person of their station would, and use it naturally rather than reciting it.
 
       B5: Admit what they don't know. A person, place or thing they have never heard of is something they have never heard of. They do not invent one or send the player to one.
 
       B13: Fit the moment. Consistent with where they are, the time, the weather and the people in the room. No "fine morning" at dusk.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'A question about a coming feast; Bealtaine is 1 May, a fortnight off, the start of summer,
-      with bonfires lit on hilltops. A good reply of three to five sentences confirms the bonfires, places
-      the feast a fortnight away or thereabouts, and brings something of Peig''s own (an opinion of the
-      season, what the day means to the post and the road, a dry remark), as common knowledge of her station,
-      not a recital. A miss is ''They do.'' and stop, a history lecture, or invented local particulars:
-      named hills, who tends the fire, a custom of the parish stated as fact, a date other than 1 May.'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'A question about a coming feast. Bealtaine is 1 May, a fortnight off, the start of summer,
+      with bonfires lit on hilltops (F4, from the world as given). Good: three to five sentences confirming
+      the bonfires and the fortnight, with a view of her own about the turn of the season, and a glimpse
+      of her own life (the post and the road, the letters on the counter) without turning the answer into
+      talk about herself (F3, F5), and a way in for the stranger (F1). Miss: ''They do.'' and stop, a
+      history lecture, or invented local particulars: named hills, who tends the fire, a parish custom
+      stated as fact, a date other than 1 May.'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -441,8 +470,8 @@
       weather: Clear
   metadata:
     id: e-h04-peig-bealtaine-fires
-    tags: B4,B5,B13,B14,B21
-- description: e-h05-roisin-yarn-thread (B1, B14, B15, B21)
+    tags: F1,F3,F4,F5,F9,B4,B5,B13
+- description: e-h05-roisin-yarn-thread (F1, F3, F6, F8, F9, B15)
   vars:
     speaker: roisin
     addressing: spoken_to
@@ -471,20 +500,25 @@
         said: Ah, I'd be fit for nothing else by now.
     player_line: Is it only for the pennies you do it, or do you like the work?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F6: The talk moves. Across turns they pick up threads and move on; no circling one concern.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B15: Don't repeat. Not their own earlier lines, and not what someone else in the room just said. No needless repeat of their own name.
 
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'Third turn of an easy talk about spinning and selling. The stranger now asks something personal
-      and open, so a full answer of two to four sentences. Róisín should answer the new question (does
-      she like it) with a feeling of her own, and may take a step the talk has not: putting a few pence
-      by from every hank towards a loom of her own, or asking the stranger about their own work. She must
-      not re-explain selling the yarn or patience, which were covered, or repeat her earlier phrases.
-      A miss is a restatement of the earlier lines, a flat ''Both, I suppose'', or inventions (a price
-      in pence, a shop, a buyer by name).'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Third turn of an easy talk about spinning and selling; the stranger now asks something personal
+      and open, so two to four sentences. Good: Róisín answers the new question with a feeling of her
+      own (F8, F3) and moves the talk on (F6), for example the few pence she puts by from every hank towards
+      a loom of her own, or a question about the stranger''s own work (F1). Miss: re-explaining selling
+      the yarn or patience, repeating her earlier phrases, a flat ''Both, I suppose'', or invention (a
+      price in pence, a shop, a named buyer).'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -580,8 +614,8 @@
       weather: Clear
   metadata:
     id: e-h05-roisin-yarn-thread
-    tags: B1,B14,B15,B21
-- description: e-h06-micheal-roscommon-thread (B1, B10, B14, B15, B21)
+    tags: F1,F3,F6,F8,F9,B15
+- description: e-h06-micheal-roscommon-thread (F1, F6, F7, F8, F3, B10, B15)
   vars:
     speaker: micheal
     addressing: spoken_to
@@ -609,23 +643,29 @@
         said: From Roscommon. That's a long road in this.
     player_line: Do you get in to Roscommon much yourself?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F6: The talk moves. Across turns they pick up threads and move on; no circling one concern.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
 
       B10: Meet the stranger fresh. Never presume an earlier acquaintance, or anything about the player's looks or business, that the conversation doesn't show. Treat them as this character would; trust and suspicion grow from what is said.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
       B15: Don't repeat. Not their own earlier lines, and not what someone else in the room just said. No needless repeat of their own name.
 
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'Mícheál has been giving short answers and has circled the wet ground twice. Now the stranger
-      asks about him, and Roscommon is his trade''s road: he drives other men''s cattle to the Roscommon
-      fairs and has walked them as far as Athlone, and hopes to have a heifer of his own for the Whit-Monday
-      fair. A good reply of two to four sentences answers yes, moves the talk on from the weather, and
-      shows a little thaw (a feeling about the road or the fair, or a question back about what brings
-      the stranger this way), still in his deliberate voice. A miss is a bare ''I do.'', a third round
-      about the ground and the cattle sinking, a repeat of ''long road'', or invented detail (prices,
-      named dealers, the stranger''s business assumed).'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Mícheál has been curt and has circled the wet ground twice. Now the stranger asks about him,
+      and Roscommon is his trade''s road: he drives other men''s cattle to the Roscommon fairs, has walked
+      them as far as Athlone, and hopes for a heifer of his own for the Whit-Monday fair. Good: two to
+      four sentences that move off the weather (F6), show a small thaw because the question was a good
+      one (F7), with a feeling about the road or the fair (F8, F3), still in his deliberate voice, with
+      something to pick up (a hint of the heifer, or a wary question back about the stranger''s business)
+      (F1). Miss: a bare ''I do.'', a third round of the ground and the cattle, ''long road'' again, gushing,
+      or invented detail (prices, named dealers, the stranger''s business assumed).'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -724,8 +764,8 @@
       weather: Overcast
   metadata:
     id: e-h06-micheal-roscommon-thread
-    tags: B1,B10,B14,B15,B21
-- description: e-h07-peig-alone-thread (B1, B14, B15, B20, B21)
+    tags: F1,F6,F7,F8,F3,B10,B15
+- description: e-h07-peig-alone-thread (F1, F6, F7, F8, F9, B15, B20)
   vars:
     speaker: peig
     addressing: spoken_to
@@ -758,22 +798,29 @@
         said: It is, some days. But it's my work, and someone has to do it.
     player_line: Have you been here on your own all along?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
+      F6: The talk moves. Across turns they pick up threads and move on; no circling one concern.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B15: Don't repeat. Not their own earlier lines, and not what someone else in the room just said. No needless repeat of their own name.
 
       B20: Stay consistent. No contradicting themselves within a reply or with what they said earlier in the supplied conversation.
 
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'Eight lines in: the talk has circled the post, the horse, the mail-car and America. The stranger
-      now asks something personal. Peig has been alone since her husband died in the fever of 1818 (no
-      children). A good reply of two to four sentences takes the new thread, with a plain, dry feeling
-      and some reserve; she may say little about the loss yet not brush the stranger off, and may turn
-      it back kindly. She must not go round the mail-car, the horse or America bad news again. A miss
-      is a curt ''I have.'', a repeat of the earlier complaints, a contradiction of what she has said,
-      or inventions (the husband''s name, trade or illness, a year of marriage, a child).'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Eight lines in, the talk has circled the post, the horse, the mail-car and America. Peig
+      has been alone since her husband died in the fever of 1818 (no children). Good: two to four sentences
+      that take the new personal thread and leave the old ones (F6), with plain, dry feeling and some
+      reserve (F8), a little more offered because the stranger was kind and asked well (F7), and a way
+      for the stranger to answer, which may or may not be a question (F1). She stays consistent with her
+      earlier lines (B20). Miss: a curt ''I have.'', going round the mail-car, the horse or America again,
+      a self-pitying wall, or inventions (the husband''s name, trade or illness, a year of marriage, a
+      child).'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -876,8 +923,8 @@
       weather: Clear
   metadata:
     id: e-h07-peig-alone-thread
-    tags: B1,B14,B15,B20,B21
-- description: e-h08-roisin-brother-thread (B1, B9, B14, B15, B21)
+    tags: F1,F6,F7,F8,F9,B15,B20
+- description: e-h08-roisin-brother-thread (F1, F3, F5, F8, B9, B15)
   vars:
     speaker: roisin
     addressing: spoken_to
@@ -901,23 +948,26 @@
         said: We have. My brother and myself, and nobody else under the roof.
     player_line: Is he always so quiet, your brother?
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F3: A point of view. Something of their own beyond the literal answer: an opinion, a feeling, a judgement.
+
+      F5: A life beyond the player. They have their own work, worries and company, without steering every line back to the player.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
 
       B9: Feel about people. How they speak of, and to, someone follows their relationship: warm to a friend, guarded about a rival.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
       B15: Don't repeat. Not their own earlier lines, and not what someone else in the room just said. No needless repeat of their own name.
 
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'Evening in the one-room cottage; Mícheál is sitting by the fire and can hear. The stranger
-      asks an open question about him, so two to four sentences. Róisín is close to her brother (0.9)
-      and minds him as he minds her: a good reply is warm and a little teasing, may defend him (he has
-      carried the holding and the rent since their father died in the hunger of 1817; she nursed their
-      father and mother through the hunger and the fever), and may glance at him or invite the stranger
-      to draw him out. It must fit the night in the cottage. A miss is ''He is.'', speaking of him coldly
-      or guardedly as of a rival, repeating the lines about the fire and the wheel, or invented family
-      history beyond what is known.'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Evening in the one-room cottage; Mícheál sits by the fire and can hear. Two to four sentences.
+      Róisín is close to her brother and minds him as he minds her (F8, B9). Good: a warm, slightly teasing
+      view of him (F3), a glimpse of the household''s own life, such as the holding and the rent he took
+      on after their father died in the hunger of 1817, and she may glance at him (F5), and a way for
+      the stranger to draw him out (F1). It fits a wet night indoors. Miss: ''He is.'', speaking of him
+      as of a rival, repeating the lines about the fire and wheel, or invented family history beyond what
+      is known.'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -1009,8 +1059,8 @@
       weather: Overcast
   metadata:
     id: e-h08-roisin-brother-thread
-    tags: B1,B9,B14,B15,B21
-- description: e-h09-peig-road-greeting (B1, B13, B14, B21)
+    tags: F1,F3,F5,F8,B9,B15
+- description: e-h09-peig-road-greeting (F1, F5, F8, F9, B13)
   vars:
     speaker: peig
     addressing: spoken_to
@@ -1026,18 +1076,23 @@
       justSaid: []
     player_line: Good morning to you, missus. Cold enough.
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F5: A life beyond the player. They have their own work, worries and company, without steering every line back to the player.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B13: Fit the moment. Consistent with where they are, the time, the weather and the people in the room. No "fine morning" at dusk.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: 'Brevity is right. A bare greeting and a passing remark to a woman who is out on the road
-      watching for the post. A good reply is one or two sentences: a brisk, plain-spoken answer in Peig''s
-      voice that fits the overcast early morning and her eye on the road. A miss is a speech (the post,
-      America, the Letter Office, the Connollys), a barrage of questions at a stranger, an invented fact
-      about the weather, or a bare ''Morning.'' with no Peig in it at all.'
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Brevity is right: a bare greeting and a passing remark to a woman watching the road for the
+      post. Good: one or two sentences, brisk and plain in Peig''s voice, fitting the overcast early morning,
+      showing her own business (her eye on the road, the post she is waiting for) (F5, F8), and leaving
+      the stranger something to answer, a remark or a short question and not a speech (F1, F9). Miss:
+      a speech (the post, America, the Letter Office, the Connollys), several questions, a bare ''Morning.''
+      with no Peig and nothing to play off, or an invented fact about the weather.'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -1115,8 +1170,8 @@
       weather: Overcast
   metadata:
     id: e-h09-peig-road-greeting
-    tags: B1,B13,B14,B21
-- description: e-h10-micheal-ridges-remark (B1, B10, B14, B21)
+    tags: F1,F5,F8,F9,B13
+- description: e-h10-micheal-ridges-remark (F1, F7, F8, F9, B10)
   vars:
     speaker: micheal
     addressing: spoken_to
@@ -1132,18 +1187,23 @@
       justSaid: []
     player_line: Hard work, that.
     requirements: |-
-      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
 
       B10: Meet the stranger fresh. Never presume an earlier acquaintance, or anything about the player's looks or business, that the conversation doesn't show. Treat them as this character would; trust and suspicion grow from what is said.
 
-      B14: Fit the length to the moment. A greeting or passing remark gets a sentence or two; a real question, request for help, or invitation to talk gets a full answer, up to four or five sentences. Never a run-on or lecture. Busy, wary or quiet people say less but still answer. Too short is a miss as well as too long.
-
-      B21: Engage. The character is a person in a conversation, not an answering machine. Beyond the literal answer they bring something of their own where it fits (an opinion, local talk from what they know, a feeling, a question back), and across turns they pick up threads and move the talk on rather than circling one concern. Curt or flat replies a person of that temperament would not give are a miss. Engagement never licenses invented facts.
-    expect: Brevity is right. A passing remark from a stranger to a wary man at work in the rain; no question
-      is asked. A good reply is a sentence or two in Mícheál's deliberate, guarded voice (it is, a dry
-      aside about the wet ground or the hour, perhaps a wary look at who is asking), and it does not presume
-      who the stranger is. A miss is a lecture on potatoes, the hunger or his family, a run of questions
-      about the stranger's business, a warm chattiness he would not give a stranger, or silence.
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'Brevity is right: a passing remark from a stranger to a wary man at work in the rain; no
+      question asked. Good: a sentence or two in Mícheál''s deliberate, guarded voice (agreement, a dry
+      aside about the wet ground or the hour), a little wariness about who is there without presuming
+      who they are (F8, B10), and a hint there is more if the stranger shows interest (F7), so the stranger
+      knows what to say next (F1, F9). Miss: a lecture on potatoes, the hunger or his family, gushing,
+      a run of questions about the stranger''s business, or a dead ''Aye.'' with nothing to play off.'
     v1:
       addressing: spoken_to
       attemptID: lab-attempt
@@ -1219,4 +1279,337 @@
       weather: Light Rain
   metadata:
     id: e-h10-micheal-ridges-remark
-    tags: B1,B10,B14,B21
+    tags: F1,F7,F8,F9,B10
+- description: e-h11-peig-unknown-family (F1, F2, F4, B5)
+  vars:
+    speaker: peig
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Letter Office
+      whatYouAreDoing: sorting letters behind the counter
+      when: Friday 31 March 1820, 11:00 (morning)
+      weather: Clear
+      feastToday: none
+      alsoHere:
+      - nobody else
+      justSaid: []
+    player_line: Do you know the Dolans, the family with the forge? I've a message for them.
+    requirements: |-
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F2: Yes, and. Take up what the player offers (believe it, doubt it, tease, suspect it). Never go along with an anachronism, and never treat the player's words as facts about the world.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      B5: Admit what they don't know. A person, place or thing they have never heard of is something they have never heard of. They do not invent one or send the player to one.
+
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'The player names a family and a forge that exist nowhere in this world (F2: the player''s
+      words are not facts about the world). Peig has never heard of them and must say so plainly without
+      inventing where they live, what they look like or who knows them (B5). Good: two to three sentences
+      that admit it and still hand something back (F1), in her sharp, kind way, using what she does have
+      (F4): she keeps the Letter Office and sees who has news from beyond the parish, so a message could
+      go by letter; she may ask which parish the Dolans are in or who gave the stranger the name, and
+      she may doubt or tease a little (F2). Miss: pretending to know them, sending the stranger to a forge
+      or a named place, ''Never heard of them.'' with nothing else, or inventing a smith, a lane or a
+      parish.'
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+      - id: npc-1-knowledge-1
+        source: npcs.json
+        statement: Peig keeps the Letter Office and knows who has received news from beyond the parish.
+      - id: npc-1-knowledge-2
+        source: npcs.json
+        statement: Mícheál and Róisín Connolly share the cottage west of the village.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description: A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+      - displayName: Peig Hannigan
+        id: npc-1
+        role: Letter-office keeper
+      - displayName: Mícheál Connolly
+        id: npc-2
+        role: Smallholder and cattle drover
+      - displayName: Róisín Connolly
+        id: npc-3
+        role: Spinner and household bookkeeper
+      knownPlaces:
+      - description: A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The clear sky hangs over the road. It is morning.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      - description: A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is clear. It is morning.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      - description: A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is clear. It is morning.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Do you know the Dolans, the family with the forge? I've a message for them.
+      present: []
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 2
+        currentLocationName: Letter Office
+        displayName: Peig Hannigan
+        id: npc-1
+        mood: alert
+        role: Letter-office keeper
+      time:
+        clockTime: '11:00'
+        date: '1820-03-31'
+        partOfDay: Morning
+      weather: Clear
+  metadata:
+    id: e-h11-peig-unknown-family
+    tags: F1,F2,F4,B5
+- description: e-h12-micheal-unknown-mill (F1, F2, F4, F7, B5)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Kilteevan Village
+      whatYouAreDoing: seeing to business along the village road
+      when: Friday 31 March 1820, 14:30 (afternoon)
+      weather: Overcast
+      feastToday: none
+      alsoHere:
+      - nobody else
+      justSaid: []
+    player_line: How far is it to the mill at Ardnagrath?
+    requirements: |-
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F2: Yes, and. Take up what the player offers (believe it, doubt it, tease, suspect it). Never go along with an anachronism, and never treat the player's words as facts about the world.
+
+      F4: Specific over generic. Details from the world as given, never invented.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      B5: Admit what they don't know. A person, place or thing they have never heard of is something they have never heard of. They do not invent one or send the player to one.
+
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'The player names a place that exists nowhere in this world (F2). Mícheál has never heard
+      of it and must not invent a mill, a road, a distance or a direction (B5). Good: a short, guarded
+      reply (one to three sentences) that admits it and still hands something back (F1): what he does
+      know of the roads (he has walked cattle to the Roscommon fairs and as far as Athlone), a wary question
+      about who told the stranger of it, or a hint that Peig, who sees who comes and goes from beyond
+      the parish, might know (F4, F7). Miss: giving a distance or direction, naming landmarks on the way,
+      a bare ''Never heard of it.'' with nothing to play off, or sending the stranger to an invented person.'
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+      - id: npc-2-knowledge-1
+        source: npcs.json
+        statement: The wet ground has made moving cattle difficult this week.
+      - id: npc-2-knowledge-2
+        source: npcs.json
+        statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description: A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The overcast sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+      - displayName: Peig Hannigan
+        id: npc-1
+        role: Letter-office keeper
+      - displayName: Mícheál Connolly
+        id: npc-2
+        role: Smallholder and cattle drover
+      - displayName: Róisín Connolly
+        id: npc-3
+        role: Spinner and household bookkeeper
+      knownPlaces:
+      - description: A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The overcast sky hangs over the road. It is afternoon.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      - description: A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is overcast. It is
+          afternoon.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      - description: A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is overcast. It is afternoon.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: How far is it to the mill at Ardnagrath?
+      present: []
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 1
+        currentLocationName: Kilteevan Village
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: '14:30'
+        date: '1820-03-31'
+        partOfDay: Afternoon
+      weather: Overcast
+  metadata:
+    id: e-h12-micheal-unknown-mill
+    tags: F1,F2,F4,F7,B5
+- description: e-h13-micheal-surly-ridges (F1, F7, F8, F9, B1)
+  vars:
+    speaker: micheal
+    addressing: spoken_to
+    anachronism: false
+    moment:
+      where: Connolly Cottage
+      whatYouAreDoing: working the potato ridges behind the cottage
+      when: Monday 27 March 1820, 06:30 (morning)
+      weather: Light Rain
+      feastToday: none
+      alsoHere:
+      - nobody else
+      justSaid: []
+    player_line: Any chance of a word, friend? I'd like to hear how the farm is run.
+    requirements: |-
+      F1: Leave a door open. Every reply gives the player a next move; a "no" comes with a "but" (what they do know, an opinion, someone in the request who might know, a question back). Curtness is fine if the grumpiness is itself something to play off.
+
+      F7: Reward curiosity. A good follow-up earns more than the first answer; wary characters hint there is more to tell.
+
+      F8: React with feeling. They are glad, wary, amused, stung or sorry, as this person would be.
+
+      F9: Earn its length. A quip is short, a story longer; no padding, never a wall.
+
+      B1: Be the character. Speak as this person, in their own voice, shaped by their age, temperament, work and mood. Two characters asked the same question sound different.
+
+      Judging question: after this reply, does the player want to say something, and know what to say? Also misses: dumping everything unprompted, every reply ending in a question, a wary or busy character gushing, and invention passed off as engagement.
+    expect: 'A stranger interrupts a wary man in the rain, early, in the middle of the planting. Surliness
+      is right here and brevity is right: one or two short, gruff sentences in Mícheál''s slow-to-trust
+      voice. Good: the grumpiness is itself something to play off (F8), and it still offers a hook (F1,
+      F7): he cannot stop, but says what he would answer if the stranger walked the ridges with him, or
+      points to Róisín or to a later hour, or asks flatly what the stranger wants. It does not presume
+      who the stranger is. Miss: a warm, chatty tour of the holding (a wary man gushing), a dead ''No.''
+      with nothing to play off, invented farm details (acreage, rent, a number of beasts), or a string
+      of questions (F9).'
+    v1:
+      addressing: spoken_to
+      attemptID: lab-attempt
+      authoredFacts:
+      - id: npc-2-knowledge-1
+        source: npcs.json
+        statement: The wet ground has made moving cattle difficult this week.
+      - id: npc-2-knowledge-2
+        source: npcs.json
+        statement: Róisín is Mícheál's sister and manages the household accounts.
+      baseRevision:
+        rawValue: 0
+      contractVersion:
+        major: 1
+        minor: 0
+      currentLocation:
+        description: A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is rainy. It is morning.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      festival: null
+      idempotencyKey: lab-logical-request:lab-attempt
+      knownPeople:
+      - displayName: Peig Hannigan
+        id: npc-1
+        role: Letter-office keeper
+      - displayName: Mícheál Connolly
+        id: npc-2
+        role: Smallholder and cattle drover
+      - displayName: Róisín Connolly
+        id: npc-3
+        role: Spinner and household bookkeeper
+      knownPlaces:
+      - description: A muddy road runs between low stone walls and a handful of whitewashed cottages.
+          Smoke lifts from the clustered roofs. A lane leads east to the Letter Office and a rutted boreen
+          runs west to Connolly Cottage. The rainy sky hangs over the road. It is morning.
+        displayName: Kilteevan Village
+        id: place-1
+        playable: true
+      - description: A narrow counter, pigeonholes of folded paper, and a small turf fire. The room smells
+          of sealing wax, turf smoke, and damp wool. Through the window the weather is rainy. It is morning.
+        displayName: Letter Office
+        id: place-2
+        playable: true
+      - description: A peat fire warms the single room. A scrubbed table, a spinning wheel by the hearth,
+          and rain-dark coats by the door. Outside the weather is rainy. It is morning.
+        displayName: Connolly Cottage
+        id: place-3
+        playable: true
+      logicalRequestID: lab-logical-request
+      maxOutputChars: 8192
+      maxStreamBytes: 16384
+      player:
+        knowsName: false
+        name: null
+      playerInput: Any chance of a word, friend? I'd like to hear how the farm is run.
+      present: []
+      recentConversation: []
+      role: npc_dialogue
+      sessionID: lab-session
+      speaker:
+        currentLocationId: 3
+        currentLocationName: Connolly Cottage
+        displayName: Mícheál Connolly
+        id: npc-2
+        mood: wary
+        role: Smallholder and cattle drover
+      time:
+        clockTime: 06:30
+        date: '1820-03-27'
+        partOfDay: Morning
+      weather: Light Rain
+  metadata:
+    id: e-h13-micheal-surly-ridges
+    tags: F1,F7,F8,F9,B1
