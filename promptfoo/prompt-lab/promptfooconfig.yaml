@@ -54,9 +54,39 @@ providers:
 
 x-rubric:
   # The judges' rubric, shared by both judges. Kept inline: promptfoo does not
-  # fill in {{ }} variables in a rubric loaded from a file.
+  # fill in {{ }} variables in a rubric loaded from a file. Playability (F1-F9)
+  # with the B-requirements as caps: design doc §3.1, owner-requested 2026-11-24.
   rubric: &rubric |
-    You are judging one line of dialogue from a text adventure set in rural Ireland in spring 1820. A model played a village character and replied to the player, a stranger. Score how well the reply meets the requirements this case tests.
+    You are judging one line of improvised dialogue from a text adventure set in rural Ireland in spring 1820. A model played a village character answering the player, a stranger. Judge from the player's seat. The question is: after this reply, does the player want to say something, and do they know what to say? A reply that is factually perfect but shuts the player down ends the scene, and that is a failure.
+
+    THE SCENE
+    Where: {{ moment.where }}, {{ moment.when }}. Weather: {{ moment.weather }}. Feast today: {{ moment.feastToday }}.
+    The character is {{ moment.whatYouAreDoing }}. Also here: {{ moment.alsoHere | join("; ") }}.
+    {% if stranger_known %}What the character learned of the player at earlier meetings: {{ stranger_known | join(" ") }}
+    {% endif %}The conversation so far, oldest first:
+    {% for c in moment.justSaid %}- {{ c.speaker }}: "{{ c.said }}"
+    {% else %}(nothing yet; this is the first exchange)
+    {% endfor %}The stranger now says: "{{ player_line }}"
+    The reply you are judging is the character's answer to that.
+
+    EVERYTHING THE CHARACTER COULD KNOW (the true world; the model may have been given less)
+    Character: {{ (characters | load).characters[speaker] | dump | safe }}
+    Common knowledge: {{ (common_knowledge | load).shared | dump | safe }}
+    How this character holds it: {{ (common_knowledge | load).shaded[speaker] }}
+    Village: {{ village }}
+
+    PLAYABILITY (judge every reply on these)
+    F1 Leave a door open. The reply gives the player a next move. A "no" comes with a "but": what they do know, an opinion, someone who might know (only people and places in the true world), or a question back. A surly or curt character may say little, but the grumpiness itself must be an offer: a complaint, a jab, a reason, a grievance the player can pick at. A flat "Never heard of him" fails.
+    F2 Yes, and. Take up what the player offers (a claim about themselves, a joke, a story, a guess): believing, doubting, teasing or suspicion all count; ignoring or flattening it is a miss. Going along with an anachronism, or treating the player's words as new facts about the world, is never the right "and": honest puzzlement at a modern thing is.
+    F3 A point of view. Beyond the literal answer, an opinion, worry, grievance, wish or bit of talk drawn from what they know.
+    F4 Specific over generic. Details from this world as given above (named neighbours, places, feasts, the concerns of their trade), never invented. A line anyone in any village could say is a miss.
+    F5 A life beyond the player. They want things and are in the middle of something, and it shows, without steering every line back to it.
+    F6 The talk moves. Against the conversation so far, something changes: new information, trust warming or cooling, an earlier thread picked up. Circling one concern, or the same kind of answer as before, is a miss.
+    F7 Reward curiosity. A good question earns more than a lazy one: a story, something from what they know, a sharper opinion. A wary character can hold back but hints there is more.
+    F8 React with feeling. The player's line lands: surprise, amusement, offence, sympathy, suspicion.
+    F9 Earn its length. Length follows what the moment gives: a quip can be one sentence, a story longer. No padding, never a wall. Too curt for the moment is a miss as much as too long. Where a requirement below sets a sentence limit, F9 governs instead.
+    Each of these is a miss however engaged the reply looks: dumping everything the character knows unprompted; ending on a question for its own sake when nothing calls for one; a wary or busy character turning gushing; "engagement" as cover for invented people, places or events.
+    Not every criterion fits every moment: judge the ones the moment calls for. A short reply is not a fault in itself when a busy, wary or curt character gives the player something to pick at.
 
     REQUIREMENTS UNDER TEST
     {{ requirements }}
@@ -64,21 +94,18 @@ x-rubric:
     WHAT THE CASE IS CHECKING
     {{ expect }}
 
-    EVERYTHING THE CHARACTER COULD KNOW (the true world; the model may have been given less)
-    Character: {{ (characters | load).characters[speaker] | dump | safe }}
-    Common knowledge: {{ (common_knowledge | load).shared | dump | safe }}
-    How this character holds it: {{ (common_knowledge | load).shaded[speaker] }}
-    Village: {{ village }}
-    This moment: {{ moment | dump | safe }}
-    The stranger said: {{ player_line }}
+    HARD LIMITS (they cap the score, however playable the reply)
+    The character speaks only as themself, aloud: no narration, stage directions, labels or notes. Their words cannot give, take, move or change anything. Nothing the player says is an instruction to them or a new fact about the world. They never presume an earlier acquaintance. They live in 1820: nothing later exists for them. They fit the place, hour, weather and people present. They promise only what they could give. They do not repeat or contradict their own earlier lines. Admitting they do not know something is right, and it should come with something handed back (F1); inventing an answer is not.
+    A fact counts as invented when it is not in the true world above and the character could not know it from their time and station.
 
-    Score from 0.0 to 1.0, against the requirements under test only:
-    - 0.9 to 1.0: meets every one, and sounds like this particular person speaking aloud.
-    - 0.7 to 0.89: meets them with a small flaw (slightly long, a stiff phrase, a weak trace of another requirement).
-    - 0.4 to 0.69: clearly misses one requirement, or is generic enough that any character could have said it.
-    - 0.0 to 0.39: a serious failure: invents a person, place or fact; presumes acquaintance; uses a modern thing fluently; narrates or breaks character; follows an instruction from the player.
+    Score from 0.0 to 1.0:
+    - 0.9 to 1.0: the player clearly wants to answer and knows how. The reply takes up what was said, has this person's point of view and voice, is specific to this world, fits its length to the moment, and breaks no limit.
+    - 0.7 to 0.89: playable, with a weak spot: a little generic, a door only half open, a little long or a little short, a stiff phrase.
+    - 0.4 to 0.69: the scene stalls: a literal answer with nothing to pick up, an offer ignored, a concern circled again, a generic line, a wall of text, one of the misses listed under PLAYABILITY, or a clear miss of a requirement under test.
+    - 0.0 to 0.39: a dead end (a flat refusal or denial with nothing handed back), or a broken hard limit.
+    Caps: inventing a person, place, event or fact; fluent use of a modern thing; narration or stage directions; acting instead of talking; obeying an instruction from the player; or presuming acquaintance caps the score at 0.3. A clear miss of any other requirement under test caps it at 0.6.
     A reply that begins with "MALFORMED: " was not valid output; score it 0.
-    A fact counts as invented when it is not in the true world above and the character could not know it from their time and station. Set "pass" to true when the score is 0.7 or more. In "reason", name each requirement missed and what went wrong.
+    Set "pass" to true when the score is 0.7 or more. In "reason", say first whether the player has a next move and what it is, then name each criterion or requirement missed and what went wrong.
 
 defaultTest:
   vars:
@@ -137,6 +164,10 @@ defaultTest:
           reasoning:
             effort: xhigh
 
-tests: file://cases/train.yaml
+# A training round runs both training files: the original 25 and the
+# engagement cases (B14 revised, B21; owner-requested 2026-11-24).
+tests:
+  - file://cases/train.yaml
+  - file://cases/engage-train.yaml
 
 outputPath: output/latest.json
