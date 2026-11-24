@@ -2,31 +2,121 @@
 
 use super::*;
 
+/// A player's self-introduction found in a line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerIntroduction {
+    /// The name the player gave.
+    pub name: String,
+    /// Whether the line names the player outright ("my name is", "call
+    /// me", "the name's"), rather than with "I'm"/"I am", which also
+    /// introduces nationalities and moods ("I'm Irish", "I am Sorry").
+    pub explicit: bool,
+}
+
+/// Capitalised words that follow "I'm"/"I am" without being a name.
+const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
+    "Irish",
+    "English",
+    "British",
+    "Scottish",
+    "Scots",
+    "Welsh",
+    "American",
+    "French",
+    "Spanish",
+    "German",
+    "Catholic",
+    "Protestant",
+    "Christian",
+    "Sorry",
+    "Fine",
+    "Grand",
+    "Glad",
+    "Afraid",
+    "Sure",
+    "Not",
+    "Just",
+    "Only",
+    "Here",
+    "Back",
+    "From",
+    "Going",
+    "Looking",
+    "Well",
+    "Tired",
+    "Lost",
+    "New",
+    "Happy",
+    "Delighted",
+    "Very",
+    "So",
+    "A",
+    "An",
+    "The",
+    "Your",
+    "His",
+    "Her",
+    "Their",
+    "Our",
+    "My",
+    "Mr",
+    "Mrs",
+    "Miss",
+];
+
 /// Detects if the player is introducing themselves by name.
 ///
 /// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
-/// Names may carry accented letters ("Seán", "Tomás") and the typographic
-/// apostrophe an iPhone keyboard types ("I’m"). Returns the extracted name
-/// if found.
-pub fn detect_player_name(input: &str) -> Option<String> {
+/// Names may carry accented letters ("Seán", "Tomás", precomposed or with a
+/// combining accent) and the typographic apostrophe an iPhone keyboard
+/// types ("I’m"). Someone else's name ("his name is Daniel") is not the
+/// player's, and "I'm"/"I am" before a nationality or mood ("I'm Irish")
+/// is not a name. Returns the first introduction found.
+pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
     use regex::Regex;
     use std::sync::LazyLock;
 
     static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
-            r"(?i)(?:my name(?:['’]s| is)|I['’]m|I am|they call me|call me|the name['’]s|name is)\s+(?-i:(\p{Lu}[\p{L}'’]+(?:\s+\p{Lu}[\p{L}'’]+)?))",
+            r"(?i)\b(?:(?:(?P<owner>my|the|his|her|their|your|whose|its)\s+)?name(?:['’]s|\s+is)|(?P<iam>I['’]m|I\s+am)|(?:they\s+)?call\s+me)\s+(?-i:(?P<name>\p{Lu}[\p{L}\p{M}'’]+(?:\s+\p{Lu}[\p{L}\p{M}'’]+)?))",
         )
         .unwrap()
     });
 
-    NAME_RE.captures(input).and_then(|caps| -> Option<String> {
-        let name = caps.get(1)?.as_str().to_string();
-        // Reject very short names (likely false positives)
-        if name.len() < 2 {
+    NAME_RE.captures_iter(input).find_map(|caps| {
+        if let Some(owner) = caps.name("owner") {
+            let owner = owner.as_str().to_lowercase();
+            if owner != "my" && owner != "the" {
+                return None;
+            }
+        }
+        let name = caps.name("name")?.as_str();
+        let explicit = caps.name("iam").is_none();
+        if !explicit {
+            let first = name.split_whitespace().next().unwrap_or(name);
+            if NOT_A_NAME_AFTER_I_AM.contains(&first) {
+                return None;
+            }
+        }
+        // "I'm Mícheál's neighbour" names someone else.
+        if name.ends_with("'s") || name.ends_with("’s") {
             return None;
         }
-        Some(name)
+        // Reject very short names (likely false positives)
+        if name.chars().count() < 2 {
+            return None;
+        }
+        Some(PlayerIntroduction {
+            name: name.to_string(),
+            explicit,
+        })
     })
+}
+
+/// The name in the player's self-introduction, if the line has one. See
+/// [`detect_player_introduction`].
+pub fn detect_player_name(input: &str) -> Option<String> {
+    detect_player_introduction(input).map(|intro| intro.name)
 }
 
 /// Returns a directive forbidding greetings that are wrong for the current time of day.

@@ -263,6 +263,54 @@ fn test_detect_player_name_keeps_accented_letters() {
 }
 
 #[test]
+fn test_detect_player_name_keeps_a_combining_accent() {
+    assert_eq!(
+        detect_player_name("I'm Se\u{301}an"),
+        Some("Se\u{301}an".to_string())
+    );
+}
+
+#[test]
+fn test_detect_player_name_ignores_someone_elses_name() {
+    assert_eq!(detect_player_name("His name is Daniel O'Connell."), None);
+    assert_eq!(
+        detect_player_name("What is her name? Her name is Nora."),
+        None
+    );
+    assert_eq!(
+        detect_player_name("Their name is Hogan, and my name is Cormac."),
+        Some("Cormac".to_string())
+    );
+    assert_eq!(
+        detect_player_name("The name's Brennan."),
+        Some("Brennan".to_string())
+    );
+}
+
+#[test]
+fn test_detect_player_name_ignores_nationalities_and_moods() {
+    assert_eq!(detect_player_name("I'm Irish, born and bred."), None);
+    assert_eq!(detect_player_name("I am Sorry for your trouble."), None);
+    assert_eq!(detect_player_name("I'm Mícheál's neighbour."), None);
+}
+
+#[test]
+fn test_detect_player_introduction_marks_outright_names() {
+    let im = detect_player_introduction("I'm Seán").unwrap();
+    assert!(!im.explicit);
+    for line in [
+        "My name is Seán",
+        "Call me Seán",
+        "They call me Seán",
+        "The name's Seán",
+    ] {
+        let intro = detect_player_introduction(line).unwrap();
+        assert_eq!(intro.name, "Seán", "{line}");
+        assert!(intro.explicit, "{line}");
+    }
+}
+
+#[test]
 fn test_detect_player_name_no_match() {
     assert_eq!(detect_player_name("hello there"), None);
     assert_eq!(detect_player_name("what is your name?"), None);
