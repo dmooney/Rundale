@@ -246,12 +246,23 @@ class FakeRunner:
         }
 
 
-def write_codecov(root: Path, command: tuple[str, ...], percent: float) -> None:
+CODECOV_LAYOUTS = (
+    ("arm64-apple-macosx", "debug", "codecov"),  # SwiftPM before Xcode 27
+    ("out", "Products", "Debug", "codecov"),  # Xcode 27
+)
+
+
+def write_codecov(
+    root: Path,
+    command: tuple[str, ...],
+    percent: float,
+    layout: tuple[str, ...] = CODECOV_LAYOUTS[0],
+) -> None:
     """Write the llvm-cov export `swift test --enable-code-coverage` leaves behind."""
 
     package = root / command[command.index("--package-path") + 1]
     scratch = root / command[command.index("--scratch-path") + 1]
-    report = scratch / "arm64-apple-macosx" / "debug" / "codecov" / f"{package.name}.json"
+    report = scratch.joinpath(*layout) / f"{package.name}.json"
     report.parent.mkdir(parents=True, exist_ok=True)
     files = [
         {
@@ -336,6 +347,12 @@ def create_phase2_fixture(root: Path) -> None:
 
 
 class VerificationRunnerTests(unittest.TestCase):
+    def setUp(self):
+        # The fixtures are not repositories; a stable attested tree stands in.
+        patcher = patch.object(VerificationRun, "_attestation_tree", return_value="c" * 40)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_build_identity_uses_app_not_runner_or_dependency_plist(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1050,6 +1067,75 @@ class VerificationRunnerTests(unittest.TestCase):
                 report = VerificationRun(root, command_runner=FakeRunner()).run()
             self.assertEqual(report["exit_code"], 0)
             store.assert_called_once()
+
+    def test_package_coverage_is_found_in_either_swiftpm_layout_and_reports_none(self):
+        run = VerificationRun(Path("/tmp/rundale-test"))
+        for layout in CODECOV_LAYOUTS:
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                package = root / "mobile" / "RundaleKit"
+                command = (
+                    "swift",
+                    "test",
+                    "--package-path",
+                    "mobile/RundaleKit",
+                    "--scratch-path",
+                    "scratch",
+                )
+                write_codecov(root, command, 80.0, layout)
+                run.root = root
+                result = run._package_line_coverage(root / "scratch", package)
+                self.assertIsInstance(result, dict)
+                self.assertEqual(result["percent"], 80.0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scratch" / "out" / "codecov").mkdir(parents=True)
+            run.root = root
+            result = run._package_line_coverage(root / "scratch", root / "mobile" / "RundaleKit")
+            self.assertIn("wrote no coverage report", result)
+
+    def _full_run_with_trees(self, trees):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            with patch.object(VerificationRun, "_attestation_tree", side_effect=trees):
+                report = VerificationRun(root, command_runner=FakeRunner()).run()
+            passes = sorted(
+                path.name for path in (root / "mobile" / ".verification" / "passes").glob("*.json")
+            )
+            return report, passes
+
+    def test_a_stable_tree_stores_the_pass_under_that_tree(self):
+        report, passes = self._full_run_with_trees(["d" * 40, "d" * 40])
+        self.assertEqual(report["exit_code"], 0)
+        self.assertEqual(passes, [f"{'d' * 40}.json"])
+
+    def test_a_tree_that_changes_mid_run_stores_no_pass_and_fails_with_the_reason(self):
+        report, passes = self._full_run_with_trees(["d" * 40, "e" * 40])
+        self.assertEqual(passes, [])
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["exit_code"], 1)
+        record = {suite["id"]: suite for suite in report["suites"]}["checkout-stable"]
+        self.assertIn(f"input tree {'d' * 40} -> {'e' * 40}", record["reason"])
+        self.assertIn("rerun on a stable checkout", record["reason"])
+
+    def test_an_unknown_tree_stores_no_pass_and_fails(self):
+        for trees in ([None, "d" * 40], ["d" * 40, None]):
+            with self.subTest(trees=trees):
+                report, passes = self._full_run_with_trees(trees)
+                self.assertEqual(passes, [])
+                self.assertEqual(report["exit_code"], 1)
+                ids = {suite["id"]: suite for suite in report["suites"]}
+                self.assertIn("could not compute", ids["checkout-stable"]["reason"])
+
+    def test_a_non_recording_run_does_not_take_the_attestation_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            with patch.object(VerificationRun, "_attestation_tree") as tree:
+                report = VerificationRun(root, command_runner=FakeRunner(), smoke=True).run()
+            tree.assert_not_called()
+            self.assertEqual(report["exit_code"], 0)
 
     SAMPLE_TIME_SENSITIVE = (
         "RundaleTests/Phase1AuditVolumeTests/testThousandRowsRenderAndReachBothEndsWithinBudget",
@@ -2365,6 +2451,33 @@ class VerificationCacheTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
             summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
             self.assertIn("8 passed suite(s) reused", summary)
+
+    def test_a_checkout_that_changes_mid_run_writes_no_cache_entries(self):
+        class ChangingRunner(GitBackedRunner):
+            def __init__(self, root):
+                super().__init__()
+                self.root = root
+                self.changed = False
+
+            def run(self, argv, *, cwd, env=None, timeout_seconds=None):
+                suite = argv[0] != "git" and (
+                    argv[:2] == ("swift", "test")
+                    or argv[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test")
+                    or (argv[0] == "xcodebuild" and argv[-1] in {"test", "build"})
+                )
+                if suite and not self.changed:
+                    self.changed = True
+                    (self.root / "mobile" / "Midrun.swift").write_text("let x = 1\n")
+                return super().run(argv, cwd=cwd, env=env, timeout_seconds=timeout_seconds)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            fake = ChangingRunner(root)
+            VerificationRun(root, command_runner=fake).run(2)
+            self.assertTrue(fake.changed)
+            cache = root / "mobile" / ".verification" / "cache"
+            self.assertEqual(list(cache.glob("*.json")) if cache.exists() else [], [])
 
     def test_full_run_reuses_combined_simulator_passes_per_suite(self):
         with tempfile.TemporaryDirectory() as directory:

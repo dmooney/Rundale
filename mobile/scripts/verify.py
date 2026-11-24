@@ -1416,6 +1416,24 @@ class VerificationRun:
             reason=reason,
         )
 
+    def _fresh_content_key(self) -> str | None:
+        """Recompute the content key now, bypassing and leaving the run's memoized key."""
+
+        saved = (
+            self._content_key_value,
+            self._content_key_reason,
+            self._content_key_computed,
+        )
+        self._content_key_computed = False
+        try:
+            return self._content_key()
+        finally:
+            (
+                self._content_key_value,
+                self._content_key_reason,
+                self._content_key_computed,
+            ) = saved
+
     def _content_key(self) -> str | None:
         """Hash every input that can change a suite's result, or None.
 
@@ -1651,10 +1669,12 @@ class VerificationRun:
     def _package_line_coverage(self, scratch: Path, package_path: Path) -> dict[str, Any] | str:
         """Sum `swift test` line coverage over the package's own Sources."""
 
+        # SwiftPM moved the report between releases: older toolchains write
+        # `<scratch>/<triple>/debug/codecov/<Package>.json`, Xcode 27 writes
+        # `<scratch>/out/Products/Debug/codecov/<Package>.json`. Search by
+        # the `codecov` folder rather than pinning either layout.
         reports = sorted(
-            path
-            for path in scratch.glob("*/debug/codecov/*.json")
-            if path.stem == package_path.name
+            path for path in scratch.rglob("codecov/*.json") if path.stem == package_path.name
         )
         if not reports:
             return f"swift test wrote no coverage report under {_relative(scratch, self.root)}"
@@ -3642,10 +3662,40 @@ class VerificationRun:
         else:
             self._resolve_journeys()
         self._prune_previous_runs()
+        # Only a full run records a pass, so only it must prove the tree it
+        # tested is the tree it attests: take the tree before any suite runs.
+        records_pass = phase is None and not fast and not self.smoke and self.journeys != "only"
+        start_tree = self._attestation_tree() if records_pass else None
         if fast:
             self._fast()
         else:
             self._phases(phase)
+        end_tree = self._attestation_tree() if records_pass else None
+        stable = self._check_stable_checkout(start_tree, end_tree) if records_pass else True
+        # Cache entries are keyed by the content key memoized at the first
+        # suite, so a checkout that moved since then would file results under
+        # inputs they never ran on (phase-limited runs fill the same cache).
+        # This gates the cache only. A full run whose attested tree is stable
+        # but whose content key moved (a change outside the attested paths, or
+        # a toolchain change) still stores its full pass: that pass is keyed on
+        # the attested paths alone.
+        if not fast and self._content_key_computed and self._content_key_value is not None:
+            fresh = self._fresh_content_key()
+            if fresh is None:
+                stable = False
+                print(
+                    "mobile-verify: could not recompute the cache key at the end of the run; "
+                    "no suite result is cached",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            elif fresh != self._content_key_value:
+                stable = False
+                print(
+                    "mobile-verify: the checkout changed during the run; no suite result is cached",
+                    file=sys.stderr,
+                    flush=True,
+                )
         summary = self._summary()
         report = {
             "schema_version": 1,
@@ -3689,18 +3739,49 @@ class VerificationRun:
             "suites": self.records,
         }
         self._write_reports(report)
-        self._store_cached_passes(self.report_dir / "verify.json")
+        if stable:
+            self._store_cached_passes(self.report_dir / "verify.json")
         # A smoke pass leaves the UI suites untested, so it never stands in
         # for a full pass.
-        if (
-            phase is None
-            and not fast
-            and not self.smoke
-            and self.journeys != "only"
-            and report["status"] == PASSED
-        ):
-            self._store_full_pass(report)
+        if records_pass and report["status"] == PASSED and end_tree is not None:
+            self._store_full_pass(report, end_tree)
         return report
+
+    def _check_stable_checkout(self, start_tree: str | None, end_tree: str | None) -> bool:
+        """Fail the run when its input tree is unknown or changed while it ran.
+
+        A pass is attested to GitHub by input tree, so a `git pull`, branch
+        switch or edit during the run would otherwise store a pass for a tree
+        the suites never tested. Returns whether the checkout was stable. It
+        compares only the start and the end, so a change that is reverted
+        before the run ends is not seen.
+        """
+
+        if start_tree is not None and start_tree == end_tree:
+            return True
+        if start_tree is None or end_tree is None:
+            reason = (
+                "could not compute the input tree "
+                f"(start {start_tree}, end {end_tree}); no pass is recorded"
+            )
+        else:
+            reason = (
+                f"checkout changed during the run: input tree {start_tree} -> {end_tree}; "
+                "rerun on a stable checkout"
+            )
+        print(f"mobile-verify: FAILED: {reason}", file=sys.stderr, flush=True)
+        self._record(
+            identifier="checkout-stable",
+            name="Checkout unchanged during the run",
+            # The phase only labels the JUnit class; this gate spans every
+            # phase, so it takes the last one, where the full run's gates end.
+            phase=LAST_PHASE,
+            status=FAILED,
+            required=True,
+            kind="attestation",
+            reason=reason,
+        )
+        return False
 
     def _attestation_tree(self) -> str | None:
         """Return the tested working tree's ATTESTATION_PATHSPECS, less the ignored paths."""
@@ -3726,12 +3807,12 @@ class VerificationRun:
             return None
         return tree_id
 
-    def _store_full_pass(self, report: Mapping[str, Any]) -> None:
-        """Note a full pass by input tree, for `verify_record.py record` to post."""
+    def _store_full_pass(self, report: Mapping[str, Any], tree: str) -> None:
+        """Note a full pass by input tree, for `verify_record.py record` to post.
 
-        tree = self._attestation_tree()
-        if tree is None:
-            return
+        `tree` is the input tree the run verified to be unchanged from start to end.
+        """
+
         passes = self.root / "mobile" / ".verification" / "passes"
         passes.mkdir(parents=True, exist_ok=True)
         (passes / f"{tree}.json").write_text(
