@@ -5,14 +5,16 @@ use super::*;
 /// Detects if the player is introducing themselves by name.
 ///
 /// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
-/// Returns the extracted name if found.
+/// Names may carry accented letters ("Seán", "Tomás") and the typographic
+/// apostrophe an iPhone keyboard types ("I’m"). Returns the extracted name
+/// if found.
 pub fn detect_player_name(input: &str) -> Option<String> {
     use regex::Regex;
     use std::sync::LazyLock;
 
     static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
-            r"(?i)(?:my name(?:'s| is)|I'm|I am|they call me|call me|the name's|name is)\s+(?-i:([A-Z][a-zA-Z']+(?:\s+[A-Z][a-zA-Z']+)?))",
+            r"(?i)(?:my name(?:['’]s| is)|I['’]m|I am|they call me|call me|the name['’]s|name is)\s+(?-i:(\p{Lu}[\p{L}'’]+(?:\s+\p{Lu}[\p{L}'’]+)?))",
         )
         .unwrap()
     });

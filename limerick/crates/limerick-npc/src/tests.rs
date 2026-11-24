@@ -249,6 +249,20 @@ fn test_detect_player_name_call_me() {
 }
 
 #[test]
+fn test_detect_player_name_keeps_accented_letters() {
+    assert_eq!(detect_player_name("I'm Seán"), Some("Seán".to_string()));
+    assert_eq!(
+        detect_player_name("My name is Pádraig Óg."),
+        Some("Pádraig Óg".to_string())
+    );
+    assert_eq!(
+        detect_player_name("I’m Tomás, from Ennis"),
+        Some("Tomás".to_string()),
+        "the typographic apostrophe an iPhone types"
+    );
+}
+
+#[test]
 fn test_detect_player_name_no_match() {
     assert_eq!(detect_player_name("hello there"), None);
     assert_eq!(detect_player_name("what is your name?"), None);
