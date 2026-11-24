@@ -14,6 +14,11 @@ pub struct PlayerIntroduction {
 }
 
 /// Capitalised words that follow "I'm"/"I am" without being a name.
+///
+/// Deliberately small: a name must be capitalised, so this only needs the
+/// capitalised non-names a player plausibly types after "I'm" mid-line.
+/// "I'm X" also never replaces a name an NPC already knows (see
+/// [`PlayerIntroduction::explicit`]), which bounds what a miss costs.
 const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
     "Irish",
     "English",
@@ -69,26 +74,35 @@ const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
 /// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
 /// Names may carry accented letters ("Seán", "Tomás", precomposed or with a
 /// combining accent) and the typographic apostrophe an iPhone keyboard
-/// types ("I’m"). Someone else's name ("his name is Daniel") is not the
-/// player's, and "I'm"/"I am" before a nationality or mood ("I'm Irish")
-/// is not a name. Returns the first introduction found.
+/// types ("I’m"). Only "my name is"/"the name's" count, so someone else's
+/// name ("his name is Daniel", "Peig's name is Hannigan") is not the
+/// player's; a question ("Why do you call me Seán?"), a refusal ("Don't
+/// call me Seán") and "I'm"/"I am" before a nationality or mood ("I'm
+/// Irish") are not introductions. Returns the first introduction found.
 pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
     use regex::Regex;
     use std::sync::LazyLock;
 
     static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
-            r"(?i)\b(?:(?:(?P<owner>my|the|his|her|their|your|whose|its)\s+)?name(?:['’]s|\s+is)|(?P<iam>I['’]m|I\s+am)|(?:they\s+)?call\s+me)\s+(?-i:(?P<name>\p{Lu}[\p{L}\p{M}'’]+(?:\s+\p{Lu}[\p{L}\p{M}'’]+)?))",
+            r"(?i)\b(?:(?:my|the)\s+name(?:['’]s|\s+is)|(?P<iam>I['’]m|I\s+am)|(?P<call>(?:they\s+)?call\s+me))\s+(?-i:(?P<name>\p{Lu}[\p{L}\p{M}'’]+(?:\s+\p{Lu}[\p{L}\p{M}'’]+)?))",
         )
         .unwrap()
     });
 
     NAME_RE.captures_iter(input).find_map(|caps| {
-        if let Some(owner) = caps.name("owner") {
-            let owner = owner.as_str().to_lowercase();
-            if owner != "my" && owner != "the" {
-                return None;
-            }
+        let whole = caps.get(0)?;
+        // "Why do you call me Seán?" asks; it does not introduce.
+        let rest = &input[whole.end()..];
+        if rest
+            .find(['.', '!', '?'])
+            .is_some_and(|at| rest[at..].starts_with('?'))
+        {
+            return None;
+        }
+        // "Don't call me Seán" refuses a name.
+        if caps.name("call").is_some() && negated_before(&input[..whole.start()]) {
+            return None;
         }
         let name = caps.name("name")?.as_str();
         let explicit = caps.name("iam").is_none();
@@ -111,6 +125,26 @@ pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
             explicit,
         })
     })
+}
+
+/// Whether the last words of `before` negate what follows ("don't",
+/// "never").
+fn negated_before(before: &str) -> bool {
+    before
+        .split_whitespace()
+        .rev()
+        .take(2)
+        .map(|word| {
+            word.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '’')
+                .to_lowercase()
+                .replace('’', "'")
+        })
+        .any(|word| {
+            matches!(
+                word.as_str(),
+                "don't" | "dont" | "not" | "never" | "won't" | "can't" | "shouldn't"
+            )
+        })
 }
 
 /// The name in the player's self-introduction, if the line has one. See

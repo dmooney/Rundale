@@ -285,6 +285,30 @@ fn test_detect_player_name_ignores_someone_elses_name() {
         detect_player_name("The name's Brennan."),
         Some("Brennan".to_string())
     );
+    assert_eq!(
+        detect_player_name("The priest's name is Father Ryan."),
+        None
+    );
+    assert_eq!(
+        detect_player_name("Peig's name is Hannigan, I think."),
+        None
+    );
+    assert_eq!(detect_player_name("Name is Cormac."), None);
+}
+
+#[test]
+fn test_detect_player_name_ignores_questions_and_refusals() {
+    assert_eq!(detect_player_name("Why do you call me Seán?"), None);
+    assert_eq!(detect_player_name("Don't call me Seán."), None);
+    assert_eq!(detect_player_name("Never call me Seán again!"), None);
+    assert_eq!(
+        detect_player_name("Don't call me Seán, I'm Tomás."),
+        Some("Tomás".to_string())
+    );
+    assert_eq!(
+        detect_player_name("Call me Seán. Will you remember?"),
+        Some("Seán".to_string())
+    );
 }
 
 #[test]

@@ -15,8 +15,11 @@ use crate::world::{LocationId, WorldState};
 
 /// Detects if the player is introducing themselves and records the name.
 ///
-/// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
-/// use the player's name. If detected, teaches the speaking NPC the name it
+/// The game loop calls this before `prepare_npc_conversation_turn` so the
+/// NPC prompt can use the name; the headless CLI calls it once
+/// `prepare_npc_conversation` has resolved the speaker, so there the name
+/// reaches the next prompt; the canonical apply calls it again after a reply
+/// is accepted. Calling it twice for one line changes nothing. If detected, teaches the speaking NPC the name it
 /// was given and sets `world.player_name`, the player's global name for
 /// NPC-independent surfaces, if it is not already set. Other NPCs keep the
 /// name they were told. A name this NPC already knows is replaced only by an

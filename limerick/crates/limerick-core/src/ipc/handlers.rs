@@ -2232,8 +2232,19 @@ mod tests {
             detect_and_record_player_name(&mut world, &mut npc_mgr, line, micheal_id);
             assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
         }
-        detect_and_record_player_name(&mut world, &mut npc_mgr, "His name is Daniel.", peig_id);
-        assert_eq!(npc_mgr.player_name_known_by(peig_id), Some("Séamus"));
+        for line in [
+            "His name is Daniel.",
+            "The priest's name is Father Ryan.",
+            "Don't call me Seán.",
+            "Why do you call me Seán?",
+        ] {
+            detect_and_record_player_name(&mut world, &mut npc_mgr, line, peig_id);
+            assert_eq!(
+                npc_mgr.player_name_known_by(peig_id),
+                Some("Séamus"),
+                "{line}"
+            );
+        }
     }
 
     #[test]
