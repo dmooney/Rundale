@@ -12,6 +12,9 @@
 # NPC blocks (headed by first name)
 #   home:                where the NPC lives and starts the game
 #   knows:               the NPCs they have an authored relationship with
+#   village:             the village their dialogue prompt describes
+#                        (dialogue.json), which lists them, gives them a
+#                        backstory, and words each relationship
 #
 # Every location and NPC in the mod appears here, and nothing else does.
 
@@ -35,13 +38,16 @@ CONNOLLY COTTAGE
  present at 10:00: Mícheál, Róisín
 
 PEIG
+ village: Kilteevan
  home: Letter Office
  knows: Mícheál, Róisín
 
 MÍCHEÁL
+ village: Kilteevan
  home: Connolly Cottage
  knows: Peig, Róisín
 
 RÓISÍN
+ village: Kilteevan
  home: Connolly Cottage
  knows: Peig, Mícheál

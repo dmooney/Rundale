@@ -30,6 +30,10 @@ loading = "loading.toml"
 ui = "ui.toml"
 pronunciations = "pronunciations.json"
 transport = "transport.toml"
+# Authored content the NPC dialogue prompt draws on beside the game data:
+# common knowledge, the village, and each character's backstory and how
+# they hold their relationships (issue 2299).
+dialogue = "dialogue.json"
 
 [prompts]
 tier1_system = "prompts/tier1_system.txt"

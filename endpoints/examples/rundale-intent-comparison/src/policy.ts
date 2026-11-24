@@ -269,7 +269,7 @@ export function score(expected: Expected, outcome: Outcome): Score {
       (id) => !allowed.includes(id),
     );
   }
-  let correct = false;
+  let correct: boolean;
   switch (expected.kind) {
     case "send":
       correct =

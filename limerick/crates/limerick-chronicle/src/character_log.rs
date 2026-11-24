@@ -217,7 +217,7 @@ impl CharacterLogManager {
                 // The player appears by their known name (or "a
                 // stranger" when this NPC hasn't been introduced) and
                 // the NPC refers to themselves in the first person.
-                let player_label = player_diary_label_for(world, npc_manager, *npc_id);
+                let player_label = player_diary_label_for(npc_manager, *npc_id);
                 let mut body = String::new();
                 if !player_line.is_empty() {
                     body.push_str(&format!("**{}:** {}\n", player_label, player_line));
@@ -617,21 +617,14 @@ fn strength_bar(s: f64) -> String {
 
 /// How an NPC names the player in their own diary.
 ///
-/// - If the NPC has been told the player's name (tracked by
-///   `npc_manager.knows_player_name(npc_id)`) AND the world has it set,
-///   return that name verbatim.
+/// - If the NPC has been told the player's name, return the name the
+///   player gave *that* NPC (`npc_manager.player_name_known_by(npc_id)`),
+///   never one given to someone else.
 /// - Otherwise return `"A stranger"`. Keeps the diary entry in the
 ///   right POV — an NPC who hasn't been introduced wouldn't write
 ///   the player's name in their journal.
-pub fn player_diary_label_for(
-    world: &WorldState,
-    npc_manager: &NpcManager,
-    npc_id: NpcId,
-) -> String {
-    if npc_manager.knows_player_name(npc_id)
-        && let Some(name) = world.player_name.as_deref()
-        && !name.trim().is_empty()
-    {
+pub fn player_diary_label_for(npc_manager: &NpcManager, npc_id: NpcId) -> String {
+    if let Some(name) = npc_manager.player_name_known_by(npc_id) {
         return name.to_string();
     }
     "A stranger".to_string()

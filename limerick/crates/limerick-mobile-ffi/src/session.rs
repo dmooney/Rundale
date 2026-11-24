@@ -23,8 +23,8 @@ use limerick_core::game_mod::{EndpointRole, GameMod};
 use limerick_core::inference::{AnyClient, InferenceQueue};
 use limerick_core::ipc::capitalize_first;
 use limerick_core::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
+use limerick_core::npc::LanguageSettings;
 use limerick_core::npc::manager::NpcManager;
-use limerick_core::npc::{LanguageSettings, NpcId};
 use limerick_core::persistence::{
     ACTIVE_IDENTITY_FILENAME, Database, GameSnapshot, SaveFileLock,
     read_active_save_identity_candidate, write_active_save_identity,
@@ -843,6 +843,11 @@ impl Session {
                 "version": endpoint.reference.version,
             },
             "input": endpoint.invocation(&envelope),
+            // The same input as JSON text in the Endpoint's key order. The
+            // dialogue Endpoint's model reads the input as written, so the
+            // host sends these bytes unchanged rather than re-serialising
+            // `input` (issue 2299).
+            "inputJSON": endpoint.request_input(&envelope),
         })
     }
 
@@ -992,7 +997,7 @@ impl Session {
         let asked = match &endpoint.input {
             EndpointInput::Dialogue(input) => format!(
                 "{} at {}: {}",
-                input.speaker.display_name, input.current_location.display_name, input.player_input
+                input.about_you.name, input.this_moment.r#where, input.what_the_stranger_says
             ),
             EndpointInput::Intent(input) => input.line.clone(),
         };
@@ -1106,18 +1111,14 @@ impl Session {
             .as_ref()
             .and_then(
                 |endpoint| match (&endpoint.reference.role, &endpoint.input) {
-                    (EndpointRole::Dialogue, EndpointInput::Dialogue(input)) => input
-                        .speaker
-                        .id
-                        .strip_prefix("npc-")
-                        .and_then(|id| id.parse::<u32>().ok()),
+                    (EndpointRole::Dialogue, EndpointInput::Dialogue(input)) => Some(input.speaker),
                     _ => None,
                 },
             )
             .and_then(|id| {
                 self.runtime.block_on(async {
                     let npcs = self.live.npc_manager.lock().await;
-                    npcs.get(NpcId(id))
+                    npcs.get(id)
                         .map(|npc| capitalize_first(npcs.display_name(npc)))
                 })
             })

@@ -132,11 +132,18 @@ Mícheál Connolly.
   "baseRevision": { "rawValue": 3 },
   "stream": true,
   "endpoint": { "role": "dialogue", "slug": "rundale-dialogue", "version": 1 },
-  "input": { "...": "EndpointCall::invocation" }
+  "input": { "...": "EndpointCall::invocation" },
+  "inputJSON": "{...}"
 }
 ```
 
-The host posts `{"input": <input>}` to that Endpoint version: to its `/stream`
+`inputJSON` is the same input as JSON text in the key order the Endpoint
+expects (`EndpointCall::request_input`). The `rundale-dialogue` model reads
+its input as written, in the frozen prompt's order, so the host sends
+`{"input": <inputJSON>}` with those bytes unchanged; re-serialising `input`
+would reorder its keys.
+
+The host posts that body to the Endpoint version: to its `/stream`
 route when `stream` is true (the definition declares
 `inferenceConfig.streaming`, as `rundale-dialogue` does), otherwise to the
 JSON route, whose body is the output object. It answers the engine:

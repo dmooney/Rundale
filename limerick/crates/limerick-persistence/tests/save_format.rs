@@ -11,13 +11,18 @@
 //!   by `main` 5c14ea236 after a walk to Connolly Cottage and one talk turn
 //!   with Róisín: three snapshots, two committed requests and eight
 //!   transcript events.
+//! - `format_4_save.db`: format 4, a real `limerick-mobile-ffi` save written
+//!   by the build before format 5 after the player told Peig "I'm Sean" and
+//!   Mícheál "I'm Tomas" and spoke to each again: five snapshots, four
+//!   committed requests and 13 transcript events. Its snapshots hold one
+//!   global `player_name` ("Sean", the first given) and the set of NPCs
+//!   that knew it (Peig and Mícheál).
 //! - `future_format_unknown_event_save.db`: the format 2 save as a newer
-//!   build would leave it: stamped format 5 (4 before format 4 shipped), an
-//!   extra `harvest_festivals`
-//!   table, a latest snapshot with a field this build does not know
-//!   (`harvest_moon`) and a content identity (`rundale` 1.1.0), and a
-//!   transcript event of a kind this build does not know
-//!   (`harvest_festival`).
+//!   build would leave it: stamped format 6 (5 before format 5 shipped, 4
+//!   before format 4), an extra `harvest_festivals` table, a latest
+//!   snapshot with a field this build does not know (`harvest_moon`) and a
+//!   content identity (`rundale` 1.1.0), and a transcript event of a kind
+//!   this build does not know (`harvest_festival`).
 //! - `unreadable_state_save.db`: the format 2 save with its latest snapshot's
 //!   `player_location` rewritten to a string, as a newer build that changed
 //!   the field's type would write it. Its authoritative state cannot be
@@ -101,6 +106,57 @@ fn the_format_3_save_opens_without_a_partner_and_is_restamped() {
     assert_eq!(user_version(&path), SAVE_FORMAT_VERSION);
 }
 
+/// A format 4 save opens and is restamped, and its NPCs keep knowing the
+/// player's name: format 4 recorded one global name and who knew it, so
+/// each NPC that knew it restores knowing that name (format 5 records the
+/// name each NPC was told).
+#[test]
+fn the_format_4_save_restores_who_knew_the_players_name() {
+    let (_dir, path) = copy_of("format_4_save.db");
+    let inspection = inspect_save(&path).unwrap();
+    assert_eq!(inspection.format_version, 4);
+    assert!(inspection.needs_migration());
+
+    let db = Database::open(&path).unwrap();
+    let branch = db.list_branches().unwrap().remove(0);
+    let recovery = db
+        .load_recovery_data(branch.id)
+        .unwrap()
+        .expect("a snapshot");
+    assert_eq!(db.turn_requests(branch.id).unwrap().len(), 4);
+    drop(db);
+    assert_eq!(user_version(&path), SAVE_FORMAT_VERSION);
+
+    let snapshot = recovery.snapshot;
+    assert!(snapshot.player_names_by_npc.is_empty(), "format 4 has none");
+    let names: Vec<(u32, String)> = snapshot
+        .npcs
+        .iter()
+        .map(|npc| (npc.id.0, npc.name.clone()))
+        .collect();
+    let mut world = limerick_world::WorldState::new();
+    let mut npcs = limerick_npc::manager::NpcManager::new();
+    snapshot.restore(&mut world, &mut npcs);
+    assert_eq!(world.player_name.as_deref(), Some("Sean"));
+    let known: Vec<(String, Option<&str>)> = names
+        .iter()
+        .map(|(id, name)| {
+            (
+                name.clone(),
+                npcs.player_name_known_by(limerick_types::NpcId(*id)),
+            )
+        })
+        .collect();
+    assert_eq!(
+        known,
+        [
+            ("Peig Hannigan".to_string(), Some("Sean")),
+            ("Mícheál Connolly".to_string(), Some("Sean")),
+            ("Róisín Connolly".to_string(), None),
+        ]
+    );
+}
+
 #[test]
 fn the_format_2_save_keeps_its_turn_journal() {
     let (_dir, path) = copy_of("turn_journal_v2_save.db");
@@ -122,7 +178,7 @@ fn the_format_2_save_keeps_its_turn_journal() {
 fn a_newer_format_opens_unchanged_when_its_state_reads() {
     let (_dir, path) = copy_of("future_format_unknown_event_save.db");
     let inspection = inspect_save(&path).unwrap();
-    assert_eq!(inspection.format_version, 5);
+    assert_eq!(inspection.format_version, 6);
     assert!(!inspection.needs_migration());
     assert_eq!(
         inspection.branches[0]
@@ -143,7 +199,7 @@ fn a_newer_format_opens_unchanged_when_its_state_reads() {
         .collect();
     assert_eq!(unknown.len(), 1, "the unknown event is kept");
     drop(db);
-    assert_eq!(user_version(&path), 5, "a newer stamp is never lowered");
+    assert_eq!(user_version(&path), 6, "a newer stamp is never lowered");
     let conn = Connection::open(&path).unwrap();
     let festivals: i64 = conn
         .query_row("SELECT COUNT(*) FROM harvest_festivals", [], |row| {

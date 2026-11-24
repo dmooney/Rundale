@@ -25,7 +25,7 @@ node -e '
 cp -r prompts cases content "$tmp/"
 
 brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
-for split in train heldout; do
+for split in train heldout heldout-2; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
     jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '
@@ -45,6 +45,17 @@ for split in train heldout; do
     .unpriced_models == ["echo"] and ([.prompts[].all_models] | (map(.malformed) | add) == $want and (map(.outages | length) | add) == 0)
   ' >/dev/null || {
         echo "check: summary.jq did not score every echo reply as malformed" >&2
+        exit 1
+    }
+done
+
+# The in-session experiment's best prompt (prompts/brief-fable.yaml), put
+# forward for the owner's Gemini run, renders every case of every split.
+for split in train heldout heldout-2; do
+    cases=$(grep -c '^- description:' "cases/$split.yaml")
+    bash insession/render.sh prompts/brief-fable.yaml "cases/$split.yaml" "$tmp/brief-fable-$split" \
+        | grep -qx "rendered $cases cases to .*" || {
+        echo "check: prompts/brief-fable.yaml did not render every $split case" >&2
         exit 1
     }
 done
