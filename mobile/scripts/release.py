@@ -345,6 +345,113 @@ def latest_uploaded_build(token: str) -> int | None:
     return max(versions, default=None)
 
 
+INTERNAL_BETA_GROUP = "Internal Beta"
+# Apple states that end the wait at once: nothing Apple does next makes the
+# build testable, so a person has to act.
+FAILED_PROCESSING_STATES = frozenset({"FAILED", "INVALID"})
+FAILED_INTERNAL_STATES = frozenset({"PROCESSING_EXCEPTION", "MISSING_EXPORT_COMPLIANCE", "EXPIRED"})
+TESTING_STATE = "IN_BETA_TESTING"
+DEFAULT_TESTING_TIMEOUT_MINUTES = 45
+TESTING_POLL_SECONDS = 60
+
+
+class TestFlightWaitError(RuntimeError):
+    """The build will not reach Testing, or did not before the timeout.
+
+    `state` is the last state seen, recorded in the receipt's `testingStatus`.
+    """
+
+    __test__ = False  # not a pytest test class, despite the name
+
+    def __init__(self, message: str, state: str) -> None:
+        super().__init__(message)
+        self.state = state
+
+
+def build_testing_state(token: str, build: int) -> tuple[str, list[str]]:
+    """One build's `<processingState>/<internalBuildState>` and beta group names.
+
+    The state is `NOT_LISTED` before App Store Connect lists the upload, and
+    the internal part is `NONE` before Apple creates the build's beta detail.
+    """
+
+    url = (
+        "https://api.appstoreconnect.apple.com/v1/builds"
+        f"?filter[app]={APP_STORE_CONNECT_APP_ID}&filter[version]={build}"
+        "&include=buildBetaDetail,betaGroups"
+    )
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            body = json.load(response)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(app_store_connect_refusal(error)) from error
+    data = body.get("data") or []
+    if not data:
+        return "NOT_LISTED", []
+    processing = str(data[0].get("attributes", {}).get("processingState") or "UNKNOWN")
+    internal = "NONE"
+    groups: list[str] = []
+    for item in body.get("included") or []:
+        attributes = item.get("attributes", {})
+        if item.get("type") == "buildBetaDetails":
+            internal = str(attributes.get("internalBuildState") or "NONE")
+        elif item.get("type") == "betaGroups" and attributes.get("name"):
+            groups.append(str(attributes["name"]))
+    return f"{processing}/{internal}", groups
+
+
+def wait_for_testing(
+    token: str,
+    build: int,
+    *,
+    timeout_minutes: float = DEFAULT_TESTING_TIMEOUT_MINUTES,
+    poll_seconds: float = TESTING_POLL_SECONDS,
+    fetch: Callable[[str, int], tuple[str, list[str]]] = build_testing_state,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> str:
+    """Poll App Store Connect until the build is Testing in Internal Beta.
+
+    Returns the final state. A state only a person can fix raises at once, as
+    does the timeout; both name the last state seen.
+    """
+
+    deadline = clock() + timeout_minutes * 60
+    while True:
+        state, groups = fetch(token, build)
+        processing, _, internal = state.partition("/")
+        if processing in FAILED_PROCESSING_STATES or internal in FAILED_INTERNAL_STATES:
+            raise TestFlightWaitError(
+                f"build {build} will not reach Testing: {state} "
+                "(see App Store Connect, TestFlight, for the reason)",
+                state,
+            )
+        if processing == "VALID" and internal == TESTING_STATE and INTERNAL_BETA_GROUP in groups:
+            print(f"Build {build} is Testing in {INTERNAL_BETA_GROUP}.")
+            return state
+        if clock() >= deadline:
+            raise TestFlightWaitError(
+                f"build {build} did not reach Testing in {INTERNAL_BETA_GROUP} within "
+                f"{timeout_minutes:g} minutes; last state {state}"
+                + (f", groups {groups}" if groups else ""),
+                state,
+            )
+        pause = min(poll_seconds, deadline - clock())
+        print(f"Build {build}: {state}; checking again in {pause:g}s.", flush=True)
+        sleep(pause)
+
+
+def asc_token_from_env(env: dict[str, str] | None = None) -> str | None:
+    """An API token from the ASC_* variables, or None when any is unset."""
+
+    env = dict(os.environ) if env is None else env
+    key_path, key_id, issuer = (env.get(name, "") for name in ASC_KEY_ENV)
+    if key_path and key_id and issuer:
+        return app_store_connect_token(key_path, key_id, issuer)
+    return None
+
+
 def commit_count(root: Path) -> int:
     """HEAD's commit count, the fallback build number without an API key."""
     shallow = subprocess.run(
@@ -410,7 +517,9 @@ class Release:
         dry_run: bool = False,
         runner: Callable[..., None] | None = None,
         verify: bool = True,
+        wait_minutes: float = DEFAULT_TESTING_TIMEOUT_MINUTES,
     ) -> None:
+        self.wait_minutes = wait_minutes
         self.paths = paths
         self.dry_run = dry_run
         self._runner = runner
@@ -687,29 +796,53 @@ class Release:
                 cwd=self.paths.root,
             )
             if not self.dry_run:
-                self.paths.receipt.write_text(
-                    json.dumps(
-                        {
-                            "status": "upload_requested",
-                            "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
-                            "requestedBuild": build,
-                            "uploadedBuild": build if fixed else None,
-                            "appStoreConnectAppID": APP_STORE_CONNECT_APP_ID,
-                            "testingStatus": "pending_apple_processing",
-                        },
-                        indent=2,
-                    )
-                    + "\n",
-                    encoding="utf-8",
-                )
-                print(
-                    "Upload succeeded; Apple processing/compliance and Testing status remain pending."
-                )
-                if not fixed:
-                    print(
-                        "Xcode manages the uploaded build number; confirm it in App Store Connect."
-                    )
+                receipt: dict[str, object] = {
+                    "status": "upload_requested",
+                    "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
+                    "requestedBuild": build,
+                    "uploadedBuild": build if fixed else None,
+                    "appStoreConnectAppID": APP_STORE_CONNECT_APP_ID,
+                    "testingStatus": "pending_apple_processing",
+                }
+                self.write_receipt(receipt)
+                print("Upload succeeded; waiting for Apple to process it.")
                 print(f"Upload log and receipt: {self.paths.output}")
+                if fixed:
+                    self.await_testing(receipt, build)
+                else:
+                    print(
+                        "Xcode manages the uploaded build number, so the Testing status "
+                        "could not be checked; confirm the build in App Store Connect."
+                    )
+
+    def write_receipt(self, receipt: dict[str, object]) -> None:
+        self.paths.receipt.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+
+    def await_testing(self, receipt: dict[str, object], build: int) -> None:
+        """Wait for Testing in Internal Beta, record the state, fail loudly."""
+
+        token = asc_token_from_env()
+        if token is None:
+            print("No App Store Connect API key; the Testing status could not be checked.")
+            return
+        try:
+            state = wait_for_testing(token, build, timeout_minutes=self.wait_minutes)
+        except TestFlightWaitError as error:
+            receipt["testingStatus"] = error.state
+            self.write_receipt(receipt)
+            raise
+        receipt["status"] = "testing"
+        receipt["testingStatus"] = state
+        self.write_receipt(receipt)
+
+    def testflight_status(self, build: int) -> None:
+        """Check an existing build, waiting up to the timeout."""
+
+        token = asc_token_from_env()
+        if token is None:
+            raise RuntimeError(f"set {', '.join(ASC_KEY_ENV)} to check a build's status")
+        state = wait_for_testing(token, build, timeout_minutes=self.wait_minutes)
+        print(f"Build {build}: {state}")
 
     def validate_app(
         self, app: Path, *, expected_build: int | None = None, verify_code_sign: bool = False
@@ -820,7 +953,15 @@ class Release:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("build", "archive", "testflight"))
+    parser.add_argument("command", choices=("build", "archive", "testflight", "testflight-status"))
+    parser.add_argument("--build", type=int, help="testflight-status: the build number to check")
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TESTING_TIMEOUT_MINUTES,
+        help="testflight, testflight-status: minutes to wait for Testing in Internal Beta "
+        f"(default {DEFAULT_TESTING_TIMEOUT_MINUTES})",
+    )
     parser.add_argument(
         "--verify",
         choices=("all", "none"),
@@ -842,9 +983,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         Paths(Path(__file__).resolve().parents[2]),
         dry_run=args.dry_run,
         verify=args.verify == "all",
+        wait_minutes=args.timeout,
     )
     try:
-        getattr(release, args.command)()
+        if args.command == "testflight-status":
+            if args.build is None:
+                raise ValueError("testflight-status needs --build N")
+            release.testflight_status(args.build)
+        else:
+            getattr(release, args.command)()
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:
         print(f"release failed: {error}", file=sys.stderr)
         print(f"See {release.paths.log} for command output.", file=sys.stderr)

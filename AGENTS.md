@@ -254,8 +254,10 @@ commands section above). Its nightly `gate` job then runs the full gate on `main
 pass is recorded for it, records the pass, and on failure opens or updates a
 "Nightly mobile-verify failed" issue. For a build outside that workflow, use
 `just testflight-update` and its [runbook](mobile/testflight.md); it runs the
-full gate before uploading. Complete export compliance, confirm the build is **Testing** in **Internal Beta** (upload
-success alone is not delivery), and report the build number App Store Connect
+full gate before uploading. Both paths wait for Apple (up to 45 minutes) and fail
+unless the build is **Testing** in **Internal Beta** (upload success alone is not
+delivery); `python3 mobile/scripts/release.py testflight-status --build N` checks
+any build. Complete export compliance if it is the blocker, and report the build number App Store Connect
 received, what to try, checks run, and any remaining device gates. If signing,
 Apple processing, or another blocker prevents delivery, report it explicitly.
 

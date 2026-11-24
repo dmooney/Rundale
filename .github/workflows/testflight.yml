@@ -8,9 +8,10 @@ name: TestFlight
 # squash merge matches unless main moved under it; the upload runs
 # `release.py testflight --verify none`. `release.py` archives with a stored
 # Apple Distribution certificate and App Store profile, and exports and uploads
-# with an App Store Connect API key, instead of an Xcode account. Apple's
-# processing, export compliance and the Internal Beta **Testing** status still
-# follow the upload (mobile/testflight.md).
+# with an App Store Connect API key, instead of an Xcode account. After the
+# upload `release.py` polls App Store Connect until the build is **Testing** in
+# Internal Beta, and fails the job on a processing failure, missing export
+# compliance, or a 45-minute timeout (mobile/testflight.md).
 #
 # The nightly `gate` job checks what the smoke gate left out, after the build
 # shipped: when main's input tree has no recorded full pass, it runs the full
@@ -47,8 +48,9 @@ jobs:
     # Only main's builds ship: a Run workflow from another branch uploads nothing.
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     runs-on: macos-26
-    # About 15 minutes.
-    timeout-minutes: 60
+    # About 15 minutes to upload, then up to 45 waiting for Apple (release.py's
+    # default timeout) to put the build in Testing.
+    timeout-minutes: 75
     environment: testflight
     # One upload at a time, in merge order; a cancelled upload could leave App
     # Store Connect holding a half-processed build.
