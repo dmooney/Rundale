@@ -18,6 +18,6 @@
     "@google/genai": "3.3.0",
     "@limerick/domain": "workspace:*",
     "@limerick/runtime": "workspace:*",
-    "openai": "7.5.0"
+    "openai": "7.56.0"
   }
 }
