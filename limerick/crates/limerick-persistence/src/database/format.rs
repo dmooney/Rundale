@@ -13,7 +13,7 @@
 //! | 2 | #2037 | adds `requests` and `transcript_events`; no marker |
 //! | 3 | #2038 | stamps `user_version`; snapshots record their content identity |
 //! | 4 | #2221 | snapshots record the conversation partner |
-//! | 5 | player names per NPC | snapshots record the name the player gave each NPC |
+//! | 5 | #2429 | snapshots record the name the player gave each NPC |
 //!
 //! Unmarked saves are detected as version 1 or 2 by their tables. Opening an
 //! older save migrates it forward and stamps the current version. A save
