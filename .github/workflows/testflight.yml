@@ -48,9 +48,11 @@ jobs:
     # Only main's builds ship: a Run workflow from another branch uploads nothing.
     if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     runs-on: macos-26
-    # About 15 minutes to upload, then up to 45 waiting for Apple (release.py's
-    # default timeout) to put the build in Testing.
-    timeout-minutes: 75
+    # About 15 minutes to upload (up to 30 on a cold Rust cache), then up to 45
+    # waiting for Apple (release.py's default timeout) to put the build in
+    # Testing. The limit leaves 15 minutes of margin so release.py fails and
+    # records its receipt before the runner kills the job.
+    timeout-minutes: 90
     environment: testflight
     # One upload at a time, in merge order; a cancelled upload could leave App
     # Store Connect holding a half-processed build. Each upload now holds the
@@ -203,7 +205,8 @@ jobs:
           if [ -n "${SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "$SIGNING_KEYCHAIN" || true; fi
 
       - name: Report the failed upload in an issue
-        if: failure() && steps.changed.outputs.upload == 'true'
+        # A job timeout cancels the job, which failure() does not match.
+        if: (failure() || cancelled()) && steps.changed.outputs.upload == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

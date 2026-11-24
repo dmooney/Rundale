@@ -285,6 +285,20 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "upload_requested")
         self.assertEqual(receipt["testingStatus"], "VALID/MISSING_EXPORT_COMPLIANCE")
 
+    def test_testflight_records_lookup_failed_for_any_other_error(self):
+        runner = release.Release(self.paths, runner=self.runner)
+        with (
+            patch.object(release, "release_build_number", return_value=(1331, True)),
+            patch.object(release, "asc_token_factory", return_value=self.factory),
+            patch.object(release, "wait_for_testing", side_effect=RuntimeError("HTTP 403")),
+            patch.object(runner, "validate_archive"),
+            patch.object(runner, "validate_distribution_ipa"),
+            self.assertRaises(RuntimeError),
+        ):
+            runner.testflight()
+        receipt = json.loads(self.paths.receipt.read_text())
+        self.assertEqual(receipt["testingStatus"], "LOOKUP_FAILED")
+
     def test_testflight_without_a_key_says_the_status_was_not_checked(self):
         runner = release.Release(self.paths, runner=self.runner)
         with (

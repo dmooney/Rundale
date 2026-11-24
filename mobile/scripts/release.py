@@ -349,6 +349,8 @@ INTERNAL_BETA_GROUP = "Internal Beta"
 # Apple states that end the wait at once: nothing Apple does next makes the
 # build testable, so a person has to act.
 FAILED_PROCESSING_STATES = frozenset({"FAILED", "INVALID"})
+# MISSING_EXPORT_COMPLIANCE should not occur: validate_app enforces
+# ITSAppUsesNonExemptEncryption=false in the archive, which answers Apple's prompt.
 FAILED_INTERNAL_STATES = frozenset({"PROCESSING_EXCEPTION", "MISSING_EXPORT_COMPLIANCE", "EXPIRED"})
 TESTING_STATE = "IN_BETA_TESTING"
 DEFAULT_TESTING_TIMEOUT_MINUTES = 45
@@ -855,8 +857,11 @@ class Release:
             return
         try:
             state = wait_for_testing(new_token, build, timeout_minutes=self.wait_minutes)
-        except TestFlightWaitError as error:
-            receipt["testingStatus"] = error.state
+        except Exception as error:
+            # Any failure (a fatal refusal, a bug) leaves the receipt saying so.
+            receipt["testingStatus"] = (
+                error.state if isinstance(error, TestFlightWaitError) else "LOOKUP_FAILED"
+            )
             self.write_receipt(receipt)
             raise
         receipt["status"] = "testing"
