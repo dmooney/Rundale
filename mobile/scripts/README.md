@@ -167,7 +167,9 @@ or edit mid-run) or either tree cannot be computed, the run fails with a
 `checkout-stable` record and stores no pass, so a pass is never attested for a
 tree the suites did not test; rerun on a stable checkout. Any non-fast run also
 recomputes the suite-cache content key at the end and, if it moved, writes no
-cache entries. A change reverted before the run ends is not detected.
+cache entries; a full pass whose attested tree is stable is still recorded then,
+since it is keyed on the attested paths alone. A change reverted before the run
+ends is not detected.
 
 A full run (`--phase all`) that passes saves
 `mobile/.verification/passes/<input tree>.json`, keyed by the git tree of the

@@ -3673,18 +3673,27 @@ class VerificationRun:
         # Cache entries are keyed by the content key memoized at the first
         # suite, so a checkout that moved since then would file results under
         # inputs they never ran on (phase-limited runs fill the same cache).
-        if (
-            not fast
-            and self._content_key_computed
-            and self._content_key_value is not None
-            and self._fresh_content_key() != self._content_key_value
-        ):
-            stable = False
-            print(
-                "mobile-verify: the checkout changed during the run; no suite result is cached",
-                file=sys.stderr,
-                flush=True,
-            )
+        # This gates the cache only. A full run whose attested tree is stable
+        # but whose content key moved (a change outside the attested paths, or
+        # a toolchain change) still stores its full pass: that pass is keyed on
+        # the attested paths alone.
+        if not fast and self._content_key_computed and self._content_key_value is not None:
+            fresh = self._fresh_content_key()
+            if fresh is None:
+                stable = False
+                print(
+                    "mobile-verify: could not recompute the cache key at the end of the run; "
+                    "no suite result is cached",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            elif fresh != self._content_key_value:
+                stable = False
+                print(
+                    "mobile-verify: the checkout changed during the run; no suite result is cached",
+                    file=sys.stderr,
+                    flush=True,
+                )
         summary = self._summary()
         report = {
             "schema_version": 1,
