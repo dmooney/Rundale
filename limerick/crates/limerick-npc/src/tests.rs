@@ -309,6 +309,15 @@ fn test_detect_player_name_ignores_questions_and_refusals() {
         detect_player_name("Call me Seán. Will you remember?"),
         Some("Seán".to_string())
     );
+    for (line, name) in [
+        ("My name is Seán, what's yours?", "Seán"),
+        ("I'm Tomás, who might you be?", "Tomás"),
+        ("I'm Seán, would you have any work?", "Seán"),
+        ("I'm Mrs Hogan.", "Mrs Hogan"),
+    ] {
+        assert_eq!(detect_player_name(line), Some(name.to_string()), "{line}");
+    }
+    assert_eq!(detect_player_name("Do you call me Seán or Séamus?"), None);
 }
 
 #[test]

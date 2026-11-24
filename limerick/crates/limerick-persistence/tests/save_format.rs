@@ -19,12 +19,10 @@
 //!   that knew it (Peig and Mícheál).
 //! - `future_format_unknown_event_save.db`: the format 2 save as a newer
 //!   build would leave it: stamped format 6 (5 before format 5 shipped, 4
-//!   before format 4), an
-//!   extra `harvest_festivals`
-//!   table, a latest snapshot with a field this build does not know
-//!   (`harvest_moon`) and a content identity (`rundale` 1.1.0), and a
-//!   transcript event of a kind this build does not know
-//!   (`harvest_festival`).
+//!   before format 4), an extra `harvest_festivals` table, a latest
+//!   snapshot with a field this build does not know (`harvest_moon`) and a
+//!   content identity (`rundale` 1.1.0), and a transcript event of a kind
+//!   this build does not know (`harvest_festival`).
 //! - `unreadable_state_save.db`: the format 2 save with its latest snapshot's
 //!   `player_location` rewritten to a string, as a newer build that changed
 //!   the field's type would write it. Its authoritative state cannot be

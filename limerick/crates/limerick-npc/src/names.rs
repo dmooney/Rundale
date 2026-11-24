@@ -64,9 +64,6 @@ const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
     "Their",
     "Our",
     "My",
-    "Mr",
-    "Mrs",
-    "Miss",
 ];
 
 /// Detects if the player is introducing themselves by name.
@@ -76,9 +73,10 @@ const NOT_A_NAME_AFTER_I_AM: &[&str] = &[
 /// combining accent) and the typographic apostrophe an iPhone keyboard
 /// types ("I’m"). Only "my name is"/"the name's" count, so someone else's
 /// name ("his name is Daniel", "Peig's name is Hannigan") is not the
-/// player's; a question ("Why do you call me Seán?"), a refusal ("Don't
-/// call me Seán") and "I'm"/"I am" before a nationality or mood ("I'm
-/// Irish") are not introductions. Returns the first introduction found.
+/// player's. A question whose clause ends at the name ("Why do you call me
+/// Seán?"), a refusal ("Don't call me Seán") and "I'm"/"I am" before a
+/// nationality or mood ("I'm Irish") are not introductions. Returns the
+/// first introduction found.
 pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
     use regex::Regex;
     use std::sync::LazyLock;
@@ -92,10 +90,12 @@ pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
 
     NAME_RE.captures_iter(input).find_map(|caps| {
         let whole = caps.get(0)?;
-        // "Why do you call me Seán?" asks; it does not introduce.
+        // "Why do you call me Seán?" asks; it does not introduce. Only a
+        // question that ends the name's own clause counts: "My name is
+        // Seán, what's yours?" still introduces.
         let rest = &input[whole.end()..];
         if rest
-            .find(['.', '!', '?'])
+            .find(['.', ',', ';', '!', '?'])
             .is_some_and(|at| rest[at..].starts_with('?'))
         {
             return None;
