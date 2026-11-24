@@ -17,24 +17,32 @@ use crate::world::{LocationId, WorldState};
 ///
 /// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
 /// use the player's name. If detected, teaches the speaking NPC the name it
-/// was given (replacing any name the player gave that NPC before; other NPCs
-/// keep the name they were told) and sets `world.player_name`, the player's
-/// global name for NPC-independent surfaces, if it is not already set.
+/// was given and sets `world.player_name`, the player's global name for
+/// NPC-independent surfaces, if it is not already set. Other NPCs keep the
+/// name they were told. A name this NPC already knows is replaced only by an
+/// outright introduction ("my name is", "call me"), not by "I'm"/"I am".
 pub fn detect_and_record_player_name(
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
     player_input: &str,
     speaker_id: NpcId,
 ) {
-    if let Some(name) = crate::npc::detect_player_name(player_input) {
-        tracing::info!("Player introduced themselves to {speaker_id:?} as: {name}");
-        // The global name is the first one the player gave anyone; it is
-        // used only where no particular NPC's knowledge applies.
-        if world.player_name.is_none() {
-            world.player_name = Some(name.clone());
-        }
-        npc_manager.teach_player_name(speaker_id, name);
+    let Some(intro) = crate::npc::detect_player_introduction(player_input) else {
+        return;
+    };
+    // "I'm X" also says "I'm Irish": it may give a first name, but only an
+    // outright one ("my name is", "call me") replaces a name this NPC knows.
+    if !intro.explicit && npc_manager.knows_player_name(speaker_id) {
+        return;
     }
+    let name = intro.name;
+    tracing::info!("Player introduced themselves to {speaker_id:?} as: {name}");
+    // The global name is the first one the player gave anyone; it is used
+    // only where no particular NPC's knowledge applies.
+    if world.player_name.is_none() {
+        world.player_name = Some(name.clone());
+    }
+    npc_manager.teach_player_name(speaker_id, name);
 }
 
 /// Default-on kill switch for durable player task assignment and progression.

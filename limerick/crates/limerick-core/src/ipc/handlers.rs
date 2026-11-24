@@ -2226,6 +2226,14 @@ mod tests {
         detect_and_record_player_name(&mut world, &mut npc_mgr, "Call me Séamus.", peig_id);
         assert_eq!(npc_mgr.player_name_known_by(peig_id), Some("Séamus"));
         assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
+        // "I'm Irish" or a later "I'm ..." does not rename the player to
+        // an NPC that already knows a name; only an outright one does.
+        for line in ["I'm Irish, God help me.", "I'm Mícheál's neighbour."] {
+            detect_and_record_player_name(&mut world, &mut npc_mgr, line, micheal_id);
+            assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
+        }
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "His name is Daniel.", peig_id);
+        assert_eq!(npc_mgr.player_name_known_by(peig_id), Some("Séamus"));
     }
 
     #[test]
