@@ -246,12 +246,23 @@ class FakeRunner:
         }
 
 
-def write_codecov(root: Path, command: tuple[str, ...], percent: float) -> None:
+CODECOV_LAYOUTS = (
+    ("arm64-apple-macosx", "debug", "codecov"),  # SwiftPM before Xcode 27
+    ("out", "Products", "Debug", "codecov"),  # Xcode 27
+)
+
+
+def write_codecov(
+    root: Path,
+    command: tuple[str, ...],
+    percent: float,
+    layout: tuple[str, ...] = CODECOV_LAYOUTS[0],
+) -> None:
     """Write the llvm-cov export `swift test --enable-code-coverage` leaves behind."""
 
     package = root / command[command.index("--package-path") + 1]
     scratch = root / command[command.index("--scratch-path") + 1]
-    report = scratch / "arm64-apple-macosx" / "debug" / "codecov" / f"{package.name}.json"
+    report = scratch.joinpath(*layout) / f"{package.name}.json"
     report.parent.mkdir(parents=True, exist_ok=True)
     files = [
         {
@@ -1056,6 +1067,32 @@ class VerificationRunnerTests(unittest.TestCase):
                 report = VerificationRun(root, command_runner=FakeRunner()).run()
             self.assertEqual(report["exit_code"], 0)
             store.assert_called_once()
+
+    def test_package_coverage_is_found_in_either_swiftpm_layout_and_reports_none(self):
+        run = VerificationRun(Path("/tmp/rundale-test"))
+        for layout in CODECOV_LAYOUTS:
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                package = root / "mobile" / "RundaleKit"
+                command = (
+                    "swift",
+                    "test",
+                    "--package-path",
+                    "mobile/RundaleKit",
+                    "--scratch-path",
+                    "scratch",
+                )
+                write_codecov(root, command, 80.0, layout)
+                run.root = root
+                result = run._package_line_coverage(root / "scratch", package)
+                self.assertIsInstance(result, dict)
+                self.assertEqual(result["percent"], 80.0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scratch" / "out" / "codecov").mkdir(parents=True)
+            run.root = root
+            result = run._package_line_coverage(root / "scratch", root / "mobile" / "RundaleKit")
+            self.assertIn("wrote no coverage report", result)
 
     def _full_run_with_trees(self, trees):
         with tempfile.TemporaryDirectory() as directory:

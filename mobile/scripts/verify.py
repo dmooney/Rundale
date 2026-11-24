@@ -1669,10 +1669,12 @@ class VerificationRun:
     def _package_line_coverage(self, scratch: Path, package_path: Path) -> dict[str, Any] | str:
         """Sum `swift test` line coverage over the package's own Sources."""
 
+        # SwiftPM moved the report between releases: older toolchains write
+        # `<scratch>/<triple>/debug/codecov/<Package>.json`, Xcode 27 writes
+        # `<scratch>/out/Products/Debug/codecov/<Package>.json`. Search by
+        # the `codecov` folder rather than pinning either layout.
         reports = sorted(
-            path
-            for path in scratch.glob("*/debug/codecov/*.json")
-            if path.stem == package_path.name
+            path for path in scratch.rglob("codecov/*.json") if path.stem == package_path.name
         )
         if not reports:
             return f"swift test wrote no coverage report under {_relative(scratch, self.root)}"
