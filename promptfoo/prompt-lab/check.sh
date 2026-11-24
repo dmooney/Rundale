@@ -25,7 +25,7 @@ node -e '
 cp -r prompts cases content "$tmp/"
 
 brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
-for split in train heldout heldout-2; do
+for split in train engage-train heldout heldout-2; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
     jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '
@@ -51,7 +51,7 @@ done
 
 # The in-session experiment's best prompt (prompts/brief-fable.yaml), put
 # forward for the owner's Gemini run, renders every case of every split.
-for split in train heldout heldout-2; do
+for split in train engage-train heldout heldout-2; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     bash insession/render.sh prompts/brief-fable.yaml "cases/$split.yaml" "$tmp/brief-fable-$split" \
         | grep -qx "rendered $cases cases to .*" || {
@@ -116,6 +116,16 @@ node -e '
 jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAssertionValue
   | test("REQUIREMENTS UNDER TEST\nB5: ") and test("\"name\":\"Peig Hannigan\"") and test("Kilteevan") and (test("[{][{]") | not)' "$tmp/rubric.json" >/dev/null || {
     echo "check: the judges' rubric did not render with the case filled in" >&2
+    exit 1
+}
+
+# The judges see the whole conversation so far, in order, and the player's line
+# (design §3.1: judged from the player's seat).
+(cd "$tmp" && $pf eval -c rubric.yaml -r echo --filter-pattern '^e07-' --filter-prompts '^brief$' --no-cache --no-progress-bar -o rubric-convo.json >/dev/null 2>&1) || true
+jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAssertionValue
+  | test("oldest first:\n- the stranger: \"That.s fine yarn you have there.\"\n- Róisín Connolly: \"It is,")
+    and test("The stranger now says: \"She used to sing at the wheel") and test("PLAYABILITY") and (test("[{][{%]") | not)' "$tmp/rubric-convo.json" >/dev/null || {
+    echo "check: the judges' rubric did not show the conversation so far" >&2
     exit 1
 }
 
