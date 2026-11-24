@@ -41,7 +41,6 @@ hf-hub = { workspace = true, optional = true }
 
 tracing = { workspace = true }
 chrono = { workspace = true }
-uuid = { workspace = true }
 regex = { workspace = true }
 
 [dev-dependencies]

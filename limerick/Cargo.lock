@@ -3223,8 +3223,6 @@ dependencies = [
 name = "limerick-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "base64 0.23.1",
  "chrono",
  "limerick-chronicle",
  "limerick-config",
@@ -3384,7 +3382,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
- "uuid",
  "wiremock",
 ]
 
@@ -3453,7 +3450,6 @@ dependencies = [
 name = "limerick-npc"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "limerick-config",
  "limerick-inference",
