@@ -26,7 +26,7 @@ let package = Package(
         .package(path: "../../mobile/RundaleKit"),
         .package(path: "../../mobile/RundaleBridge"),
         .package(path: "../../mobile/LimerickEndpointKit"),
-        .package(url: "https://github.com/steipete/Swiftdansi.git", exact: "0.3.1")
+        .package(url: "https://github.com/steipete/Swiftdansi.git", exact: "0.3.2")
     ],
     targets: [
         .target(

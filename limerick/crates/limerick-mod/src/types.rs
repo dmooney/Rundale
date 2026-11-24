@@ -17,7 +17,7 @@ pub struct PromptTemplates {
 }
 
 /// A festival or holy day definition.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FestivalDef {
     /// Festival name.
     pub name: String,

@@ -9,26 +9,30 @@ the prompt. There is no research script.
 It calls models directly and is not the game. It is separate from the
 rundale-bench leaderboard in the parent directory.
 
-| Path                    | What it holds                                                                                                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `promptfooconfig.yaml`  | The production model (`gemini-3.5-flash-lite`), a larger Gemini (`gemini-3.8-flash`), the two judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh), and the rubric they share |
-| `prompts/brief.yaml`    | The prompt under research: the instructions and the request, built from the content and the case                                                                                       |
-| `prompts/baseline.yaml` | The v1 Endpoint's instructions with a reconstruction of the v1 input the engine builds, for reference                                                                                  |
-| `cases/train.yaml`      | 25 moments in the tiny world the loop scores and reads, each tagged with the requirements it tests and the #2024 probes it rephrases                                                   |
-| `cases/heldout.yaml`    | 12 more, covering B1 to B20, run once at the end                                                                                                                                       |
-| `content/`              | Fixed facts: §4.1 common knowledge and each character's shaded note, the §4.2 characters with hand-written backstory, and the §4.3 village                                             |
-| `summary.jq`            | A round's mean score, score per requirement, judge splits, spend and worst replies                                                                                                     |
-| `check.sh`, `test/`     | The offline check (`npm --prefix promptfoo test` runs it): every case renders under both prompts, the anachronism switch, and `summary.jq` against a fixture                           |
-| `log.md`                | Every round's score, change, reasoning and spend                                                                                                                                       |
+| Path                       | What it holds                                                                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `promptfooconfig.yaml`     | The production model (`gemini-3.5-flash-lite`), a larger Gemini (`gemini-3.8-flash`), the two judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh), and the rubric they share |
+| `prompts/brief.yaml`       | The prompt under research: the instructions and the request, built from the content and the case                                                                                       |
+| `prompts/frozen.yaml`      | The prompt the owner froze on 2026-11-23 (in-session round 09, #2422), which production builds from game data (#2299)                                                                  |
+| `prompts/baseline.yaml`    | The v1 Endpoint's instructions with a reconstruction of the v1 input the engine builds, for reference                                                                                  |
+| `cases/train.yaml`         | 25 moments in the tiny world the loop scores and reads, each tagged with the requirements it tests and the #2024 probes it rephrases                                                   |
+| `cases/heldout.yaml`       | 12 more, covering B1 to B20, run once at the end                                                                                                                                       |
+| `cases/heldout-2.yaml`     | 12 more, written by a separate agent for the in-session experiment once the first held-out set was spent; agent-written, awaiting the owner's review                                   |
+| `content/`                 | Fixed facts: §4.1 common knowledge and each character's shaded note, the §4.2 characters with hand-written backstory, and the §4.3 village                                             |
+| `summary.jq`               | A round's mean score, score per requirement, judge splits, spend and worst replies                                                                                                     |
+| `check.sh`, `test/`        | The offline check (`npm --prefix promptfoo test` runs it): every case renders under both prompts, the anachronism switch, and `summary.jq` against a fixture                           |
+| `log.md`                   | Every round's score, change, reasoning and spend                                                                                                                                       |
+| `prompts/brief-fable.yaml` | The in-session experiment's best prompt (2026-11-16), for the owner to score on Gemini; not frozen                                                                                     |
+| `insession/`               | The in-session experiment: offline rendering, a Haiku stand-in and blind Claude judges (Fable 5.2, then Opus 5.5) run as Claude Code subagents, with its own log                       |
 
 The content was copied from `mods/rundale/` (`npcs.json`, `world.json`,
 `festivals.json`) when the lab was made. The backstories, the shaded notes
 and the cases were written for the lab and await the owner's review. The
 common knowledge is the fact-checked list in §4.1.
 
-Keys are sent in the order the prompt writes them. The phone's bridge sorts
-them today; by the owner's decision (design doc §6.4, 2026-11-01) production
-matches the order the lab freezes, and #2299 changes the bridge where needed.
+Keys are sent in the order the prompt writes them. By the owner's decision
+(design doc §6.4, 2026-11-01) production matches the frozen order: since #2299
+the phone sends the engine's input bytes unchanged instead of sorting them.
 
 To run a round, follow the skill's commands; they pass `--no-cache` (so a
 changed prompt is never answered from cache) and `--filter-prompts '^brief$'`

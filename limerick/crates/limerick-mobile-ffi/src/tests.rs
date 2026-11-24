@@ -6,6 +6,7 @@
 //! `SessionReducer` lifecycle fixtures (portable-turn-api.md §2.4).
 
 use super::*;
+use limerick_core::endpoint_input::Addressing;
 use limerick_core::turn::INTERRUPTED_MESSAGE;
 use std::path::Path;
 
@@ -448,19 +449,25 @@ fn a_talk_turn_streams_provisional_text_and_commits_the_endpoint_reply_once() {
         json!({"role": "dialogue", "slug": "rundale-dialogue", "version": 1})
     );
     assert_eq!(dialogue["stream"], true, "the dialogue definition streams");
+    assert_eq!(dialogue["logicalRequestID"], request);
     let input = &dialogue["input"];
-    assert_eq!(input["role"], "npc_dialogue");
-    assert_eq!(input["speaker"]["displayName"], "Mícheál Connolly");
-    assert_eq!(input["logicalRequestID"], request);
-    assert_eq!(
-        input["idempotencyKey"],
-        format!(
-            "{}:{}",
-            request.as_str().unwrap(),
-            dialogue["attemptID"].as_str().unwrap()
-        )
-    );
-    assert_eq!(input["currentLocation"]["displayName"], "Connolly Cottage");
+    assert_eq!(input["aboutYou"]["name"], "Mícheál Connolly");
+    assert_eq!(input["thisMoment"]["where"], "Connolly Cottage");
+    // The model reads the input as written, so it carries no envelope and
+    // the host sends `inputJSON`, whose keys keep the frozen prompt's order.
+    assert!(input.get("logicalRequestID").is_none(), "{input}");
+    let sent = dialogue["inputJSON"].as_str().expect("inputJSON");
+    assert_eq!(serde_json::from_str::<Value>(sent).unwrap(), *input);
+    let order = [
+        "\"aboutYou\"",
+        "\"commonKnowledge\"",
+        "\"theVillage\"",
+        "\"thisMoment\"",
+        "\"whatTheStrangerSays\"",
+    ];
+    let positions: Vec<usize> = order.iter().map(|key| sent.find(key).unwrap()).collect();
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{sent}");
+    assert!(sent.starts_with("{\"aboutYou\":{\"name\":"), "{sent}");
 
     let first = game.frame(&dialogue, 1, "The wet ground ");
     let provisional = &first["events"][0];
@@ -683,7 +690,7 @@ fn an_endpoint_failure_ends_the_attempt_failed_and_a_retry_can_commit() {
     assert_ne!(retried["attemptID"], dialogue["attemptID"]);
     let again = game.until_dialogue(retried);
     assert_eq!(
-        again["input"]["logicalRequestID"], request,
+        again["logicalRequestID"], request,
         "a retry keeps the logical request"
     );
     let committed = game.resolve(&again, json!({"dialogue": CATTLE_LINE}));
@@ -799,10 +806,7 @@ fn an_ambiguous_addressee_asks_and_the_answer_survives_restart_and_continues_the
     );
     assert_eq!(kinds(&answered)[0], "clarification_selected");
     let dialogue = game.until_dialogue(answered);
-    assert_eq!(
-        dialogue["input"]["speaker"]["displayName"],
-        "Róisín Connolly"
-    );
+    assert_eq!(dialogue["input"]["aboutYou"]["name"], "Róisín Connolly");
     let committed = game.resolve(
         &dialogue,
         json!({"dialogue": "It is, if the rain holds off."}),
@@ -1008,7 +1012,7 @@ fn speakers_of(game: &Game) -> Vec<String> {
         }
         assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
         speakers.push(
-            dialogue["input"]["speaker"]["displayName"]
+            dialogue["input"]["aboutYou"]["name"]
                 .as_str()
                 .unwrap()
                 .to_string(),
@@ -1028,11 +1032,11 @@ fn a_confident_decision_routes_to_the_person_present_it_names() {
     });
     let dialogue = game.pending();
     assert_eq!(dialogue["endpoint"]["role"], "dialogue", "{dialogue}");
+    assert_eq!(dialogue["input"]["aboutYou"]["name"], "Róisín Connolly");
     assert_eq!(
-        dialogue["input"]["speaker"]["displayName"],
-        "Róisín Connolly"
+        dialogue["input"]["thisMoment"]["howYouCameToAnswer"],
+        Addressing::SpokenTo.sentence()
     );
-    assert_eq!(dialogue["input"]["addressing"], "spoken_to");
 }
 
 /// Design §8 rows 10 and 12: a line spoken to someone not present, or to a
@@ -1051,7 +1055,11 @@ fn a_decision_for_someone_not_present_reaches_everyone_present() {
         });
         assert!(narration(&result).is_empty(), "{text}: {result}");
         let dialogue = game.pending();
-        assert_eq!(dialogue["input"]["addressing"], "part_of_all", "{dialogue}");
+        assert_eq!(
+            dialogue["input"]["thisMoment"]["howYouCameToAnswer"],
+            Addressing::PartOfAll.sentence(),
+            "{dialogue}"
+        );
         let mut speakers = speakers_of(&game);
         speakers.sort();
         assert_eq!(speakers, ["Mícheál Connolly", "Róisín Connolly"], "{text}");
@@ -1098,7 +1106,7 @@ fn unaddressed_speech_asks_and_the_choice_becomes_the_partner() {
         dialogue["endpoint"]["role"], "dialogue",
         "no second intent call"
     );
-    assert_eq!(dialogue["input"]["playerInput"], "Hello");
+    assert_eq!(dialogue["input"]["whatTheStrangerSays"], "Hello");
     assert_eq!(speakers_of(&game), ["Róisín Connolly"]);
 
     // Row 3, and row 22 across a relaunch: the partner answers.
@@ -2069,7 +2077,7 @@ fn addressee_baseline() {
                     }
                     Some("dialogue") => {
                         recipients.push(
-                            pending["input"]["speaker"]["displayName"]
+                            pending["input"]["aboutYou"]["name"]
                                 .as_str()
                                 .unwrap()
                                 .to_string(),

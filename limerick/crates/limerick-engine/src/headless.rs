@@ -1376,13 +1376,6 @@ async fn handle_headless_game_input(
                 None => (None, text.to_string()),
             };
 
-            // Detect player self-introduction before building the NPC prompt
-            if app.world.player_name.is_none()
-                && let Some(name) = limerick_core::npc::detect_player_name(&dialogue)
-            {
-                app.world.player_name = Some(name);
-            }
-
             // Route to NPC conversation if one is present
             let lang = app.language_settings();
             let npc_cfg = limerick_core::config::NpcConfig {
@@ -1399,12 +1392,14 @@ async fn handle_headless_game_input(
                 &lang,
                 &npc_cfg,
             ) {
-                // Teach this NPC the player's name if introduced
-                if app.world.player_name.is_some()
-                    && limerick_core::npc::detect_player_name(&dialogue).is_some()
-                {
-                    app.npc_manager.teach_player_name(setup.npc_id);
-                }
+                // Teach this NPC the name the player gave it (and set the
+                // global name on a first introduction).
+                limerick_core::ipc::detect_and_record_player_name(
+                    &mut app.world,
+                    &mut app.npc_manager,
+                    &dialogue,
+                    setup.npc_id,
+                );
 
                 task_mutations
                     .extend(stream_headless_npc_dialogue(app, text, setup, request_id).await);

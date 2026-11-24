@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from base64 import urlsafe_b64encode
 from collections.abc import Callable, Sequence
@@ -298,6 +299,28 @@ def app_store_connect_token(key_path: str, key_id: str, issuer: str, now: int | 
     return f"{signing_input}.{_b64url(_der_to_raw_signature(der))}"
 
 
+def app_store_connect_refusal(error: urllib.error.HTTPError) -> str:
+    """Apple's own reason for refusing a request, from its JSON error body.
+
+    A 403 with a valid key usually means a new developer agreement waits for
+    the account holder to accept it, or the key lost its role; only the body
+    says which.
+    """
+
+    try:
+        errors = json.loads(error.read() or b"{}").get("errors") or []
+    except (OSError, ValueError, AttributeError):
+        errors = []
+    reasons = "; ".join(
+        " - ".join(str(item[field]) for field in ("code", "title", "detail") if item.get(field))
+        for item in errors
+        if isinstance(item, dict)
+    )
+    return f"App Store Connect refused the request (HTTP {error.code})" + (
+        f": {reasons}" if reasons else ": no reason given"
+    )
+
+
 def latest_uploaded_build(token: str) -> int | None:
     """The highest build number App Store Connect holds for the app, or None.
 
@@ -308,8 +331,11 @@ def latest_uploaded_build(token: str) -> int | None:
     url: str | None = APP_STORE_CONNECT_BUILDS_URL
     while url:
         request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(request, timeout=30) as response:
-            body = json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                body = json.load(response)
+        except urllib.error.HTTPError as error:
+            raise RuntimeError(app_store_connect_refusal(error)) from error
         versions.extend(
             int(build["attributes"]["version"])
             for build in body.get("data", [])

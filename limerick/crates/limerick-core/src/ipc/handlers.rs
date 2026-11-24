@@ -1139,12 +1139,9 @@ pub fn prepare_npc_conversation_turn(
         .all_npcs()
         .map(|n| (n.id, n.name.clone()))
         .collect();
-    // Determine if this NPC knows the player's name
-    let player_name_for_npc = if npc_manager.knows_player_name(speaker_id) {
-        world.player_name.as_deref()
-    } else {
-        None
-    };
+    // The name the player gave this NPC, if any: each NPC knows only the
+    // name it was told, never one the player gave someone else.
+    let player_name_for_npc = npc_manager.player_name_known_by(speaker_id);
 
     // Build roster; if NPC knows the player, inject the player at the front
     // so they appear in PEOPLE YOU KNOW with a clear "currently speaking with" note.
@@ -2183,7 +2180,7 @@ mod tests {
         assert!(world.player_name.is_none());
         detect_and_record_player_name(&mut world, &mut npc_mgr, "My name is Ciaran.", speaker);
         assert_eq!(world.player_name.as_deref(), Some("Ciaran"));
-        assert!(npc_mgr.knows_player_name(speaker));
+        assert_eq!(npc_mgr.player_name_known_by(speaker), Some("Ciaran"));
     }
 
     #[test]
@@ -2198,8 +2195,56 @@ mod tests {
 
         detect_and_record_player_name(&mut world, &mut npc_mgr, "My name is Ciaran.", speaker);
         assert_eq!(world.player_name.as_deref(), Some("Aoife"));
-        // The speaker still gets taught the name because detection fired.
-        assert!(npc_mgr.knows_player_name(speaker));
+        // The speaker learns the name it was told, not the global one.
+        assert_eq!(npc_mgr.player_name_known_by(speaker), Some("Ciaran"));
+    }
+
+    #[test]
+    fn detect_player_name_teaches_each_speaker_its_own_name() {
+        let mut world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut peig = Npc::new_test_npc();
+        peig.set_location(world.player_location);
+        let mut micheal = Npc::new_test_npc();
+        micheal.id = NpcId(peig.id.0 + 1);
+        micheal.set_location(world.player_location);
+        let (peig_id, micheal_id) = (peig.id, micheal.id);
+        npc_mgr.add_npc(peig);
+        npc_mgr.add_npc(micheal);
+
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "I'm Seán.", peig_id);
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "I'm Tomás.", micheal_id);
+        assert_eq!(npc_mgr.player_name_known_by(peig_id), Some("Seán"));
+        assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
+        assert_eq!(
+            world.player_name.as_deref(),
+            Some("Seán"),
+            "first name given"
+        );
+
+        // Re-introducing yourself to Peig changes only what Peig knows.
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "Call me Séamus.", peig_id);
+        assert_eq!(npc_mgr.player_name_known_by(peig_id), Some("Séamus"));
+        assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
+        // "I'm Irish" or a later "I'm ..." does not rename the player to
+        // an NPC that already knows a name; only an outright one does.
+        for line in ["I'm Irish, God help me.", "I'm Mícheál's neighbour."] {
+            detect_and_record_player_name(&mut world, &mut npc_mgr, line, micheal_id);
+            assert_eq!(npc_mgr.player_name_known_by(micheal_id), Some("Tomás"));
+        }
+        for line in [
+            "His name is Daniel.",
+            "The priest's name is Father Ryan.",
+            "Don't call me Seán.",
+            "Why do you call me Seán?",
+        ] {
+            detect_and_record_player_name(&mut world, &mut npc_mgr, line, peig_id);
+            assert_eq!(
+                npc_mgr.player_name_known_by(peig_id),
+                Some("Séamus"),
+                "{line}"
+            );
+        }
     }
 
     #[test]

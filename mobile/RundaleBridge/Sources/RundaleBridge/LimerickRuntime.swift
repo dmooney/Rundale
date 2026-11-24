@@ -96,10 +96,18 @@ public struct LimerickPendingInvocation: Sendable {
         self.input = input
     }
 
-    /// The Endpoint request body: `{"input": <invocation>}`.
+    /// The Endpoint request body: `{"input": <invocation>}`, with `input`'s
+    /// bytes unchanged. The dialogue Endpoint's model reads its input as
+    /// written, so the keys keep the order the engine wrote them in (the
+    /// frozen prompt's order, issue 2299); re-serialising would reorder them.
     public func requestBody() throws -> Data {
-        let object = try JSONSerialization.jsonObject(with: input)
-        return try JSONSerialization.data(withJSONObject: ["input": object], options: [.sortedKeys])
+        guard (try JSONSerialization.jsonObject(with: input)) is [String: Any] else {
+            throw LimerickRuntimeError.protocolError("The Endpoint input is not a JSON object.")
+        }
+        var body = Data(#"{"input":"#.utf8)
+        body.append(input)
+        body.append(Data("}".utf8))
+        return body
     }
 
     /// Whether this call's reply is NPC dialogue (streamed provisionally).
@@ -128,7 +136,10 @@ public struct LimerickPendingInvocation: Sendable {
             slug: slug,
             version: version.intValue,
             streams: root["stream"] as? Bool ?? false,
-            input: try JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])
+            // `inputJSON` is the input as the engine wrote it, in the key
+            // order the Endpoint expects; `input` is the same object.
+            input: try (root["inputJSON"] as? String).map { Data($0.utf8) }
+                ?? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])
         )
     }
 }

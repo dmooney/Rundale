@@ -3,7 +3,7 @@
 //! Part of the `NpcManager` impl, split out of the former monolithic
 //! `manager.rs` (#1200 TD-030). Public method paths are unchanged.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use limerick_types::ConversationLog;
 
@@ -51,24 +51,41 @@ impl NpcManager {
         self.introduced_npcs.clone()
     }
 
-    /// Records that the given NPC has learned the player's name.
-    pub fn teach_player_name(&mut self, id: NpcId) {
-        self.npcs_who_know_player_name.insert(id);
+    /// Records that the given NPC was told `name` as the player's name.
+    ///
+    /// A later introduction to the same NPC replaces the name it knows;
+    /// what every other NPC knows is unchanged. A blank name is ignored.
+    pub fn teach_player_name(&mut self, id: NpcId, name: impl Into<String>) {
+        let name = name.into();
+        let name = name.trim();
+        if name.is_empty() {
+            return;
+        }
+        self.player_names_by_npc.insert(id, name.to_string());
     }
 
-    /// Returns whether the given NPC knows the player's name.
+    /// The name the player gave the given NPC, if they gave it one.
+    pub fn player_name_known_by(&self, id: NpcId) -> Option<&str> {
+        self.player_names_by_npc.get(&id).map(String::as_str)
+    }
+
+    /// Returns whether the given NPC has been told the player's name.
     pub fn knows_player_name(&self, id: NpcId) -> bool {
-        self.npcs_who_know_player_name.contains(&id)
+        self.player_names_by_npc.contains_key(&id)
     }
 
-    /// Returns a clone of the set of NPC ids that know the player's name.
-    pub fn player_name_known_set(&self) -> HashSet<NpcId> {
-        self.npcs_who_know_player_name.clone()
+    /// Returns a clone of the name each NPC was told (for snapshots).
+    pub fn player_names_known(&self) -> BTreeMap<NpcId, String> {
+        self.player_names_by_npc.clone()
     }
 
-    /// Restores the set of NPC ids that know the player's name (for snapshot restore).
-    pub fn restore_player_name_known(&mut self, ids: HashSet<NpcId>) {
-        self.npcs_who_know_player_name = ids;
+    /// Restores the name each NPC was told (for snapshot restore). Blank
+    /// names are dropped.
+    pub fn restore_player_names_known(&mut self, names: BTreeMap<NpcId, String>) {
+        self.player_names_by_npc.clear();
+        for (id, name) in names {
+            self.teach_player_name(id, name);
+        }
     }
 
     /// Returns the display name for an NPC: their name if introduced,
