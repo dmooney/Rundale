@@ -40,14 +40,14 @@ impl NpcManager {
     /// from the rest of the roster (#339).
     ///
     /// A bare `self.npcs.remove(id)` would leave stale entries in
-    /// `tier_assignments`, `introduced_npcs`, `npcs_who_know_player_name`,
+    /// `tier_assignments`, `introduced_npcs`, `player_names_by_npc`,
     /// and every surviving NPC's `relationships` map. Call this from every
     /// death-handling path instead. Returns the removed NPC if it existed.
     pub fn remove_npc(&mut self, id: NpcId) -> Option<Npc> {
         let removed = self.npcs.remove(&id);
         self.tier_assignments.remove(&id);
         self.introduced_npcs.remove(&id);
-        self.npcs_who_know_player_name.remove(&id);
+        self.player_names_by_npc.remove(&id);
         for npc in self.npcs.values_mut() {
             npc.relationships.remove(&id);
         }

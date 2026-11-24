@@ -26,7 +26,7 @@ Until the game is released, each definition stays at version 1: a change edits
 the `.v1.json` file and replaces the published copy in place (`pnpm definitions
 replace`). After release, published versions become immutable and a change
 ships as a new `<slug>.v<version>.json`. The engine builds each input with
-`EndpointCall::invocation`.
+`EndpointCall::request_input`.
 
 Only version 1 of each Endpoint is published. The richer `ios-port` dialogue
 contract (acquired knowledge, player memory, task offers) was published to
@@ -45,63 +45,73 @@ every answer against them (`limerick_core::intent_decision`).
 ## Engine wire agreement
 
 A call with an Endpoint carries an `EndpointCall`: the reference (role, slug,
-version) and the role's structured input. The host builds the request's
-`input` with `EndpointCall::invocation`, which adds the invocation envelope it
-owns to the engine's fields. The JSON request body is exactly
-`{ "input": <invocation> }`.
+version) and the role's structured input. The host sends the request body
+`{ "input": <input> }`, where `<input>` is `EndpointCall::request_input`: JSON
+text in the key order the Endpoint expects. The Endpoint's model reads its
+input as "Endpoint input values:" followed by that JSON, so the host sends the
+bytes unchanged; the FFI hands them over as `inputJSON`, and re-serialising
+`input` (as `.sortedKeys` once did) would reorder the keys.
 
-The envelope is the same for both roles: `contractVersion` (`{major: 1,
-minor: 0}`), `sessionID`, `logicalRequestID`, `attemptID`, `baseRevision`
-(`{"rawValue": number}`), and `idempotencyKey` (`<request>:<attempt>`). Opaque
-IDs serialize as strings. All fields are required and unknown fields are
-rejected.
+The intent input carries the invocation envelope: `contractVersion`
+(`{major: 1, minor: 0}`), `sessionID`, `logicalRequestID`, `attemptID`,
+`baseRevision` (`{"rawValue": number}`), and `idempotencyKey`
+(`<request>:<attempt>`). Opaque IDs serialize as strings. It adds
+`role: "player_intent"`, the bounded `line` the deterministic local parser did
+not recognise, and the options the decision chooses among: `present` (people
+in the room), `elsewhere` (introduced people elsewhere), `references` (words
+that fit several people present), `places`, and `phrases` cut from the line.
+Each option carries an `optionId` assigned per call. All fields are required
+and unknown fields are rejected.
 
-The intent input adds `role: "player_intent"`, the bounded `line` the
-deterministic local parser did not recognise, and the options the decision
-chooses among: `present` (people in the room), `elsewhere` (introduced people
-elsewhere), `references` (words that fit several people present), `places`, and
-`phrases` cut from the line. Each option carries an `optionId` assigned per
-call.
+The dialogue input is the frozen NPC dialogue prompt's request
+([`promptfoo/prompt-lab/prompts/frozen.yaml`](../../promptfoo/prompt-lab/prompts/frozen.yaml),
+frozen 2026-11-23; issue 2299): five sections, in this order, and nothing else.
+Its model reads the whole input, so it carries no envelope and no `role`; the
+request's identities travel in the `X-Request-Id`, `X-Attempt-Id` and
+`Idempotency-Key` headers. `limerick_core::endpoint_input::dialogue_input`
+builds it for one speaker, holding only what that speaker could know
+([dynamic NPC context §6](../../docs/design/dynamic-npc-context.md#6-dialogue-snapshot)):
 
-The dialogue input adds `role: "npc_dialogue"`, `playerInput`, and one
-speaker's snapshot of the present moment, holding only what that speaker could
-know ([dynamic NPC context §6](../../docs/design/dynamic-npc-context.md#6-dialogue-snapshot)):
+- `aboutYou`: the speaker's own character from `npcs.json` (`name`, `age`,
+  `pronouns`, `appearance`, `occupation`, `personality`, `home`, `workplace`,
+  `day` as `HH:00-HH:59 activity (place)` for the season, `relationships` as
+  `who`, `kind` and `feeling` with the relationship's strength, `knows`,
+  `mood`) and its `backstory` from `mods/rundale/dialogue.json`. No other
+  character's personality, knowledge, mood, backstory or feelings.
+- `commonKnowledge`: the topics every character shares, from `dialogue.json`.
+- `theVillage`: the speaker's village from `dialogue.json` (`name`, how each
+  place `looks`, each person's `work`), with each place's `story` and `ways`
+  from `world.json`, each person's `name`, `looks`, `home` and `workplace`
+  from `npcs.json`, and the `festivals` from `festivals.json`. A speaker the
+  content puts in no village knows the whole world.
+- `thisMoment`: `where`, `whatYouAreDoing` (the speaker's scheduled activity,
+  when they are where it puts them), `when` (`Monday 20 March 1820, 10:00
+(morning)`), `weather`, `feastToday` (or `none`), `alsoHere` (`Name,
+activity` for each other person in the room, or `nobody else`),
+  `theStranger` (a stranger never seen before, or "Someone you have met
+  before. What you know of them: …" with the name the player gave before this
+  line), `howYouCameToAnswer` (spoken to, part of everyone, or joining because
+  mentioned), `justSaid` (the last 8 exchanges the speaker witnessed, as
+  `{speaker, said}` lines, the player as `the stranger`), and `notice` only
+  when the line holds something foreign to 1820, which nothing sets yet.
+- `whatTheStrangerSays`: the bounded player line.
 
-- `speaker`: id, name, occupation as `role`, current location, and authored
-  `mood` from `npcs.json`.
-- `addressing`: `spoken_to`, `part_of_all`, or `joining_mentioned`. Until
-  recipient resolution records it (#2221), every speaker is `spoken_to`.
-- `currentLocation`: the place rendered for the current time and weather,
-  naming the people there.
-- `time` (`date`, `clockTime`, `partOfDay`), `weather`, and `festival`
-  (today's festival from `GameClock::check_festival`, or null).
-- `present`: the other people in the room with the speaker.
-- `knownPeople`: every NPC by id, name, and occupation, with no location.
-- `knownPlaces`: every place, rendered without naming anyone there.
-- `authoredFacts`: the speaker's `knowledge` from `npcs.json`.
-- `recentConversation`: the last 8 exchanges the speaker witnessed, oldest
-  first, with the snake_case fields `timestamp`, `speaker_id`,
-  `speaker_name`, `player_input`, `npc_dialogue`, and `location`. Each
-  committed exchange records the NPCs present; exchanges in saves written
-  before that count as witnessed only by their speaker.
-- `player`: `knowsName` and, when the speaker knows it, the player's `name`
-  (otherwise null).
-- `maxOutputChars` (8,192) and `maxStreamBytes` (16,384).
-
-People are `npc-<id>` and places `place-<id>`. The engine caps people, places,
-and facts at 32. Each speaker's snapshot is built when that speaker's call is
-built, so in a line with several speakers a later speaker's snapshot includes
-the replies already committed.
+Lists are capped at 32 entries, `justSaid` at 8 exchanges, and the line at
+4,096 characters. Each speaker's input is built when that speaker's call is
+built, so in a line with several speakers a later speaker's `justSaid`
+includes the replies already committed, with the player's line written once.
 
 [`example-engine-invocation.json`](example-engine-invocation.json) and
 [`example-intent-invocation.json`](example-intent-invocation.json) are secret-free
 invocations the engine builds on the canonical world. The Rust test
-`endpoint_calls` checks them against the engine's output
+`endpoint_calls` checks them against the engine's output, key order included
 (`UPDATE_ENDPOINT_FIXTURES=1` regenerates them), and the Endpoints suite
 validates them against the definitions' schemas.
 
-The request's player and conversation text is untrusted content. The Endpoint
-instructions do not duplicate the world's facts, and the engine remains
+The request's player and conversation text is untrusted content. The dialogue
+Endpoint's instructions are the frozen prompt's system text, word for word; they
+do not duplicate the world's facts, and nothing rewrites the reply.
+The engine remains
 authoritative for validation and state changes. The engine receives the
 terminal structured candidate for its own validation and gameplay commit.
 Streaming may expose only the top-level `dialogue` text projection; partial

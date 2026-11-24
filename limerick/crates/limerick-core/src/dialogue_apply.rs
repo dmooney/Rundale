@@ -15,23 +15,39 @@ use crate::world::{LocationId, WorldState};
 
 /// Detects if the player is introducing themselves and records the name.
 ///
-/// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
-/// use the player's name. If detected, sets `world.player_name` (if not
-/// already set) and teaches the speaking NPC the player's name.
+/// If detected, teaches the speaking NPC the name it was given and sets
+/// `world.player_name`, the player's global name for NPC-independent
+/// surfaces, if it is not already set. Other NPCs keep the name they were
+/// told. A name this NPC already knows is replaced only by an outright
+/// introduction ("my name is", "call me"), not by "I'm"/"I am".
+///
+/// The game loop calls this before `prepare_npc_conversation_turn` so the
+/// NPC prompt can use the name. The headless CLI calls it once
+/// `prepare_npc_conversation` has resolved the speaker, so there the name
+/// reaches the next prompt. The canonical apply calls it again after a reply
+/// is accepted; calling it twice for one line changes nothing.
 pub fn detect_and_record_player_name(
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
     player_input: &str,
     speaker_id: NpcId,
 ) {
-    if let Some(name) = crate::npc::detect_player_name(player_input) {
-        // Don't overwrite a previously set player name
-        if world.player_name.is_none() {
-            tracing::info!("Player introduced themselves as: {}", name);
-            world.player_name = Some(name);
-        }
-        npc_manager.teach_player_name(speaker_id);
+    let Some(intro) = crate::npc::detect_player_introduction(player_input) else {
+        return;
+    };
+    // "I'm X" also says "I'm Irish": it may give a first name, but only an
+    // outright one ("my name is", "call me") replaces a name this NPC knows.
+    if !intro.explicit && npc_manager.knows_player_name(speaker_id) {
+        return;
     }
+    let name = intro.name;
+    tracing::info!("Player introduced themselves to {speaker_id:?} as: {name}");
+    // The global name is the first one the player gave anyone; it is used
+    // only where no particular NPC's knowledge applies.
+    if world.player_name.is_none() {
+        world.player_name = Some(name.clone());
+    }
+    npc_manager.teach_player_name(speaker_id, name);
 }
 
 /// Default-on kill switch for durable player task assignment and progression.
@@ -738,11 +754,9 @@ pub fn apply_npc_dialogue_turn_with_disposition(
     }
 
     // 2. Tier-1 state update on the speaker.
-    let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
-        world.player_name.clone()
-    } else {
-        None
-    };
+    let player_name_for_mem = npc_manager
+        .player_name_known_by(speaker_id)
+        .map(str::to_owned);
     if let Some(npc) = npc_manager.get_mut(speaker_id) {
         debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
             npc,

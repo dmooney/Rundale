@@ -14,6 +14,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::dialogue_context::DialogueContext;
+
 /// A model workload that is executed through a published Endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -145,6 +147,9 @@ pub struct EndpointCatalog {
     pub dialogue: Option<EndpointFile>,
     /// The intent role's definition, when declared.
     pub intent: Option<EndpointFile>,
+    /// The authored content the dialogue role's input draws on beside the
+    /// game data (`[files] dialogue`, plus the festival calendar).
+    pub dialogue_context: DialogueContext,
 }
 
 /// The catalog of a runtime with no mod loaded, or a mod that declares no
@@ -152,6 +157,7 @@ pub struct EndpointCatalog {
 pub static NO_ENDPOINTS: EndpointCatalog = EndpointCatalog {
     dialogue: None,
     intent: None,
+    dialogue_context: DialogueContext::EMPTY,
 };
 
 impl EndpointCatalog {

@@ -1,5 +1,5 @@
 {
-  "originHash" : "70f68b4451d48912b3def5f426b34e00eca9efb2ad547ebaeb50b7fce2e361e5",
+  "originHash" : "735eb5577c62503b1a30d634c8db5dae709296c91fe4cdeb554b1861f2166c22",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/steipete/Swiftdansi.git",
       "state" : {
-        "revision" : "0cc118c589816ca66554c2c52a36b1d0e65d379a",
-        "version" : "0.3.1"
+        "revision" : "1ca1f6b367c5350f66713c6235f9207ff7e829c1",
+        "version" : "0.3.2"
       }
     }
   ],

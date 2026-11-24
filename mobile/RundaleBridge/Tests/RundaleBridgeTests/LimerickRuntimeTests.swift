@@ -68,6 +68,26 @@ final class LimerickRuntimeTests: XCTestCase {
         XCTAssertNil(try LimerickPendingInvocation.decode(Data("null".utf8)))
     }
 
+    /// The dialogue Endpoint's model reads its input as written, so the
+    /// request carries `inputJSON` byte for byte, in the engine's key order
+    /// (the frozen prompt's), not re-sorted (issue 2299).
+    func testTheRequestBodySendsTheEnginesInputInItsOwnKeyOrder() throws {
+        let ordered = #"{"aboutYou":{"name":"Peig Hannigan","age":54},"commonKnowledge":[],"theVillage":{"places":[]},"thisMoment":{"where":"Letter Office","when":"Monday"},"whatTheStrangerSays":"Hello"}"#
+        let root: [String: Any] = [
+            "attemptID": "a1", "baseRevision": ["rawValue": 3], "callID": "a1#2",
+            "endpoint": ["role": "dialogue", "slug": "rundale-dialogue", "version": 1],
+            "input": try JSONSerialization.jsonObject(with: Data(ordered.utf8)),
+            "inputJSON": ordered, "logicalRequestID": "r1", "stream": true
+        ]
+        let pending = try XCTUnwrap(LimerickPendingInvocation.decode(
+            JSONSerialization.data(withJSONObject: root)
+        ))
+        XCTAssertEqual(
+            try XCTUnwrap(String(bytes: pending.requestBody(), encoding: .utf8)),
+            #"{"input":"# + ordered + "}"
+        )
+    }
+
     func testOtherInternalErrorsKeepTheirRawEnvelope() {
         let envelope = Data(#"{"ok":false,"error":{"code":"internal_error","message":"boom"}}"#.utf8)
         let error = LimerickRuntime.statusError(LIMERICK_MOBILE_INTERNAL_ERROR, response: envelope)

@@ -182,10 +182,12 @@ extension LimerickPendingInvocation {
         return try Self(
             callID: callID, logicalRequestID: LogicalRequestID(request), attemptID: ExecutionAttemptID(attempt),
             baseRevision: StateRevision(1), role: "dialogue", slug: "rundale-dialogue", version: 3, streams: true,
+            // The frozen prompt's request (issue 2299): no envelope, so the
+            // fixture Endpoint reads the identities from the headers.
             input: JSONSerialization.data(withJSONObject: [
-                "role": "dialogue", "logicalRequestID": request, "attemptID": attempt,
-                "idempotencyKey": callID, "playerInput": line,
-                "speaker": ["id": "micheal", "displayName": "Mícheál Connolly"]
+                "aboutYou": ["name": "Mícheál Connolly"],
+                "thisMoment": ["where": "Connolly Cottage"],
+                "whatTheStrangerSays": line
             ])
         )
     }
