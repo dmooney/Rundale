@@ -16,8 +16,10 @@ use crate::world::{LocationId, WorldState};
 /// Detects if the player is introducing themselves and records the name.
 ///
 /// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
-/// use the player's name. If detected, sets `world.player_name` (if not
-/// already set) and teaches the speaking NPC the player's name.
+/// use the player's name. If detected, teaches the speaking NPC the name it
+/// was given (replacing any name the player gave that NPC before; other NPCs
+/// keep the name they were told) and sets `world.player_name`, the player's
+/// global name for NPC-independent surfaces, if it is not already set.
 pub fn detect_and_record_player_name(
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
@@ -25,12 +27,13 @@ pub fn detect_and_record_player_name(
     speaker_id: NpcId,
 ) {
     if let Some(name) = crate::npc::detect_player_name(player_input) {
-        // Don't overwrite a previously set player name
+        tracing::info!("Player introduced themselves to {speaker_id:?} as: {name}");
+        // The global name is the first one the player gave anyone; it is
+        // used only where no particular NPC's knowledge applies.
         if world.player_name.is_none() {
-            tracing::info!("Player introduced themselves as: {}", name);
-            world.player_name = Some(name);
+            world.player_name = Some(name.clone());
         }
-        npc_manager.teach_player_name(speaker_id);
+        npc_manager.teach_player_name(speaker_id, name);
     }
 }
 
@@ -738,11 +741,9 @@ pub fn apply_npc_dialogue_turn_with_disposition(
     }
 
     // 2. Tier-1 state update on the speaker.
-    let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
-        world.player_name.clone()
-    } else {
-        None
-    };
+    let player_name_for_mem = npc_manager
+        .player_name_known_by(speaker_id)
+        .map(str::to_owned);
     if let Some(npc) = npc_manager.get_mut(speaker_id) {
         debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
             npc,

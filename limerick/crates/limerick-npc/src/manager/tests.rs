@@ -587,7 +587,7 @@ fn remove_npc_scrubs_all_references() {
     }
     mgr.tier_assignments.insert(NpcId(20), CogTier::Tier1);
     mgr.introduced_npcs.insert(NpcId(20));
-    mgr.npcs_who_know_player_name.insert(NpcId(20));
+    mgr.teach_player_name(NpcId(20), "Seán");
 
     mgr.npcs.get_mut(&NpcId(10)).unwrap().relationships.insert(
         NpcId(20),
@@ -608,7 +608,7 @@ fn remove_npc_scrubs_all_references() {
     assert!(mgr.get(NpcId(20)).is_none());
     assert!(!mgr.tier_assignments.contains_key(&NpcId(20)));
     assert!(!mgr.introduced_npcs.contains(&NpcId(20)));
-    assert!(!mgr.npcs_who_know_player_name.contains(&NpcId(20)));
+    assert!(!mgr.knows_player_name(NpcId(20)));
 
     let n10 = mgr.get(NpcId(10)).unwrap();
     assert!(!n10.relationships.contains_key(&NpcId(20)));
@@ -1063,4 +1063,38 @@ fn resolve_reference_not_found_for_absent_or_blank_reference() {
         mgr.resolve_reference_at("Constable", LocationId(2)),
         NpcReference::NotFound
     );
+}
+
+// ── Per-NPC player names ─────────────────────────────────────────────────
+
+#[test]
+fn each_npc_knows_only_the_name_it_was_told() {
+    let mut mgr = NpcManager::new();
+    mgr.teach_player_name(NpcId(1), "Seán");
+    mgr.teach_player_name(NpcId(2), "Tomás");
+
+    assert_eq!(mgr.player_name_known_by(NpcId(1)), Some("Seán"));
+    assert_eq!(mgr.player_name_known_by(NpcId(2)), Some("Tomás"));
+    assert_eq!(mgr.player_name_known_by(NpcId(3)), None);
+    assert!(!mgr.knows_player_name(NpcId(3)));
+}
+
+#[test]
+fn a_new_introduction_replaces_only_that_npcs_name() {
+    let mut mgr = NpcManager::new();
+    mgr.teach_player_name(NpcId(1), "Seán");
+    mgr.teach_player_name(NpcId(2), "Tomás");
+    mgr.teach_player_name(NpcId(1), "Séamus");
+
+    assert_eq!(mgr.player_name_known_by(NpcId(1)), Some("Séamus"));
+    assert_eq!(mgr.player_name_known_by(NpcId(2)), Some("Tomás"));
+}
+
+#[test]
+fn a_blank_name_teaches_nothing() {
+    let mut mgr = NpcManager::new();
+    mgr.teach_player_name(NpcId(1), "  ");
+    assert!(!mgr.knows_player_name(NpcId(1)));
+    mgr.teach_player_name(NpcId(1), " Seán ");
+    assert_eq!(mgr.player_name_known_by(NpcId(1)), Some("Seán"));
 }

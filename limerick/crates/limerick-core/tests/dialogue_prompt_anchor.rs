@@ -60,8 +60,8 @@ fn build_dialogue_context_with_first_npc(
         .map(|n| n.id)
         .expect("Rundale fresh save should co-locate at least one NPC with the player");
 
-    if teach_player_name {
-        npc_manager.teach_player_name(speaker_id);
+    if teach_player_name && let Some(name) = player_name {
+        npc_manager.teach_player_name(speaker_id, name);
     }
 
     let setup = prepare_npc_conversation_turn(
