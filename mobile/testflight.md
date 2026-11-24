@@ -50,7 +50,11 @@ key, `testflight` therefore waits after the upload, polling App Store Connect ev
 minute until the build's `processingState` is `VALID`, its `internalBuildState` is
 `IN_BETA_TESTING` and it is in the **Internal Beta** group. It exits non-zero at
 once on `FAILED`, `INVALID`, `PROCESSING_EXCEPTION`, `MISSING_EXPORT_COMPLIANCE` or
-`EXPIRED`, and after 45 minutes (`--timeout MINUTES`), naming the last state seen. The receipt's
+`EXPIRED`, and after 45 minutes (`--timeout MINUTES`), naming the last state seen.
+It mints a fresh API token for every poll, and retries network errors, 5xx and 429
+until the deadline; a 401, 403 or other 4xx fails at once with Apple's reason. In
+CI a failed run opens or updates a "TestFlight upload or delivery failed" issue,
+and a delivered build closes it. The receipt's
 `testingStatus` holds that state. Without a key the build number is not fixed, so
 the command says the status could not be checked and the releasing agent confirms
 it in App Store Connect. To check an existing build:

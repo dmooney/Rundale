@@ -257,9 +257,10 @@ pass is recorded for it, records the pass, and on failure opens or updates a
 full gate before uploading. Both paths wait for Apple (up to 45 minutes) and fail
 unless the build is **Testing** in **Internal Beta** (upload success alone is not
 delivery); `python3 mobile/scripts/release.py testflight-status --build N` checks
-any build. Complete export compliance if it is the blocker, and report the build number App Store Connect
-received, what to try, checks run, and any remaining device gates. If signing,
-Apple processing, or another blocker prevents delivery, report it explicitly.
+any build. Complete export compliance if it is the blocker, and report the build
+number App Store Connect received, what to try, checks run, and any remaining
+device gates. If signing, Apple processing, or another blocker prevents delivery,
+report it explicitly.
 
 ### Phase-end demonstrations
 

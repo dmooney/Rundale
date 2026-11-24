@@ -368,6 +368,10 @@ class TestFlightWaitError(RuntimeError):
         self.state = state
 
 
+class TransientLookupError(RuntimeError):
+    """A lookup failure worth retrying: a network error, a 5xx or a 429."""
+
+
 def build_testing_state(token: str, build: int) -> tuple[str, list[str]]:
     """One build's `<processingState>/<internalBuildState>` and beta group names.
 
@@ -385,7 +389,14 @@ def build_testing_state(token: str, build: int) -> tuple[str, list[str]]:
         with urllib.request.urlopen(request, timeout=30) as response:
             body = json.load(response)
     except urllib.error.HTTPError as error:
-        raise RuntimeError(app_store_connect_refusal(error)) from error
+        refusal = app_store_connect_refusal(error)
+        if error.code == 429 or error.code >= 500:
+            raise TransientLookupError(refusal) from error
+        raise RuntimeError(refusal) from error
+    except (urllib.error.URLError, OSError, ValueError) as error:
+        # URLError, timeouts and connection resets are OSErrors; a body cut
+        # short is a ValueError from the JSON parser.
+        raise TransientLookupError(f"App Store Connect was unreachable: {error}") from error
     data = body.get("data") or []
     if not data:
         return "NOT_LISTED", []
@@ -402,7 +413,7 @@ def build_testing_state(token: str, build: int) -> tuple[str, list[str]]:
 
 
 def wait_for_testing(
-    token: str,
+    new_token: Callable[[], str],
     build: int,
     *,
     timeout_minutes: float = DEFAULT_TESTING_TIMEOUT_MINUTES,
@@ -414,41 +425,58 @@ def wait_for_testing(
     """Poll App Store Connect until the build is Testing in Internal Beta.
 
     Returns the final state. A state only a person can fix raises at once, as
-    does the timeout; both name the last state seen.
+    does the timeout; both name the last state seen. A fresh token is minted
+    for every poll, since a token lasts 10 minutes and the wait can last 45.
+    A network error, 5xx or 429 is retried until the deadline; any other
+    refusal (a 401, 403 or other 4xx) ends the wait.
     """
 
     deadline = clock() + timeout_minutes * 60
+    state = "NOT_CHECKED"
+    groups: list[str] = []
+    last_error = ""
     while True:
-        state, groups = fetch(token, build)
-        processing, _, internal = state.partition("/")
-        if processing in FAILED_PROCESSING_STATES or internal in FAILED_INTERNAL_STATES:
-            raise TestFlightWaitError(
-                f"build {build} will not reach Testing: {state} "
-                "(see App Store Connect, TestFlight, for the reason)",
-                state,
-            )
-        if processing == "VALID" and internal == TESTING_STATE and INTERNAL_BETA_GROUP in groups:
-            print(f"Build {build} is Testing in {INTERNAL_BETA_GROUP}.")
-            return state
+        try:
+            state, groups = fetch(new_token(), build)
+            last_error = ""
+        except TransientLookupError as error:
+            last_error = str(error)
+        if not last_error:
+            processing, _, internal = state.partition("/")
+            if processing in FAILED_PROCESSING_STATES or internal in FAILED_INTERNAL_STATES:
+                raise TestFlightWaitError(
+                    f"build {build} will not reach Testing: {state} "
+                    "(see App Store Connect, TestFlight, for the reason)",
+                    state,
+                )
+            if (
+                processing == "VALID"
+                and internal == TESTING_STATE
+                and INTERNAL_BETA_GROUP in groups
+            ):
+                print(f"Build {build} is Testing in {INTERNAL_BETA_GROUP}.")
+                return state
         if clock() >= deadline:
             raise TestFlightWaitError(
                 f"build {build} did not reach Testing in {INTERNAL_BETA_GROUP} within "
                 f"{timeout_minutes:g} minutes; last state {state}"
-                + (f", groups {groups}" if groups else ""),
+                + (f", groups {groups}" if groups else "")
+                + (f"; last lookup error: {last_error}" if last_error else ""),
                 state,
             )
         pause = min(poll_seconds, deadline - clock())
-        print(f"Build {build}: {state}; checking again in {pause:g}s.", flush=True)
+        detail = f"lookup failed ({last_error})" if last_error else state
+        print(f"Build {build}: {detail}; checking again in {pause:g}s.", flush=True)
         sleep(pause)
 
 
-def asc_token_from_env(env: dict[str, str] | None = None) -> str | None:
-    """An API token from the ASC_* variables, or None when any is unset."""
+def asc_token_factory(env: dict[str, str] | None = None) -> Callable[[], str] | None:
+    """A callable minting a fresh API token from the ASC_* variables, or None when any is unset."""
 
     env = dict(os.environ) if env is None else env
     key_path, key_id, issuer = (env.get(name, "") for name in ASC_KEY_ENV)
     if key_path and key_id and issuer:
-        return app_store_connect_token(key_path, key_id, issuer)
+        return lambda: app_store_connect_token(key_path, key_id, issuer)
     return None
 
 
@@ -821,12 +849,12 @@ class Release:
     def await_testing(self, receipt: dict[str, object], build: int) -> None:
         """Wait for Testing in Internal Beta, record the state, fail loudly."""
 
-        token = asc_token_from_env()
-        if token is None:
+        new_token = asc_token_factory()
+        if new_token is None:
             print("No App Store Connect API key; the Testing status could not be checked.")
             return
         try:
-            state = wait_for_testing(token, build, timeout_minutes=self.wait_minutes)
+            state = wait_for_testing(new_token, build, timeout_minutes=self.wait_minutes)
         except TestFlightWaitError as error:
             receipt["testingStatus"] = error.state
             self.write_receipt(receipt)
@@ -838,10 +866,10 @@ class Release:
     def testflight_status(self, build: int) -> None:
         """Check an existing build, waiting up to the timeout."""
 
-        token = asc_token_from_env()
-        if token is None:
+        new_token = asc_token_factory()
+        if new_token is None:
             raise RuntimeError(f"set {', '.join(ASC_KEY_ENV)} to check a build's status")
-        state = wait_for_testing(token, build, timeout_minutes=self.wait_minutes)
+        state = wait_for_testing(new_token, build, timeout_minutes=self.wait_minutes)
         print(f"Build {build}: {state}")
 
     def validate_app(
