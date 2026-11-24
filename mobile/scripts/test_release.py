@@ -544,6 +544,30 @@ class ReleaseTests(unittest.TestCase):
         ):
             self.assertIn(part, request.full_url)
 
+    def test_a_real_app_store_connect_response_reaches_testing(self):
+        """Parse a captured response, not a hand-written one.
+
+        `fixtures/asc_build_1354_testing.json` is the response to
+        `GET /v1/builds?filter[app]=6811694290&filter[version]=1354
+        &include=buildBetaDetail,betaGroups` captured on 2026-11-24 with the
+        repository's App Store Connect API key, then trimmed to the fields the
+        parser reads plus the type/id structure (no links, tokens or tester data).
+        """
+
+        fixture = json.loads(
+            (Path(__file__).parent / "fixtures" / "asc_build_1354_testing.json").read_text()
+        )
+        with patch.object(
+            release.urllib.request, "urlopen", side_effect=lambda *a, **k: self.response(fixture)
+        ):
+            self.assertEqual(
+                release.build_testing_state("TOKEN", 1354),
+                ("VALID/IN_BETA_TESTING", ["Internal Beta"]),
+            )
+            with patch("sys.stdout", new_callable=io.StringIO):
+                state = release.wait_for_testing(self.factory, 1354, sleep=lambda _: None)
+        self.assertEqual(state, "VALID/IN_BETA_TESTING")
+
     def test_build_testing_state_reports_an_unlisted_build(self):
         with patch.object(
             release.urllib.request, "urlopen", return_value=self.response({"data": []})

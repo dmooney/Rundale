@@ -212,7 +212,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title="TestFlight upload or delivery failed"
-          body="The TestFlight upload or the wait for Testing in Internal Beta failed on ${GITHUB_SHA}.
+          body="The TestFlight upload or the wait for Testing in Internal Beta failed on ${GITHUB_SHA}. The job may have failed before the upload (signing, archive) or been cancelled by its timeout; the run's log names the failing step.
 
           Run: ${RUN_URL}
 

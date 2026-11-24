@@ -402,6 +402,8 @@ def build_testing_state(token: str, build: int) -> tuple[str, list[str]]:
     data = body.get("data") or []
     if not data:
         return "NOT_LISTED", []
+    # data[0]: build numbers only ever rise here, so across marketing versions
+    # one number names one build.
     processing = str(data[0].get("attributes", {}).get("processingState") or "UNKNOWN")
     internal = "NONE"
     groups: list[str] = []
