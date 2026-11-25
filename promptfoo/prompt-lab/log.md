@@ -216,9 +216,10 @@ the first run.
 - New training cases: `cases/engage-train.yaml`, 18 moments tagged with F1-F9
   and the B-limits they touch; a training round now runs them with
   `train.yaml` (43 cases).
-- Next: none until the owner has marked calibration sheet 2 and the rubric
-  agrees with the marks. No lab round has run.
-- Spend so far (run 2): $3.37 of $25.00.
+- Next: round 01 rerun (prompt in `output/round-01-brief.yaml`), once the
+  owner adds OpenRouter credit; stopped on an empty account.
+- Best: round 00, 73.5 (flash-lite 62.1).
+- Spend so far (run 2): $17.19 of $25.00.
 
 ### Calibration: the frozen prompt on flash-lite under the new judges
 
@@ -340,3 +341,62 @@ the first run.
   sister, the priest and Mass, and the Bealtaine fires (nothing to do with
   cattle or the ground); Róisín asked about her own morning. Training is now
   47 cases (25 + 22).
+
+### Round 00 (run 2): the improv draft
+
+- Training score (brief, both models, both judges): **73.5**. Gain: none
+  (first round of run 2).
+- By model: flash 84.9, **flash-lite 62.1**.
+- By requirement: B1 79.0, B2 72.5, B3 71.1, B4 77.1, B5 68.8, B6 72.2,
+  B7 75.4, B8 69.4, B9 80.2, B10 71.4, B11 73.3, B12 77.6, B13 76.6,
+  B14 66.4, B15 71.8, B16 92.5, B17 78.7, B18 90.0, B19 48.1, B20 68.6;
+  F1 71.4, F2 69.0, F3 76.1, F4 75.5, F5 71.3, F6 75.6, F7 62.9, F8 71.1,
+  F9 74.5.
+- Malformed 0, outages 0, nothing unpriced.
+- Judges split over 20 (14, nearly all GPT 0.3 against Opus 0.72 to 0.82, GPT
+  seeing an invention Opus let pass): t06, t08, t09, t12, t23, e02, e04 (both
+  models), e14, e22 (both models) flash-lite unless noted; t17 flash-lite the
+  other way (0.30/0.81); e17, e21 flash.
+- Baseline not run: the frozen prompt's replies were already scored on sheet 1,
+  and the budget is kept for rounds.
+- Spend: $5.70. Running total (run 2): $10.39.
+- Change: none; `prompts/improv-draft.yaml` as written for sheet 2.
+- Reading of the misses: hooks are nearly always there now; the misses are
+  inventions made to build them, almost all flash-lite: a named priest and a
+  chapel (e20), a chapel and a left turn on the way (t04), a dead smith at a
+  crossroads (e16), Peig given "the old cures" as the reason to send a sick
+  child's parent to her (t10), a weekly Dublin Gazette (t14), carts to ask
+  Peig about (e08), an uncle gone to Mayo (e17), "the parish priest up by
+  Roscommon" for an unknown name (t07). Then a few final answers (t02 "And you
+  kindly", e18 a rhetorical maxim) and "my prompt" said in character (t16).
+
+### Round 01 (run 2): hooks built only from what is given
+
+- Change (from round 00): the "keep the scene alive" paragraph adds that the
+  character's own part is built only from what the request gives, and that a
+  question back or their own feeling is always safe when they have no fact.
+  The grounding paragraph adds roads, turnings, trades and papers to what must
+  be in the request, "even the kind every village would have"; a past for a
+  place or person is invention; do not pretend to know of the unknown or its
+  kind; give people only the work, skills, habits and knowledge the request
+  gives; send the stranger only for a reason the request gives.
+- Why: round 00's misses were inventions made to build a hook.
+- First run void: 14 outages, every one a request timed out after 300 s
+  (mostly the GPT judge on the Responses route at xhigh effort, one flash
+  reply). Spend on the void run: $5.17. Running total (run 2): $15.56. Kept as
+  `output/round-01-void.json`; per the skill the round is rerun whole into
+  `output/round-01.json`, with `REQUEST_TIMEOUT_MS=900000`.
+- Rerun void too: 80 outages. 72 are `402 Payment Required` ("This request
+  would exceed your available credits"): the OpenRouter account ran out of
+  credit mid-run ($118.55 of $120 used; $1.45 left). The account balance, not
+  the run's $25 cap, ran out: the earlier run's spend and other work bill the
+  same account. Spend on the void rerun: $1.63. Running total (run 2):
+  $17.19.
+- **Stopped.** Round 01 has no valid score. Best valid round: 00 (73.5;
+  flash-lite 62.1). Adding credit is the owner's call. To resume: add credit,
+  then rerun round 01 unchanged (`output/round-01-brief.yaml` is its prompt).
+- Process gaps closed in `eval.sh`: it now defaults `REQUEST_TIMEOUT_MS` to
+  900000 (the 300 s default voided the first run), and before any call it
+  reads the OpenRouter balance and exits 4 when under `LAB_MIN_CREDIT_USD`
+  (default $8, about one training round), so a round can no longer be voided
+  halfway by an empty account. Checked: it refused with $1.45 left.
