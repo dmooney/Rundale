@@ -216,9 +216,9 @@ the first run.
 - New training cases: `cases/engage-train.yaml`, 18 moments tagged with F1-F9
   and the B-limits they touch; a training round now runs them with
   `train.yaml` (43 cases).
-- Next: none until the owner has marked the calibration sheet and the rubric
+- Next: none until the owner has marked calibration sheet 2 and the rubric
   agrees with the marks. No lab round has run.
-- Spend so far (run 2): $0.99 of $25.00.
+- Spend so far (run 2): $3.37 of $25.00.
 
 ### Calibration: the frozen prompt on flash-lite under the new judges
 
@@ -231,3 +231,45 @@ the first run.
 - The replies are in `calibration-2026-11-24.md`, without scores, for the
   owner to mark keeps-the-scene-going or kills-it. The judges' scores are held
   back from that sheet until the owner has marked it.
+- Owner's marks: all 20 "kills it".
+
+### Rubric tuned to the owner's marks (calibration, not a score change)
+
+- The owner marked all 20 replies of sheet 1 "kills it": "some of them were
+  better than others but none of them responded with more than a short
+  response, no follow up questions, no suggestions, just a final answer." The
+  judges had passed or half-passed six of them (e03, e13, e18, t10, t21, t02).
+- This is calibration of the judges to the owner's marks (20 of 20 kills), not
+  a change made to lift a score. The rubric now has a final-answer test: a
+  reply passes only with a hook of one of four kinds (a follow-up question; a
+  suggestion of what to do or whom to see with a reason or a stake; a story or
+  opinion that invites a response, beyond the answer; something the character
+  wants from the player). With none, it is capped at 0.4. Specific,
+  period-correct, in-character lines earn nothing on their own; a bare
+  hand-off, a returned greeting or a vague hint is not a hook; a grump line
+  counts only when its grumbling carries one. The formula-question miss is now
+  judged only across a conversation. The 0.3 caps are unchanged. Design §3.1
+  records the same.
+- Re-scored without regenerating (a replay provider fed the stored replies to
+  the judges): mean 42.1 -> 27.0, and 19 of 20 below the pass line on both
+  judges. GPT still passed e03 (0.80), reading a vivid answer as an opinion
+  hook, so the opinion kind was tightened: a vivid detail that only answers is
+  not a hook. The four borderline replies (e03, e06, e13, t10) were re-scored
+  under that wording: 0.30 to 0.42 on both judges. All 20 now fall below the
+  pass line on both judges.
+- Spend: $0.94 (all 20) and $0.22 (the four). Output:
+  `output/calibration-2026-11-24-rescore.json` and
+  `output/calibration-2026-11-24-rescore2.json`.
+
+### Calibration sheet 2: a draft improv prompt
+
+- `prompts/improv-draft.yaml`: new system text written to §3.1 and the owner's
+  reason (every reply hands the player something to carry on with; a "no"
+  comes with something given back; take up what the stranger offers; up to four
+  or five sentences for a real question). The request is the frozen prompt's,
+  unchanged. It is a draft for the sheet, not a lab round.
+- Run on flash-lite over the same 20 scenes under the tuned judges. Malformed
+  0, outages 0, nothing unpriced. Judges split over 20 points on e01 and e15.
+- Replies, shuffled and without scores: `calibration-2026-11-24-b.md`. The
+  scores and the order's key are held back until the owner has marked it.
+- Spend: $1.22. Running total (run 2): $3.37.
