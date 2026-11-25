@@ -149,12 +149,27 @@ scored on these criteria.
 Each of these is also a miss, however engaged the reply looks:
 
 - dumping everything the character knows unprompted;
-- every reply ending in a question;
+- every one of a character's turns in a conversation ending in a question
+  (judged across the conversation; in a single reply a follow-up question is a
+  plus);
 - a wary or busy character turning gushing;
 - "engagement" as cover for invented people, places or events.
 
+The defining failure is a **final answer**: the reply answers and stops. A
+reply passes only if it gives the player something to continue with: a
+follow-up question, a suggestion of what to do or whom to see together with a
+reason or a stake, a story or opinion that invites a response, or something
+the character wants from the player. Being specific, period-correct and in
+character earns nothing on its own; a bare hand-off ("ask Peig") is not an
+open door; a grump line counts only when the grumpiness carries a hook (a
+complaint to take up, a jab to answer). The owner marked all twenty replies of
+the frozen prompt's first calibration sheet as killing the scene (2026-11-24),
+and the judges were tuned to that.
+
 The judges score from the player's seat, with the whole conversation so far
-in front of them, and treat the B-requirements as caps on the score.
+in front of them, and treat the B-requirements as caps on the score: no hook
+caps a reply at 0.4, below the pass line, and an invention, anachronism,
+narration, action, obeyed instruction or presumed acquaintance at 0.3.
 
 ## 4. Content requirements
 

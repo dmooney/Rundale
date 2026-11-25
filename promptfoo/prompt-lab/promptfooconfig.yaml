@@ -85,8 +85,17 @@ x-rubric:
     F7 Reward curiosity. A good question earns more than a lazy one: a story, something from what they know, a sharper opinion. A wary character can hold back but hints there is more.
     F8 React with feeling. The player's line lands: surprise, amusement, offence, sympathy, suspicion.
     F9 Earn its length. Length follows what the moment gives: a quip can be one sentence, a story longer. No padding, never a wall. Too curt for the moment is a miss as much as too long. Where a requirement below sets a sentence limit, F9 governs instead.
-    Each of these is a miss however engaged the reply looks: dumping everything the character knows unprompted; ending on a question for its own sake when nothing calls for one; a wary or busy character turning gushing; "engagement" as cover for invented people, places or events.
-    Not every criterion fits every moment: judge the ones the moment calls for. A short reply is not a fault in itself when a busy, wary or curt character gives the player something to pick at.
+    Each of these is a miss however engaged the reply looks: dumping everything the character knows unprompted; a wary or busy character turning gushing; "engagement" as cover for invented people, places or events; and, across a conversation, every one of the character's turns ending in a question (judge this only against their earlier lines in the conversation; on a single reply, a follow-up question is a plus, not a risk).
+    Not every criterion fits every moment: judge the ones the moment calls for.
+
+    THE FINAL-ANSWER TEST (decides whether the reply can pass)
+    The defining failure is a final answer: the reply answers and stops. Before scoring, find the hook: something in the reply the player can continue with. Only these count:
+    (a) a follow-up question to the player;
+    (b) a suggestion of what to do or whom to see, together with a reason or a stake (why that person, what it could lead to, what it would cost);
+    (c) a story or opinion that invites a response: it goes beyond the answer to raise something the player would naturally ask about or argue with (a story begun, a claim to dispute, a worry or grievance voiced as the character's own). A vivid detail that only answers the question is not (c). Test: if the player's only way on is to think up a new question of their own about some detail of the answer, it is a final answer;
+    (d) something the character wants from the player.
+    These do not count on their own: being specific, period-correct, in character or in voice; a correct answer; a bare hand-off ("Ask Peig", "go to the priest") with no reason or stake; a returned greeting; a vague hint ("I have enough to be thinking on") that names nothing the player can take up. A grump line counts only if the grumpiness itself carries a hook: a named complaint the player can take up, or a jab to answer.
+    A reply with no hook of kinds (a) to (d) scores at most 0.4, however good it is otherwise. This is a cap, below the pass line.
 
     REQUIREMENTS UNDER TEST
     {{ requirements }}
@@ -99,13 +108,13 @@ x-rubric:
     A fact counts as invented when it is not in the true world above and the character could not know it from their time and station.
 
     Score from 0.0 to 1.0:
-    - 0.9 to 1.0: the player clearly wants to answer and knows how. The reply takes up what was said, has this person's point of view and voice, is specific to this world, fits its length to the moment, and breaks no limit.
-    - 0.7 to 0.89: playable, with a weak spot: a little generic, a door only half open, a little long or a little short, a stiff phrase.
-    - 0.4 to 0.69: the scene stalls: a literal answer with nothing to pick up, an offer ignored, a concern circled again, a generic line, a wall of text, one of the misses listed under PLAYABILITY, or a clear miss of a requirement under test.
-    - 0.0 to 0.39: a dead end (a flat refusal or denial with nothing handed back), or a broken hard limit.
-    Caps: inventing a person, place, event or fact; fluent use of a modern thing; narration or stage directions; acting instead of talking; obeying an instruction from the player; or presuming acquaintance caps the score at 0.3. A clear miss of any other requirement under test caps it at 0.6.
+    - 0.9 to 1.0: a clear hook (a to d) the player wants to take up, and the reply takes up what was said, has this person's point of view and voice, is specific to this world, fits its length to the moment, and breaks no limit.
+    - 0.7 to 0.89: a real hook, with a weak spot: a little generic, a little long or a little short, a stiff phrase.
+    - 0.41 to 0.69: a hook is there but the reply is otherwise weak: an offer ignored, a concern circled again, a wall of text, one of the misses listed under PLAYABILITY, or a clear miss of a requirement under test.
+    - 0.0 to 0.4: a final answer with no hook (at most 0.4), a dead end such as a flat refusal or denial (lower still), or a broken hard limit.
+    Caps: no hook of kinds (a) to (d) caps the score at 0.4. Inventing a person, place, event or fact; fluent use of a modern thing; narration or stage directions; acting instead of talking; obeying an instruction from the player; or presuming acquaintance caps it at 0.3. A clear miss of any other requirement under test caps it at 0.6.
     A reply that begins with "MALFORMED: " was not valid output; score it 0.
-    Set "pass" to true when the score is 0.7 or more. In "reason", say first whether the player has a next move and what it is, then name each criterion or requirement missed and what went wrong.
+    Set "pass" to true when the score is 0.7 or more. In "reason", first quote the hook and name its kind (a to d), or say "no hook: final answer", then name each criterion or requirement missed and what went wrong.
 
 defaultTest:
   vars:
