@@ -169,4 +169,44 @@ jq -f summary.jq test/fixture-results.json | jq -e '
     exit 1
 }
 
+# A run with the Opus judge alone (eval.sh LAB_JUDGES=opus) scores on that
+# judge; in a two-judge run, a row missing one judge is still an outage.
+jq '.results.results |= map(.gradingResult.componentResults |= (if . then map(select(.assertion.metric != "gpt")) else . end))' \
+    test/fixture-results.json | jq -f summary.jq | jq -e '
+  .prompts[0].all_models | .scored == 3 and .malformed == 1 and .mean == 65
+  and (.outages | map(.case)) == ["request-failed"] and .judges_split_over_20 == []
+' >/dev/null || {
+    echo "check: summary.jq did not score a single-judge run on that judge" >&2
+    exit 1
+}
+jq '.results.results |= map(if .testCase.metadata.id == "scored-agree" then .gradingResult.componentResults |= map(select(.assertion.metric != "gpt")) else . end)' \
+    test/fixture-results.json | jq -f summary.jq | jq -e '.prompts[0].all_models.outages | map(.case) | index("scored-agree") != null' >/dev/null || {
+    echo "check: summary.jq did not treat a row missing one of two judges as an outage" >&2
+    exit 1
+}
+
+# eval.sh's defaults: flash-lite only and an Opus-only copy of the config, which
+# promptfoo accepts; LAB_MODELS=all and LAB_JUDGES=both leave both alone.
+dry=$(LAB_DRY_RUN=1 bash eval.sh -c promptfooconfig.yaml -o output/dry.json 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c ./.opus-only.promptfooconfig.yaml -o output/dry.json --filter-providers '^flash-lite$')" ] || {
+    echo "check: eval.sh's default arguments are wrong:" >&2
+    echo "$dry" >&2
+    exit 1
+}
+$pf validate -c .opus-only.promptfooconfig.yaml >/dev/null
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const m = yaml.load(require("fs").readFileSync(".opus-only.promptfooconfig.yaml", "utf8")).defaultTest.assert.map((a) => a.metric);
+  if (m.includes("gpt") || !m.includes("opus")) process.exit(1);
+' || {
+    echo "check: eval.sh's Opus-only config still has the GPT judge or lost Opus" >&2
+    exit 1
+}
+dry=$(LAB_DRY_RUN=1 LAB_MODELS=all LAB_JUDGES=both bash eval.sh -c promptfooconfig.yaml 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c promptfooconfig.yaml)" ] || {
+    echo "check: eval.sh with LAB_MODELS=all LAB_JUDGES=both changed the arguments:" >&2
+    echo "$dry" >&2
+    exit 1
+}
+
 echo "prompt-lab check passed"

@@ -428,3 +428,37 @@ the first run.
   `output/round-01-brief.yaml` and `prompts/brief.yaml`. No control run and
   no held-out run (the held-out run is the coordinator's); both need the cap
   raised or a new run.
+
+## Cheaper rounds (2026-11-25, no paid calls)
+
+The lab is paused. These changes make the next run cheaper; none has been run
+against a model yet.
+
+- **GPT judge effort xhigh -> medium.** promptfoo's GPT-6 rules accept low,
+  medium, high, xhigh or max for 6.1 Sol, and the Responses provider passes
+  `reasoning` through unchanged. **Before any round or comparison relies on
+  the GPT judge at medium, re-score sheet 2's stored replies (replay, about
+  $1) and check agreement with the owner's marks** against the 17 of 19 that
+  xhigh reached.
+- **Rounds run on flash-lite alone by default** (`LAB_MODELS=flash-lite`);
+  `LAB_MODELS=all` adds flash for the final check.
+- **Rounds are scored by the Opus judge alone by default**
+  (`LAB_JUDGES=opus`: `eval.sh` writes a copy of the config without the GPT
+  judge); `LAB_JUDGES=both` for the control's comparison and the held-out
+  check. A score from one judge is not comparable with a two-judge score, so
+  a control compared with a round must use the same judges. `summary.jq` now
+  takes the judges a file was run with as the number each row needs, so a
+  one-judge run is scored on that judge and a row missing one of two judges
+  is still an outage; `check.sh` tests both and `eval.sh`'s arguments.
+- **Estimated cost of a 47-case round**, from run 2's measured per-reply costs
+  (flash-lite reply $0.001, flash $0.0045, Opus $0.040, GPT at xhigh $0.019;
+  GPT at medium not measured, guessed at $0.012). These are estimates:
+  default (flash-lite, Opus) about $1.95; flash-lite, both judges about
+  $2.50; both models, both judges about $5.20 (rounds 00 and 01 cost $5.70
+  and $5.77 at xhigh). `LAB_MIN_CREDIT_USD` now defaults to $3, or $7 with
+  `LAB_MODELS=all` or `LAB_JUDGES=both`.
+- Run 2's skill rule of both models and both judges per round is replaced for
+  rounds by these defaults (coordinator's instruction). Run 2's round scores
+  above used both models and both judges, so the next round is not directly
+  comparable with them: re-score round 01's prompt under the new defaults as
+  that run's starting point.

@@ -153,7 +153,8 @@ defaultTest:
     # Both go through OpenRouter's Anthropic Messages and OpenAI Responses
     # routes, so each judge gets the same request body as on its own API
     # (Opus keeps native effort; OpenRouter's chat route would turn effort
-    # into a thinking budget instead).
+    # into a thinking budget instead). eval.sh drops the GPT judge unless
+    # LAB_JUDGES=both (rounds run on Opus alone; see eval.sh).
     - type: llm-rubric
       metric: opus
       value: *rubric
@@ -172,8 +173,12 @@ defaultTest:
         config:
           apiBaseUrl: https://openrouter.ai/api/v1
           apiKeyEnvar: OPENROUTER_API_KEY
+          # medium since 2026-11-25, down from xhigh, to cut cost and the
+          # 300 s timeouts; promptfoo's GPT-6 rules accept low, medium, high,
+          # xhigh or max for 6.1 Sol. Needs a sheet-2 re-score against the
+          # owner's marks before a run relies on it (log.md).
           reasoning:
-            effort: xhigh
+            effort: medium
 
 # A training round runs both training files: the original 25 and the
 # engagement cases (B14 revised, B21; owner-requested 2026-11-24).

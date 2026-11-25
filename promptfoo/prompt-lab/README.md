@@ -11,7 +11,7 @@ rundale-bench leaderboard in the parent directory.
 
 | Path                       | What it holds                                                                                                                                                                                                                      |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `promptfooconfig.yaml`     | The production model (`gemini-3.5-flash-lite`), a larger Gemini (`gemini-3.8-flash`), the two judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at xhigh), and the playability rubric they share (design §3.1)                   |
+| `promptfooconfig.yaml`     | The production model (`gemini-3.5-flash-lite`), a larger Gemini (`gemini-3.8-flash`), the two judges (Claude Opus 5.5 at high effort, GPT 6.1 Sol at medium effort), and the playability rubric they share (design §3.1)           |
 | `prompts/brief.yaml`       | The prompt under research: the instructions and the request, built from the content and the case                                                                                                                                   |
 | `prompts/frozen.yaml`      | The prompt the owner froze on 2026-11-23 (in-session round 09, #2422), which production builds from game data (#2299)                                                                                                              |
 | `prompts/baseline.yaml`    | The v1 Endpoint's instructions with a reconstruction of the v1 input the engine builds, for reference                                                                                                                              |
@@ -41,3 +41,19 @@ changed prompt is never answered from cache) and `--filter-prompts '^brief$'`
 repository's `.env`. Each needs only `OPENROUTER_API_KEY`: the Gemini models
 under test and both judges bill one OpenRouter balance. Raw output goes to
 `output/`, which git ignores.
+
+Since 2026-11-25, `eval.sh` keeps rounds cheap by default. Set these in the
+environment:
+
+| Variable             | Default                 | Effect                                                                                                                                                            |
+| -------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LAB_MODELS`         | `flash-lite`            | `flash-lite` runs only the production model; `all` adds `gemini-3.8-flash`, for the final check                                                                   |
+| `LAB_JUDGES`         | `opus`                  | `opus` scores with the Opus judge alone, for rounds; `both` adds GPT, for the control's comparison and the held-out check. Compare only runs with the same judges |
+| `LAB_MIN_CREDIT_USD` | `3` (`7` with all/both) | `eval.sh` exits 4 before any call when the OpenRouter balance is below this                                                                                       |
+| `LAB_DRY_RUN`        | unset                   | `1` prints the promptfoo arguments and exits without calling anything                                                                                             |
+| `REQUEST_TIMEOUT_MS` | `900000`                | promptfoo's per-request timeout                                                                                                                                   |
+
+Estimated cost of a 47-case training round, from the per-reply costs measured
+in run 2 (an estimate, not a quote): about $1.95 for the default (flash-lite,
+Opus alone), $2.50 for flash-lite with both judges, and $5.20 for both models
+with both judges.
