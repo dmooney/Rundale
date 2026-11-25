@@ -216,10 +216,10 @@ the first run.
 - New training cases: `cases/engage-train.yaml`, 18 moments tagged with F1-F9
   and the B-limits they touch; a training round now runs them with
   `train.yaml` (43 cases).
-- Next: round 01 rerun (prompt in `output/round-01-brief.yaml`), once the
-  owner adds OpenRouter credit; stopped on an empty account.
-- Best: round 00, 73.5 (flash-lite 62.1).
-- Spend so far (run 2): $17.19 of $25.00.
+- Next: none; stopped at the cap after round 01 (a further round would pass
+  $25). No held-out run (the coordinator runs it).
+- Best: round 01, 74.2 (flash-lite 63.3).
+- Spend so far (run 2): $22.96 of $25.00.
 
 ### Calibration: the frozen prompt on flash-lite under the new judges
 
@@ -400,3 +400,31 @@ the first run.
   reads the OpenRouter balance and exits 4 when under `LAB_MIN_CREDIT_USD`
   (default $8, about one training round), so a round can no longer be voided
   halfway by an empty account. Checked: it refused with $1.45 left.
+- Resumed 2026-11-25 after the owner added credit; the credit check passed.
+  The earlier void rerun is kept as `output/round-01-void2.json`.
+- Training score: **74.2**. Gain over best before (73.5, round 00): +0.7
+  (under 2; plateau count 1).
+- By model: flash 85.0, **flash-lite 63.3** (+1.2).
+- By requirement: B1 79.3, B2 71.3, B3 70.8, B4 77.2, B5 69.9, B6 62.8,
+  B7 82.9, B8 85.7, B9 66.4, B10 76.4, B11 88.0, B12 74.6, B13 78.7,
+  B14 74.0, B15 76.2, B16 93.0, B17 83.8, B18 89.5, B19 47.9, B20 76.4;
+  F1 71.5, F2 66.2, F3 73.8, F4 68.2, F5 68.0, F6 73.4, F7 70.0, F8 75.0,
+  F9 73.6.
+- Malformed 0, outages 0, nothing unpriced. Judges split over 20 on 12
+  replies, again mostly GPT capping an invention Opus let pass.
+- Inventions (a judge scored 0.3 or less citing invention): flash-lite 19 ->
+  13 replies, of which both judges agree on 10 -> 6; flash 3 -> 2. Gone on
+  flash-lite: the dead smith (e16, now 0.83: "no smith ... lead that beast on
+  toward Roscommon town"), Peig's "old cures" (t10, now 0.81), the Dublin
+  Gazette, the carts. Still there: an old well at the bend (t04), a priest
+  "usually over about the chapel" (t07), Mícheál seeing redcoats on the
+  Roscommon road (t08), "a small chapel" (e20), Tom Ward "might be up towards
+  Roscommon town for the Saturday market" (e15), a fleece they keep (e19,
+  also single-minded about the wet ground).
+- Spend: $5.77. Running total (run 2): $22.96. OpenRouter balance after:
+  $5.49.
+- **Stop.** A further round costs about $5.50 to $5.80 and would take run 2
+  past $25. Best round: 01 (74.2; flash-lite 63.3), its prompt in
+  `output/round-01-brief.yaml` and `prompts/brief.yaml`. No control run and
+  no held-out run (the held-out run is the coordinator's); both need the cap
+  raised or a new run.
