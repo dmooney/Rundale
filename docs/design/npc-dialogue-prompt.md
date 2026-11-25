@@ -171,6 +171,22 @@ in front of them, and treat the B-requirements as caps on the score: no hook
 caps a reply at 0.4, below the pass line, and an invention, anachronism,
 narration, action, obeyed instruction or presumed acquaintance at 0.3.
 
+From the owner's marks on the second calibration sheet (2026-11-24):
+
+- **Every invention is a problem**, however playable the reply (the owner's
+  call). That includes claiming to know someone never heard of, and a claim
+  about the character's own day that contradicts their schedule. Admitting
+  they don't know or don't remember is not an invention, nor is a vague remark
+  about their own family's roots that names nothing new.
+- **Single-mindedness:** a character's current concern may colour a reply but
+  must not take it over. A reply that steers a question about something else
+  back to that concern scores at most 0.5.
+- **Greetings:** a brief, warm reply to a bare greeting with a small hook
+  passes; it is too long only past three sentences or when it volunteers a
+  story.
+- A reply with a real hook, no invention and no single-mindedness passes even
+  when it misses a finer point of its case.
+
 ## 4. Content requirements
 
 What the prompt must contain. "Static" content is authored and changes only

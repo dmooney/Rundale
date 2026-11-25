@@ -273,3 +273,70 @@ the first run.
 - Replies, shuffled and without scores: `calibration-2026-11-24-b.md`. The
   scores and the order's key are held back until the owner has marked it.
 - Spend: $1.22. Running total (run 2): $3.37.
+- Owner's marks (by case): keeps t05, e18 (borderline), t10, t13, e17, e07,
+  e09; keeps flagged for invention e15 (Tom Ward), e16 (smith, forge), t08
+  (out at the bog at first light, against her spinning schedule); keep but
+  single-minded t12; keep with a content gap t21 (no news to give, rightly
+  invented none); kills t02 (one-track), e01 ("no clear way for the player to
+  follow up"). Not marked, treated as keeps by the coordinator: e11, e06, e13,
+  e03. Failed as inventions: t07, e08.
+
+### Rubric tuned to the owner's sheet-2 marks (calibration, not a score change)
+
+- **Invention stays an automatic cap at 0.3, however playable: the owner's
+  call.** The owner flagged every invention; e17 shows a hook without
+  invention is possible. The rubric now defines invention to include claiming
+  to know someone never heard of and a claim about the character's own day
+  that contradicts their schedule; admitting not knowing or not remembering,
+  and a vague remark about the character's own family roots that names nothing
+  new, are not inventions.
+- Single-mindedness: a current concern may colour a reply but not take it
+  over; steering a question about something else back to it caps at 0.5
+  (examples: t12, t02).
+- Greetings: a brief, warm reply with a small hook passes; too long only past
+  three sentences or when it volunteers a story (e09).
+- A saying that deflects a personal question is not an opinion hook (e01).
+- A reply with a hook, no invention and no single-mindedness passes even when
+  it misses a finer point of its case (a shade neutral to a friend, one detail
+  of an offer not taken up); the 0.6 cap for any requirement miss is gone.
+- Re-scored sheet 2's stored replies (replay, no regeneration), then e11 and
+  e17 again after the family-roots clarification. Mean of the two judges,
+  pass at 0.70:
+
+  | Case | Owner             | Judges | Agree |
+  | ---- | ----------------- | ------ | ----- |
+  | t05  | keep              | 0.78   | yes   |
+  | e18  | keep (borderline) | 0.80   | yes   |
+  | t10  | keep              | 0.80   | yes   |
+  | t13  | keep              | 0.79   | yes   |
+  | t21  | keep (gap)        | 0.82   | yes   |
+  | e17  | keep              | 0.75   | yes   |
+  | e09  | keep              | 0.83   | yes   |
+  | e07  | keep              | 0.54   | no    |
+  | e11  | keep (inferred)   | 0.83   | yes   |
+  | e06  | keep (inferred)   | 0.74   | yes   |
+  | e03  | keep (inferred)   | 0.90   | yes   |
+  | e13  | keep (inferred)   | 0.39   | no    |
+  | e15  | invention         | 0.51   | yes   |
+  | e16  | invention         | 0.25   | yes   |
+  | t08  | invention         | 0.30   | yes   |
+  | t07  | invention         | 0.28   | yes   |
+  | e08  | invention         | 0.35   | yes   |
+  | t02  | kill              | 0.38   | yes   |
+  | e01  | kill              | 0.38   | yes   |
+  | t12  | keep, one-track   | 0.80   | n/a   |
+
+  17 of 19 agree. e07: Opus caps it (0.30, GPT 0.78) because Róisín has her
+  brother hear the wheel in the evening, against her morning spinning: the
+  same kind of slip the owner flagged on t08, so the cap follows the owner's
+  own rule. e13 (an inferred keep, not the owner's mark): both judges read
+  "it's little enough you bring with you" as a maxim that deflects a personal
+  question, as in e01, which the owner killed. t12 passes: its one-track
+  answer was to a question about work, where the wet ground is on topic, so
+  the single-mindedness cap does not bite there.
+
+- Spend: $1.19 and $0.13. Running total (run 2): $4.69.
+- New training cases e19-e22 (owner's request): Mícheál asked about his
+  sister, the priest and Mass, and the Bealtaine fires (nothing to do with
+  cattle or the ground); Róisín asked about her own morning. Training is now
+  47 cases (25 + 22).
