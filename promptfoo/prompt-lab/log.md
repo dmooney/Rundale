@@ -603,3 +603,27 @@ reserve. No held-out run (the coordinator's).
   unused. OpenRouter balance after: $13.10.
 - Not run: the held-out check (the coordinator's), and a two-judge or
   flash-model check of round 02 (`LAB_JUDGES=both`, `LAB_MODELS=all`).
+
+### Held-out check (run 3): round 02 candidate vs the frozen production prompt
+
+- Run once, no tuning. flash-lite, both judges (Opus 5.5 and GPT 6.1 Sol),
+  `LAB_COMPARE=frozen LAB_JUDGES=both LAB_MODELS=flash-lite`, three splits:
+  `heldout` (12), `heldout-2` (12) and `engage-heldout` (13); 37 cases under
+  each prompt. `hard-heldout` was left out: its cases carry `stranger_known` as
+  a nested list, which the promptfoo prompts cannot render (it is an in-session
+  split). `eval.sh` gained `LAB_COMPARE=frozen` (swaps the baseline prompt for
+  `prompts/frozen.yaml`), and `check.sh` renders `engage-heldout` and tests the
+  switch.
+- Mean (both judges; Opus / GPT): heldout frozen 27.9 (27.5 / 28.3), brief 69.0
+  (75.6 / 62.3); heldout-2 frozen 34.8 (33.3 / 36.2), brief 58.0 (62.6 / 53.5);
+  engage-heldout frozen 29.5 (30.5 / 28.5), brief 62.0 (59.5 / 64.5). Overall
+  frozen 30.7 (30.4 / 30.9), brief 63.0 (65.7 / 60.2).
+- Passes at 70: frozen 3 of 37 (1, 2, 0), brief 19 of 37 (7, 5, 7).
+- Malformed 0, outages 0, unpriced models none. Spend $3.63 (frozen $1.68,
+  brief $1.96); balance after about $9.28.
+- Invention misses (either judge 0.3 or below, citing invention): frozen 3 of
+  37, brief 12 of 37 (h04, h07, h09, h11, n01, n03, n05, n06, n07, e-h01,
+  e-h02, e-h12). The brief's gain in hooks is bought with more invented
+  detail. The frozen prompt's replies are terse by design, which the
+  playability rubric scores low (no hook, final answer).
+- Raw output: `output/run3-held-*.json` (git ignored).

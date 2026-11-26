@@ -25,7 +25,7 @@ node -e '
 cp -r prompts cases content "$tmp/"
 
 brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
-for split in train engage-train heldout heldout-2; do
+for split in train engage-train heldout heldout-2 engage-heldout; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
     jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '
@@ -51,7 +51,7 @@ done
 
 # The in-session experiment's best prompt (prompts/brief-fable.yaml), put
 # forward for the owner's Gemini run, renders every case of every split.
-for split in train engage-train heldout heldout-2; do
+for split in train engage-train heldout heldout-2 engage-heldout; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     bash insession/render.sh prompts/brief-fable.yaml "cases/$split.yaml" "$tmp/brief-fable-$split" \
         | grep -qx "rendered $cases cases to .*" || {
@@ -200,6 +200,21 @@ node -e '
   if (m.includes("gpt") || !m.includes("opus")) process.exit(1);
 ' || {
     echo "check: eval.sh's Opus-only config still has the GPT judge or lost Opus" >&2
+    exit 1
+}
+# LAB_COMPARE=frozen swaps the baseline for the frozen prompt, and only that.
+dry=$(LAB_DRY_RUN=1 LAB_COMPARE=frozen LAB_JUDGES=both bash eval.sh -c promptfooconfig.yaml 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c ./.frozen-vs-brief.promptfooconfig.yaml --filter-providers '^flash-lite$')" ] || {
+    echo "check: eval.sh with LAB_COMPARE=frozen changed the arguments wrongly:" >&2
+    echo "$dry" >&2
+    exit 1
+}
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const p = yaml.load(require("fs").readFileSync(".frozen-vs-brief.promptfooconfig.yaml", "utf8")).prompts.map((x) => x.label + "=" + x.id);
+  if (p.join() !== "brief=file://prompts/brief.yaml,frozen=file://prompts/frozen.yaml") process.exit(1);
+' || {
+    echo "check: LAB_COMPARE=frozen did not pair brief with frozen" >&2
     exit 1
 }
 dry=$(LAB_DRY_RUN=1 LAB_MODELS=all LAB_JUDGES=both bash eval.sh -c promptfooconfig.yaml 2>/dev/null)
