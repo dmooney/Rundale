@@ -417,6 +417,19 @@ conversation cases. The copy is
 It answers §8: structured JSON values, one shared common-knowledge list, and
 backstory as mod content.
 
+**Instructions replaced for playtest (2026-11-25).** The owner's iPhone
+playtest found the frozen prompt's replies terse and single-minded, so §3.1
+now holds playability requirements F1 to F9. The shipped Endpoint's
+instructions are the system text of run 3's round 02
+([`promptfoo/prompt-lab/prompts/brief.yaml`](../../promptfoo/prompt-lab/prompts/brief.yaml)),
+word for word; the request is the frozen prompt's, unchanged, so the input
+schema did not change. On the 37 held-out cases (flash-lite, both judges) it
+scored 63.0 against the frozen prompt's 30.7 and passed 19 cases at 70 against
+3, at the price of more invented detail (§3.1 B5): 12 of 37 replies were
+flagged, against 3. It is published to `limerick-prod` for owner playtesting
+before review. The frozen prompt stays in `prompts/frozen.yaml` as the
+comparison.
+
 ### 6.6 Anachronism threshold
 
 The lab labels a set of player lines as foreign to 1820 or not: clear cases
@@ -454,8 +467,8 @@ and chosen threshold go in the write-up.
 
 ### 7.1 How the game builds the frozen prompt (issue 2299)
 
-The `rundale-dialogue` Endpoint's instructions are the frozen system text,
-word for word. Its input is the frozen request, in the frozen key order, with
+The `rundale-dialogue` Endpoint's instructions are the system text of
+`prompts/brief.yaml` (§6.5), word for word. Its input is the frozen request, in the frozen key order, with
 nothing else in it: the model reads the whole input, so the invocation
 envelope moved to the request headers. The engine
 (`limerick_core::endpoint_input::dialogue_input`) builds it per speaker:
