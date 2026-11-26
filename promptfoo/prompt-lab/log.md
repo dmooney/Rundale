@@ -537,3 +537,26 @@ reserve. No held-out run (the coordinator's).
   player's offer (e07 the mother's singing, e13 America), a request for news
   turned back (e12, also "Begorrah"), and Mícheál drifting to the wet ground
   (e19).
+
+### Round 02 (run 3): hooks that grow from what was said
+
+- Change (from round 01): even a plain answer such as the way somewhere gets
+  the character's own part (why go, what they will find, what they make of
+  it); the part grows out of what was just said, and a stock question about
+  the stranger's business is a last resort. When the stranger offers
+  something of their own (a memory, a plan, a claim), answer that first; when
+  they ask for talk, news or a story, give some rather than turning the
+  question back.
+- Training score: **72.0**. Gain over best before (70.8, round 01): +1.2
+  (under 2; plateau count 1). Best so far.
+- By requirement: B1 76.3, B2 78.5, B3 62.7, B4 78.8, B5 70.3, B6 63.8,
+  B7 82.7, B8 80.7, B9 66.3, B10 74.0, B11 72.0, B12 72.5, B13 75.3,
+  B14 69.5, B15 66.1, B16 88.0, B17 78.7, B18 85.0, B19 51.0, B20 61.3;
+  F1 74.7, F2 66.8, F3 78.1, F4 68.7, F5 77.8, F6 77.2, F7 75.8, F8 70.9,
+  F9 73.3.
+- Malformed 0, outages 0. Spend: $1.93. Running total (run 3): $8.80.
+- Invention misses: 4 (t08 Mícheál "heard the tramp of them", t14 "the
+  Dublin Evening Post twice a week" by mail-car, e14 "past the cross", e17 a
+  history for her mother's people). No-hook: 2 (t05, t14).
+- Reading: hooks improved (F1 66.6 -> 74.7, F5 54.2 -> 77.8); the inventions
+  left are reported hearsay and small details given as fact.
