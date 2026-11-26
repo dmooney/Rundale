@@ -1,4 +1,4 @@
-# Posts the weekly Dependabot upkeep summary as github-actions[bot] and mentions
+# Posts the daily Dependabot upkeep summary as github-actions[bot] and mentions
 # the owner. The routine (scripts/dependabot_upkeep.py) runs under the owner's
 # own gh login, and GitHub never notifies you of your own comments, so the
 # routine dispatches this workflow instead. It uses the workflow's GITHUB_TOKEN;
@@ -41,5 +41,5 @@ jobs:
             '' | *[!0-9]*) echo "issue must be a number, got: $ISSUE" >&2; exit 1 ;;
           esac
           body="$(mktemp)"
-          printf '@dmooney Weekly Dependabot upkeep summary.\n\n%s\n' "$SUMMARY" > "$body"
+          printf '@dmooney Daily upkeep summary.\n\n%s\n' "$SUMMARY" > "$body"
           gh issue comment "$ISSUE" --body-file "$body"

@@ -308,8 +308,10 @@ class PrTests(unittest.TestCase):
 
 class RoutineAndStaleTests(unittest.TestCase):
     def test_recent_report_is_fine_old_or_missing_report_is_a_finding(self) -> None:
-        report = {"body": "## Dependabot upkeep, 2026-10-26\nMerged: 6.", "created_at": ago(24 * 4)}
+        report = {"body": "## Dependabot upkeep, 2026-10-26\nMerged: 6.", "created_at": ago(24 * 2)}
         self.assertIsNone(rh.routine_finding([report], NOW))
+        missed = {**report, "created_at": ago(24 * 4)}  # a daily routine silent for 4 days
+        self.assertIsNotNone(rh.routine_finding([missed], NOW))
         old = {"body": "## Dependabot upkeep", "created_at": ago(24 * 9)}
         finding = rh.routine_finding([old], NOW)
         self.assertIsNotNone(finding)

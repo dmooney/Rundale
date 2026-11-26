@@ -19,8 +19,8 @@ Mac. It checks:
    their current head and are still unmerged after 2 hours. Drafts are parked on
    purpose and skipped. `needs-owner` pull requests wait on the owner and are
    listed separately.
-3. The weekly Dependabot upkeep routine (a report comment on issue #2252) not
-   reporting for 8 days.
+3. The daily upkeep routine (a report comment on issue #2252) not reporting for
+   3 days.
 4. Open failure-tracking issues with no activity for 3 days.
 
 It then posts one comment per run to the pinned "Repo health" issue (created
@@ -89,7 +89,7 @@ HEALTH_LABELS = [HEALTH_LABEL, "infra", "P3"]
 PR_RED_HOURS = 24
 PR_UNREVIEWED_HOURS = 24
 PR_APPROVED_HOURS = 2
-ROUTINE_SILENT_DAYS = 8
+ROUTINE_SILENT_DAYS = 3
 ISSUE_STALE_DAYS = 3
 WATCHER_COMMENT_MARKER = "<!-- repo-health-watcher -->"
 

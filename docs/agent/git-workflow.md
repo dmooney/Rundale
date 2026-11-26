@@ -58,8 +58,8 @@ lockfile must have an entry there or a reasoned exclusion in
 CI's `python-quality` job and `just dependabot-coverage` fail otherwise. No
 workflow merges them. A LaunchAgent on the owner's Mac runs
 [`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py) every
-Monday at about 09:00 UTC (issue #2098). For each open Dependabot pull request
-it:
+day at about 14:30 UTC, an hour after the repo health watcher (issues #2098, #2342). For
+each open Dependabot pull request it:
 
 1. skips drafts, `--exclude`d pull requests, and pull requests labelled
    `needs-owner`, and asks Dependabot to rebase or recreate one that conflicts
@@ -83,6 +83,33 @@ it:
    merges it, sends it back, or hands it to the owner. The gatekeeper is
    a headless Claude run (`claude -p`) in a fresh context, whether the
    commits are Dependabot's or the routine's own fix.
+
+Then the security step handles what Dependabot never opens a pull request for
+(issue #2342, [`scripts/security_upkeep.py`](../../scripts/security_upkeep.py)).
+The repo health watcher opens a `ci-red` issue when OSV-Scanner or cargo audit
+is red on `main`; for each such open issue the routine:
+
+1. resumes the open `security-upkeep` pull request for it, if one exists;
+2. otherwise makes one bounded `claude -p` fix in the work checkout on a fresh
+   branch from `main`: bump only the flagged package in its lockfile, use an
+   `overrides` floor where a parent pins a vulnerable version. It proposes an
+   ignore only for a finding with no patched release, with a reason and an
+   `ignoreUntil` within 90 days;
+3. runs the scanner itself (`osv-scanner scan source -r ./`, or `cargo audit` in
+   `limerick/`) and pushes only if it passes. A missing scanner, a scan that
+   stays red, or no commit labels the issue `needs-owner`, comments on it, and
+   lists it in the summary, which notifies the owner; the routine does not retry
+   until the label is removed;
+4. opens a `security-upkeep` pull request and runs it through steps 2 to 5
+   above (mobile-verify pass for app inputs, required checks, gatekeeper). A
+   change that adds an ignore, or touches anything but lockfiles and manifests,
+   is opened with `needs-owner`, gets no gatekeeper run, and is never merged on
+   its own.
+
+`--no-security` skips the step. It needs `osv-scanner` and `cargo-audit` on the
+Mac's `PATH`; `install` warns when one is missing. Nothing here puts a token on
+a GitHub runner: the routine uses the owner's `gh` login, and the summary
+dispatch uses the workflow's own `GITHUB_TOKEN`.
 
 It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first

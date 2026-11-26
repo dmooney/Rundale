@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Weekly Dependabot upkeep: keep each PR current, verify it, and hand it to the gatekeeper.
+"""Daily upkeep: keep each Dependabot PR current, fix red security scans, and hand PRs to the gatekeeper.
 
-Runs on the owner's Mac (a launchd LaunchAgent, Monday morning, after
-Dependabot's 06:17 UTC run), because bumps that change app inputs need the
+Runs on the owner's Mac (a launchd LaunchAgent, every day at about 14:30 UTC,
+after Dependabot's Monday 06:17 UTC run and the repo health watcher's 13:23 UTC
+run), because bumps that change app inputs need the
 local `just mobile-verify --phase all` pass that CI's "Recorded mobile-verify
 pass" job looks for (issue #2098). For every open Dependabot pull request it:
 
@@ -25,6 +26,17 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    context (AGENTS.md, Gatekeeper review), whether the commits are
    Dependabot's or this routine's own fix.
 
+Then the security step (issue #2342, `scripts/security_upkeep.py`) looks at the
+open `ci-red` issues the repo health watcher opened for OSV-Scanner or cargo
+audit failing on `main`, which Dependabot never sees. For each one it makes one
+bounded `claude -p` fix in a fresh checkout from `main` (flagged lockfiles
+bumped, `overrides` where a parent pins a vulnerable version), proves the scan
+passes locally, opens a PR labelled `security-upkeep`, and runs it through the
+same steps 3 to 6. A change that proposes an ignore or touches anything but
+lockfiles and manifests is opened with `needs-owner` and never reaches the
+gatekeeper. A fix that cannot be made labels the issue `needs-owner`, comments,
+and is reported in the summary below, which notifies the owner.
+
 It then posts a summary on the pinned "Dependabot upkeep reports" issue,
 creating and pinning that issue the first time. The summary goes through the
 `upkeep-summary.yml` workflow so github-actions[bot] posts it and mentions the
@@ -33,8 +45,8 @@ notification. Nothing here merges a PR;
 merging is the gatekeeper's decision alone.
 
     dependabot_upkeep.py run --dry-run            # plan only: no pushes, runs, comments
-    dependabot_upkeep.py run [--pr N] [--exclude N] [--no-fix]
-    dependabot_upkeep.py install [--exclude N]    # LaunchAgent + routine checkouts
+    dependabot_upkeep.py run [--pr N] [--exclude N] [--no-fix] [--no-security]
+    dependabot_upkeep.py install [--exclude N]    # daily LaunchAgent + routine checkouts
     dependabot_upkeep.py uninstall
 """
 
@@ -48,6 +60,7 @@ import os
 import plistlib
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -58,6 +71,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
 
+import security_upkeep as sec
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,6 +112,7 @@ SECONDS = {
     "verify_wait": 6 * 3600,
 }
 POLL = 60
+PR_FIELDS = "number,title,url,headRefName,headRefOid,baseRefName,labels,isDraft,mergeable"
 SUMMARY_WORKFLOW = "upkeep-summary.yml"
 SUMMARY_WAIT = 300  # seconds to wait for the posting workflow to finish
 SUMMARY_DISPATCH_LIMIT = 60000  # characters; a dispatch's inputs share a 65535-character payload
@@ -416,7 +431,7 @@ def render_summary(
     if problems:
         parts += ["", "### Problems", "", *(f"- {problem}" for problem in problems)]
     elif not outcomes:
-        parts += ["", "No open Dependabot pull requests."]
+        parts += ["", "No open Dependabot pull requests and no red security scans."]
     return "\n".join(parts) + "\n"
 
 
@@ -430,11 +445,14 @@ class Upkeep:
         review: Path,
         work: Path,
         fix: bool = True,
+        security: bool = False,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.sh, self.repo, self.state = shell, repo, state
         self.review, self.work, self.fix = review, work, fix
+        self.security = security
+        self.security = security
         self.sleep, self.clock = sleep, clock
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.logs = state / "logs" / stamp
@@ -466,17 +484,15 @@ class Upkeep:
         raise AssertionError("unreachable")
 
     def open_prs(self) -> list[PullRequest]:
-        fields = "number,title,url,headRefName,headRefOid,baseRefName,labels,isDraft,mergeable"
         data = self.gh(
             "pr", "list", "-R", self.repo, "--author", "app/dependabot", "--state", "open",
-            "--json", fields, "--limit", "100",
+            "--json", PR_FIELDS, "--limit", "100",
         )  # fmt: skip
         return sorted((PullRequest.from_gh(d) for d in data or []), key=lambda p: p.number)
 
     def refresh(self, pr: PullRequest) -> PullRequest:
-        fields = "number,title,url,headRefName,headRefOid,baseRefName,labels,isDraft,mergeable"
         return PullRequest.from_gh(
-            self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", fields)
+            self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", PR_FIELDS)
         )
 
     def behind_by(self, pr: PullRequest) -> int:
@@ -1008,6 +1024,163 @@ class Upkeep:
         outcome.detail += " (gatekeeper)"
         return outcome
 
+    # Security findings ------------------------------------------------------------
+
+    def issue_url(self, number: int) -> str:
+        return f"https://github.com/{self.repo}/issues/{number}"
+
+    def security_run(self) -> list[Outcome]:
+        """Fix, or hand to the owner, each security scan that is red on main (issue #2342)."""
+
+        self.sh.say("\nSecurity scans red on main")
+        try:
+            issues = self.gh(
+                "issue", "list", "-R", self.repo, "--state", "open", "--label", sec.CI_RED_LABEL,
+                "--json", "number,title,body,labels", "--limit", "100",
+            )  # fmt: skip
+            prs = self.gh(
+                "pr", "list", "-R", self.repo, "--state", "open", "--label", sec.PR_LABEL,
+                "--json", f"{PR_FIELDS},body", "--limit", "50",
+            )  # fmt: skip
+        except RECOVERABLE as error:
+            self.problems.append(f"could not read the security findings: {error}")
+            return []
+        todo, held = sec.parse_findings(issues or [])
+        outcomes = [
+            Outcome(f.number, f.title, self.issue_url(f.number), "owner", "waiting for the owner (needs-owner)")
+            for f in held
+        ]  # fmt: skip
+        for finding in todo:
+            self.sh.say(f"\n#{finding.number} {finding.title}")
+            try:
+                outcome = self.security_fix(finding, prs or [])
+            except RECOVERABLE as error:
+                outcome = Outcome(
+                    finding.number,
+                    finding.title,
+                    self.issue_url(finding.number),
+                    "error",
+                    str(error),
+                )
+            for note in outcome.notes:
+                self.sh.say(f"  - {note}")
+            self.sh.say(f"  => {outcome.status}: {outcome.detail}")
+            outcomes.append(outcome)
+        if not outcomes:
+            self.sh.say("  none")
+        return outcomes
+
+    def security_fix(self, finding: sec.Finding, prs: Sequence[dict[str, Any]]) -> Outcome:
+        """One finding: resume its open PR, or make one bounded fix and open a PR."""
+
+        url = self.issue_url(finding.number)
+        found = sec.existing_pr(prs, finding)
+        if found is not None:
+            outcome = self.process(PullRequest.from_gh(found), set())
+            outcome.notes.insert(0, f"continuing the security PR for #{finding.number}")
+            return outcome
+        if self.sh.dry_run or not self.fix:
+            detail = (
+                "would attempt one bounded fix in a fresh checkout from main"
+                if self.sh.dry_run
+                else "fix attempts are off (--no-fix)"
+            )
+            status = "planned" if self.sh.dry_run else "skipped"
+            return Outcome(finding.number, finding.title, url, status, detail)
+        today = dt.datetime.now(dt.timezone.utc).date()
+        branch = sec.branch_name(finding, today)
+        log = self.logs / f"security-{finding.slug}-fix.log"
+        for step in (
+            ["git", "fetch", "-q", "origin", "main"],
+            ["git", "checkout", "-q", "-f", "-B", branch, "origin/main"],
+            ["git", "clean", "-q", "-fd"],
+        ):
+            if not self.sh.run(step, cwd=self.work, mutating=True).ok:
+                raise RuntimeError(f"could not prepare a fresh checkout from main ({step[1]})")
+        self.sh.run(
+            ["claude", "-p", "--model", CLAUDE_MODEL, sec.fix_prompt(finding)],
+            cwd=self.work,
+            timeout=SECONDS["fix"],
+            mutating=True,
+            output=log,
+        )
+        paths = self.read(["git", "diff", "--name-only", "origin/main..HEAD"], self.work).split()
+        dirty = self.read(["git", "status", "--porcelain"], self.work).strip()
+        decision = sec.classify_change(paths)
+        if decision.action == "none":
+            reason = decision.reason + (" (it left uncommitted edits)" if dirty else "")
+            return self.security_escalate(finding, reason, log)
+        scanner = finding.scanner
+        proof = self.sh.run(
+            list(scanner.command),
+            cwd=self.work / scanner.directory if scanner.directory else self.work,
+            timeout=1800,
+        )
+        if proof.returncode == 127:
+            return self.security_escalate(
+                finding, f"{scanner.command[0]} is not installed on the routine's Mac", log
+            )
+        if not proof.ok:
+            reason = f"{scanner.name} still fails after the fix (exit {proof.returncode})"
+            return self.security_escalate(finding, reason, log)
+        warnings = sec.ignore_problems(
+            self.read(["git", "diff", "origin/main..HEAD"], self.work), today
+        )
+        pushed = self.sh.run(
+            ["git", "push", "-q", "origin", f"HEAD:refs/heads/{branch}"],
+            cwd=self.work,
+            mutating=True,
+        )
+        if not pushed.ok:
+            raise RuntimeError(f"pushing {branch} failed")
+        self.sh.run(
+            ["gh", "label", "create", sec.PR_LABEL, "-R", self.repo, "--force",
+             "--description", "Opened by the upkeep routine to fix a red security scan",
+             "--color", "B60205"],
+            mutating=True,
+        )  # fmt: skip
+        labels = [sec.PR_LABEL, *([sec.OWNER_LABEL] if decision.action == "owner" else [])]
+        body = cap_body(sec.pr_body(finding, decision, paths, warnings, log=str(log)))
+        create = [
+            "gh", "pr", "create", "-R", self.repo, "--base", "main", "--head", branch,
+            "--title", sec.pr_title(finding), "--body", body,
+            *(arg for label in labels for arg in ("--label", label)),
+        ]  # fmt: skip
+        created = self.sh.run(create, mutating=True)
+        if not created.ok:
+            raise CommandError(create[:4], created)
+        number = int(created.stdout.strip().rsplit("/", 1)[1])
+        pr = PullRequest.from_gh(
+            self.gh("pr", "view", str(number), "-R", self.repo, "--json", PR_FIELDS)
+        )
+        if decision.action == "owner":
+            detail = f"opened for the owner: {decision.reason}"
+            return Outcome(
+                pr.number, pr.title, pr.url, "owner", detail,
+                notes=[f"for #{finding.number}", *warnings],
+            )  # fmt: skip
+        outcome = self.process(pr, set())
+        outcome.notes.insert(0, f"opened for #{finding.number}")
+        return outcome
+
+    def security_escalate(self, finding: sec.Finding, reason: str, log: Path) -> Outcome:
+        """No fix PR is possible: park the issue for the owner and report it."""
+
+        edit = ["gh", "issue", "edit", str(finding.number), "-R", self.repo,
+                "--add-label", sec.OWNER_LABEL]  # fmt: skip
+        labelled = self.sh.run(edit, mutating=True)
+        if not labelled.ok:
+            raise CommandError(edit[:4], labelled)
+        comment = ["gh", "issue", "comment", str(finding.number), "-R", self.repo,
+                   "--body", sec.escalation_comment(finding, reason, log=str(log))]  # fmt: skip
+        posted = self.sh.run(comment, mutating=True)
+        if not posted.ok:
+            raise CommandError(comment[:4], posted)
+        return Outcome(
+            finding.number, finding.title, self.issue_url(finding.number), "escalated",
+            f"no fix PR: {reason}",
+        )  # fmt: skip
+
     # Summary ------------------------------------------------------------------
 
     def tracking_issue(self) -> int | None:
@@ -1084,6 +1257,8 @@ class Upkeep:
             outcomes.append(outcome)
         if not self.sh.dry_run:
             self.final_sweep(outcomes, exclude)
+        if self.security and not only:
+            outcomes.extend(self.security_run())
         when = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         summary = render_summary(
             outcomes, when=when, dry_run=self.sh.dry_run, problems=self.problems
@@ -1186,11 +1361,13 @@ class Upkeep:
 # Install / uninstall ------------------------------------------------------------
 
 
-def schedule_local(hour_utc: int = 9, minute: int = 0) -> tuple[int, int]:
-    """Monday 09:00 UTC (about three hours after Dependabot) in this Mac's local time.
+def schedule_local(hour_utc: int = 14, minute: int = 30) -> tuple[int, int]:
+    """14:30 UTC (an hour after the repo health watcher's 13:23 UTC run) in this Mac's local time.
 
-    launchd schedules in local time, so the UTC hour shifts by an hour across
-    daylight saving; either way the run comes well after 06:17 UTC.
+    The watcher opens the `ci-red` issue the security step fixes, so the run
+    follows it. launchd schedules in local time, so the UTC hour shifts by an
+    hour across daylight saving; either way the run comes after both the
+    watcher and Dependabot's Monday 06:17 UTC run.
     """
 
     now = dt.datetime.now().astimezone()
@@ -1211,8 +1388,8 @@ def launch_agent_plist(
         "ProgramArguments": args,
         "WorkingDirectory": str(script.parents[1]),
         "EnvironmentVariables": {"PATH": path_env, "RUNDALE_UPKEEP_STATE": str(state)},
-        # A Monday the Mac sleeps through runs once on wake (cron would skip it).
-        "StartCalendarInterval": {"Weekday": 1, "Hour": hour, "Minute": minute},
+        # A run the Mac sleeps through happens once on wake (cron would skip it).
+        "StartCalendarInterval": {"Hour": hour, "Minute": minute},
         # Not "Background": launchd throttles that CPU and I/O, and mobile-verify builds.
         "ProcessType": "Standard",
         "StandardOutPath": str(state / "logs" / "launchd.log"),
@@ -1224,6 +1401,13 @@ def install(args: argparse.Namespace, shell: Shell) -> int:
     state: Path = args.state
     review, work = state / "review", state / "work"
     (state / "logs").mkdir(parents=True, exist_ok=True)
+    for scanner in sec.SCANNERS.values():
+        tool = scanner.command[0]
+        if shutil.which(tool) is None:
+            shell.say(
+                f"warning: {tool} is not on PATH; the security step cannot prove a "
+                f"{scanner.name} fix and will hand that finding to the owner"
+            )
     source = ROOT
     if not shell.run(["git", "fetch", "-q", "origin", "main"], cwd=source).ok:
         return 1
@@ -1266,7 +1450,7 @@ def install(args: argparse.Namespace, shell: Shell) -> int:
         return 1
     when = plist["StartCalendarInterval"]
     shell.say(
-        f"Installed {LAUNCH_AGENT}: Mondays at {when['Hour']:02d}:{when['Minute']:02d} local "
+        f"Installed {LAUNCH_AGENT}: daily at {when['Hour']:02d}:{when['Minute']:02d} local "
         f"time. Logs in {state / 'logs'}. Remove with `just dependabot-upkeep uninstall`."
     )
     return 0
@@ -1345,11 +1529,14 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--pr", type=int, action="append", default=[], help="only these PRs")
     run.add_argument("--exclude", type=int, action="append", default=[], help="skip these PRs")
     run.add_argument("--no-fix", dest="fix", action="store_false", help="no fix attempts")
+    run.add_argument(
+        "--no-security", dest="security", action="store_false", help="skip the security-fix step"
+    )
     run.add_argument("--no-summary", dest="summary", action="store_false")
     run.add_argument("--repo", default=os.environ.get("RUNDALE_UPKEEP_REPO", "dmooney/Rundale"))
     run.add_argument("--self-update", action="store_true", help=argparse.SUPPRESS)
     run.add_argument("--lock-fd", type=int, help=argparse.SUPPRESS)
-    inst = sub.add_parser("install", help="install the weekly LaunchAgent")
+    inst = sub.add_parser("install", help="install the daily LaunchAgent")
     inst.add_argument("--exclude", type=int, action="append", default=[])
     inst.add_argument("--dry-run", action="store_true")
     uninst = sub.add_parser("uninstall", help="remove the LaunchAgent and routine checkouts")
@@ -1381,7 +1568,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.self_update:
             self_update(review, argv, lock)
         upkeep = Upkeep(
-            shell, repo=args.repo, state=args.state, review=review, work=work, fix=args.fix
+            shell,
+            repo=args.repo,
+            state=args.state,
+            review=review,
+            work=work,
+            fix=args.fix,
+            security=args.security,
         )
         try:
             outcomes, summary = upkeep.run(only=set(args.pr), exclude=set(args.exclude))
