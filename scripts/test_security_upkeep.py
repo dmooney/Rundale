@@ -197,6 +197,8 @@ class SecurityWorld(base.FakeWorld):
             return self.ok([p for n, p in sorted(self.prs.items()) if n != NEW_PR])
         if cmd[:3] == ("gh", "label", "create"):
             return self.ok()
+        if cmd[:3] == ("gh", "pr", "close"):
+            return self.ok()
         if cmd[:3] == ("gh", "issue", "edit"):
             return self.ok()
         if cmd[:3] == ("gh", "pr", "create"):
@@ -305,6 +307,32 @@ class SecurityFlowTests(base.UpkeepCase):
         self.assertIn("needs-owner", edit)
         (comment,) = self.world.ran("gh", "issue", "comment")
         self.assertIn("could not", comment[-1])
+
+    def test_uncommitted_edits_beside_commits_escalate_without_pushing(self) -> None:
+        self.world.dirty = " M limerick/Cargo.lock"
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "escalated")
+        self.assertIn("uncommitted", outcome.detail)
+        self.assertEqual(self.world.ran("git", "push"), [])
+
+    def test_a_conflicting_security_pr_is_closed_and_redone_not_sent_to_dependabot(self) -> None:
+        finding = sec.Finding(2403, "t", "osv-scanner.yml", OSV_BODY)
+        self.world.add(NEW_PR - 1, mergeable="CONFLICTING")
+        body = sec.pr_body(finding, sec.Decision("merge", "x"), ["limerick/Cargo.lock"], [])
+        self.world.sec_prs = [
+            {
+                **self.world.prs[NEW_PR - 1],
+                "body": body,
+                "labels": [{"name": "security-upkeep"}],
+            }
+        ]
+        del self.world.prs[NEW_PR - 1]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "merged")
+        (close,) = self.world.ran("gh", "pr", "close")
+        self.assertIn("--delete-branch", close)
+        self.assertEqual(self.world.ran("gh", "pr", "comment"), [])
+        self.assertEqual(len(self.world.ran("gh", "pr", "create")), 1)
 
     def test_a_scan_that_stays_red_escalates_without_pushing(self) -> None:
         self.world.scanner_rc = 1

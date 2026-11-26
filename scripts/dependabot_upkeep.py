@@ -1075,6 +1075,14 @@ class Upkeep:
 
         url = self.issue_url(finding.number)
         found = sec.existing_pr(prs, finding)
+        if found is not None and found.get("mergeable") == "CONFLICTING":
+            # Not a Dependabot PR: nobody would answer a rebase request. Redo the fix from main.
+            closing = str(found["number"])
+            close = ["gh", "pr", "close", closing, "-R", self.repo, "--delete-branch",
+                     "--comment", "Closing: it conflicts with main. The upkeep routine redoes the fix from main."]  # fmt: skip
+            if not self.sh.run(close, mutating=True).ok:
+                raise CommandError(close[:4], Result(1))
+            found = None
         if found is not None:
             outcome = self.process(PullRequest.from_gh(found), set())
             outcome.notes.insert(0, f"continuing the security PR for #{finding.number}")
@@ -1110,6 +1118,11 @@ class Upkeep:
         if decision.action == "none":
             reason = decision.reason + (" (it left uncommitted edits)" if dirty else "")
             return self.security_escalate(finding, reason, log)
+        if dirty:
+            # The scan would pass on edits that are never pushed.
+            return self.security_escalate(
+                finding, "it left uncommitted edits beside its commits", log
+            )
         scanner = finding.scanner
         proof = self.sh.run(
             list(scanner.command),
