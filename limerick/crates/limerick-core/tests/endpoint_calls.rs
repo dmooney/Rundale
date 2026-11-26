@@ -1973,7 +1973,7 @@ async fn rows_31_and_32_nobody_present_gets_the_idle_message() {
 // ── The shipped dialogue prompt (issue 2299) ────────────────────────────────
 //
 // The owner froze `promptfoo/prompt-lab/prompts/frozen.yaml` on 2026-11-23;
-// the playability run's `prompts/brief.yaml` replaced its system text on
+// the playability run's `prompts/shipped.yaml` (Run 3 round 02) replaced its system text on
 // 2026-11-25 and kept its request. The system text is the
 // `rundale-dialogue` Endpoint's instructions, and the request is "Endpoint
 // input values:" followed by five sections the engine builds from game data
@@ -1995,7 +1995,7 @@ fn lab_yaml(rel: &str) -> serde_yaml::Value {
 /// word.
 #[test]
 fn the_endpoint_instructions_are_the_shipped_system_text() {
-    let shipped = lab_yaml("prompts/brief.yaml");
+    let shipped = lab_yaml("prompts/shipped.yaml");
     let system = shipped
         .as_sequence()
         .unwrap()
@@ -2010,7 +2010,7 @@ fn the_endpoint_instructions_are_the_shipped_system_text() {
     assert_eq!(definition.instructions, system);
 
     // The request's fixed wording is the template's, word for word.
-    let template = std::fs::read_to_string(lab_path("prompts/brief.yaml")).unwrap();
+    let template = std::fs::read_to_string(lab_path("prompts/shipped.yaml")).unwrap();
     let wording = [
         NEVER_MET,
         limerick_core::endpoint_input::MET_BEFORE,
@@ -2020,7 +2020,7 @@ fn the_endpoint_instructions_are_the_shipped_system_text() {
         Addressing::JoiningMentioned.sentence(),
     ];
     for text in wording {
-        assert!(template.contains(text), "brief.yaml lacks {text:?}");
+        assert!(template.contains(text), "shipped.yaml lacks {text:?}");
     }
 }
 

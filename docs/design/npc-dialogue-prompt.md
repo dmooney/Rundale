@@ -421,7 +421,7 @@ backstory as mod content.
 playtest found the frozen prompt's replies terse and single-minded, so §3.1
 now holds playability requirements F1 to F9. The shipped Endpoint's
 instructions are the system text of run 3's round 02
-([`promptfoo/prompt-lab/prompts/brief.yaml`](../../promptfoo/prompt-lab/prompts/brief.yaml)),
+([`promptfoo/prompt-lab/prompts/shipped.yaml`](../../promptfoo/prompt-lab/prompts/shipped.yaml)),
 word for word; the request is the frozen prompt's, unchanged, so the input
 schema did not change. On the 37 held-out cases (flash-lite, both judges) it
 scored 63.0 against the frozen prompt's 30.7 and passed 19 cases at 70 against
@@ -468,7 +468,7 @@ and chosen threshold go in the write-up.
 ### 7.1 How the game builds the frozen prompt (issue 2299)
 
 The `rundale-dialogue` Endpoint's instructions are the system text of
-`prompts/brief.yaml` (§6.5), word for word. Its input is the frozen request, in the frozen key order, with
+`prompts/shipped.yaml` (§6.5), word for word. Its input is the frozen request, in the frozen key order, with
 nothing else in it: the model reads the whole input, so the invocation
 envelope moved to the request headers. The engine
 (`limerick_core::endpoint_input::dialogue_input`) builds it per speaker:

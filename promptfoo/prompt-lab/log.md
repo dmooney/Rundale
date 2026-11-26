@@ -627,3 +627,12 @@ reserve. No held-out run (the coordinator's).
   detail. The frozen prompt's replies are terse by design, which the
   playability rubric scores low (no hook, final answer).
 - Raw output: `output/run3-held-*.json` (git ignored).
+
+### Shipped (2026-11-25)
+
+- Round 02's prompt is `prompts/shipped.yaml`, deployed to limerick-prod as
+  `rundale-dialogue@1` (sha256:e13fc8d0c7e4...), and a Rust test pins the
+  Endpoint's instructions to it. `prompts/brief.yaml` stays the lab's working
+  file. `LAB_COMPARE=frozen` still compares against `prompts/frozen.yaml`, the
+  previous production prompt, not the shipped one; pointing it at
+  `shipped.yaml` is a change to `eval.sh` and `check.sh` left for the next run.
