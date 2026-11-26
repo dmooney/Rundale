@@ -25,7 +25,7 @@ node -e '
 cp -r prompts cases content "$tmp/"
 
 brief_keys='["aboutYou","commonKnowledge","theVillage","thisMoment","whatTheStrangerSays"]'
-for split in train heldout heldout-2; do
+for split in train engage-train heldout heldout-2 engage-heldout; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     (cd "$tmp" && $pf eval -c nojudge.yaml -r echo -t "cases/$split.yaml" --no-cache --no-progress-bar -o "$split.json" >/dev/null 2>&1) || true
     jq -e --argjson want "$((cases * 2))" --argjson keys "$brief_keys" '
@@ -51,7 +51,7 @@ done
 
 # The in-session experiment's best prompt (prompts/brief-fable.yaml), put
 # forward for the owner's Gemini run, renders every case of every split.
-for split in train heldout heldout-2; do
+for split in train engage-train heldout heldout-2 engage-heldout; do
     cases=$(grep -c '^- description:' "cases/$split.yaml")
     bash insession/render.sh prompts/brief-fable.yaml "cases/$split.yaml" "$tmp/brief-fable-$split" \
         | grep -qx "rendered $cases cases to .*" || {
@@ -119,6 +119,16 @@ jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAs
     exit 1
 }
 
+# The judges see the whole conversation so far, in order, and the player's line
+# (design §3.1: judged from the player's seat).
+(cd "$tmp" && $pf eval -c rubric.yaml -r echo --filter-pattern '^e07-' --filter-prompts '^brief$' --no-cache --no-progress-bar -o rubric-convo.json >/dev/null 2>&1) || true
+jq -e '.results.results[0].gradingResult.componentResults[0].metadata.renderedAssertionValue
+  | test("oldest first:\n- the stranger: \"That.s fine yarn you have there.\"\n- Róisín Connolly: \"It is,")
+    and test("The stranger now says: \"She used to sing at the wheel") and test("PLAYABILITY") and (test("[{][{%]") | not)' "$tmp/rubric-convo.json" >/dev/null || {
+    echo "check: the judges' rubric did not show the conversation so far" >&2
+    exit 1
+}
+
 # A malformed reply stays malformed when the judges fail too. A fake key and a
 # closed local port make both judges fail at once, without touching a network.
 # The judges set apiBaseUrl in the config, which wins over the *_BASE_URL
@@ -156,6 +166,61 @@ jq -f summary.jq test/fixture-results.json | jq -e '
 ' >/dev/null || {
     echo "check: summary.jq gave the wrong summary for test/fixture-results.json" >&2
     jq -f summary.jq test/fixture-results.json >&2
+    exit 1
+}
+
+# A run with the Opus judge alone (eval.sh LAB_JUDGES=opus) scores on that
+# judge; in a two-judge run, a row missing one judge is still an outage.
+jq '.results.results |= map(.gradingResult.componentResults |= (if . then map(select(.assertion.metric != "gpt")) else . end))' \
+    test/fixture-results.json | jq -f summary.jq | jq -e '
+  .prompts[0].all_models | .scored == 3 and .malformed == 1 and .mean == 65
+  and (.outages | map(.case)) == ["request-failed"] and .judges_split_over_20 == []
+' >/dev/null || {
+    echo "check: summary.jq did not score a single-judge run on that judge" >&2
+    exit 1
+}
+jq '.results.results |= map(if .testCase.metadata.id == "scored-agree" then .gradingResult.componentResults |= map(select(.assertion.metric != "gpt")) else . end)' \
+    test/fixture-results.json | jq -f summary.jq | jq -e '.prompts[0].all_models.outages | map(.case) | index("scored-agree") != null' >/dev/null || {
+    echo "check: summary.jq did not treat a row missing one of two judges as an outage" >&2
+    exit 1
+}
+
+# eval.sh's defaults: flash-lite only and an Opus-only copy of the config, which
+# promptfoo accepts; LAB_MODELS=all and LAB_JUDGES=both leave both alone.
+dry=$(LAB_DRY_RUN=1 bash eval.sh -c promptfooconfig.yaml -o output/dry.json 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c ./.opus-only.promptfooconfig.yaml -o output/dry.json --filter-providers '^flash-lite$')" ] || {
+    echo "check: eval.sh's default arguments are wrong:" >&2
+    echo "$dry" >&2
+    exit 1
+}
+$pf validate -c .opus-only.promptfooconfig.yaml >/dev/null
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const m = yaml.load(require("fs").readFileSync(".opus-only.promptfooconfig.yaml", "utf8")).defaultTest.assert.map((a) => a.metric);
+  if (m.includes("gpt") || !m.includes("opus")) process.exit(1);
+' || {
+    echo "check: eval.sh's Opus-only config still has the GPT judge or lost Opus" >&2
+    exit 1
+}
+# LAB_COMPARE=frozen swaps the baseline for the frozen prompt, and only that.
+dry=$(LAB_DRY_RUN=1 LAB_COMPARE=frozen LAB_JUDGES=both bash eval.sh -c promptfooconfig.yaml 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c ./.frozen-vs-brief.promptfooconfig.yaml --filter-providers '^flash-lite$')" ] || {
+    echo "check: eval.sh with LAB_COMPARE=frozen changed the arguments wrongly:" >&2
+    echo "$dry" >&2
+    exit 1
+}
+node -e '
+  const yaml = require(require.resolve("js-yaml", { paths: ["../node_modules"] }));
+  const p = yaml.load(require("fs").readFileSync(".frozen-vs-brief.promptfooconfig.yaml", "utf8")).prompts.map((x) => x.label + "=" + x.id);
+  if (p.join() !== "brief=file://prompts/brief.yaml,frozen=file://prompts/frozen.yaml") process.exit(1);
+' || {
+    echo "check: LAB_COMPARE=frozen did not pair brief with frozen" >&2
+    exit 1
+}
+dry=$(LAB_DRY_RUN=1 LAB_MODELS=all LAB_JUDGES=both bash eval.sh -c promptfooconfig.yaml 2>/dev/null)
+[ "$dry" = "$(printf '%s\n' -c promptfooconfig.yaml)" ] || {
+    echo "check: eval.sh with LAB_MODELS=all LAB_JUDGES=both changed the arguments:" >&2
+    echo "$dry" >&2
     exit 1
 }
 

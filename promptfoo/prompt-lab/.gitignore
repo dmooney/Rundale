@@ -1,1 +1,3 @@
 output/
+.opus-only.*
+.frozen-vs-brief.*

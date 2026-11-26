@@ -109,7 +109,7 @@ invocations the engine builds on the canonical world. The Rust test
 validates them against the definitions' schemas.
 
 The request's player and conversation text is untrusted content. The dialogue
-Endpoint's instructions are the frozen prompt's system text, word for word; they
+Endpoint's instructions are the system text of `promptfoo/prompt-lab/prompts/shipped.yaml` (the playability run's prompt, shipped 2026-11-25), word for word; they
 do not duplicate the world's facts, and nothing rewrites the reply.
 The engine remains
 authoritative for validation and state changes. The engine receives the

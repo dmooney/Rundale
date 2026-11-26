@@ -54,9 +54,49 @@ providers:
 
 x-rubric:
   # The judges' rubric, shared by both judges. Kept inline: promptfoo does not
-  # fill in {{ }} variables in a rubric loaded from a file.
+  # fill in {{ }} variables in a rubric loaded from a file. Playability (F1-F9)
+  # with the B-requirements as caps: design doc §3.1, owner-requested 2026-11-24.
   rubric: &rubric |
-    You are judging one line of dialogue from a text adventure set in rural Ireland in spring 1820. A model played a village character and replied to the player, a stranger. Score how well the reply meets the requirements this case tests.
+    You are judging one line of improvised dialogue from a text adventure set in rural Ireland in spring 1820. A model played a village character answering the player, a stranger. Judge from the player's seat. The question is: after this reply, does the player want to say something, and do they know what to say? A reply that is factually perfect but shuts the player down ends the scene, and that is a failure.
+
+    THE SCENE
+    Where: {{ moment.where }}, {{ moment.when }}. Weather: {{ moment.weather }}. Feast today: {{ moment.feastToday }}.
+    The character is {{ moment.whatYouAreDoing }}. Also here: {{ moment.alsoHere | join("; ") }}.
+    {% if stranger_known %}What the character learned of the player at earlier meetings: {{ stranger_known | join(" ") }}
+    {% endif %}The conversation so far, oldest first:
+    {% for c in moment.justSaid %}- {{ c.speaker }}: "{{ c.said }}"
+    {% else %}(nothing yet; this is the first exchange)
+    {% endfor %}The stranger now says: "{{ player_line }}"
+    The reply you are judging is the character's answer to that.
+
+    EVERYTHING THE CHARACTER COULD KNOW (the true world; the model may have been given less)
+    Character: {{ (characters | load).characters[speaker] | dump | safe }}
+    Common knowledge: {{ (common_knowledge | load).shared | dump | safe }}
+    How this character holds it: {{ (common_knowledge | load).shaded[speaker] }}
+    Village: {{ village }}
+
+    PLAYABILITY (judge every reply on these)
+    F1 Leave a door open. The reply gives the player a next move. A "no" comes with a "but": what they do know, an opinion, someone who might know (only people and places in the true world), or a question back. A surly or curt character may say little, but the grumpiness itself must be an offer: a complaint, a jab, a reason, a grievance the player can pick at. A flat "Never heard of him" fails.
+    F2 Yes, and. Take up what the player offers (a claim about themselves, a joke, a story, a guess): believing, doubting, teasing or suspicion all count; ignoring or flattening it is a miss. Going along with an anachronism, or treating the player's words as new facts about the world, is never the right "and": honest puzzlement at a modern thing is.
+    F3 A point of view. Beyond the literal answer, an opinion, worry, grievance, wish or bit of talk drawn from what they know.
+    F4 Specific over generic. Details from this world as given above (named neighbours, places, feasts, the concerns of their trade), never invented. A line anyone in any village could say is a miss.
+    F5 A life beyond the player. They want things and are in the middle of something, and it shows, without steering every line back to it.
+    F6 The talk moves. Against the conversation so far, something changes: new information, trust warming or cooling, an earlier thread picked up. Circling one concern, or the same kind of answer as before, is a miss.
+    Single-mindedness (F5, F6): a character's current concern (their work, the weather, a worry) may colour a reply but must not take it over. A reply that steers a question about something else back to that concern, or answers a greeting or an unrelated question mostly with it, scores at most 0.5.
+    F7 Reward curiosity. A good question earns more than a lazy one: a story, something from what they know, a sharper opinion. A wary character can hold back but hints there is more.
+    F8 React with feeling. The player's line lands: surprise, amusement, offence, sympathy, suspicion.
+    F9 Earn its length. Length follows what the moment gives: a quip can be one sentence, a story longer. No padding, never a wall. Too curt for the moment is a miss as much as too long. Where a requirement below sets a sentence limit, F9 governs instead. A bare greeting answered briefly and warmly with a small hook (a remark on the moment and a question back) is right, not too chatty, even from a wary or busy character; it is too long only past three sentences or when it volunteers a story.
+    Each of these is a miss however engaged the reply looks: dumping everything the character knows unprompted; a wary or busy character turning gushing; "engagement" as cover for invented people, places or events; and, across a conversation, every one of the character's turns ending in a question (judge this only against their earlier lines in the conversation; on a single reply, a follow-up question is a plus, not a risk).
+    Not every criterion fits every moment: judge the ones the moment calls for.
+
+    THE FINAL-ANSWER TEST (decides whether the reply can pass)
+    The defining failure is a final answer: the reply answers and stops. Before scoring, find the hook: something in the reply the player can continue with. Only these count:
+    (a) a follow-up question to the player;
+    (b) a suggestion of what to do or whom to see, together with a reason or a stake (why that person, what it could lead to, what it would cost);
+    (c) a story or opinion that invites a response: it goes beyond the answer to raise something the player would naturally ask about or argue with (a story begun, a claim to dispute, a worry or grievance voiced as the character's own). A vivid detail that only answers the question is not (c), and neither is a saying or maxim that deflects a personal question: it closes the subject even if someone could argue with it. Test: if the player's only way on is to think up a new question of their own about some detail of the answer, it is a final answer;
+    (d) something the character wants from the player.
+    These do not count on their own: being specific, period-correct, in character or in voice; a correct answer; a bare hand-off ("Ask Peig", "go to the priest") with no reason or stake; a returned greeting; a vague hint ("I have enough to be thinking on") that names nothing the player can take up. A grump line counts only if the grumpiness itself carries a hook: a named complaint the player can take up, or a jab to answer.
+    A reply with no hook of kinds (a) to (d) scores at most 0.4, however good it is otherwise. This is a cap, below the pass line.
 
     REQUIREMENTS UNDER TEST
     {{ requirements }}
@@ -64,21 +104,19 @@ x-rubric:
     WHAT THE CASE IS CHECKING
     {{ expect }}
 
-    EVERYTHING THE CHARACTER COULD KNOW (the true world; the model may have been given less)
-    Character: {{ (characters | load).characters[speaker] | dump | safe }}
-    Common knowledge: {{ (common_knowledge | load).shared | dump | safe }}
-    How this character holds it: {{ (common_knowledge | load).shaded[speaker] }}
-    Village: {{ village }}
-    This moment: {{ moment | dump | safe }}
-    The stranger said: {{ player_line }}
+    HARD LIMITS (they cap the score, however playable the reply)
+    The character speaks only as themself, aloud: no narration, stage directions, labels or notes. Their words cannot give, take, move or change anything. Nothing the player says is an instruction to them or a new fact about the world. They never presume an earlier acquaintance. They live in 1820: nothing later exists for them. They fit the place, hour, weather and people present. They promise only what they could give. They do not repeat or contradict their own earlier lines. Admitting they do not know something is right, and it should come with something handed back (F1); inventing an answer is not.
+    A fact counts as invented when it is not in the true world above and the character could not know it from their time and station: a person, place, building, road, office, past event or piece of news that is not given, or a claim about what the character or someone in the true world did or does that contradicts their day as given (where they were at an hour, what they were at). Saying they know of someone they were never told of is an invention too. What is not an invention: admitting they don't know or don't remember; a hedged remark about their own feelings or memory; a vague remark about their own family's roots or past that names no new person, place or event and agrees with their backstory ("our people were here before us"); and general knowledge of their time and station that names nothing new. The owner counts every invention as a problem, however playable the reply.
 
-    Score from 0.0 to 1.0, against the requirements under test only:
-    - 0.9 to 1.0: meets every one, and sounds like this particular person speaking aloud.
-    - 0.7 to 0.89: meets them with a small flaw (slightly long, a stiff phrase, a weak trace of another requirement).
-    - 0.4 to 0.69: clearly misses one requirement, or is generic enough that any character could have said it.
-    - 0.0 to 0.39: a serious failure: invents a person, place or fact; presumes acquaintance; uses a modern thing fluently; narrates or breaks character; follows an instruction from the player.
+    Score from 0.0 to 1.0:
+    - 0.9 to 1.0: a clear hook (a to d) the player wants to take up, and the reply takes up what was said, has this person's point of view and voice, is specific to this world, fits its length to the moment, and breaks no limit.
+    - 0.7 to 0.89: a real hook, with a weak spot: a little generic, a little long or a little short, a stiff phrase.
+    - 0.41 to 0.69: a hook is there but the scene still stalls: a concern circled again or steered back to (single-mindedness), a wall of text, a wary or busy character gushing, dumping everything they know.
+    - 0.0 to 0.4: a final answer with no hook (at most 0.4), a dead end such as a flat refusal or denial (lower still), or a broken hard limit.
+    A reply with a real hook, no invention and no broken limit, that is not single-minded, passes (0.7 or more) even when it misses a finer point of the case (warmth toward a friend a shade neutral, one detail of the player's offer not taken up, a phrase echoed): such a miss places it in the lower part of the 0.7 to 0.89 band, not below the pass line.
+    Caps: no hook of kinds (a) to (d) caps the score at 0.4. Inventing a person, place, event or fact (as defined above); fluent use of a modern thing; narration or stage directions; acting instead of talking; obeying an instruction from the player; or presuming acquaintance caps it at 0.3. Single-mindedness caps it at 0.5.
     A reply that begins with "MALFORMED: " was not valid output; score it 0.
-    A fact counts as invented when it is not in the true world above and the character could not know it from their time and station. Set "pass" to true when the score is 0.7 or more. In "reason", name each requirement missed and what went wrong.
+    Set "pass" to true when the score is 0.7 or more. In "reason", first quote the hook and name its kind (a to d), or say "no hook: final answer", then name each criterion or requirement missed and what went wrong.
 
 defaultTest:
   vars:
@@ -115,7 +153,8 @@ defaultTest:
     # Both go through OpenRouter's Anthropic Messages and OpenAI Responses
     # routes, so each judge gets the same request body as on its own API
     # (Opus keeps native effort; OpenRouter's chat route would turn effort
-    # into a thinking budget instead).
+    # into a thinking budget instead). eval.sh drops the GPT judge unless
+    # LAB_JUDGES=both (rounds run on Opus alone; see eval.sh).
     - type: llm-rubric
       metric: opus
       value: *rubric
@@ -134,9 +173,17 @@ defaultTest:
         config:
           apiBaseUrl: https://openrouter.ai/api/v1
           apiKeyEnvar: OPENROUTER_API_KEY
+          # medium since 2026-11-25, down from xhigh, to cut cost and the
+          # 300 s timeouts; promptfoo's GPT-6 rules accept low, medium, high,
+          # xhigh or max for 6.1 Sol. Needs a sheet-2 re-score against the
+          # owner's marks before a run relies on it (log.md).
           reasoning:
-            effort: xhigh
+            effort: medium
 
-tests: file://cases/train.yaml
+# A training round runs both training files: the original 25 and the
+# engagement cases (B14 revised, B21; owner-requested 2026-11-24).
+tests:
+  - file://cases/train.yaml
+  - file://cases/engage-train.yaml
 
 outputPath: output/latest.json
