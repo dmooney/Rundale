@@ -560,3 +560,20 @@ reserve. No held-out run (the coordinator's).
   history for her mother's people). No-hook: 2 (t05, t14).
 - Reading: hooks improved (F1 66.6 -> 74.7, F5 54.2 -> 77.8); the inventions
   left are reported hearsay and small details given as fact.
+
+### Round 03 (run 3): hearsay rule and a closing self-check
+
+- Change (from round 02): do not report what anyone else saw, heard or said
+  unless the conversation shows it; and a new paragraph before the output
+  instruction: check every name, place, road, building, time and piece of
+  news against the request, and replace any that is not there with a
+  feeling, opinion or question.
+- Training score: **67.4**. Gain over best before (72.0, round 02): -4.6
+  (plateau count 2).
+- By requirement: B14 30.0 (from 69.5), F5 56.5, F3 64.3, F7 63.5, B20 53.5;
+  F2 78.4, F8 77.7.
+- Malformed 0, outages 0. Spend: $1.91. Running total (run 3): $10.71.
+- Inventions 4 (t07, t14, e05, e22); no-hook 7 (t02, t08, t14, t18, e05,
+  e12, e22), up from 2. The self-check made replies cautious and curt.
+- Next: round 04 from round 02 with the hearsay sentence alone, to separate
+  the two changes.
