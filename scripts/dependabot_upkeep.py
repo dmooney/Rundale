@@ -452,7 +452,6 @@ class Upkeep:
         self.sh, self.repo, self.state = shell, repo, state
         self.review, self.work, self.fix = review, work, fix
         self.security = security
-        self.security = security
         self.sleep, self.clock = sleep, clock
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.logs = state / "logs" / stamp
