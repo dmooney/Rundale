@@ -462,3 +462,48 @@ against a model yet.
   above used both models and both judges, so the next round is not directly
   comparable with them: re-score round 01's prompt under the new defaults as
   that run's starting point.
+
+## Run 3: cheaper rounds (2026-11-25)
+
+A new run with its own $25 cap and running total (the owner topped the
+OpenRouter balance up to $25). Rounds run on flash-lite with the Opus judge
+alone (`eval.sh` defaults); rounds stop at about $19 to keep about $6 in
+reserve. No held-out run (the coordinator's).
+
+### GPT judge at medium: sheet 2 re-scored
+
+- Sheet 2's stored replies re-scored with both judges, GPT at medium
+  (`output/run3-sheet2-gpt-medium.json`). No outages.
+- Agreement with the owner's marks (19 targeted replies, pass at 0.70): GPT
+  alone 17/19, Opus alone 16/19, mean of both 16/19; both judges at xhigh
+  reached 17/19. GPT at medium misses e07 (0.30, the evening-spinning
+  schedule slip) and e13 (an inferred keep), the same two as before. Opus
+  passes the e15 invention (0.72) and drops e17 (0.40, it was 0.60 before).
+  **GPT stays at medium.**
+- Cost per reply: GPT at medium $0.010 (about 4,080 tokens in, 210 out),
+  Opus $0.040. On these 20 replies GPT alone agreed with the owner at least
+  as well as Opus at a quarter of the cost, and in run 2 most judge splits
+  were GPT catching an invention Opus passed. Rounds still use Opus alone, as
+  instructed; this is flagged for the coordinator.
+- Spend: $1.01. Running total (run 3): $1.01.
+
+### Round 00 (run 3): run 2's round 01 prompt, re-baselined
+
+- Prompt: `output/round-01-brief.yaml` unchanged. 47 training cases,
+  flash-lite, Opus alone (`output/run3-round-00.json`).
+- Training score: **67.6**. Malformed 0, outages 0. Spend: $1.98.
+- Control, the same prompt again (`output/run3-control.json`): **68.9**.
+  Spend: $1.95. **Noise reading: 1.3 points** between the two means. Per
+  case the spread is large: the mean absolute per-case difference is 0.14,
+  and 10 of 47 cases move by 0.3 or more (an invention or a hook in one run
+  and not the other).
+- Running total (run 3): $4.94.
+- Invention misses (Opus at 0.3 or less citing invention), round 00 and
+  control together: invented turnings and landmarks on the way (t04, t05,
+  e14 "the main road through Roscommon town"); a named or placed priest,
+  chapel or Mass time (e20 "Father Brennan", "Mass in the chapel here"; t07);
+  guessing where an unknown person might be (t07 "a Father Murphy from over
+  towards Roscommon town"); a family past built on the stranger's claim (e17
+  "my mother's people were mostly from around those parts"); invented news
+  and doings (t14 the post-boy's tale, t08 turf-cutting all Sunday, e11
+  "the hunger drove us out").
