@@ -10371,7 +10371,7 @@ DEALINGS IN THE SOFTWARE.
 - [ref-cast-impl 1.0.25](https://github.com/dtolnay/ref-cast)
 - [ref-cast 1.0.25](https://github.com/dtolnay/ref-cast)
 - [rustix 0.38.44](https://github.com/bytecodealliance/rustix)
-- [rustix 1.1.4](https://github.com/bytecodealliance/rustix)
+- [rustix 1.1.6](https://github.com/bytecodealliance/rustix)
 - [rustversion 1.0.22](https://github.com/dtolnay/rustversion)
 - [semver 1.0.28](https://github.com/dtolnay/semver)
 - [serde-untagged 0.1.9](https://github.com/dtolnay/serde-untagged)
