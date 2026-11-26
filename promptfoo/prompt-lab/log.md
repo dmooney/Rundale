@@ -577,3 +577,29 @@ reserve. No held-out run (the coordinator's).
   e12, e22), up from 2. The self-check made replies cautious and curt.
 - Next: round 04 from round 02 with the hearsay sentence alone, to separate
   the two changes.
+
+### Round 04 (run 3): hearsay rule alone
+
+- Change (from round 02): only the hearsay sentence of round 03 (do not
+  report what anyone else saw, heard or said unless the conversation shows
+  it); no self-check.
+- Training score: **71.6**. Gain over best before (72.0, round 02): -0.4
+  (plateau count 3).
+- By requirement: B5 77.1, B20 75.8, F1 75.5, F7 76.3, F9 80.4; B12 57.0,
+  B9 58.5, B14 36.5.
+- Malformed 0, outages 0. Spend: $1.93. Running total (run 3): $12.64.
+- Inventions 3 (t06, t13, e17); no-hook 5 (t02, t03, t05, t08, e02). Within
+  the noise of round 02: the hearsay sentence trades a few inventions for a
+  few final answers.
+
+### Stop (run 3)
+
+- Three rounds in a row (02, 03, 04) each gained under 2 points on the best
+  before them. **Best: round 02, 72.0** (flash-lite, Opus alone), prompt in
+  `output/run3-round-02-brief.yaml`, now also `prompts/brief.yaml`.
+- Scores (flash-lite, Opus alone): round 00 67.6, control 68.9 (noise 1.3),
+  round 01 70.8, round 02 72.0, round 03 67.4, round 04 71.6.
+- Spend: $12.64 of $25.00, under the $19 stop, so about $12 of the cap is
+  unused. OpenRouter balance after: $13.10.
+- Not run: the held-out check (the coordinator's), and a two-judge or
+  flash-model check of round 02 (`LAB_JUDGES=both`, `LAB_MODELS=all`).
