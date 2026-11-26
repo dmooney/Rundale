@@ -37,3 +37,8 @@ reason = "zbus_names is unmaintained (merged into zbus 6) with no fixed release.
 id = "RUSTSEC-2026-0372"
 ignoreUntil = 2027-01-28T00:00:00Z
 reason = "zvariant_derive is unmaintained (merged into zbus 6) with no fixed release. zvariant_derive 5.15.0 belongs to zbus 5.19.0 via xcap 0.9.8, which limerick-tauri takes only on macOS and Windows; zvariant_derive 4.2.0 belongs to zbus 4.4.0 via secret-service 4.0.0, keyring's async-secret-service feature, which the workspace does not enable. cargo tree resolves neither on any real target, so they are never compiled and are absent from the iOS tree."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+ignoreUntil = 2027-01-28T00:00:00Z
+reason = "chrono 0.4.45 is flagged only as unmaintained (all versions affected, no fixed release; the advisory recommends jiff or time). It is a direct dependency across the workspace and the iOS tree, so replacing it is a dedicated migration; the advisory describes no vulnerability. Reassess by the expiry: migrate to jiff or time, or drop this entry if upstream resumes maintenance."
