@@ -507,3 +507,33 @@ reserve. No held-out run (the coordinator's).
   "my mother's people were mostly from around those parts"); invented news
   and doings (t14 the post-boy's tale, t08 turf-cutting all Sunday, e11
   "the hunger drove us out").
+
+### Round 01 (run 3): the four kinds of invention, named in general
+
+- Change (from round 00): after "send the stranger only ... for a reason the
+  request gives", the grounding paragraph adds: give the way only by the ways
+  the request gives (no turning, landmark, road, distance or direction it
+  does not give); common knowledge is what is usual, never a particular one
+  in the village, so the priest, Mass, the fair or the post get no name,
+  building, place, time or story the request does not give; do not guess
+  where an unknown person might be; your own and your family's past are only
+  what `aboutYou` gives, and a claim the stranger makes about you is theirs to
+  prove (doubt it, build nothing on it); the news you have heard is only what
+  the request gives.
+- Training score (flash-lite, Opus): **70.8**. Gain over best before (67.6,
+  round 00): +3.2, above the 1.3 noise reading.
+- By requirement: B1 77.8, B2 77.0, B3 70.7, B4 70.4, B5 68.4, B6 70.5,
+  B7 79.3, B8 66.3, B9 46.3, B10 81.1, B11 72.0, B12 73.0, B13 69.8,
+  B14 77.0, B15 71.1, B16 87.0, B17 78.7, B18 82.0, B19 79.0, B20 51.8;
+  F1 66.6, F2 75.8, F3 65.6, F4 66.0, F5 54.2, F6 66.2, F7 68.5, F8 73.9,
+  F9 78.9.
+- Malformed 0, outages 0. Spend: $1.93. Running total (run 3): $6.87.
+- Invention misses: 6 (round 00) and 6 (control) -> 3: e02 (Mícheál "looking
+  for her about some cattle papers"), e22 (minding the accounts in the
+  morning, against her schedule), t05 (judged mainly as no hook). The
+  priest, chapel and route inventions are gone in this sample.
+- Remaining misses are hook quality: plain directions or advice that stop
+  (t05, t25, t07), a stock "what brings you" question in place of the
+  player's offer (e07 the mother's singing, e13 America), a request for news
+  turned back (e12, also "Begorrah"), and Mícheál drifting to the wet ground
+  (e19).
