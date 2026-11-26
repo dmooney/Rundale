@@ -175,6 +175,7 @@ class SecurityWorld(base.FakeWorld):
         self.scanner_rc = 0
         self.fix_pr_labels: list[str] = []
         self.issue_list_fails = False
+        self.closed_prs: list[dict[str, Any]] = []
 
     def __call__(
         self, cmd: Sequence[str], cwd: Path | None, timeout: float | None, output: Path | None
@@ -192,10 +193,12 @@ class SecurityWorld(base.FakeWorld):
                 return Result(1, "", "HTTP 404: Not Found")
             return self.ok(self.ci_red)
         if cmd[:3] == ("gh", "pr", "list") and "--label" in cmd:
-            return self.ok(self.sec_prs)
+            return self.ok(self.closed_prs if "closed" in cmd else self.sec_prs)
         if cmd[:3] == ("gh", "pr", "list") and "--author" in cmd:  # Dependabot's PRs only
             return self.ok([p for n, p in sorted(self.prs.items()) if n != NEW_PR])
         if cmd[:3] == ("gh", "label", "create"):
+            return self.ok()
+        if cmd[:3] == ("gh", "pr", "edit"):
             return self.ok()
         if cmd[:3] == ("gh", "pr", "close"):
             return self.ok()
@@ -329,10 +332,76 @@ class SecurityFlowTests(base.UpkeepCase):
         del self.world.prs[NEW_PR - 1]
         (outcome,) = self.run_security()
         self.assertEqual(outcome.status, "merged")
+        (tag,) = self.world.ran("gh", "pr", "edit")
+        self.assertIn("upkeep-redone", tag)
         (close,) = self.world.ran("gh", "pr", "close")
         self.assertIn("--delete-branch", close)
         self.assertEqual(self.world.ran("gh", "pr", "comment"), [])
         self.assertEqual(len(self.world.ran("gh", "pr", "create")), 1)
+
+    def closed_pr(self, number: int, *labels: str, merged: str | None = None) -> dict[str, Any]:
+        finding = sec.Finding(2403, "t", "osv-scanner.yml", OSV_BODY)
+        body = sec.pr_body(finding, sec.Decision("merge", "x"), ["limerick/Cargo.lock"], [])
+        return {
+            "number": number,
+            "url": f"https://github.com/{base.REPO}/pull/{number}",
+            "body": body,
+            "labels": [{"name": n} for n in ("security-upkeep", *labels)],
+            "mergedAt": merged,
+        }
+
+    def test_a_rejected_fix_pr_ends_the_attempts_and_goes_to_the_owner(self) -> None:
+        self.world.closed_prs = [self.closed_pr(850)]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "escalated")
+        self.assertIn("pull/850", outcome.detail)
+        self.assertEqual(self.world.ran("claude"), [])  # no new attempt
+        (edit,) = self.world.ran("gh", "issue", "edit")
+        self.assertIn("needs-owner", edit)
+        (comment,) = self.world.ran("gh", "issue", "comment")
+        self.assertIn("pull/850", comment[-1])
+        text = upkeep.render_summary([outcome], when="now", dry_run=False)
+        self.assertIn("### Needs attention", text)
+
+    def test_merged_and_routine_redone_prs_are_not_rejections(self) -> None:
+        self.world.closed_prs = [
+            self.closed_pr(850, merged="2026-11-20T00:00:00Z"),
+            self.closed_pr(851, "upkeep-redone"),
+            {
+                **self.closed_pr(852),
+                "body": "<!-- upkeep-security: workflow=osv-scanner.yml issue=9 -->",
+            },
+        ]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "merged")
+
+    def test_dry_run_reports_a_rejected_finding_without_changes(self) -> None:
+        self.world.closed_prs = [self.closed_pr(850)]
+        (outcome,) = self.run_security(dry_run=True)
+        self.assertEqual(outcome.status, "planned")
+        self.assertIn("owner", outcome.detail)
+        for prefix in base.MUTATING:
+            self.assertEqual(self.world.ran(*prefix), [], prefix)
+
+    def sweep(self, *labels: str, behind: int = 2) -> list[tuple[str, ...]]:
+        self.world.add(NEW_PR, behind=behind, labels=[{"name": n} for n in labels])
+        self.world.sec_prs = [self.world.prs[NEW_PR]]
+        outcome = upkeep.Outcome(NEW_PR, "fix", "u", "red", "red: CI gate")
+        self.make().final_sweep([outcome], set())
+        return self.world.ran("gh", "api", "-X")
+
+    def test_final_sweep_brings_a_red_security_pr_current_with_main(self) -> None:
+        self.assertEqual(len(self.sweep("security-upkeep")), 1)
+
+    def test_final_sweep_leaves_a_needs_owner_security_pr_alone(self) -> None:
+        self.assertEqual(self.sweep("security-upkeep", "needs-owner"), [])
+
+    def test_final_sweep_ignores_security_prs_when_the_step_is_off(self) -> None:
+        self.world.add(NEW_PR, behind=2, labels=[{"name": "security-upkeep"}])
+        self.world.sec_prs = [self.world.prs[NEW_PR]]
+        outcome = upkeep.Outcome(NEW_PR, "fix", "u", "red", "red")
+        self.make(security=False).final_sweep([outcome], set())
+        self.assertEqual(self.world.ran("gh", "api", "-X"), [])
 
     def test_a_scan_that_stays_red_escalates_without_pushing(self) -> None:
         self.world.scanner_rc = 1

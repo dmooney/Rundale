@@ -25,6 +25,8 @@ from typing import Any
 CI_RED_LABEL = "ci-red"
 OWNER_LABEL = "needs-owner"
 PR_LABEL = "security-upkeep"
+# Put on a PR the routine itself closes to redo its fix, so that it is not read as a rejection.
+REDONE_LABEL = "upkeep-redone"
 BRANCH_PREFIX = "upkeep/security-"
 # Matches the marker `repo_health.render_ci_red_body` writes; `file@branch` is a
 # non-default branch's issue, which is not about `main`.
@@ -146,6 +148,27 @@ def existing_pr(prs: Iterable[dict[str, Any]], finding: Finding) -> dict[str, An
         if found and found[0] == finding.workflow and PR_LABEL in label_names(pr):
             return pr
     return None
+
+
+def rejected_prs(closed: Iterable[dict[str, Any]], finding: Finding) -> list[dict[str, Any]]:
+    """Closed, unmerged security PRs for this finding that a person or gatekeeper turned down.
+
+    One of these ends the routine's attempts: the same fix would be rejected
+    again, so the finding goes to the owner. A PR the routine closed itself to
+    redo a conflicting fix carries `upkeep-redone` and does not count.
+    """
+
+    found = []
+    for pr in closed:
+        marker = pr_workflow(pr.get("body"))
+        if (
+            marker == (finding.workflow, finding.number)
+            and PR_LABEL in label_names(pr)
+            and REDONE_LABEL not in label_names(pr)
+            and not pr.get("mergedAt")
+        ):
+            found.append(pr)
+    return sorted(found, key=lambda p: int(p["number"]))
 
 
 def branch_name(finding: Finding, today: dt.date) -> str:

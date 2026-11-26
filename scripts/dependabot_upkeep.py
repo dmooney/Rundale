@@ -489,6 +489,13 @@ class Upkeep:
         )  # fmt: skip
         return sorted((PullRequest.from_gh(d) for d in data or []), key=lambda p: p.number)
 
+    def open_security_prs(self) -> list[PullRequest]:
+        data = self.gh(
+            "pr", "list", "-R", self.repo, "--label", sec.PR_LABEL, "--state", "open",
+            "--json", PR_FIELDS, "--limit", "50",
+        )  # fmt: skip
+        return sorted((PullRequest.from_gh(d) for d in data or []), key=lambda p: p.number)
+
     def refresh(self, pr: PullRequest) -> PullRequest:
         return PullRequest.from_gh(
             self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", PR_FIELDS)
@@ -1041,6 +1048,10 @@ class Upkeep:
                 "pr", "list", "-R", self.repo, "--state", "open", "--label", sec.PR_LABEL,
                 "--json", f"{PR_FIELDS},body", "--limit", "50",
             )  # fmt: skip
+            closed = self.gh(
+                "pr", "list", "-R", self.repo, "--state", "closed", "--label", sec.PR_LABEL,
+                "--json", "number,url,body,labels,mergedAt", "--limit", "100",
+            )  # fmt: skip
         except RECOVERABLE as error:
             self.problems.append(f"could not read the security findings: {error}")
             return []
@@ -1052,7 +1063,7 @@ class Upkeep:
         for finding in todo:
             self.sh.say(f"\n#{finding.number} {finding.title}")
             try:
-                outcome = self.security_fix(finding, prs or [])
+                outcome = self.security_fix(finding, prs or [], closed or [])
             except RECOVERABLE as error:
                 outcome = Outcome(
                     finding.number,
@@ -1069,14 +1080,32 @@ class Upkeep:
             self.sh.say("  none")
         return outcomes
 
-    def security_fix(self, finding: sec.Finding, prs: Sequence[dict[str, Any]]) -> Outcome:
-        """One finding: resume its open PR, or make one bounded fix and open a PR."""
+    def security_fix(
+        self,
+        finding: sec.Finding,
+        prs: Sequence[dict[str, Any]],
+        closed: Sequence[dict[str, Any]] = (),
+    ) -> Outcome:
+        """One finding: resume its open PR, or make one bounded fix and open a PR.
+
+        A fix PR that was closed without merging ends the attempts: the finding
+        goes to the owner with links to the closed PRs.
+        """
 
         url = self.issue_url(finding.number)
         found = sec.existing_pr(prs, finding)
         if found is not None and found.get("mergeable") == "CONFLICTING":
             # Not a Dependabot PR: nobody would answer a rebase request. Redo the fix from main.
             closing = str(found["number"])
+            self.sh.run(
+                ["gh", "label", "create", sec.REDONE_LABEL, "-R", self.repo, "--force",
+                 "--description", "Closed by the upkeep routine to redo its fix from main",
+                 "--color", "C5DEF5"],
+                mutating=True,
+            )  # fmt: skip
+            tagged = ["gh", "pr", "edit", closing, "-R", self.repo, "--add-label", sec.REDONE_LABEL]
+            if not self.sh.run(tagged, mutating=True).ok:
+                raise CommandError(tagged[:4], Result(1))
             close = ["gh", "pr", "close", closing, "-R", self.repo, "--delete-branch",
                      "--comment", "Closing: it conflicts with main. The upkeep routine redoes the fix from main."]  # fmt: skip
             if not self.sh.run(close, mutating=True).ok:
@@ -1086,6 +1115,19 @@ class Upkeep:
             outcome = self.process(PullRequest.from_gh(found), set())
             outcome.notes.insert(0, f"continuing the security PR for #{finding.number}")
             return outcome
+        rejected = sec.rejected_prs(closed, finding)
+        if rejected:
+            links = ", ".join(str(pr.get("url") or f"#{pr['number']}") for pr in rejected)
+            reason = f"its fix PR was closed without merging ({links}), so a retry would repeat it"
+            if self.sh.dry_run:
+                return Outcome(
+                    finding.number,
+                    finding.title,
+                    url,
+                    "planned",
+                    f"would hand it to the owner: {reason}",
+                )
+            return self.security_escalate(finding, reason, None)
         if self.sh.dry_run or not self.fix:
             detail = (
                 "would attempt one bounded fix in a fresh checkout from main"
@@ -1175,7 +1217,7 @@ class Upkeep:
         outcome.notes.insert(0, f"opened for #{finding.number}")
         return outcome
 
-    def security_escalate(self, finding: sec.Finding, reason: str, log: Path) -> Outcome:
+    def security_escalate(self, finding: sec.Finding, reason: str, log: Path | None) -> Outcome:
         """No fix PR is possible: park the issue for the owner and report it."""
 
         edit = ["gh", "issue", "edit", str(finding.number), "-R", self.repo,
@@ -1184,7 +1226,7 @@ class Upkeep:
         if not labelled.ok:
             raise CommandError(edit[:4], labelled)
         comment = ["gh", "issue", "comment", str(finding.number), "-R", self.repo,
-                   "--body", sec.escalation_comment(finding, reason, log=str(log))]  # fmt: skip
+                   "--body", sec.escalation_comment(finding, reason, log=str(log) if log else "")]  # fmt: skip
         posted = self.sh.run(comment, mutating=True)
         if not posted.ok:
             raise CommandError(comment[:4], posted)
@@ -1267,10 +1309,10 @@ class Upkeep:
                 self.sh.say(f"  - {note}")
             self.sh.say(f"  => {outcome.status}: {outcome.detail}")
             outcomes.append(outcome)
-        if not self.sh.dry_run:
-            self.final_sweep(outcomes, exclude)
         if self.security and not only:
             outcomes.extend(self.security_run())
+        if not self.sh.dry_run:
+            self.final_sweep(outcomes, exclude)
         when = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         summary = render_summary(
             outcomes, when=when, dry_run=self.sh.dry_run, problems=self.problems
@@ -1280,8 +1322,9 @@ class Upkeep:
     def final_sweep(self, outcomes: Sequence[Outcome], exclude: set[int]) -> None:
         """Leave every PR still open current with main, after this run's merges.
 
-        A PR handed or escalated to the owner, or labelled `needs-owner` since
-        it was processed, is the owner's now and is not touched.
+        Covers Dependabot PRs and the routine's own `security-upkeep` PRs. A PR
+        handed or escalated to the owner, or labelled `needs-owner` since it was
+        processed, is the owner's now and is not touched.
         """
 
         still_open = {
@@ -1291,6 +1334,8 @@ class Upkeep:
         }
         try:
             current = self.open_prs()
+            if self.security:
+                current += self.open_security_prs()
         except RECOVERABLE as error:
             self.problems.append(f"the final update could not list the pull requests: {error}")
             return
@@ -1298,7 +1343,9 @@ class Upkeep:
             held = pr.number in exclude or pr.draft or OWNER_LABEL in pr.labels
             if pr.number not in still_open or held:
                 continue
-            outcome = next(o for o in outcomes if o.number == pr.number)
+            outcome = next((o for o in outcomes if o.number == pr.number), None)
+            if outcome is None:
+                continue
             try:
                 if self.behind_by(pr):
                     self.bring_current(pr, outcome)

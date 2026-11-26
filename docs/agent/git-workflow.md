@@ -89,7 +89,11 @@ Then the security step handles what Dependabot never opens a pull request for
 The repo health watcher opens a `ci-red` issue when OSV-Scanner or cargo audit
 is red on `main`; for each such open issue the routine:
 
-1. resumes the open `security-upkeep` pull request for it, if one exists;
+1. resumes the open `security-upkeep` pull request for it, if one exists (a
+   conflicting one is labelled `upkeep-redone`, closed, and the fix is redone
+   from `main`). If an earlier fix pull request for the issue was closed
+   without merging, it stops: the issue gets `needs-owner` and a comment linking
+   the closed pull requests, and the summary lists it;
 2. otherwise makes one bounded `claude -p` fix in the work checkout on a fresh
    branch from `main`: bump only the flagged package in its lockfile, use an
    `overrides` floor where a parent pins a vulnerable version. It proposes an
@@ -106,7 +110,8 @@ is red on `main`; for each such open issue the routine:
    is opened with `needs-owner`, gets no gatekeeper run, and is never merged on
    its own.
 
-`--no-security` skips the step. It needs `osv-scanner` and `cargo-audit` on the
+The final sweep that brings red pull requests current with `main` covers
+`security-upkeep` pull requests as well as Dependabot's. `--no-security` skips the step. It needs `osv-scanner` and `cargo-audit` on the
 Mac's `PATH`; `install` warns when one is missing. Nothing here puts a token on
 a GitHub runner: the routine uses the owner's `gh` login, and the summary
 dispatch uses the workflow's own `GITHUB_TOKEN`.
