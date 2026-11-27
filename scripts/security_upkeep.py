@@ -45,6 +45,13 @@ class Scanner:
     command: tuple[str, ...]
     directory: str = ""  # relative to the checkout root
     guidance: str = ""
+    # The executable that must be on PATH. It is not always the command's first word:
+    # `cargo audit` runs the `cargo-audit` binary, and without it cargo exits 101, not 127.
+    binary: str = ""
+
+    @property
+    def tool(self) -> str:
+        return self.binary or self.command[0]
 
 
 SCANNERS: dict[str, Scanner] = {
@@ -66,11 +73,16 @@ SCANNERS: dict[str, Scanner] = {
         "Bump only the flagged crate in limerick/Cargo.lock to the patched version "
         "(prefer `cargo update -p NAME --precise VERSION`; if that churns unrelated "
         "packages, revert it and edit only that crate's version and checksum).",
+        "cargo-audit",
     ),
 }
 
 # Files a fix may change. A lockfile or manifest bump is mergeable through the
-# gatekeeper; ignore files are proposals only the owner may accept.
+# gatekeeper; ignore files are proposals only the owner may accept. These are
+# "dependency files", not only lockfiles: a manifest (package.json, Cargo.toml,
+# pyproject.toml, Package.swift) can also carry behaviour (npm scripts, lint and
+# feature settings, Swift code). That is why such a PR still goes to the
+# gatekeeper, which reads the diff, rather than merging on its file names.
 DEPENDENCY_NAMES = {
     "Cargo.lock",
     "Cargo.toml",

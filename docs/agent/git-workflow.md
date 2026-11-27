@@ -99,9 +99,13 @@ is red on `main`; for each such open issue the routine:
    `overrides` floor where a parent pins a vulnerable version. It proposes an
    ignore only for a finding with no patched release, with a reason and an
    `ignoreUntil` within 90 days;
-3. runs the scanner itself (`osv-scanner scan source -r ./`, or `cargo audit` in
-   `limerick/`) and pushes only if it passes. A missing scanner, a scan that
-   stays red, or no commit labels the issue `needs-owner`, comments on it, and
+3. checks that the scanner's binary is on `PATH` (`osv-scanner`, or `cargo-audit`
+   for `cargo audit`, since `cargo` alone is not enough) before any checkout or
+   `claude -p`, runs the scan on unmodified `main` (a pass means the finding is
+   already fixed: reported as skipped, nothing else done), and after the fix runs
+   the scanner itself (`osv-scanner scan source -r ./`, or `cargo audit` in
+   `limerick/`), pushing only if it passes. A missing scanner binary, a scan
+   that stays red, or no commit labels the issue `needs-owner`, comments on it, and
    lists it in the summary, which notifies the owner; the routine does not retry
    until the label is removed;
 4. opens a `security-upkeep` pull request and runs it through steps 2 to 5
@@ -118,8 +122,14 @@ is red on `main`; for each such open issue the routine:
    `main`; it never gets an `@dependabot` comment.
 
 The final sweep that brings red pull requests current with `main` covers
-`security-upkeep` pull requests as well as Dependabot's. `--no-security` skips the step. It needs `osv-scanner` and `cargo-audit` on the
-Mac's `PATH`; `install` warns when one is missing. Nothing here puts a token on
+`security-upkeep` pull requests as well as Dependabot's. `--no-security` skips
+the step. It needs `osv-scanner` and `cargo-audit` (the `cargo-audit` binary,
+not just `cargo`) on the Mac's `PATH`; `install` warns when either binary is
+missing, and a run with one missing hands that finding to the owner without
+spending a `claude -p`. "Lockfiles and manifests" above means dependency files:
+a manifest such as `package.json` or `Cargo.toml` can carry behaviour, which is
+why those pull requests still go to the gatekeeper rather than merging on file
+names. Nothing here puts a token on
 a GitHub runner: the routine uses the owner's `gh` login, and the summary
 dispatch uses the workflow's own `GITHUB_TOKEN`.
 

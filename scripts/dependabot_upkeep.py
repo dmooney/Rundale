@@ -446,12 +446,14 @@ class Upkeep:
         work: Path,
         fix: bool = True,
         security: bool = False,
+        which: Callable[[str], str | None] = shutil.which,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.sh, self.repo, self.state = shell, repo, state
         self.review, self.work, self.fix = review, work, fix
         self.security = security
+        self.which = which
         self.sleep, self.clock = sleep, clock
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.logs = state / "logs" / stamp
@@ -1203,6 +1205,13 @@ class Upkeep:
             )
             status = "planned" if self.sh.dry_run else "skipped"
             return Outcome(finding.number, finding.title, url, status, detail)
+        scanner = finding.scanner
+        if self.which(scanner.tool) is None:
+            # Checked before any checkout or claude -p: `cargo audit` without cargo-audit
+            # exits 101, which would read as "main is red".
+            return self.security_escalate(
+                finding, f"{scanner.tool} is not installed on the routine's Mac", None
+            )
         today = dt.datetime.now(dt.timezone.utc).date()
         branch = sec.branch_name(finding, today)
         log = self.logs / f"security-{finding.slug}-fix.log"
@@ -1215,12 +1224,11 @@ class Upkeep:
                 raise RuntimeError(f"could not prepare a fresh checkout from main ({step[1]})")
         # The issue stays open until the watcher's next run, so main may be green already
         # (a Dependabot bump merged earlier in this run, or a manual fix): spend nothing then.
-        scanner = finding.scanner
         scan_dir = self.work / scanner.directory if scanner.directory else self.work
         before = self.sh.run(list(scanner.command), cwd=scan_dir, timeout=1800)
         if before.returncode == 127:
             return self.security_escalate(
-                finding, f"{scanner.command[0]} is not installed on the routine's Mac", log
+                finding, f"{scanner.tool} is not installed on the routine's Mac", log
             )
         if before.ok:
             return Outcome(
@@ -1528,13 +1536,17 @@ def launch_agent_plist(
     }
 
 
-def install(args: argparse.Namespace, shell: Shell) -> int:
+def install(
+    args: argparse.Namespace,
+    shell: Shell,
+    which: Callable[[str], str | None] = shutil.which,
+) -> int:
     state: Path = args.state
     review, work = state / "review", state / "work"
     (state / "logs").mkdir(parents=True, exist_ok=True)
     for scanner in sec.SCANNERS.values():
-        tool = scanner.command[0]
-        if shutil.which(tool) is None:
+        tool = scanner.tool
+        if which(tool) is None:
             shell.say(
                 f"warning: {tool} is not on PATH; the security step cannot prove a "
                 f"{scanner.name} fix and will hand that finding to the owner"

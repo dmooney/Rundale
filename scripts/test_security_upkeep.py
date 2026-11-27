@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import importlib
 import sys
@@ -257,6 +258,12 @@ class SecurityFlowTests(base.UpkeepCase):
     def setUp(self) -> None:
         super().setUp()
         self.world = SecurityWorld(self.work, self.review)
+        self.missing_binaries = set()
+
+    missing_binaries: set[str]
+
+    def installed(self, name: str) -> str | None:
+        return None if name in self.missing_binaries else f"/usr/bin/{name}"
 
     def make(self, *, dry_run: bool = False, fix: bool = True, security: bool = True) -> Any:
         def sleep(seconds: float) -> None:
@@ -271,6 +278,7 @@ class SecurityFlowTests(base.UpkeepCase):
             work=self.work,
             fix=fix,
             security=security,
+            which=self.installed,
             sleep=sleep,
             clock=lambda: self.clock[0],
         )
@@ -437,6 +445,41 @@ class SecurityFlowTests(base.UpkeepCase):
         self.assertEqual(self.world.ran("gh", "pr", "create"), [])
         text = upkeep.render_summary([outcome], when="now", dry_run=False)
         self.assertNotIn("### Needs attention", text)
+
+    def test_missing_cargo_audit_is_caught_even_though_cargo_is_installed(self) -> None:
+        self.world.ci_red = [issue(2404, AUDIT_BODY, "ci-red")]
+        self.missing_binaries = {"cargo-audit"}  # `cargo` itself is present
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "escalated")
+        self.assertIn("cargo-audit is not installed", outcome.detail)
+        self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("cargo"), [])  # not even the pre-scan
+        self.assertEqual([c for c, _ in self.world.calls if "-B" in c], [])
+        (comment,) = self.world.ran("gh", "issue", "comment")
+        self.assertIn("cargo-audit is not installed", comment[-1])
+
+    def test_missing_osv_scanner_is_caught_before_any_checkout_or_claude_run(self) -> None:
+        self.missing_binaries = {"osv-scanner"}
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "escalated")
+        self.assertIn("osv-scanner is not installed", outcome.detail)
+        self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("osv-scanner"), [])
+
+    def install_warnings(self, missing: set[str]) -> str:
+        shell = upkeep.Shell(dry_run=True, log=self.log, executor=self.world)
+        args = argparse.Namespace(state=Path(self.tmp.name) / "state", dry_run=True, exclude=[])
+        upkeep.install(args, shell, which=lambda n: None if n in missing else f"/usr/bin/{n}")
+        return "\n".join(line for line in self.log.getvalue().splitlines() if "warning" in line)
+
+    def test_install_warns_when_cargo_audit_is_absent_while_cargo_is_present(self) -> None:
+        warnings = self.install_warnings({"cargo-audit"})
+        self.assertIn("cargo-audit is not on PATH", warnings)
+        self.assertNotIn("osv-scanner", warnings)
+        self.assertNotIn("cargo is not", warnings)
+
+    def test_install_is_quiet_when_both_scanners_are_present(self) -> None:
+        self.assertEqual(self.install_warnings(set()), "")
 
     def test_a_missing_scanner_is_caught_before_any_claude_run(self) -> None:
         self.world.scanner_rc = 127
