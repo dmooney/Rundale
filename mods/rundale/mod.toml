@@ -34,6 +34,10 @@ transport = "transport.toml"
 # common knowledge, the village, and each character's backstory and how
 # they hold their relationships (issue 2299).
 dialogue = "dialogue.json"
+# The facts behind the living-world proofs: the one gossip fact with its
+# source and path, and the one task with its states (issue 2195). The
+# scheduled movement and the weather behaviour come from `npcs.json`.
+living_world = "living-world.json"
 
 [prompts]
 tier1_system = "prompts/tier1_system.txt"

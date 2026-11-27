@@ -167,6 +167,10 @@ pub struct FileRefs {
     /// their relationships. See [`crate::dialogue_context`].
     #[serde(default)]
     pub dialogue: Option<String>,
+    /// The facts behind the living-world proofs (optional): the one gossip
+    /// fact and the one task. See [`crate::living_world`].
+    #[serde(default)]
+    pub living_world: Option<String>,
 }
 
 /// Relative paths to prompt template text files.

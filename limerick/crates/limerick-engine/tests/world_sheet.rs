@@ -10,8 +10,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::Timelike;
+use limerick_core::game_loop::{AdvanceOptions, GossipMode, WeatherMode, advance_world};
+use limerick_engine::npc::NpcId;
+use limerick_engine::npc::types::NpcState;
 use limerick_engine::testing::{GameTestHarness, run_script_to};
-use limerick_engine::world::LocationId;
+use limerick_engine::world::{LocationId, Weather};
+use limerick_types::{PlayerProgress, TaskStatus};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 fn mod_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale")
@@ -41,10 +47,61 @@ struct SheetNpc {
     village: String,
 }
 
+/// The GOSSIP block: the one initial fact and the one path it should take.
+#[derive(Debug, Default)]
+struct SheetGossip {
+    fact: String,
+    source: String,
+    path: Vec<String>,
+    never_told: BTreeSet<String>,
+}
+
+/// The TASK block: the one task and the states it passes through.
+#[derive(Debug, Default)]
+struct SheetTask {
+    giver: String,
+    site: String,
+    task: String,
+    assigned: String,
+    in_progress: String,
+    completed: String,
+    afterwards: String,
+}
+
+/// The WEATHER block: one NPC's one weather-dependent behaviour.
+#[derive(Debug, Default)]
+struct SheetWeather {
+    npc: String,
+    weather: String,
+    time: Minute,
+    in_that_weather: String,
+    otherwise: String,
+}
+
+/// One scheduled walk: leaves `from` for `to` at `at`.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct SheetWalk {
+    at: Minute,
+    from: String,
+    to: String,
+}
+
+/// The MOVEMENT block: one NPC's scheduled walks.
+#[derive(Debug, Default)]
+struct SheetMovement {
+    npc: String,
+    out: SheetWalk,
+    back: SheetWalk,
+}
+
 #[derive(Debug, Default)]
 struct Sheet {
     start_time: Minute,
     start_location: String,
+    gossip: SheetGossip,
+    task: SheetTask,
+    weather: SheetWeather,
+    movement: SheetMovement,
     /// Keyed by the sheet heading (upper-case location name).
     locations: BTreeMap<String, SheetLocation>,
     /// Keyed by the sheet heading (upper-case first name).
@@ -65,6 +122,21 @@ fn parse_names(text: &str) -> BTreeSet<String> {
         .filter(|name| !name.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+/// Parses `07:00 Letter Office to Kilteevan Village`.
+fn parse_walk(text: &str) -> SheetWalk {
+    let (time, route) = text
+        .split_once(' ')
+        .unwrap_or_else(|| panic!("walk {text:?} is not `HH:MM from to to`"));
+    let (from, to) = route
+        .split_once(" to ")
+        .unwrap_or_else(|| panic!("walk {text:?} is not `HH:MM from to to`"));
+    SheetWalk {
+        at: parse_minute(time),
+        from: from.trim().to_string(),
+        to: to.trim().to_string(),
+    }
 }
 
 fn parse_sheet() -> Sheet {
@@ -94,7 +166,9 @@ fn parse_sheet() -> Sheet {
         let is_location = fields
             .iter()
             .any(|(key, _)| key == "exits" || key.starts_with("present at "));
-        if heading == "START" {
+        if matches!(heading.as_str(), "GOSSIP" | "TASK" | "WEATHER" | "MOVEMENT") {
+            parse_proof_block(&mut sheet, &heading, fields);
+        } else if heading == "START" {
             for (key, value) in fields {
                 match key.as_str() {
                     "time" => sheet.start_time = parse_minute(&value),
@@ -130,6 +204,47 @@ fn parse_sheet() -> Sheet {
     assert!(!sheet.locations.is_empty(), "sheet lists no locations");
     assert!(!sheet.npcs.is_empty(), "sheet lists no NPCs");
     sheet
+}
+
+fn parse_proof_block(sheet: &mut Sheet, heading: &str, fields: Vec<(String, String)>) {
+    for (key, value) in fields {
+        match (heading, key.as_str()) {
+            ("GOSSIP", "fact") => sheet.gossip.fact = value,
+            ("GOSSIP", "source") => sheet.gossip.source = value,
+            ("GOSSIP", "path") => {
+                sheet.gossip.path = value
+                    .split(',')
+                    .map(|name| name.trim().to_string())
+                    .collect()
+            }
+            ("GOSSIP", "never told") => sheet.gossip.never_told = parse_names(&value),
+            ("TASK", "giver") => sheet.task.giver = value,
+            ("TASK", "site") => sheet.task.site = value,
+            ("TASK", "task") => sheet.task.task = value,
+            ("TASK", "assigned") => sheet.task.assigned = value,
+            ("TASK", "in progress") => sheet.task.in_progress = value,
+            ("TASK", "completed") => sheet.task.completed = value,
+            ("TASK", "afterwards") => sheet.task.afterwards = value,
+            ("WEATHER", "npc") => sheet.weather.npc = value,
+            ("WEATHER", "weather") => sheet.weather.weather = value,
+            ("WEATHER", other) if other.starts_with("in that weather at ") => {
+                sheet.weather.time = parse_minute(&other["in that weather at ".len()..]);
+                sheet.weather.in_that_weather = value;
+            }
+            ("WEATHER", other) if other.starts_with("otherwise at ") => {
+                assert_eq!(
+                    parse_minute(&other["otherwise at ".len()..]),
+                    sheet.weather.time,
+                    "WEATHER lines name different times"
+                );
+                sheet.weather.otherwise = value;
+            }
+            ("MOVEMENT", "npc") => sheet.movement.npc = value,
+            ("MOVEMENT", "out") => sheet.movement.out = parse_walk(&value),
+            ("MOVEMENT", "back") => sheet.movement.back = parse_walk(&value),
+            (heading, other) => panic!("unknown {heading} field {other:?}"),
+        }
+    }
 }
 
 fn first_name(full_name: &str) -> &str {
@@ -400,4 +515,284 @@ fn headless_script_plays_the_tiny_world() {
     expect(2, "Connolly Cottage", &[MICHEAL, ROISIN]);
     expect(3, "Letter Office", &[PEIG]);
     expect(4, "Kilteevan Village", &[MICHEAL, ROISIN]);
+}
+
+// ---------------------------------------------------------------------------
+// Living-world proof facts (issue 2195, product spec §17 Milestone 6)
+// ---------------------------------------------------------------------------
+
+fn living_world() -> limerick_core::game_mod::LivingWorld {
+    limerick_core::game_mod::GameMod::load(&mod_dir())
+        .expect("load the mod")
+        .living_world
+}
+
+fn npc_id(h: &GameTestHarness, first: &str) -> NpcId {
+    h.app
+        .npc_manager
+        .all_npcs()
+        .find(|npc| first_name(&npc.name) == first)
+        .unwrap_or_else(|| panic!("sheet NPC {first:?} is not in the mod"))
+        .id
+}
+
+fn npc_first_name(h: &GameTestHarness, id: u32) -> String {
+    let npc = h
+        .app
+        .npc_manager
+        .get(NpcId(id))
+        .unwrap_or_else(|| panic!("NPC {id} is not in the mod"));
+    first_name(&npc.name).to_string()
+}
+
+/// Advances the clock and runs the shared world pump once, with the weather
+/// held where the test put it so the sheet's condition is the only weather.
+fn pump(h: &mut GameTestHarness, rng: &mut StdRng, advance_minutes: i64) {
+    h.app.world.clock.advance(advance_minutes);
+    advance_world(
+        &mut h.app.world,
+        &mut h.app.npc_manager,
+        rng,
+        AdvanceOptions {
+            weather: WeatherMode::Skip,
+            run_banshee: false,
+            gossip: GossipMode::All,
+            run_tier4: false,
+        },
+    );
+}
+
+/// A new game with the given weather, pumped to `until` (minutes since
+/// midnight) one minute at a time. It pumps once before the first minute
+/// passes so the schedule is read at the start, as the first turn of a real
+/// game would.
+fn play_until(weather: Weather, until: Minute) -> GameTestHarness {
+    let mut h = harness();
+    h.app.world.weather = weather;
+    let mut rng = StdRng::seed_from_u64(2195);
+    pump(&mut h, &mut rng, 0);
+    while minute_of_day(&h) < until {
+        pump(&mut h, &mut rng, 1);
+    }
+    h
+}
+
+#[test]
+fn living_world_facts_name_real_npcs_and_locations() {
+    let h = harness();
+    let npcs: BTreeSet<u32> = h.app.npc_manager.all_npcs().map(|npc| npc.id.0).collect();
+    let locations: BTreeSet<u32> = h
+        .app
+        .world
+        .graph
+        .location_ids()
+        .iter()
+        .map(|id| id.0)
+        .collect();
+    let facts = living_world();
+    assert!(facts.gossip.is_some(), "the mod authors its gossip fact");
+    assert!(facts.task.is_some(), "the mod authors its task");
+    facts.validate(&npcs, &locations).expect("valid facts");
+}
+
+#[test]
+fn the_gossip_fact_matches_the_sheet_and_starts_with_its_source_alone() {
+    let sheet = parse_sheet();
+    let h = harness();
+    let gossip = living_world().gossip.expect("gossip fact");
+
+    assert_eq!(gossip.content, sheet.gossip.fact);
+    assert_eq!(npc_first_name(&h, gossip.source), sheet.gossip.source);
+    let path: Vec<String> = gossip
+        .path
+        .iter()
+        .map(|id| npc_first_name(&h, *id))
+        .collect();
+    assert_eq!(path, sheet.gossip.path);
+    let off_path: BTreeSet<String> = h
+        .app
+        .npc_manager
+        .all_npcs()
+        .map(|npc| first_name(&npc.name).to_string())
+        .filter(|name| !sheet.gossip.path.contains(name))
+        .collect();
+    assert_eq!(off_path, sheet.gossip.never_told, "who must never know");
+
+    // Exactly one fact exists, and only its source knows it.
+    let network = &h.app.world.gossip_network;
+    assert_eq!(network.len(), 1, "exactly one initial gossip fact");
+    for npc in h.app.npc_manager.all_npcs() {
+        let knows = !network.known_by(npc.id).is_empty();
+        assert_eq!(
+            knows,
+            first_name(&npc.name) == sheet.gossip.source,
+            "{} at the start",
+            npc.name
+        );
+    }
+    let item = network.known_by(npc_id(&h, &sheet.gossip.source))[0];
+    assert_eq!(item.content, sheet.gossip.fact);
+    assert_eq!(item.distortion_level, 0);
+
+    // Each hop is between NPCs with an authored relationship.
+    for pair in gossip.path.windows(2) {
+        let speaker = h.app.npc_manager.get(NpcId(pair[0])).expect("speaker");
+        assert!(
+            speaker.relationships.contains_key(&NpcId(pair[1])),
+            "{} has no relationship with the next NPC on the path",
+            speaker.name
+        );
+    }
+}
+
+/// Played through the shared world pump with the player in the village, the
+/// fact reaches the next NPC on the path and nobody else: the NPC the sheet
+/// says is never told is never in a group with anyone who knows it.
+#[test]
+fn the_gossip_fact_travels_only_along_the_sheets_path() {
+    let sheet = parse_sheet();
+    let h = play_until(Weather::Clear, 24 * 60 - 1);
+    let network = &h.app.world.gossip_network;
+    assert_eq!(network.len(), 1, "no other gossip appears");
+    let knowers: BTreeSet<String> = h
+        .app
+        .npc_manager
+        .all_npcs()
+        .filter(|npc| !network.known_by(npc.id).is_empty())
+        .map(|npc| first_name(&npc.name).to_string())
+        .collect();
+    assert_eq!(
+        knowers,
+        sheet.gossip.path.iter().cloned().collect::<BTreeSet<_>>(),
+        "who knows the fact after a day"
+    );
+    for name in &sheet.gossip.never_told {
+        assert!(
+            network.known_by(npc_id(&h, name)).is_empty(),
+            "{name} must never be told"
+        );
+    }
+}
+
+#[test]
+fn the_task_matches_the_sheet_and_fits_the_task_ledger() {
+    let sheet = parse_sheet();
+    let h = harness();
+    let task = living_world().task.expect("task");
+
+    assert_eq!(npc_first_name(&h, task.assigned_by), sheet.task.giver);
+    assert_eq!(
+        location_name(&h, LocationId(task.location)),
+        sheet.task.site
+    );
+    assert_eq!(task.description, sheet.task.task);
+    assert_eq!(task.assigned, sheet.task.assigned);
+    assert_eq!(task.in_progress, sheet.task.in_progress);
+    assert_eq!(task.completed, sheet.task.completed);
+    assert_eq!(task.afterwards, sheet.task.afterwards);
+
+    // Someone other than the giver is at the site to receive the message.
+    let receiver = "Peig";
+    assert!(task.description.contains(receiver));
+    assert_ne!(sheet.task.giver, receiver);
+    let site = &sheet.locations[&sheet.task.site.to_uppercase()];
+    assert!(
+        site.present
+            .values()
+            .any(|present| present.contains(receiver)),
+        "{receiver} is at the {} on the sheet",
+        sheet.task.site
+    );
+
+    // The task ledger records the authored task exactly, as assigned.
+    let mut ledger = PlayerProgress::default();
+    let id = ledger
+        .assign_task(
+            &task.description,
+            NpcId(task.assigned_by),
+            LocationId(task.location),
+            h.app.world.clock.now(),
+        )
+        .expect("the task is assignable");
+    let recorded = ledger.task(id).expect("recorded");
+    assert_eq!(recorded.description, task.description, "not truncated");
+    assert_eq!(recorded.status, TaskStatus::Assigned);
+    assert_eq!(recorded.assigned_by, NpcId(task.assigned_by));
+    assert_eq!(recorded.location, LocationId(task.location));
+    assert!(
+        h.app.world.player_progress.is_empty(),
+        "a new game has no task assigned"
+    );
+}
+
+/// Peig's one weather-dependent behaviour: in the sheet's weather she is
+/// indoors at the Letter Office at 08:00 rather than on the village road.
+#[test]
+fn the_weather_behaviour_matches_the_sheet() {
+    let sheet = parse_sheet();
+    let weather: Weather = sheet.weather.weather.parse().expect("sheet weather");
+    let where_is_the_npc = |weather: Weather| {
+        let h = play_until(weather, sheet.weather.time);
+        let npc = h
+            .app
+            .npc_manager
+            .get(npc_id(&h, &sheet.weather.npc))
+            .expect("the NPC");
+        assert!(
+            matches!(npc.state(), NpcState::Present),
+            "{} is not mid-walk at the checked time under {weather}",
+            npc.name
+        );
+        // `/people` at that place agrees with where the NPC is.
+        assert!(present_at(&h, npc.location()).contains(&sheet.weather.npc));
+        location_name(&h, npc.location())
+    };
+    assert_eq!(where_is_the_npc(weather), sheet.weather.in_that_weather);
+    assert_eq!(where_is_the_npc(Weather::Clear), sheet.weather.otherwise);
+}
+
+/// The scheduled movement: the NPC leaves for the place and time the sheet
+/// states, is at neither end while on the way, and arrives.
+#[test]
+fn the_scheduled_movement_matches_the_sheet() {
+    let sheet = parse_sheet();
+    let mut h = harness();
+    h.app.world.weather = Weather::Clear;
+    let mut rng = StdRng::seed_from_u64(2195);
+    let npc = npc_id(&h, &sheet.movement.npc);
+
+    let mut walks: Vec<SheetWalk> = Vec::new();
+    let mut on_the_way = false;
+    pump(&mut h, &mut rng, 0);
+    while minute_of_day(&h) <= sheet.movement.back.at + 30 {
+        match h.app.npc_manager.get(npc).expect("the NPC").state() {
+            NpcState::InTransit { from, to, .. } => {
+                if !on_the_way {
+                    walks.push(SheetWalk {
+                        at: minute_of_day(&h),
+                        from: location_name(&h, *from),
+                        to: location_name(&h, *to),
+                    });
+                    on_the_way = true;
+                }
+                for end in [*from, *to] {
+                    assert!(
+                        !present_at(&h, end).contains(&sheet.movement.npc),
+                        "{} is listed at an end of her own walk",
+                        sheet.movement.npc
+                    );
+                }
+            }
+            NpcState::Present => on_the_way = false,
+        }
+        pump(&mut h, &mut rng, 1);
+    }
+    assert_eq!(
+        walks,
+        [sheet.movement.out, sheet.movement.back],
+        "the scheduled walks, in order"
+    );
+    let end = h.app.npc_manager.get(npc).expect("the NPC");
+    assert!(matches!(end.state(), NpcState::Present));
+    assert_eq!(location_name(&h, end.location()), walks[1].to);
 }
