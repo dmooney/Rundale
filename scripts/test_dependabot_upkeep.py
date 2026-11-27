@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for the weekly Dependabot upkeep routine, against a fake GitHub and git."""
+"""Tests for the daily Dependabot upkeep routine, against a fake GitHub and git."""
 
 from __future__ import annotations
 
@@ -400,7 +400,7 @@ class PureLogicTests(unittest.TestCase):
         self.assertEqual(shell.run(["git", "status"]).stdout, "x")
         self.assertEqual(seen, [["git", "status"]])
 
-    def test_launch_agent_runs_weekly_after_dependabot(self) -> None:
+    def test_launch_agent_runs_daily_after_the_health_watcher(self) -> None:
         plist = upkeep.launch_agent_plist(
             python="/opt/homebrew/bin/python3",
             script=Path("/s/review/scripts/dependabot_upkeep.py"),
@@ -409,7 +409,7 @@ class PureLogicTests(unittest.TestCase):
             exclude=[2238],
         )
         self.assertEqual(plist["Label"], "com.rundale.dependabot-upkeep")
-        self.assertEqual(plist["StartCalendarInterval"]["Weekday"], 1)
+        self.assertNotIn("Weekday", plist["StartCalendarInterval"])
         self.assertEqual(plist["ProcessType"], "Standard")
         args = plist["ProgramArguments"]
         self.assertEqual(args[:3], ["/usr/bin/caffeinate", "-i", "/opt/homebrew/bin/python3"])

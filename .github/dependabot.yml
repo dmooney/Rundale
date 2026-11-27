@@ -1,5 +1,5 @@
-# Nothing merges these pull requests automatically. The weekly upkeep routine
-# (scripts/dependabot_upkeep.py, run Mondays after 06:17 UTC on the owner's Mac)
+# Nothing merges these pull requests automatically. The daily upkeep routine
+# (scripts/dependabot_upkeep.py, run at about 14:30 UTC on the owner's Mac)
 # keeps them current and hands each green one to a gatekeeper; see
 # docs/agent/git-workflow.md#dependency-updates.
 version: 2

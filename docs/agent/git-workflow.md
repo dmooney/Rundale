@@ -58,8 +58,8 @@ lockfile must have an entry there or a reasoned exclusion in
 CI's `python-quality` job and `just dependabot-coverage` fail otherwise. No
 workflow merges them. A LaunchAgent on the owner's Mac runs
 [`scripts/dependabot_upkeep.py`](../../scripts/dependabot_upkeep.py) every
-Monday at about 09:00 UTC (issue #2098). For each open Dependabot pull request
-it:
+day at about 14:30 UTC, an hour after the repo health watcher (issues #2098, #2342). For
+each open Dependabot pull request it:
 
 1. skips drafts, `--exclude`d pull requests, and pull requests labelled
    `needs-owner`, and asks Dependabot to rebase or recreate one that conflicts
@@ -83,6 +83,55 @@ it:
    merges it, sends it back, or hands it to the owner. The gatekeeper is
    a headless Claude run (`claude -p`) in a fresh context, whether the
    commits are Dependabot's or the routine's own fix.
+
+Then the security step handles what Dependabot never opens a pull request for
+(issue #2342, [`scripts/security_upkeep.py`](../../scripts/security_upkeep.py)).
+The repo health watcher opens a `ci-red` issue when OSV-Scanner or cargo audit
+is red on `main`; for each such open issue the routine:
+
+1. resumes the open `security-upkeep` pull request for it, if one exists (a
+   conflicting one is labelled `upkeep-redone`, closed, and the fix is redone
+   from `main`). If an earlier fix pull request for the issue was closed
+   without merging, it stops: the issue gets `needs-owner` and a comment linking
+   the closed pull requests, and the summary lists it;
+2. otherwise makes one bounded `claude -p` fix in the work checkout on a fresh
+   branch from `main`: bump only the flagged package in its lockfile, use an
+   `overrides` floor where a parent pins a vulnerable version. It proposes an
+   ignore only for a finding with no patched release, with a reason and an
+   `ignoreUntil` within 90 days;
+3. checks that the scanner's binary is on `PATH` (`osv-scanner`, or `cargo-audit`
+   for `cargo audit`, since `cargo` alone is not enough) before any checkout or
+   `claude -p`, runs the scan on unmodified `main` (a pass means the finding is
+   already fixed: reported as skipped, nothing else done), and after the fix runs
+   the scanner itself (`osv-scanner scan source -r ./`, or `cargo audit` in
+   `limerick/`), pushing only if it passes. A missing scanner binary, a scan
+   that stays red, or no commit labels the issue `needs-owner`, comments on it, and
+   lists it in the summary, which notifies the owner; the routine does not retry
+   until the label is removed;
+4. opens a `security-upkeep` pull request and runs it through steps 2 to 5
+   above (mobile-verify pass for app inputs, required checks, gatekeeper). A
+   change that adds an ignore, or touches anything but lockfiles and manifests,
+   is opened with `needs-owner`, gets no gatekeeper run, and is never merged on
+   its own. The same rule holds after the pull request exists: a CI-fix attempt
+   on a red `security-upkeep` pull request uses a security prompt (lockfiles and
+   manifests only), its commits are checked against that rule before they are
+   pushed, and the pull request's changed files are checked again before the
+   gatekeeper runs (an empty list, or one at the 100-file cap, counts as
+   failing); either check failing labels it `needs-owner` and stops. A
+   conflicting `security-upkeep` pull request is closed and the fix redone from
+   `main`; it never gets an `@dependabot` comment.
+
+The final sweep that brings red pull requests current with `main` covers
+`security-upkeep` pull requests as well as Dependabot's. `--no-security` skips
+the step. It needs `osv-scanner` and `cargo-audit` (the `cargo-audit` binary,
+not just `cargo`) on the Mac's `PATH`; `install` warns when either binary is
+missing, and a run with one missing hands that finding to the owner without
+spending a `claude -p`. "Lockfiles and manifests" above means dependency files:
+a manifest such as `package.json` or `Cargo.toml` can carry behaviour, which is
+why those pull requests still go to the gatekeeper rather than merging on file
+names. Nothing here puts a token on
+a GitHub runner: the routine uses the owner's `gh` login, and the summary
+dispatch uses the workflow's own `GITHUB_TOKEN`.
 
 It then comments a summary (merged, needs attention, other) on the pinned
 "Dependabot upkeep reports" issue, creating and pinning the issue on its first
