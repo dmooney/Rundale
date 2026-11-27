@@ -80,6 +80,7 @@ class FakeWorld:
         self.merged: set[int] = set()
         self.gatekeeper: dict[int, Callable[[str], None]] = {}
         self.fix_commits: dict[int, int] = {}
+        self.claude_rc = 0  # exit status of a fix attempt's `claude -p`
         self.files: dict[int, list[str]] = {}
         self.workflows: dict[str, str] = {}
         self.pgrep: list[int] = [1]
@@ -168,7 +169,7 @@ class FakeWorld:
             return Result(0)
         if cmd[0] == "claude":  # a fix attempt
             assert cwd == self.work and self.work_pr is not None
-            return Result(0)
+            return Result(self.claude_rc)
         raise AssertionError(f"unexpected command {cmd}")
 
     def gh(self, args: tuple[str, ...]) -> Result:
@@ -563,6 +564,21 @@ class FlowTests(UpkeepCase):
         self.assertEqual(self.world.gatekept(), [])
         self.assertEqual(self.world.ran("git", "push"), [])
         self.assertEqual(len(self.world.ran("claude")), 1)  # only the fix attempt
+
+    def test_a_crashed_or_timed_out_fix_is_a_failed_attempt_even_with_commits(self) -> None:
+        for rc, words in ((1, "exited 1"), (124, "timed out")):
+            with self.subTest(rc=rc):
+                self.setUp()
+                self.world.add(32)
+                self.world.checks[32] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
+                self.world.fix_commits[32] = 1  # it committed before it died
+                self.world.claude_rc = rc
+                outcome = self.outcome(32)
+                self.assertEqual(outcome.status, "red")
+                self.assertIn(f"the fix attempt failed: claude -p {words}", outcome.detail)
+                self.assertTrue(any("nothing was pushed" in n for n in outcome.notes))
+                self.assertEqual(self.world.ran("git", "push"), [])
+                self.assertEqual(self.world.gatekept(), [])
 
     def test_no_fix_flag_reports_red_without_trying(self) -> None:
         self.world.add(32)

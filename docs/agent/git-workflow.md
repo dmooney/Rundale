@@ -73,7 +73,8 @@ each open Dependabot pull request it:
    a lock every worktree on the Mac shares (`RUNDALE_MOBILE_VERIFY_LOCK`), and
    the routine also waits while `pgrep` finds a run from an older checkout;
 3. waits for the required checks. A red pull request gets one bounded
-   `claude -p` fix; if that makes no commit or the checks stay red, the pull
+   `claude -p` fix; if that makes no commit, exits non-zero or times out (the
+   summary says which, and nothing is pushed), or the checks stay red, the pull
    request stays open and is reported. A red pull request is never handed on
    for merge;
 4. dry-runs `release.yml` on the branch when an Actions bump changes it
@@ -104,10 +105,13 @@ is red on `main`; for each such open issue the routine:
    `claude -p`, runs the scan on unmodified `main` (a pass means the finding is
    already fixed: reported as skipped, nothing else done), and after the fix runs
    the scanner itself (`osv-scanner scan source -r ./`, or `cargo audit` in
-   `limerick/`), pushing only if it passes. A missing scanner binary, a scan
-   that stays red, or no commit labels the issue `needs-owner`, comments on it, and
-   lists it in the summary, which notifies the owner; the routine does not retry
-   until the label is removed;
+   `limerick/`), pushing only if it passes. A `claude -p` run that exits non-zero
+   or times out is a failed attempt whatever it committed: nothing is pushed.
+   A missing scanner binary, a failed `claude -p`, a scan that stays red, or no
+   commit labels the issue `needs-owner`, comments on it, and lists it in the
+   summary, which notifies the owner; the routine does not retry until the label
+   is removed. A dry run makes the binary check too (it only reads `PATH`) and
+   reports "would hand it to the owner" for a missing binary, changing nothing;
 4. opens a `security-upkeep` pull request and runs it through steps 2 to 5
    above (mobile-verify pass for app inputs, required checks, gatekeeper). A
    change that adds an ignore, or touches anything but lockfiles and manifests,

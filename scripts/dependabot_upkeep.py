@@ -284,6 +284,12 @@ class Shell:
         return json.loads(result.stdout) if result.stdout.strip() else None
 
 
+def describe_exit(result: Result) -> str:
+    """How a `claude -p` run ended, for a failed attempt's report."""
+
+    return "timed out" if result.returncode == 124 else f"exited {result.returncode}"
+
+
 class MergeConflict(RuntimeError):
     """Bringing the PR up to date with main conflicts."""
 
@@ -454,6 +460,7 @@ class Upkeep:
         self.review, self.work, self.fix = review, work, fix
         self.security = security
         self.which = which
+        self.fix_failure: str | None = None  # why the last CI-fix `claude -p` failed
         self.sleep, self.clock = sleep, clock
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.logs = state / "logs" / stamp
@@ -803,10 +810,15 @@ class Upkeep:
             mutating=True,
             output=self.logs / f"pr-{pr.number}-fix.log",
         )
+        self.fix_failure = None
         if result.skipped:
             return pr
+        if not result.ok:
+            # A crashed or timed-out run is a failed attempt, whatever it committed first.
+            self.fix_failure = describe_exit(result)
+            return None
         added = self.sh.run(["git", "rev-list", "--count", f"{pr.head_sha}..HEAD"], cwd=self.work)
-        if not result.ok or added.stdout.strip() in ("", "0"):
+        if added.stdout.strip() in ("", "0"):
             return None
         return pr
 
@@ -1044,6 +1056,7 @@ class Upkeep:
         pr, app_ok = self.bring_current(pr, outcome)
         state, failing = self.wait_for_checks(pr)
         fixed = False
+        failed_fix: str | None = None
         if (state == "fail" or not app_ok) and self.fix and not self.sh.dry_run:
             reasons = failing or []
             if not app_ok:
@@ -1053,7 +1066,12 @@ class Upkeep:
                 ]
             outcome.notes.append("attempting one bounded fix")
             patched = self.attempt_fix(pr, reasons)
-            if patched is None:
+            if patched is None and self.fix_failure:
+                outcome.notes.append(
+                    f"the fix attempt failed: claude -p {self.fix_failure}; nothing was pushed"
+                )
+                failed_fix = self.fix_failure
+            elif patched is None:
                 outcome.notes.append("the fix attempt made no commit")
             elif sec.is_security_pr(pr.labels) and (
                 problem := self.security_scope_problem(
@@ -1085,6 +1103,7 @@ class Upkeep:
                 "red: "
                 + ("; ".join(failing) or "mobile-verify failed")
                 + (" (after one fix attempt)" if fixed else "")
+                + (f" (the fix attempt failed: claude -p {failed_fix})" if failed_fix else "")
             )
             return outcome
         if self.sh.dry_run:
@@ -1197,16 +1216,20 @@ class Upkeep:
                     f"would hand it to the owner: {reason}",
                 )
             return self.security_escalate(finding, reason, None)
-        if self.sh.dry_run or not self.fix:
-            detail = (
-                "would attempt one bounded fix in a fresh checkout from main"
-                if self.sh.dry_run
-                else "fix attempts are off (--no-fix)"
-            )
-            status = "planned" if self.sh.dry_run else "skipped"
-            return Outcome(finding.number, finding.title, url, status, detail)
         scanner = finding.scanner
-        if self.which(scanner.tool) is None:
+        missing = self.which(scanner.tool) is None  # a read-only check, so a dry run reports it
+        if self.sh.dry_run:
+            detail = (
+                f"would hand it to the owner: {scanner.tool} is not installed on the routine's Mac"
+                if missing
+                else "would attempt one bounded fix in a fresh checkout from main"
+            )
+            return Outcome(finding.number, finding.title, url, "planned", detail)
+        if not self.fix:
+            return Outcome(
+                finding.number, finding.title, url, "skipped", "fix attempts are off (--no-fix)"
+            )
+        if missing:
             # Checked before any checkout or claude -p: `cargo audit` without cargo-audit
             # exits 101, which would read as "main is red".
             return self.security_escalate(
@@ -1235,13 +1258,18 @@ class Upkeep:
                 finding.number, finding.title, url, "skipped",
                 f"{scanner.name} already passes on main; the watcher closes the issue on its next run",
             )  # fmt: skip
-        self.sh.run(
+        ran = self.sh.run(
             ["claude", "-p", "--model", CLAUDE_MODEL, sec.fix_prompt(finding)],
             cwd=self.work,
             timeout=SECONDS["fix"],
             mutating=True,
             output=log,
         )
+        if not ran.ok:
+            # A crashed or timed-out run is a failed attempt: judge nothing it left behind.
+            return self.security_escalate(
+                finding, f"claude -p {describe_exit(ran)}, so nothing was pushed", log
+            )
         paths = self.read(["git", "diff", "--name-only", "origin/main..HEAD"], self.work).split()
         dirty = self.read(["git", "status", "--porcelain"], self.work).strip()
         decision = sec.classify_change(paths)

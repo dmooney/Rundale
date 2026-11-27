@@ -182,6 +182,7 @@ class SecurityWorld(base.FakeWorld):
         self.scanner_rc = 0
         self.fix_pr_labels: list[str] = []
         self.main_green = False
+        self.claude_rc = 0
         self.claude_ran = False
         self.issue_list_fails = False
         self.closed_prs: list[dict[str, Any]] = []
@@ -248,7 +249,7 @@ class SecurityWorld(base.FakeWorld):
         if cmd[0] == "claude" and "is red on main" in cmd[-1]:
             assert cwd == self.work
             self.claude_ran = True
-            return Result(0)
+            return Result(self.claude_rc)
         return None
 
 
@@ -480,6 +481,47 @@ class SecurityFlowTests(base.UpkeepCase):
 
     def test_install_is_quiet_when_both_scanners_are_present(self) -> None:
         self.assertEqual(self.install_warnings(set()), "")
+
+    def test_dry_run_reports_a_missing_scanner_binary_without_changes(self) -> None:
+        self.world.ci_red = [issue(2404, AUDIT_BODY, "ci-red")]
+        self.missing_binaries = {"cargo-audit"}
+        (outcome,) = self.run_security(dry_run=True)
+        self.assertEqual(outcome.status, "planned")
+        self.assertIn("would hand it to the owner", outcome.detail)
+        self.assertIn("cargo-audit is not installed", outcome.detail)
+        for prefix in base.MUTATING:
+            self.assertEqual(self.world.ran(*prefix), [], prefix)
+
+    def test_dry_run_with_the_binary_present_still_plans_the_fix(self) -> None:
+        (outcome,) = self.run_security(dry_run=True)
+        self.assertEqual(outcome.status, "planned")
+        self.assertIn("would attempt one bounded fix", outcome.detail)
+
+    def test_a_crashed_or_timed_out_claude_run_is_a_failed_attempt_with_nothing_pushed(
+        self,
+    ) -> None:
+        for rc, words in ((1, "claude -p exited 1"), (124, "claude -p timed out")):
+            with self.subTest(rc=rc):
+                self.setUp()
+                self.world.claude_rc = rc  # the changes and a passing scan are ignored
+                (outcome,) = self.run_security()
+                self.assertEqual(outcome.status, "escalated")
+                self.assertIn(words, outcome.detail)
+                self.assertEqual(self.world.ran("git", "push"), [])
+                self.assertEqual(self.world.ran("gh", "pr", "create"), [])
+                (comment,) = self.world.ran("gh", "issue", "comment")
+                self.assertIn(words, comment[-1])
+
+    def test_a_failed_ci_fix_run_on_a_security_pr_pushes_nothing(self) -> None:
+        number = self.resumed_security_pr()
+        self.world.checks[number] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
+        self.world.fix_commits[number] = 1
+        self.world.claude_rc = 1
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "red")
+        self.assertIn("the fix attempt failed: claude -p exited 1", outcome.detail)
+        self.assertEqual(self.world.ran("git", "push"), [])
+        self.assertEqual(self.world.gatekept(), [])
 
     def test_a_missing_scanner_is_caught_before_any_claude_run(self) -> None:
         self.world.scanner_rc = 127
