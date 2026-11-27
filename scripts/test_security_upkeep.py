@@ -203,7 +203,13 @@ class SecurityWorld(base.FakeWorld):
         if cmd[:3] == ("gh", "pr", "list") and "--label" in cmd:
             return self.ok(self.closed_prs if "closed" in cmd else self.sec_prs)
         if cmd[:3] == ("gh", "pr", "list") and "--author" in cmd:  # Dependabot's PRs only
-            return self.ok([p for n, p in sorted(self.prs.items()) if n != NEW_PR])
+            return self.ok(
+                [
+                    p
+                    for n, p in sorted(self.prs.items())
+                    if "security-upkeep" not in {lab["name"] for lab in p["labels"]}
+                ]
+            )
         if cmd[:3] == ("gh", "label", "create"):
             return self.ok()
         if cmd[:3] == ("gh", "pr", "edit"):
@@ -217,6 +223,7 @@ class SecurityWorld(base.FakeWorld):
             branch = cmd[cmd.index("--head") + 1]
             self.add(NEW_PR, headRefName=branch, labels=[{"name": n} for n in self.fix_pr_labels])
             self.gatekeeper.setdefault(NEW_PR, self.approve_and_merge(NEW_PR))
+            self.files[NEW_PR] = list(self.changes)
             return Result(0, f"https://github.com/{base.REPO}/pull/{NEW_PR}\n")
         if cmd[:2] == ("git", "checkout") and "-B" in cmd:
             return Result(0)
@@ -227,6 +234,10 @@ class SecurityWorld(base.FakeWorld):
         if cmd[:2] == ("git", "status"):
             return Result(0, self.dirty)
         if cmd[:2] == ("git", "push") and "upkeep/security-" in cmd[-1]:
+            branch = cmd[-1].removeprefix("HEAD:refs/heads/")
+            for number, pr in self.prs.items():
+                if pr["headRefName"] == branch:
+                    self.new_head(number)  # the push moves an existing PR's head
             return Result(0)
         if cmd[0] in ("osv-scanner", "cargo"):
             if self.claude_ran:
@@ -432,6 +443,89 @@ class SecurityFlowTests(base.UpkeepCase):
         self.run_security()
         self.assertEqual(self.world.ran("claude"), [])
 
+    def resumed_security_pr(self, **extra: Any) -> int:
+        """An open security PR from an earlier run, in the fake GitHub and the PR list."""
+
+        number = NEW_PR - 1
+        finding = sec.Finding(2403, "t", "osv-scanner.yml", OSV_BODY)
+        body = sec.pr_body(finding, sec.Decision("merge", "x"), ["limerick/Cargo.lock"], [])
+        self.world.add(
+            number,
+            headRefName="upkeep/security-osv-scanner-20261125",
+            labels=[{"name": "security-upkeep"}],
+            **extra,
+        )
+        self.world.files[number] = ["limerick/Cargo.lock"]
+        self.world.gatekeeper[number] = self.world.approve_and_merge(number)
+        self.world.sec_prs = [{**self.world.prs[number], "body": body}]
+        return number
+
+    def no_dependabot_comment(self) -> None:
+        for call in self.world.ran("gh", "pr", "comment"):
+            self.assertNotIn("@dependabot", call[-1])
+
+    def fix_prompts(self) -> list[str]:
+        return [
+            c[-1]
+            for c, _ in self.world.calls
+            if c[0] == "claude" and not c[-1].startswith("Run the gatekeeper")
+        ]
+
+    def test_red_ci_on_a_security_pr_gets_a_security_prompt_and_a_lockfile_only_fix(self) -> None:
+        number = self.resumed_security_pr()
+        self.world.checks[number] = [
+            [{"name": "CI gate", "bucket": "fail", "link": "l"}],
+            [{"name": "CI gate", "bucket": "pass", "link": "l"}],
+        ]
+        self.world.fix_commits[number] = 1
+        self.world.changes = ["limerick/Cargo.lock"]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "merged")
+        (prompt,) = self.fix_prompts()
+        self.assertIn("lockfiles and package manifests only", prompt)
+        self.assertNotIn("Dependabot", prompt)
+        self.assertEqual(len(self.world.ran("git", "push")), 1)
+        self.assertEqual(len(self.world.gatekept()), 1)
+        self.no_dependabot_comment()
+
+    def test_red_ci_fix_that_touches_source_is_not_pushed_and_skips_the_gatekeeper(self) -> None:
+        number = self.resumed_security_pr()
+        self.world.checks[number] = [[{"name": "CI gate", "bucket": "fail", "link": "l"}]]
+        self.world.fix_commits[number] = 1
+        self.world.changes = ["limerick/Cargo.lock", "limerick/crates/core/src/lib.rs"]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "owner")
+        self.assertIn("lib.rs", outcome.detail)
+        self.assertEqual(self.world.ran("git", "push"), [])
+        self.assertEqual(self.world.gatekept(), [])
+        (edit,) = self.world.ran("gh", "pr", "edit")
+        self.assertEqual(edit[3:], (str(NEW_PR - 1), "-R", base.REPO, "--add-label", "needs-owner"))
+        self.no_dependabot_comment()
+
+    def test_a_security_pr_that_picked_up_source_changes_never_reaches_the_gatekeeper(self) -> None:
+        number = self.resumed_security_pr()  # green, but someone pushed a source change to it
+        self.world.files[number] = ["limerick/Cargo.lock", "limerick/crates/core/src/lib.rs"]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "owner")
+        self.assertEqual(self.world.gatekept(), [])
+        self.assertEqual(self.world.ran("claude"), [])
+
+    def test_a_resumed_pr_that_turns_out_to_conflict_is_redone_not_sent_to_dependabot(self) -> None:
+        number = self.resumed_security_pr(mergeable="UNKNOWN")
+        self.world.behind[number] = 1
+        self.world.conflicts.add(number)
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "merged")  # the redone PR
+        (tag,) = self.world.ran("gh", "pr", "edit")
+        self.assertIn("upkeep-redone", tag)
+        self.assertEqual(len(self.world.ran("gh", "pr", "close")), 1)
+        self.assertEqual(len(self.world.ran("gh", "pr", "create")), 1)
+        self.no_dependabot_comment()
+
+    def test_the_dependabot_listing_never_picks_up_a_security_pr(self) -> None:
+        self.resumed_security_pr()
+        self.assertEqual(self.make(security=False).open_prs(), [])
+
     def test_a_scan_that_stays_red_escalates_without_pushing(self) -> None:
         self.world.scanner_rc = 1
         (outcome,) = self.run_security()
@@ -454,7 +548,11 @@ class SecurityFlowTests(base.UpkeepCase):
 
     def test_an_open_security_pr_is_continued_not_duplicated(self) -> None:
         finding = sec.Finding(2403, "t", "osv-scanner.yml", OSV_BODY)
-        self.world.add(NEW_PR, headRefName="upkeep/security-osv-scanner-20261125")
+        self.world.add(
+            NEW_PR,
+            headRefName="upkeep/security-osv-scanner-20261125",
+            labels=[{"name": "security-upkeep"}],
+        )
         self.world.gatekeeper[NEW_PR] = self.world.approve_and_merge(NEW_PR)
         body = sec.pr_body(finding, sec.Decision("merge", "x"), ["limerick/Cargo.lock"], [])
         self.world.sec_prs = [

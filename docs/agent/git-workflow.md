@@ -108,7 +108,13 @@ is red on `main`; for each such open issue the routine:
    above (mobile-verify pass for app inputs, required checks, gatekeeper). A
    change that adds an ignore, or touches anything but lockfiles and manifests,
    is opened with `needs-owner`, gets no gatekeeper run, and is never merged on
-   its own.
+   its own. The same rule holds after the pull request exists: a CI-fix attempt
+   on a red `security-upkeep` pull request uses a security prompt (lockfiles and
+   manifests only), its commits are checked against that rule before they are
+   pushed, and the pull request's changed files are checked again before the
+   gatekeeper runs; either check failing labels it `needs-owner` and stops. A
+   conflicting `security-upkeep` pull request is closed and the fix redone from
+   `main`; it never gets an `@dependabot` comment.
 
 The final sweep that brings red pull requests current with `main` covers
 `security-upkeep` pull requests as well as Dependabot's. `--no-security` skips the step. It needs `osv-scanner` and `cargo-audit` on the

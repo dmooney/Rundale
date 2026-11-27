@@ -779,16 +779,20 @@ class Upkeep:
         if not self.checkout_work(pr) and not self.sh.dry_run:
             raise RuntimeError("could not check out the PR head for the fix attempt")
         prompt = (
-            f"Dependabot pull request #{pr.number} ({pr.title}) in {self.repo} fails these "
-            f"checks: {'; '.join(failing) or 'see the PR'}. This checkout is at its head "
-            f"{pr.head_sha} (detached). Make the smallest source change that adapts the "
-            "repository to the dependency update so those checks pass. Follow AGENTS.md. "
-            "Do not change the bumped versions, and do not weaken, skip, or delete tests, "
-            "gates, lint rules, or coverage floors. Run the relevant local checks. Commit "
-            "each logical change with a conventional commit message and no trailers. Do "
-            "not push, and do "
-            "not comment on or change the pull request. If it cannot be fixed within these "
-            "rules, make no commit and say why."
+            sec.ci_fix_prompt(pr.number, pr.title, self.repo, failing, pr.head_sha)
+            if sec.is_security_pr(pr.labels)
+            else (
+                f"Dependabot pull request #{pr.number} ({pr.title}) in {self.repo} fails these "
+                f"checks: {'; '.join(failing) or 'see the PR'}. This checkout is at its head "
+                f"{pr.head_sha} (detached). Make the smallest source change that adapts the "
+                "repository to the dependency update so those checks pass. Follow AGENTS.md. "
+                "Do not change the bumped versions, and do not weaken, skip, or delete tests, "
+                "gates, lint rules, or coverage floors. Run the relevant local checks. Commit "
+                "each logical change with a conventional commit message and no trailers. Do "
+                "not push, and do "
+                "not comment on or change the pull request. If it cannot be fixed within these "
+                "rules, make no commit and say why."
+            )
         )
         result = self.sh.run(
             ["claude", "-p", "--model", CLAUDE_MODEL, prompt],
@@ -952,6 +956,21 @@ class Upkeep:
                 raise MergeConflict("conflicts with main")
             return self._process(pr, outcome)
         except MergeConflict as conflict:
+            if sec.is_security_pr(pr.labels):
+                # Not a Dependabot PR: nobody would answer a rebase request.
+                try:
+                    self.close_for_redo(pr)
+                except RECOVERABLE as error:
+                    outcome.status, outcome.detail = (
+                        "error",
+                        f"{conflict}; could not close it: {error}",
+                    )
+                    return outcome
+                outcome.status = "redo"
+                outcome.detail = (
+                    f"{conflict}; {self.did('closed', 'close')} it to redo the fix from main"
+                )
+                return outcome
             try:
                 return self.ask_dependabot(pr, outcome, str(conflict))
             except RECOVERABLE as error:
@@ -961,6 +980,49 @@ class Upkeep:
         except RECOVERABLE as error:
             outcome.status, outcome.detail = "error", str(error)
             return outcome
+
+    def security_scope_problem(self, paths: Sequence[str]) -> str | None:
+        """Why these changed files may not go to the gatekeeper, or None when they may."""
+
+        decision = sec.classify_change(paths)
+        return None if decision.action == "merge" else decision.reason
+
+    def hand_security_pr_to_owner(self, pr: PullRequest, outcome: Outcome, reason: str) -> Outcome:
+        """Label a security PR `needs-owner` and stop: no gatekeeper run."""
+
+        edit = ["gh", "pr", "edit", str(pr.number), "-R", self.repo, "--add-label", OWNER_LABEL]
+        labelled = self.sh.run(edit, mutating=True)
+        if not labelled.ok:
+            raise CommandError(edit[:4], labelled)
+        body = (
+            f"The upkeep routine is not sending this to the gatekeeper: {reason}. Only lockfile "
+            "and manifest changes may merge without the owner, so it carries `needs-owner`."
+        )
+        comment = ["gh", "pr", "comment", str(pr.number), "-R", self.repo, "--body", body]
+        posted = self.sh.run(comment, mutating=True)
+        if not posted.ok:
+            raise CommandError(comment[:4], posted)
+        outcome.status = "owner"
+        outcome.detail = f"for the owner: {reason}"
+        return outcome
+
+    def close_for_redo(self, pr: PullRequest) -> None:
+        """Close a conflicting security PR (and its branch) so the fix is redone from main."""
+
+        number = str(pr.number)
+        self.sh.run(
+            ["gh", "label", "create", sec.REDONE_LABEL, "-R", self.repo, "--force",
+             "--description", "Closed by the upkeep routine to redo its fix from main",
+             "--color", "C5DEF5"],
+            mutating=True,
+        )  # fmt: skip
+        tagged = ["gh", "pr", "edit", number, "-R", self.repo, "--add-label", sec.REDONE_LABEL]
+        if not self.sh.run(tagged, mutating=True).ok:
+            raise CommandError(tagged[:4], Result(1))
+        close = ["gh", "pr", "close", number, "-R", self.repo, "--delete-branch",
+                 "--comment", "Closing: it conflicts with main. The upkeep routine redoes the fix from main."]  # fmt: skip
+        if not self.sh.run(close, mutating=True).ok:
+            raise CommandError(close[:4], Result(1))
 
     def ask_dependabot(self, pr: PullRequest, outcome: Outcome, reason: str) -> Outcome:
         """Have Dependabot rebuild a PR that conflicts with main."""
@@ -991,6 +1053,15 @@ class Upkeep:
             patched = self.attempt_fix(pr, reasons)
             if patched is None:
                 outcome.notes.append("the fix attempt made no commit")
+            elif sec.is_security_pr(pr.labels) and (
+                problem := self.security_scope_problem(
+                    self.read(
+                        ["git", "diff", "--name-only", f"origin/{pr.base_ref}...HEAD"], self.work
+                    ).split()
+                )
+            ):
+                # Not pushed: only lockfile and manifest changes may reach the gatekeeper.
+                return self.hand_security_pr_to_owner(pr, outcome, f"the CI fix {problem}")
             else:
                 pr, app_ok = self.push_fix(patched, outcome)
                 fixed = True
@@ -1019,6 +1090,12 @@ class Upkeep:
         if not self.probe_workflows(pr, outcome):
             outcome.status, outcome.detail = "red", "a workflow dry run failed"
             return outcome
+        if sec.is_security_pr(pr.labels):
+            files = self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", "files")
+            paths = [f["path"] for f in (files or {}).get("files", [])]
+            problem = self.security_scope_problem(paths) if paths else None
+            if problem:
+                return self.hand_security_pr_to_owner(pr, outcome, f"it {problem}")
         ran = self.gatekeeper(pr)
         if ran.skipped:
             outcome.detail = "would run the gatekeeper"
@@ -1094,27 +1171,12 @@ class Upkeep:
 
         url = self.issue_url(finding.number)
         found = sec.existing_pr(prs, finding)
-        if found is not None and found.get("mergeable") == "CONFLICTING":
-            # Not a Dependabot PR: nobody would answer a rebase request. Redo the fix from main.
-            closing = str(found["number"])
-            self.sh.run(
-                ["gh", "label", "create", sec.REDONE_LABEL, "-R", self.repo, "--force",
-                 "--description", "Closed by the upkeep routine to redo its fix from main",
-                 "--color", "C5DEF5"],
-                mutating=True,
-            )  # fmt: skip
-            tagged = ["gh", "pr", "edit", closing, "-R", self.repo, "--add-label", sec.REDONE_LABEL]
-            if not self.sh.run(tagged, mutating=True).ok:
-                raise CommandError(tagged[:4], Result(1))
-            close = ["gh", "pr", "close", closing, "-R", self.repo, "--delete-branch",
-                     "--comment", "Closing: it conflicts with main. The upkeep routine redoes the fix from main."]  # fmt: skip
-            if not self.sh.run(close, mutating=True).ok:
-                raise CommandError(close[:4], Result(1))
-            found = None
         if found is not None:
             outcome = self.process(PullRequest.from_gh(found), set())
-            outcome.notes.insert(0, f"continuing the security PR for #{finding.number}")
-            return outcome
+            if outcome.status != "redo":
+                outcome.notes.insert(0, f"continuing the security PR for #{finding.number}")
+                return outcome
+            # The PR conflicted and was closed: fall through and redo the fix from main.
         rejected = sec.rejected_prs(closed, finding)
         if rejected:
             links = ", ".join(str(pr.get("url") or f"#{pr['number']}") for pr in rejected)
@@ -1257,7 +1319,7 @@ class Upkeep:
                     self.pin(number)
                 return number
         body = (
-            f"{TRACKING_MARKER}\nThe weekly Dependabot upkeep routine "
+            f"{TRACKING_MARKER}\nThe daily upkeep routine "
             "(`scripts/dependabot_upkeep.py`, issue #2098) comments here after each run: "
             "what the gatekeeper merged and what needs attention. Keep this issue open "
             "and pinned."

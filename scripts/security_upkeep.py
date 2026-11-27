@@ -284,6 +284,27 @@ def fix_prompt(finding: Finding) -> str:
     )
 
 
+def is_security_pr(labels: Iterable[str]) -> bool:
+    return PR_LABEL in set(labels)
+
+
+def ci_fix_prompt(number: int, title: str, repo: str, failing: Sequence[str], head: str) -> str:
+    """The prompt for a red security PR: lockfile and manifest changes only."""
+
+    return (
+        f"Pull request #{number} ({title}) in {repo} is the upkeep routine's security fix: it "
+        "changes only lockfiles and manifests to clear a vulnerability scan. It fails these "
+        f"checks: {'; '.join(failing) or 'see the PR'}. This checkout is at its head {head} "
+        "(detached). Find out why and, if you can, fix it by changing lockfiles and package "
+        "manifests only (another patched version, a different `overrides` floor, a smaller "
+        "bump). Do not change source code, tests, workflows, gates, lint rules or coverage "
+        "floors, and do not add an ignore for an advisory. Run the relevant local checks and "
+        "the scanner. Follow AGENTS.md. Commit with a conventional commit message and no "
+        "trailers. Do not push, and do not comment on or change the pull request. If it "
+        "cannot be fixed within these rules, make no commit and say why."
+    )
+
+
 def pr_title(finding: Finding) -> str:
     return f"fix(deps): clear {finding.scanner.name} findings on main"
 
