@@ -112,7 +112,8 @@ is red on `main`; for each such open issue the routine:
    on a red `security-upkeep` pull request uses a security prompt (lockfiles and
    manifests only), its commits are checked against that rule before they are
    pushed, and the pull request's changed files are checked again before the
-   gatekeeper runs; either check failing labels it `needs-owner` and stops. A
+   gatekeeper runs (an empty list, or one at the 100-file cap, counts as
+   failing); either check failing labels it `needs-owner` and stops. A
    conflicting `security-upkeep` pull request is closed and the fix redone from
    `main`; it never gets an `@dependabot` comment.
 

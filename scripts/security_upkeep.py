@@ -33,6 +33,8 @@ BRANCH_PREFIX = "upkeep/security-"
 CI_RED_MARKER = re.compile(r"<!--\s*ci-red:\s*workflow=([^\s>]+)\s*-->")
 PR_MARKER = re.compile(r"<!--\s*upkeep-security:\s*workflow=([^\s>]+)\s+issue=(\d+)\s*-->")
 MAX_IGNORE_DAYS = 90
+# `gh pr view --json files` returns at most this many files; a list this long may be cut short.
+FILE_LIST_CAP = 100
 
 
 @dataclass(frozen=True)

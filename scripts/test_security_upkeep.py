@@ -502,6 +502,28 @@ class SecurityFlowTests(base.UpkeepCase):
         self.assertEqual(edit[3:], (str(NEW_PR - 1), "-R", base.REPO, "--add-label", "needs-owner"))
         self.no_dependabot_comment()
 
+    def test_an_unreadable_file_list_fails_closed_before_the_gatekeeper(self) -> None:
+        cap = sec.FILE_LIST_CAP
+        lockfiles = [f"pkg{i}/package-lock.json" for i in range(cap)]
+        for files in ([], lockfiles, lockfiles[: cap - 1] + ["x/lib.rs"]):
+            with self.subTest(files=len(files)):
+                self.setUp()  # a fresh fake GitHub for each case
+                number = self.resumed_security_pr()
+                self.world.files[number] = files
+                (outcome,) = self.run_security()
+                self.assertEqual(outcome.status, "owner")
+                self.assertEqual(self.world.gatekept(), [])
+                (edit,) = self.world.ran("gh", "pr", "edit")
+                self.assertIn("needs-owner", edit)
+
+    def test_just_under_the_cap_of_lockfiles_still_reaches_the_gatekeeper(self) -> None:
+        number = self.resumed_security_pr()
+        self.world.files[number] = [
+            f"pkg{i}/package-lock.json" for i in range(sec.FILE_LIST_CAP - 1)
+        ]
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "merged")
+
     def test_a_security_pr_that_picked_up_source_changes_never_reaches_the_gatekeeper(self) -> None:
         number = self.resumed_security_pr()  # green, but someone pushed a source change to it
         self.world.files[number] = ["limerick/Cargo.lock", "limerick/crates/core/src/lib.rs"]
@@ -555,6 +577,7 @@ class SecurityFlowTests(base.UpkeepCase):
         )
         self.world.gatekeeper[NEW_PR] = self.world.approve_and_merge(NEW_PR)
         body = sec.pr_body(finding, sec.Decision("merge", "x"), ["limerick/Cargo.lock"], [])
+        self.world.files[NEW_PR] = ["limerick/Cargo.lock"]
         self.world.sec_prs = [
             {**self.world.prs[NEW_PR], "body": body, "labels": [{"name": "security-upkeep"}]}
         ]

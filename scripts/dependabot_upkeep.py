@@ -1093,7 +1093,12 @@ class Upkeep:
         if sec.is_security_pr(pr.labels):
             files = self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", "files")
             paths = [f["path"] for f in (files or {}).get("files", [])]
-            problem = self.security_scope_problem(paths) if paths else None
+            # Fail closed: an empty list, or one at the cap of `gh pr view --json files`
+            # (which may be cut short), cannot show that only lockfiles changed.
+            if not paths or len(paths) >= sec.FILE_LIST_CAP:
+                problem = f"has a changed-file list that cannot be trusted ({len(paths)} files)"
+            else:
+                problem = self.security_scope_problem(paths)
             if problem:
                 return self.hand_security_pr_to_owner(pr, outcome, f"it {problem}")
         ran = self.gatekeeper(pr)
