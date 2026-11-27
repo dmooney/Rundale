@@ -95,6 +95,12 @@ class PureTests(unittest.TestCase):
         workflow = sec.classify_change([".github/workflows/osv-scanner.yml"])
         self.assertEqual(workflow.action, "owner")
 
+    def test_only_real_requirements_files_are_dependency_files(self) -> None:
+        for name in ("requirements.txt", "requirements-dev.txt", "requirements.in"):
+            self.assertEqual(sec.classify_change([f"bench/{name}"]).action, "merge", name)
+        for name in ("requirements_check.py", "requirements.md", "requirementsfoo"):
+            self.assertEqual(sec.classify_change([f"bench/{name}"]).action, "owner", name)
+
     def test_classify_no_change_is_none(self) -> None:
         self.assertEqual(sec.classify_change([]).action, "none")
 
@@ -174,6 +180,8 @@ class SecurityWorld(base.FakeWorld):
         self.dirty = ""
         self.scanner_rc = 0
         self.fix_pr_labels: list[str] = []
+        self.main_green = False
+        self.claude_ran = False
         self.issue_list_fails = False
         self.closed_prs: list[dict[str, Any]] = []
 
@@ -221,9 +229,13 @@ class SecurityWorld(base.FakeWorld):
         if cmd[:2] == ("git", "push") and "upkeep/security-" in cmd[-1]:
             return Result(0)
         if cmd[0] in ("osv-scanner", "cargo"):
-            return Result(self.scanner_rc)
+            if self.claude_ran:
+                return Result(self.scanner_rc)
+            # Before the fix attempt: main is red unless a test says it is already green.
+            return Result(0 if self.main_green else (127 if self.scanner_rc == 127 else 1))
         if cmd[0] == "claude" and "is red on main" in cmd[-1]:
             assert cwd == self.work
+            self.claude_ran = True
             return Result(0)
         return None
 
@@ -402,6 +414,23 @@ class SecurityFlowTests(base.UpkeepCase):
         outcome = upkeep.Outcome(NEW_PR, "fix", "u", "red", "red")
         self.make(security=False).final_sweep([outcome], set())
         self.assertEqual(self.world.ran("gh", "api", "-X"), [])
+
+    def test_a_main_that_is_already_green_is_skipped_without_cost_or_noise(self) -> None:
+        self.world.main_green = True
+        (outcome,) = self.run_security()
+        self.assertEqual(outcome.status, "skipped")
+        self.assertIn("already passes on main", outcome.detail)
+        self.assertEqual(self.world.ran("claude"), [])
+        self.assertEqual(self.world.ran("gh", "issue", "edit"), [])
+        self.assertEqual(self.world.ran("gh", "issue", "comment"), [])
+        self.assertEqual(self.world.ran("gh", "pr", "create"), [])
+        text = upkeep.render_summary([outcome], when="now", dry_run=False)
+        self.assertNotIn("### Needs attention", text)
+
+    def test_a_missing_scanner_is_caught_before_any_claude_run(self) -> None:
+        self.world.scanner_rc = 127
+        self.run_security()
+        self.assertEqual(self.world.ran("claude"), [])
 
     def test_a_scan_that_stays_red_escalates_without_pushing(self) -> None:
         self.world.scanner_rc = 1

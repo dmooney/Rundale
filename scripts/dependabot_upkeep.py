@@ -1146,6 +1146,20 @@ class Upkeep:
         ):
             if not self.sh.run(step, cwd=self.work, mutating=True).ok:
                 raise RuntimeError(f"could not prepare a fresh checkout from main ({step[1]})")
+        # The issue stays open until the watcher's next run, so main may be green already
+        # (a Dependabot bump merged earlier in this run, or a manual fix): spend nothing then.
+        scanner = finding.scanner
+        scan_dir = self.work / scanner.directory if scanner.directory else self.work
+        before = self.sh.run(list(scanner.command), cwd=scan_dir, timeout=1800)
+        if before.returncode == 127:
+            return self.security_escalate(
+                finding, f"{scanner.command[0]} is not installed on the routine's Mac", log
+            )
+        if before.ok:
+            return Outcome(
+                finding.number, finding.title, url, "skipped",
+                f"{scanner.name} already passes on main; the watcher closes the issue on its next run",
+            )  # fmt: skip
         self.sh.run(
             ["claude", "-p", "--model", CLAUDE_MODEL, sec.fix_prompt(finding)],
             cwd=self.work,
@@ -1164,16 +1178,7 @@ class Upkeep:
             return self.security_escalate(
                 finding, "it left uncommitted edits beside its commits", log
             )
-        scanner = finding.scanner
-        proof = self.sh.run(
-            list(scanner.command),
-            cwd=self.work / scanner.directory if scanner.directory else self.work,
-            timeout=1800,
-        )
-        if proof.returncode == 127:
-            return self.security_escalate(
-                finding, f"{scanner.command[0]} is not installed on the routine's Mac", log
-            )
+        proof = self.sh.run(list(scanner.command), cwd=scan_dir, timeout=1800)
         if not proof.ok:
             reason = f"{scanner.name} still fails after the fix (exit {proof.returncode})"
             return self.security_escalate(finding, reason, log)

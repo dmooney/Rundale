@@ -141,7 +141,14 @@ def pr_workflow(body: str | None) -> tuple[str, int] | None:
 
 
 def existing_pr(prs: Iterable[dict[str, Any]], finding: Finding) -> dict[str, Any] | None:
-    """The open security PR already working on this finding, if any."""
+    """The open security PR already working on this finding, if any.
+
+    Matches on the workflow alone, on purpose: a workflow's findings are one
+    problem however many `ci-red` issues the watcher has opened and closed for
+    it, so an open PR from an earlier issue is resumed rather than duplicated.
+    `rejected_prs` is stricter (workflow and issue) because a rejection stops
+    attempts for that one issue only.
+    """
 
     for pr in prs:
         found = pr_workflow(pr.get("body"))
@@ -183,6 +190,12 @@ class Decision:
     reason: str
 
 
+def is_requirements_file(name: str) -> bool:
+    """`requirements*.txt` or `requirements*.in`, not any file that starts with the word."""
+
+    return name.startswith("requirements") and name.endswith((".txt", ".in"))
+
+
 def classify_change(paths: Sequence[str]) -> Decision:
     """Judge the files a fix attempt changed.
 
@@ -199,7 +212,7 @@ def classify_change(paths: Sequence[str]) -> Decision:
         p
         for p in paths
         if PurePosixPath(p).name not in DEPENDENCY_NAMES | IGNORE_NAMES
-        and not PurePosixPath(p).name.startswith("requirements")
+        and not is_requirements_file(PurePosixPath(p).name)
     ]
     if other:
         return Decision(
@@ -296,8 +309,8 @@ def pr_body(
         *(f"- `{path}`" for path in paths),
         "",
         f"Verification: `{' '.join(finding.scanner.command)}` passed in that checkout "
-        "before the push. The mobile-verify pass for app inputs is recorded by the routine, "
-        "and CI runs on the pushed head.",
+        "before the push. If the change touches app inputs, the routine then runs "
+        "`just mobile-verify --phase all` and records the pass; CI runs on the pushed head.",
     ]
     if decision.action == "owner":
         lines += [
