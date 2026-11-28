@@ -407,10 +407,10 @@ agent-check:
     bash ./scripts/agent-check.sh
 
 # Pre-commit gate: proof, format, lint, tests, placeholder scan, doc-paths, frontend lint/format/check
-check: agent-check fmt-check clippy test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
+check: agent-check notices-check fmt-check clippy test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
 
 # Pre-push gate: proof, check + game harness walkthrough
-verify: agent-check fmt-check clippy test game-test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
+verify: agent-check notices-check fmt-check clippy test game-test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:
@@ -537,17 +537,43 @@ update:
 notices:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! command -v cargo-about &>/dev/null; then
-        echo "Installing cargo-about..."
-        cargo install cargo-about --locked --features cli
+    # cargo-about 0.9.0 exits 0 but drops extra license files (28 notices lost,
+    # issue 2441), so the version is pinned and checked, not "whatever is installed".
+    cargo_about_version=0.9.3
+    if [ "$(cargo about --version 2>/dev/null | awk '{print $2}')" != "$cargo_about_version" ]; then
+        echo "Installing cargo-about $cargo_about_version..."
+        cargo install cargo-about --version "$cargo_about_version" --locked --features cli --force
     fi
+    # Node: the UI generator runs `npm ci`, which refuses a Node outside
+    # apps/ui `engines` (EBADENGINE). Select .nvmrc's Node through fnm, as the
+    # other recipes do, and say how to fix it when that is not what is running.
+    . scripts/use-node.sh
+    want_node="$(tr -d '[:space:]' <../.nvmrc)"
+    have_node="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+    if [ "$have_node" != "$want_node" ]; then
+        echo "just notices needs Node $want_node (.nvmrc) but found $(node --version)." >&2
+        echo "Run: fnm install $want_node && fnm use $want_node" >&2
+        exit 1
+    fi
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
     echo "Generating Rust notices..."
-    cargo about generate about.hbs --output-file THIRD_PARTY_NOTICES.rust.md
+    cargo about generate about.hbs --output-file "$work/THIRD_PARTY_NOTICES.rust.md"
+    # Refuse a generated file that lost crates or license texts, then write the
+    # dev-only list; only then replace the committed file.
+    python3 scripts/notices/check_notices.py refresh --generated "$work/THIRD_PARTY_NOTICES.rust.md"
+    mv "$work/THIRD_PARTY_NOTICES.rust.md" THIRD_PARTY_NOTICES.rust.md
     echo "Generating UI notices..."
     # npm run supplies npm_execpath, so the generator can invoke npm's JS entry
     # point through the current Node binary without a shell or Windows .cmd shim.
     npm --prefix apps/ui run notices
-    echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md and THIRD_PARTY_NOTICES.ui.md."
+    python3 scripts/notices/check_notices.py check
+    echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md, notices-dev-only.txt and THIRD_PARTY_NOTICES.ui.md."
+
+# Fail when the Rust or UI third-party notices no longer match their lockfiles (hermetic;
+# CI's python-quality job runs the same check)
+notices-check:
+    python3 scripts/notices/check_notices.py check
 
 # ─── Local CI (act) ──────────────────────────────────────────────────────────
 #
