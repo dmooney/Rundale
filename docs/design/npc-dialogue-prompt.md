@@ -279,8 +279,8 @@ to the [dynamic NPC context](dynamic-npc-context.md):
 - What the character knows of the player. At first: nothing. A stranger they
   have never seen, with no description; looks, name and business come only
   from what the player says.
-- Village news the character has heard (future dynamic work, with the gossip
-  proof, #2197).
+- Village news the character has heard: the gossip they hold, listed with what
+  they know (`aboutYou.knows`), after the authored knowledge (#2197).
 - Whether the player's line holds something foreign to 1820 (decision 16),
   for talk only. The flag says only that the line holds something the
   character would not know; the character works out what, and reacts with

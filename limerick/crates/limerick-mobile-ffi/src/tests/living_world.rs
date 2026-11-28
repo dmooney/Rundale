@@ -10,8 +10,8 @@
 //!
 //! A case whose proof issue has not landed is in a `pending` module behind
 //! the `living-world-pending` feature, so it fails only when
-//! `just mobile-verify --phase 6` builds it, never in the default
-//! `cargo test`.
+//! `just mobile-verify` builds it (`--phase 6`, `--phase all` or `--smoke`),
+//! never in the default `cargo test`.
 
 use super::*;
 
@@ -156,64 +156,66 @@ mod gossip {
                 game.relaunch();
             }
 
-            wait(&game, 60);
-            let peig = hear(&game, PEIG, "Good morning to you.", "And to you.");
-            assert!(
-                !peig.to_string().contains(CATTLE_BUYER),
-                "run {run}: Peig is not told: {peig}"
-            );
+            // The player goes straight to the cottage, so the Connollys are
+            // together only while the player is one step away for the single
+            // gossip roll of this first turn (seeded by the game minute, so
+            // it is the same in every run).
             go(&game, "Connolly Cottage");
             let roisin = hear(&game, ROISIN, "Good morning to you.", "And to you.");
             assert!(
                 !roisin.to_string().contains(CATTLE_BUYER),
                 "run {run}: Róisín has not heard it yet: {roisin}"
             );
+            go(&game, "Kilteevan Village");
+            wait(&game, 60);
+            let peig = hear(&game, PEIG, "Good morning to you.", "And to you.");
+            assert!(
+                !peig.to_string().contains(CATTLE_BUYER),
+                "run {run}: Peig is not told: {peig}"
+            );
         }
     }
 
-    #[cfg(feature = "living-world-pending")]
-    mod pending {
-        use super::*;
-
-        /// P6-03 (#2197): with the player away from the cottage, the fact
-        /// spreads from Mícheál to Róisín as saved state and to no one
-        /// else. Róisín then shows it in her next reply's context, the save
-        /// keeps it, and Peig is never told. A repeat on a new game
-        /// spreads it again.
-        #[test]
-        fn the_fact_reaches_roisin_from_micheal_and_never_peig() {
-            for run in 1..=2 {
-                let (mut game, _) = Game::new();
-                // The player stays in the village, away from the cottage.
-                let mut hours = 0;
-                while !gossip_of(&game, "Róisín").contains(CATTLE_BUYER) {
-                    hours += 1;
-                    assert!(
-                        hours <= 24,
-                        "run {run}: the fact never reached Róisín in a game day"
-                    );
-                    wait(&game, 60);
-                }
-                assert!(gossip_of(&game, "Mícheál").contains(CATTLE_BUYER));
-                assert!(gossip_of(&game, "Peig").contains("(0 items)"));
-
-                game.relaunch();
-                assert!(gossip_of(&game, "Róisín").contains(CATTLE_BUYER));
-                assert!(gossip_of(&game, "Peig").contains("(0 items)"));
-
-                go(&game, "Connolly Cottage");
-                let roisin = hear(&game, ROISIN, "Any news on the road?", "A buyer was about.");
+    /// P6-03: with the player away from the cottage, the fact
+    /// spreads from Mícheál to Róisín as saved state and to no one
+    /// else. Róisín then shows it in her next reply's context, the save
+    /// keeps it, and Peig is never told. A repeat on a new game
+    /// spreads it again.
+    #[test]
+    fn the_fact_reaches_roisin_from_micheal_and_never_peig() {
+        for run in 1..=2 {
+            let (mut game, _) = Game::new();
+            // The player stays in the village, away from the cottage.
+            let mut hours = 0;
+            while !gossip_of(&game, "Róisín").contains(CATTLE_BUYER) {
+                hours += 1;
                 assert!(
-                    roisin.to_string().contains(CATTLE_BUYER),
-                    "run {run}: Róisín's context carries the fact: {roisin}"
+                    hours <= 24,
+                    "run {run}: the fact never reached Róisín in a game day"
                 );
-                go(&game, "Letter Office");
-                let peig = hear(&game, PEIG, "Any news on the road?", "None that I know.");
-                assert!(
-                    !peig.to_string().contains(CATTLE_BUYER),
-                    "run {run}: Peig is never told: {peig}"
-                );
+                wait(&game, 60);
             }
+            assert!(gossip_of(&game, "Mícheál").contains(CATTLE_BUYER));
+            assert!(gossip_of(&game, "Peig").contains("(0 items)"));
+
+            game.relaunch();
+            assert!(gossip_of(&game, "Róisín").contains(CATTLE_BUYER));
+            assert!(gossip_of(&game, "Peig").contains("(0 items)"));
+
+            go(&game, "Connolly Cottage");
+            let roisin = hear(&game, ROISIN, "Any news on the road?", "A buyer was about.");
+            assert!(
+                roisin["aboutYou"]["knows"]
+                    .to_string()
+                    .contains(CATTLE_BUYER),
+                "run {run}: Róisín's context carries the fact: {roisin}"
+            );
+            go(&game, "Letter Office");
+            let peig = hear(&game, PEIG, "Any news on the road?", "None that I know.");
+            assert!(
+                !peig.to_string().contains(CATTLE_BUYER),
+                "run {run}: Peig is never told: {peig}"
+            );
         }
     }
 }
@@ -223,7 +225,8 @@ mod movement {
 
     /// P6-05: Peig walks Letter Office to village at 07:00 and back at
     /// 09:00. `/people`, who can be spoken to, and the save agree at each
-    /// point, including a save made on the walk back. A repeat on a new
+    /// point, including a save made on the walk out (07:00, before she
+    /// has left) and one made on the walk back (09:01). A repeat on a new
     /// game gives the same sequence.
     #[test]
     fn peig_is_in_the_village_from_eight_to_nine_and_the_save_agrees() {

@@ -617,12 +617,17 @@ impl Session {
 
     /// Advances the world's deterministic schedule (weather, NPC schedules,
     /// tiers) to the clock before the player acts, as the desktop per-turn
-    /// pump does. Background simulation that needs inference waits for the
-    /// background inference seam (#2025).
+    /// pump does, including gossip between co-located Tier-2 NPCs, which is
+    /// deterministic state with no inference. Tier-2/3 dialogue simulation,
+    /// reactions and banter need inference and wait for the background
+    /// inference seam (#2025).
     fn pump_world(&self) {
         self.runtime.block_on(async {
             let mut world = self.live.world.lock().await;
             let mut npcs = self.live.npc_manager.lock().await;
+            // Gossip rolls are keyed to the game minute, so a repeat game, a
+            // relaunch and a test see the same spread; weather stays random.
+            let gossip_seed = world.clock.now().timestamp().unsigned_abs() / 60;
             advance_world(
                 &mut world,
                 &mut npcs,
@@ -630,7 +635,7 @@ impl Session {
                 AdvanceOptions {
                     weather: WeatherMode::Single,
                     run_banshee: false,
-                    gossip: GossipMode::Skip,
+                    gossip: GossipMode::AllSeeded { seed: gossip_seed },
                     run_tier4: false,
                 },
             );

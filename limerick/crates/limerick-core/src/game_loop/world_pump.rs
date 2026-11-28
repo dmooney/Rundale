@@ -72,6 +72,11 @@ pub enum GossipMode {
     Skip,
     /// Propagate among every co-located Tier-2 group (Tauri, `advance_time`).
     All,
+    /// Propagate among every co-located Tier-2 group, drawing from a fresh
+    /// generator seeded with `seed` instead of the pump's own, so the same
+    /// seed and state spread the same gossip (the phone, which keys the seed
+    /// to the game clock so a save, a relaunch, and a repeat game agree).
+    AllSeeded { seed: u64 },
     /// Process at most `budget` groups starting from `cursor`, round-robin
     /// across ticks so a single tick never walks the whole parish (server,
     /// #466). The returned [`AdvanceReport::gossip_cursor`] carries the
@@ -236,6 +241,11 @@ pub fn advance_world(
     let (gossip_count, gossip_cursor) = match opts.gossip {
         GossipMode::Skip => (0, 0),
         GossipMode::All => (propagate_gossip_all(world, npc, rng), 0),
+        GossipMode::AllSeeded { seed } => {
+            use rand::SeedableRng as _;
+            let mut seeded = rand::rngs::StdRng::seed_from_u64(seed);
+            (propagate_gossip_all(world, npc, &mut seeded), 0)
+        }
         GossipMode::Budgeted { cursor, budget } => {
             if world.gossip_network.is_empty() {
                 (0, cursor)

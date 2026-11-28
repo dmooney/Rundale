@@ -435,11 +435,20 @@ fn about_you(
         workplace: speaker.workplace.and_then(|id| location_name(world, id)),
         day,
         relationships,
+        // What the speaker was authored to know, then the gossip that has
+        // reached them: the same state the world pump spreads between NPCs.
         knows: speaker
             .knowledge
             .iter()
-            .take(MAX_LIST_ENTRIES)
             .cloned()
+            .chain(
+                world
+                    .gossip_network
+                    .recent_known_by(speaker.id, MAX_LIST_ENTRIES)
+                    .into_iter()
+                    .map(|item| item.content.clone()),
+            )
+            .take(MAX_LIST_ENTRIES)
             .collect(),
         mood: speaker.mood.clone(),
         backstory: authored
