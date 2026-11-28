@@ -92,7 +92,12 @@ class FakeRunner:
         )
         self.cargo_tree_output = "limerick-mobile-ffi v0.1.0\n"
         # Cargo test filters (the argument naming the cases) whose run fails.
-        self.failing_rust_filters: set[str] = set()
+        # Like the real tree: the cases of a proof whose issue is open fail.
+        self.failing_rust_filters: set[str] = {
+            test_filter
+            for _id, _name, test_filter, issue in verify_module.LIVING_WORLD_PROOFS
+            if issue is not None
+        }
         self.simctl_output = SIMCTL_JSON
         self.xcresult_output = XCRESULT_JSON
         # Makes the exported recording exceed the evidence size bound.
@@ -1379,7 +1384,8 @@ class VerificationRunnerTests(unittest.TestCase):
             fake = FakeRunner()
             report = VerificationRun(root, command_runner=fake).run(6)
 
-            self.assertEqual(report["exit_code"], 0)
+            # Pending proofs fail, as on the real tree, and an explicit phase 6 blocks on them.
+            self.assertEqual(report["exit_code"], 1)
             by_id = {suite["id"]: suite for suite in report["suites"]}
             proofs = verify_module.LIVING_WORLD_PROOFS
             self.assertEqual(
@@ -1396,7 +1402,9 @@ class VerificationRunnerTests(unittest.TestCase):
             calls = self._living_world_calls(fake)
             for identifier, _name, test_filter, issue in proofs:
                 suite = by_id[identifier]
-                self.assertEqual(suite["status"], "passed", identifier)
+                self.assertEqual(
+                    suite["status"], "failed" if issue is not None else "passed", identifier
+                )
                 self.assertEqual(suite["phase"], 6, identifier)
                 self.assertEqual(suite["kind"], "automated", identifier)
                 self.assertEqual(suite["details"]["pending"], issue is not None)
@@ -1411,6 +1419,31 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(report["phase"], "6")
             # The earlier regression chain ran too, once.
             self.assertEqual(by_id["phase4-ios-simulator-tests"]["status"], "passed")
+
+    def test_a_pending_proof_that_passes_fails_until_it_is_marked_landed(self):
+        pending = {
+            identifier: issue
+            for identifier, _name, _filter, issue in verify_module.LIVING_WORLD_PROOFS
+            if issue is not None
+        }
+        self.assertTrue(pending, "the table has no pending proof to exercise")
+        for phase in (6, None):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                create_phase2_fixture(root)
+                fake = FakeRunner()
+                fake.failing_rust_filters = set()
+                report = VerificationRun(root, command_runner=fake).run(phase)
+
+                by_id = {suite["id"]: suite for suite in report["suites"]}
+                for identifier, issue in pending.items():
+                    suite = by_id[identifier]
+                    self.assertEqual(suite["status"], "failed", (phase, identifier))
+                    self.assertTrue(suite["blocking"], (phase, identifier))
+                    self.assertTrue(suite["details"]["landed_but_marked_pending"])
+                    self.assertIn(f"#{issue} now passes", suite["reason"])
+                    self.assertIn("set its issue to None", suite["reason"])
+                self.assertEqual(report["exit_code"], 1, phase)
 
     def test_explicit_phase6_blocks_on_a_pending_proof_that_fails(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1434,11 +1467,16 @@ class VerificationRunnerTests(unittest.TestCase):
             fake.failing_rust_filters = {
                 "tests::living_world::task",
                 "tests::living_world::gossip::pending",
+                "tests::living_world::weather",
             }
             report = VerificationRun(root, command_runner=fake).run()
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
-            for identifier in ("living-world-task", "living-world-gossip-spread"):
+            for identifier in (
+                "living-world-task",
+                "living-world-gossip-spread",
+                "living-world-weather",
+            ):
                 self.assertEqual(by_id[identifier]["status"], "failed", identifier)
                 self.assertFalse(by_id[identifier]["blocking"], identifier)
                 self.assertTrue(by_id[identifier]["details"]["pending"], identifier)
