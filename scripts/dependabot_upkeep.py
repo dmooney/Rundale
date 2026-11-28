@@ -123,6 +123,7 @@ NOTICE_OUTPUTS = (
     "limerick/THIRD_PARTY_NOTICES.rust.md",
     "limerick/THIRD_PARTY_NOTICES.ui.md",
     "limerick/notices-dev-only.txt",
+    "limerick/notices-shipped.txt",
 )
 NOTICES_COMMIT = "chore(notices): regenerate third-party notices for the dependency bump"
 FILE_LIST_CAP = sec.FILE_LIST_CAP

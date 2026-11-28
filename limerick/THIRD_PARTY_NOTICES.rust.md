@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 647 crates
+- [MIT License](#MIT) — 648 crates
 - [Apache License 2.0](#Apache-2.0) — 25 crates
 - [ISC License](#ISC) — 25 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
@@ -11211,6 +11211,7 @@ THE SOFTWARE.
 
 - [security-framework-sys 2.17.0](https://github.com/kornelski/rust-security-framework)
 - [security-framework 2.11.1](https://github.com/kornelski/rust-security-framework)
+- [security-framework 3.7.0](https://github.com/kornelski/rust-security-framework)
 
 ```
 The MIT License (MIT)

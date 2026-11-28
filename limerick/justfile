@@ -560,10 +560,13 @@ notices:
     fi
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
+    echo "Snapshotting the shipped crates (cargo tree)..."
+    python3 scripts/notices/check_notices.py shipped
     echo "Generating Rust notices..."
     cargo about generate about.hbs --output-file "$work/THIRD_PARTY_NOTICES.rust.md"
-    # Refuse a generated file that lost crates or license texts, then write the
-    # dev-only list; only then replace the committed file.
+    # Add the crates cargo-about cannot see (notices-supplement.txt), refuse a file that lost
+    # crates or license texts or hid a shipped crate as dev-only, then write the dev-only
+    # list; only then replace the committed file.
     python3 scripts/notices/check_notices.py refresh --generated "$work/THIRD_PARTY_NOTICES.rust.md"
     mv "$work/THIRD_PARTY_NOTICES.rust.md" THIRD_PARTY_NOTICES.rust.md
     echo "Generating UI notices..."
@@ -571,7 +574,7 @@ notices:
     # point through the current Node binary without a shell or Windows .cmd shim.
     npm --prefix apps/ui run notices
     python3 scripts/notices/check_notices.py check
-    echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md, notices-dev-only.txt and THIRD_PARTY_NOTICES.ui.md."
+    echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md, notices-dev-only.txt, notices-shipped.txt and THIRD_PARTY_NOTICES.ui.md."
 
 # Fail when the Rust or UI third-party notices no longer match their lockfiles (hermetic;
 # CI's python-quality job runs the same check)
