@@ -27,7 +27,7 @@ tempfile = { workspace = true }
 
 [features]
 # Living-world proof cases whose proof issue has not landed (#2196 to #2198,
-# #2308). They fail until it does, so only the Phase 6 gate (`just mobile-verify
-# --phase 6`, `--phase all` and `--smoke`) builds them; the default `cargo test`
-# and CI do not.
+# #2308). They fail until it does, so only the Phase 6 gate builds them
+# (`just mobile-verify` with `--phase 6`, `--phase all` or `--smoke`); the
+# default `cargo test` and CI do not.
 living-world-pending = []

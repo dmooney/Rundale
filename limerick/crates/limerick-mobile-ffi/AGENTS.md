@@ -41,9 +41,9 @@ just ios-sim-save-lock                                             # save-lock t
   and dropped the real answer from the bug report's exchange log (#2022).
 - **Living-world cases for an unlanded proof fail on purpose.** They sit in
   `pending` modules behind the `living-world-pending` feature
-  (`src/tests/living_world.rs`), which only the Phase 6 gate builds (`just
-mobile-verify --phase 6`, `--phase all` and `--smoke`), so `cargo test` and CI
-  stay green. When a proof lands, make its cases pass, drop the module's feature
+  (`src/tests/living_world.rs`), which only the Phase 6 gate builds
+  (`just mobile-verify` with `--phase 6`, `--phase all` or `--smoke`), so
+  `cargo test` and CI stay green. When a proof lands, make its cases pass, drop the module's feature
   gate, and set its `issue` to `None` in `LIVING_WORLD_PROOFS`
   (`mobile/scripts/verify.py`) so `--phase all` blocks on it. The gate enforces
   this: a pending proof whose cases pass fails every run until you do.
