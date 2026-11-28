@@ -261,9 +261,12 @@ google-cache-probe:
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 
-# Run all Rust tests
+# Run all Rust tests across the whole workspace, as CI does (`cargo nextest run
+# --workspace`). A bare `cargo test` covers only the default members (engine,
+# mcp), so limerick-core's integration tests, such as architecture_fitness,
+# would pass `just check` locally and fail in CI.
 test:
-    cargo test
+    cargo test --workspace
 
 # Run a specific test by name
 test-one NAME:
