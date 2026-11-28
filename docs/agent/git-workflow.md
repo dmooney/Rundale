@@ -72,15 +72,25 @@ each open Dependabot pull request it:
    changed no app input). One mobile-verify runs at a time: `verify.py` holds
    a lock every worktree on the Mac shares (`RUNDALE_MOBILE_VERIFY_LOCK`), and
    the routine also waits while `pgrep` finds a run from an older checkout;
-3. waits for the required checks. A red pull request gets one bounded
+3. regenerates stale third-party notices. When the pull request changes
+   `limerick/Cargo.lock` or `limerick/apps/ui/package-lock.json` and
+   `just notices-check` fails (CI's `python-quality` would), it runs
+   `just notices` on the head and pushes one `chore(notices)` commit with the
+   owner's `gh` token, so CI runs on it. Only the three notices files may
+   change and the commit must leave the app-input tree alone (a recorded
+   mobile-verify pass stays valid); otherwise nothing is pushed and the pull
+   request goes on to CI. This runs on the Mac, not in a workflow, because
+   `pull_request_target` would need a write token beside code from the bumped
+   dependencies, and a `GITHUB_TOKEN` push does not start CI;
+4. waits for the required checks. A red pull request gets one bounded
    `claude -p` fix; if that makes no commit, exits non-zero or times out (the
    summary says which, and nothing is pushed), or the checks stay red, the pull
    request stays open and is reported. A red pull request is never handed on
    for merge;
-4. dry-runs `release.yml` on the branch when an Actions bump changes it
+5. dry-runs `release.yml` on the branch when an Actions bump changes it
    (`release.yml` never runs on pull requests; CI's `workflow-quality` job
    checks every workflow's action inputs statically);
-5. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
+6. runs a fresh [gatekeeper](../../.agents/skills/gatekeeper/SKILL.md), which
    merges it, sends it back, or hands it to the owner. The gatekeeper is
    a headless Claude run (`claude -p`) in a fresh context, whether the
    commits are Dependabot's or the routine's own fix.
