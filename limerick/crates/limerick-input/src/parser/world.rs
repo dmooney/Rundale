@@ -34,8 +34,8 @@ fn wait_error_message(arg: &str, kind: &IntErrorKind) -> String {
         _ => format!("'{arg}' is not a number of minutes"),
     };
     format!(
-        "You can't wait: {reason}. Try /wait for {DEFAULT_WAIT_MINUTES} minutes, \
-         or /wait followed by a whole number, such as /wait 30."
+        "You can't wait: {reason}. Try /wait on its own for the usual wait, \
+         or /wait followed by a whole number of minutes, such as /wait 30."
     )
 }
 
