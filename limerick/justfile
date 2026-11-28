@@ -268,13 +268,13 @@ google-cache-probe:
 test:
     cargo test --workspace
 
-# Run a specific test by name
+# Run tests matching NAME across the whole workspace, like `just test`
 test-one NAME:
-    cargo test {{NAME}}
+    cargo test --workspace {{NAME}}
 
 # Run tests with output shown
 test-verbose:
-    cargo test -- --nocapture
+    cargo test --workspace -- --nocapture
 
 # Run the save-lock tests on the iOS Simulator in an app sandbox container (macOS + Xcode)
 ios-sim-save-lock:
