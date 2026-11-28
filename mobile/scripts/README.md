@@ -198,7 +198,9 @@ tested inputs, limited to what a full run builds or reads
 `ATTESTATION_IGNORED_PATHSPECS` removed: the cache's exclusions except the
 coverage baseline, which a recorded pass is never re-checked against, plus the
 verification tools (`verify.py`, `verify_record.py`, `record-ui-test.py`, `testflight_delivery.py`), which
-their unit tests cover. `release.py` stays in, since it writes Info.plist
+their unit tests cover, and Cargo `tests/`, `benches/` and `examples/` directories of crates whose tests
+the Mac gate does not run (`ATTESTATION_TEST_TARGET_PATHSPECS`; `limerick-persistence` and
+`limerick-mobile-ffi` stay in). `release.py` stays in, since it writes Info.plist
 settings into the app. The recorded-pass input tree excludes `AGENTS.md` files
 at any depth. A merge
 elsewhere in the repository therefore keeps a pass valid, and a squash merge

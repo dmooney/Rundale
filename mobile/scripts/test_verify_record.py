@@ -169,6 +169,43 @@ class VerifyRecordTests(unittest.TestCase):
         commit(self.root, "runtime prompt")
         self.assertNotEqual(record_module.input_tree(), before)
 
+    def test_cargo_test_bench_and_example_targets_keep_the_input_tree(self):
+        before = record_module.input_tree()
+        for path in (
+            "limerick/crates/limerick-core/tests/new_case.rs",
+            "limerick/crates/limerick-world/benches/route.rs",
+            "limerick/crates/limerick-inference/examples/bench.rs",
+        ):
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_text("// test only\n", encoding="utf-8")
+        commit(self.root, "test-only targets")
+        self.assertEqual(record_module.input_tree(), before)
+
+    def test_code_beside_test_targets_still_changes_the_input_tree(self):
+        before = record_module.input_tree()
+        for path in (
+            "limerick/crates/limerick-core/src/lib.rs",
+            # Test code inside src/ is not excluded: unsure counts as an app input.
+            "limerick/crates/limerick-mobile-ffi/src/tests.rs",
+            "limerick/crates/limerick-mobile-ffi/src/tests/more.rs",
+            "limerick/crates/limerick-core/build.rs",
+            "limerick/crates/limerick-core/Cargo.toml",
+            # The Mac gate runs these crates' cargo tests.
+            "limerick/crates/limerick-persistence/tests/fixtures/format_9_save.db",
+            "limerick/crates/limerick-persistence/tests/save_lock_processes.rs",
+            "limerick/crates/limerick-mobile-ffi/tests/new_case.rs",
+            # Only a crate's own top-level tests/ is a Cargo test target.
+            "limerick/crates/limerick-core/src/tests/helpers.rs",
+            "limerick/crates/limerick-core/src/examples/cases.rs",
+            "limerick/testing/fixtures/scenario.json",
+            "mobile/RundaleKit/Tests/RundaleKitTests/NewTests.swift",
+        ):
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_text("changed\n", encoding="utf-8")
+            commit(self.root, path)
+            self.assertNotEqual(record_module.input_tree(), before, path)
+            before = record_module.input_tree()
+
     def test_mobile_workflow_path_filters_exclude_agent_instruction_files(self):
         repository = Path(__file__).resolve().parents[2]
         ci = (repository / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
