@@ -38,7 +38,15 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib  # type: ignore[import-not-found,unused-ignore]  # Python 3.11+
+except ModuleNotFoundError:
+    raise SystemExit(
+        f"check_notices.py needs Python 3.11+ for tomllib; this is {sys.version.split()[0]}.\n"
+        "Install a newer Python (macOS: `brew install python@3.12`) and run the script with it,\n"
+        "for example `python3.12 limerick/scripts/notices/check_notices.py check`, or build the\n"
+        "dev venv from it: `python3.12 -m venv .venv-dev`."
+    ) from None
 
 LIMERICK = Path(__file__).resolve().parents[2]
 LOCKFILE = LIMERICK / "Cargo.lock"

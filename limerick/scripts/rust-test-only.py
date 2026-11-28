@@ -21,7 +21,9 @@ Test-only means one of:
 Adding or removing the gate itself on code that stays is a runtime change.
 Every declaration of a module must be gated (a lib.rs gate does not cover an
 ungated main.rs declaration). `#[path = ".."]` modules and declarations inside
-inline modules are not resolved; they fall back to the line-by-line check.
+inline modules are not resolved; they fall back to the line-by-line check. A
+`#[path` attribute in any candidate parent file also disables the whole-file
+rule, since `#[path = "x.rs"] mod y;` compiles x.rs without the test gate.
 Only the exact attribute `#[cfg(test)]` counts; `cfg(any(test, ..))` and
 `cfg(not(test))` do not.
 """
@@ -39,6 +41,7 @@ ATTRS = r"(?:\s*#\s*\[[^\]]*\])*"
 VIS = r"(?:pub(?:\s*\([^)]*\))?\s+)?"
 TEST_MOD = re.compile(CFG_TEST + ATTRS + r"\s*" + VIS + r"mod\s+(\w+)\s*([{;])")
 INNER_CFG_TEST = re.compile(r"\A\s*#\s*!\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]")
+PATH_ATTR = re.compile(r"#\s*\[\s*path\b")
 CHAR_LIT = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]+\}|.)|[^\\'\n])'", re.S)
 RAW_START = re.compile(r"(?:b?r)(#*)\"")
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
@@ -237,6 +240,8 @@ def whole_file_gated(path: str, reader, depth: int = 0) -> bool:
             masked = mask(ctext)
         except Unparseable:
             return False
+        if PATH_ATTR.search(masked):
+            return False  # `#[path]` may compile this file under another name, ungated
         gated_ends = {m.end() for m in decl.finditer(masked)}
         for m in any_decl.finditer(masked):
             if masked.count("{", 0, m.start()) != masked.count("}", 0, m.start()):

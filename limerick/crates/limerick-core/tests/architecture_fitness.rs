@@ -248,16 +248,30 @@ fn gameplay_test_corpus_separates_regressions_from_proofs() {
 /// running, each with the reason. Add a row only when the test never
 /// compares two captures (or a capture against later state); a comparing
 /// test freezes the clock instead.
-const SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK: &[(&str, &str)] = &[
-    (
-        "src/game_loop/save.rs",
-        "its tests capture once and assert on the saved row, never two captures",
-    ),
-    (
-        "src/game_loop/world_pump.rs",
-        "captures only to round-trip `restore` on one world; no comparison",
-    ),
-];
+///
+/// Every row must still be needed: a row whose file no longer captures
+/// without freezing the clock fails the sensor as stale, so an exception
+/// cannot outlive its justification.
+const SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK: &[(&str, &str)] = &[];
+
+/// Allowlist rows in `allow` that `needed` never used.
+fn stale_allowlist_rows<'a>(allow: &'a [(&'a str, &'a str)], needed: &[String]) -> Vec<&'a str> {
+    allow
+        .iter()
+        .map(|(path, _)| *path)
+        .filter(|path| !needed.iter().any(|n| n == path))
+        .collect()
+}
+
+#[test]
+fn stale_allowlist_rows_are_reported() {
+    let allow = [("a.rs", "x"), ("b.rs", "y")];
+    assert_eq!(
+        stale_allowlist_rows(&allow, &["a.rs".to_string()]),
+        vec!["b.rs"]
+    );
+    assert!(stale_allowlist_rows(&allow, &["a.rs".into(), "b.rs".into()]).is_empty());
+}
 
 /// Sensor for #2466. Game time follows the wall clock unless a test stops
 /// it, so two `GameSnapshot::capture`s taken moments apart differ in
@@ -275,6 +289,7 @@ fn snapshot_comparing_tests_freeze_the_game_clock() {
     walk_rs_files(&crate_root.join("tests"), &mut files);
 
     let mut offenders = Vec::new();
+    let mut needed_rows: Vec<String> = Vec::new();
     for file in files {
         let rel = file
             .strip_prefix(&crate_root)
@@ -302,10 +317,21 @@ fn snapshot_comparing_tests_freeze_the_game_clock() {
         let allowed = SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK
             .iter()
             .any(|(path, _)| *path == rel);
+        if !freezes && allowed {
+            needed_rows.push(rel.clone());
+        }
         if !freezes && !allowed {
             offenders.push(rel);
         }
     }
+
+    let stale = stale_allowlist_rows(SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK, &needed_rows);
+    assert!(
+        stale.is_empty(),
+        "stale SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK rows (the file no longer \
+         captures with a running clock); delete them:\n  - {}",
+        stale.join("\n  - ")
+    );
 
     assert!(
         offenders.is_empty(),
