@@ -1729,7 +1729,7 @@ fn the_phone_slash_commands_answer_locally_as_turns() {
     for advertised in names {
         assert!(help.contains(advertised), "{help}");
     }
-    for hidden in ["/wait", "/pause", "/resume", "/debug", "/flags"] {
+    for hidden in ["/wait", "/pause", "/resume", "/debug", "/flags", "/weather"] {
         assert!(!help.contains(hidden), "{hidden} is not advertised: {help}");
     }
 

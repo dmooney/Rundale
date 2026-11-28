@@ -43,6 +43,8 @@ pub enum LocalCommand {
     Debug(Option<String>),
     /// `/flags`: list feature flags.
     Flags,
+    /// `/weather [name]`: report the weather, or force it (a tester's seam).
+    Weather(Option<String>),
 }
 
 /// A command a host offers, as completion shows it.
@@ -71,7 +73,21 @@ pub enum CommandArgument {
     /// A `/debug` view ([`debug_view::SUBCOMMANDS`]), some followed by an
     /// NPC's name.
     DebugView,
+    /// A weather name ([`WEATHER_WORDS`]); the command accepts more spellings.
+    Weather,
 }
+
+/// The single-word weather names `/weather` completes: each is accepted by
+/// the command (`limerick-core/src/ipc/commands/weather.rs`).
+pub const WEATHER_WORDS: &[(&str, &str)] = &[
+    ("clear", "Clear sky"),
+    ("partly", "Partly cloudy"),
+    ("overcast", "Overcast"),
+    ("lightrain", "Light rain"),
+    ("heavyrain", "Heavy rain"),
+    ("fog", "Fog"),
+    ("storm", "Storm"),
+];
 
 /// Every command the turn engine runs, in completion order. Aliases
 /// (`/npcs`) are accepted but not listed.
@@ -147,6 +163,14 @@ pub const COMMANDS: &[CommandSpec] = &[
         argument: CommandArgument::None,
         host_runs: false,
     },
+    // A tester's seam like `/debug`: not advertised, no player-visible UI.
+    CommandSpec {
+        name: "/weather",
+        summary: "Show or force the weather",
+        advertised: false,
+        argument: CommandArgument::Weather,
+        host_runs: false,
+    },
 ];
 
 /// The commands `/help` and a host's command list offer.
@@ -200,6 +224,10 @@ impl CommandSpec {
                     ..CompletionWord::leaf(sub.name, sub.summary)
                 })
                 .collect(),
+            CommandArgument::Weather => WEATHER_WORDS
+                .iter()
+                .map(|(word, summary)| CompletionWord::leaf(*word, *summary))
+                .collect(),
         };
         CompletionWord {
             next,
@@ -230,6 +258,7 @@ impl LocalCommand {
             Command::Resume => Some(Self::Resume),
             Command::Debug(view) => Some(Self::Debug(view)),
             Command::Flags => Some(Self::Flags),
+            Command::Weather(name) => Some(Self::Weather(name)),
             _ => None,
         }
     }
@@ -254,6 +283,7 @@ impl LocalCommand {
                 Self::Pause => engine_command(Command::Pause).response,
                 Self::Resume => engine_command(Command::Resume).response,
                 Self::Flags => engine_command(Command::Flags).response,
+                Self::Weather(name) => engine_command(Command::Weather(name.clone())).response,
                 Self::Help => help_text(),
                 Self::Exits => format_exits(
                     world.player_location,
@@ -383,6 +413,14 @@ mod tests {
             Some(LocalCommand::Debug(Some("clock".to_string())))
         );
         assert_eq!(LocalCommand::parse("/flags"), Some(LocalCommand::Flags));
+        assert_eq!(
+            LocalCommand::parse("/weather"),
+            Some(LocalCommand::Weather(None))
+        );
+        assert_eq!(
+            LocalCommand::parse("/weather heavy rain"),
+            Some(LocalCommand::Weather(Some("heavy rain".to_string())))
+        );
         for refused in [
             "/save",
             "/quit",

@@ -109,8 +109,9 @@ The engine runs the phone's slash commands as ordinary requests, answered
 locally with no Endpoint call (`limerick_core::turn::LocalCommand`). The read
 model's `commands` lists the advertised ones for `/help` and the app's Commands
 list: `/look`, `/people` (also `/npcs`), `/exits`, and `/help`. `/wait
-[minutes]`, `/pause`, `/resume`, `/debug [view]`, and `/flags` work in every
-build but are not advertised. Any other `/` input is refused with
+[minutes]`, `/pause`, `/resume`, `/debug [view]`, `/flags`, and `/weather
+[name]` (which forces the weather, so testers can set it) work in every build
+but are not advertised. Any other `/` input is refused with
 `command_unavailable`.
 
 Completion comes from the same registry (`limerick_core::turn::COMMANDS`).
