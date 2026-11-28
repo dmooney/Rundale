@@ -1794,7 +1794,7 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
         words(completions),
         [
             "/look", "/people", "/exits", "/help", "/new", "/wait", "/pause", "/resume", "/debug",
-            "/flags"
+            "/flags", "/weather"
         ]
     );
     let debug = completions
