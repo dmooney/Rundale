@@ -32,6 +32,9 @@ pub enum LocalCommand {
     Help,
     /// `/wait [minutes]`: let time pass.
     Wait(u32),
+    /// `/wait` with an argument that is not a whole number of minutes: the
+    /// refusal text. The clock does not move.
+    InvalidWait(String),
     /// `/pause`: hold the clock.
     Pause,
     /// `/resume`: let the clock run again.
@@ -222,6 +225,7 @@ impl LocalCommand {
         }
         match parse_system_command(trimmed)? {
             Command::Wait(minutes) => Some(Self::Wait(minutes)),
+            Command::InvalidWait(message) => Some(Self::InvalidWait(message)),
             Command::Pause => Some(Self::Pause),
             Command::Resume => Some(Self::Resume),
             Command::Debug(view) => Some(Self::Debug(view)),
@@ -244,6 +248,9 @@ impl LocalCommand {
                 Self::Look => return,
                 Self::People => engine_command(Command::NpcsHere).response,
                 Self::Wait(minutes) => engine_command(Command::Wait(*minutes)).response,
+                Self::InvalidWait(message) => {
+                    engine_command(Command::InvalidWait(message.clone())).response
+                }
                 Self::Pause => engine_command(Command::Pause).response,
                 Self::Resume => engine_command(Command::Resume).response,
                 Self::Flags => engine_command(Command::Flags).response,
@@ -358,6 +365,13 @@ mod tests {
             Some(LocalCommand::Wait(30))
         );
         assert_eq!(LocalCommand::parse("/wait"), Some(LocalCommand::Wait(15)));
+        assert_eq!(LocalCommand::parse("/wait 0"), Some(LocalCommand::Wait(0)));
+        for bad in ["/wait -1", "/wait bananas", "/wait 99999999999999999999"] {
+            assert!(
+                matches!(LocalCommand::parse(bad), Some(LocalCommand::InvalidWait(_))),
+                "{bad}"
+            );
+        }
         assert_eq!(LocalCommand::parse("/pause"), Some(LocalCommand::Pause));
         assert_eq!(LocalCommand::parse("/resume"), Some(LocalCommand::Resume));
         assert_eq!(

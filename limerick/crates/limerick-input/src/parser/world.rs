@@ -1,5 +1,7 @@
 //! Parsers for world/movement commands: `/map`, `/wait`, `/unexplored`, `/weather`.
 
+use std::num::IntErrorKind;
+
 use crate::commands::Command;
 
 pub(super) fn parse_map_command(_trimmed: &str, rest: &str) -> Option<Command> {
@@ -11,8 +13,30 @@ pub(super) fn parse_map_command(_trimmed: &str, rest: &str) -> Option<Command> {
 }
 
 pub(super) fn parse_wait_command(_trimmed: &str, rest: &str) -> Option<Command> {
-    let mins = rest.parse::<u32>().unwrap_or(15);
-    Some(Command::Wait(mins))
+    if rest.is_empty() {
+        return Some(Command::Wait(DEFAULT_WAIT_MINUTES));
+    }
+    match rest.parse::<u32>() {
+        Ok(mins) => Some(Command::Wait(mins)),
+        Err(err) => Some(Command::InvalidWait(wait_error_message(rest, err.kind()))),
+    }
+}
+
+/// Minutes a bare `/wait` lets pass.
+const DEFAULT_WAIT_MINUTES: u32 = 15;
+
+/// Player-facing reason a `/wait` argument was refused. The clock does not
+/// move on a refusal, so the message says what to type instead.
+fn wait_error_message(arg: &str, kind: &IntErrorKind) -> String {
+    let reason = match kind {
+        IntErrorKind::PosOverflow => format!("'{arg}' is too many minutes"),
+        _ if arg.starts_with('-') => format!("'{arg}' is a negative time"),
+        _ => format!("'{arg}' is not a number of minutes"),
+    };
+    format!(
+        "You can't wait: {reason}. Try /wait for {DEFAULT_WAIT_MINUTES} minutes, \
+         or /wait followed by a whole number, such as /wait 30."
+    )
 }
 
 pub(super) fn parse_unexplored_command(_trimmed: &str, rest: &str) -> Option<Command> {
@@ -76,19 +100,53 @@ mod tests {
             crate::parser::parse_system_command("/wait 60"),
             Some(Command::Wait(60))
         );
-        assert_eq!(
-            crate::parser::parse_system_command("/wait abc"),
-            Some(Command::Wait(15))
-        );
     }
+
+    fn assert_invalid_wait(input: &str, expected_reason: &str) {
+        match crate::parser::parse_system_command(input) {
+            Some(Command::InvalidWait(msg)) => {
+                assert!(msg.contains(expected_reason), "{input}: {msg}");
+                assert!(msg.contains("/wait 30"), "{input}: {msg}");
+            }
+            other => panic!("{input} must be refused, got {other:?}"),
+        }
+    }
+
     #[test]
-    fn test_parse_wait_large_input_fallback() {
-        // Values too large for u32 fall back to the default of 15
+    fn test_parse_wait_zero_and_u32_max_are_valid() {
         assert_eq!(
-            crate::parser::parse_system_command("/wait 999999999999999999999"),
-            Some(Command::Wait(15))
+            crate::parser::parse_system_command("/wait 0"),
+            Some(Command::Wait(0))
+        );
+        assert_eq!(
+            crate::parser::parse_system_command("/wait 4294967295"),
+            Some(Command::Wait(u32::MAX))
         );
     }
+
+    #[test]
+    fn test_parse_wait_rejects_negative() {
+        assert_invalid_wait("/wait -1", "negative");
+        assert_invalid_wait("/wait -0", "negative");
+    }
+
+    #[test]
+    fn test_parse_wait_rejects_non_numeric() {
+        assert_invalid_wait("/wait abc", "not a number");
+        assert_invalid_wait("/wait bananas", "not a number");
+        assert_invalid_wait("/wait 1.5", "not a number");
+        assert_invalid_wait("/wait 30 minutes", "not a number");
+    }
+
+    #[test]
+    fn test_parse_wait_rejects_overflow() {
+        assert_invalid_wait("/wait 4294967296", "too many");
+        assert_invalid_wait(
+            "/wait 999999999999999999999999999999999",
+            "too many",
+        );
+    }
+
     #[test]
     fn test_parse_unexplored_command() {
         assert_eq!(
