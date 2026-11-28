@@ -16,12 +16,14 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    `just mobile-verify --phase all` in a clean checkout, is pushed, and gets
    its pass recorded (`just mobile-verify-record`). Only one mobile-verify
    runs at a time: verify.py holds a lock shared by every worktree on the Mac;
-4. waits for the required checks. On a red PR it makes one bounded fix
+4. regenerates the third-party notices (`just notices`) when a bump changed a
+   lockfile and `just notices-check` fails, and pushes that one commit;
+5. waits for the required checks. On a red PR it makes one bounded fix
    attempt (`claude -p`), and leaves the PR open if that fails. A red PR is
    never handed on for merge;
-5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
+6. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
-6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
+7. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
    hands it to the owner. The gatekeeper is a headless Claude run in a fresh
    context (AGENTS.md, Gatekeeper review), whether the commits are
    Dependabot's or this routine's own fix.
@@ -32,7 +34,7 @@ audit failing on `main`, which Dependabot never sees. For each one it makes one
 bounded `claude -p` fix in a fresh checkout from `main` (flagged lockfiles
 bumped, `overrides` where a parent pins a vulnerable version), proves the scan
 passes locally, opens a PR labelled `security-upkeep`, and runs it through the
-same steps 3 to 6. A change that proposes an ignore or touches anything but
+same steps 3 to 7. A change that proposes an ignore or touches anything but
 lockfiles and manifests is opened with `needs-owner` and never reaches the
 gatekeeper. A fix that cannot be made labels the issue `needs-owner`, comments,
 and is reported in the summary below, which notifies the owner.
@@ -103,6 +105,7 @@ DISPATCH_PROBES: dict[str, dict[str, str]] = {
 }
 SECONDS = {
     "head": 180,
+    "notices": 1800,
     "checks": 3 * 3600,
     "probe": 3600,
     # verify.py may first wait up to 6 hours for another worktree's run.
@@ -112,6 +115,17 @@ SECONDS = {
     "verify_wait": 6 * 3600,
 }
 POLL = 60
+# A bump that changes either lockfile leaves the third-party notices behind, and
+# `just notices-check` (python-quality) then fails until `just notices` runs.
+NOTICE_LOCKFILES = ("limerick/Cargo.lock", "limerick/apps/ui/package-lock.json")
+# The only files `just notices` may write; anything else changed is not committed.
+NOTICE_OUTPUTS = (
+    "limerick/THIRD_PARTY_NOTICES.rust.md",
+    "limerick/THIRD_PARTY_NOTICES.ui.md",
+    "limerick/notices-dev-only.txt",
+)
+NOTICES_COMMIT = "chore(notices): regenerate third-party notices for the dependency bump"
+FILE_LIST_CAP = sec.FILE_LIST_CAP
 PR_FIELDS = "number,title,url,headRefName,headRefOid,baseRefName,labels,isDraft,mergeable"
 SUMMARY_WORKFLOW = "upkeep-summary.yml"
 SUMMARY_WAIT = 300  # seconds to wait for the posting workflow to finish
@@ -404,6 +418,28 @@ def unexercised_workflows(changed: Sequence[str], workflows: dict[str, str]) -> 
         and path in workflows
         and path not in on_pr | called
     )
+
+
+def lockfile_changed(paths: Sequence[str]) -> bool:
+    """Whether a changed-file list may need new notices.
+
+    A list at the cap of `gh pr view --json files` may be cut short, so it counts
+    as changed: the notices check itself then decides, which costs nothing.
+    """
+
+    return len(paths) >= FILE_LIST_CAP or any(p in NOTICE_LOCKFILES for p in paths)
+
+
+def status_paths(porcelain: str) -> list[str]:
+    """Paths named by `git status --porcelain` (renames list the new path)."""
+
+    return [line[3:].split(" -> ")[-1].strip() for line in porcelain.splitlines() if line.strip()]
+
+
+def notices_only(paths: Sequence[str]) -> bool:
+    """Whether every changed path is one `just notices` writes (and there is one)."""
+
+    return bool(paths) and all(p in NOTICE_OUTPUTS for p in paths)
 
 
 def cap_body(text: str, limit: int = GITHUB_BODY_LIMIT) -> str:
@@ -761,6 +797,59 @@ class Upkeep:
             self.rerun_failed_ci(pr.head_sha)
         return pr, passed
 
+    def refresh_notices(self, pr: PullRequest, outcome: Outcome) -> PullRequest:
+        """Regenerate stale third-party notices on a bump that changed a lockfile.
+
+        `just notices-check` (CI's python-quality) fails a bump's PR until
+        `just notices` runs, so this runs it on the PR head and pushes one commit
+        with the owner's `gh` login (CI therefore runs on the new head). Only the
+        notices files may change, and the commit must not change the app-input
+        tree, so a recorded mobile-verify pass stays valid; anything else is
+        left uncommitted and the PR goes on to CI, where it fails visibly.
+        `just notices` runs `npm ci --ignore-scripts` and cargo-about, which run
+        no code from the bumped dependencies.
+        """
+
+        files = self.gh("pr", "view", str(pr.number), "-R", self.repo, "--json", "files")
+        paths = [f["path"] for f in (files or {}).get("files", [])]
+        if not lockfile_changed(paths):
+            return pr
+        if self.sh.dry_run:
+            outcome.notes.append(
+                "would run `just notices-check` and, if stale, `just notices` and push the result"
+            )
+            return pr
+        if not self.checkout_work(pr):
+            raise RuntimeError("could not check out the PR head for the notices refresh")
+        limerick = self.work / "limerick"
+        if self.sh.run(["just", "notices-check"], cwd=limerick).ok:
+            return pr
+        log = self.logs / f"pr-{pr.number}-notices.log"
+        regenerated = self.sh.run(
+            ["just", "notices"], cwd=limerick, timeout=SECONDS["notices"], mutating=True, output=log
+        )
+        if not regenerated.ok:
+            outcome.notes.append(f"`just notices` failed ({describe_exit(regenerated)}); see {log}")
+            return pr
+        changed = status_paths(self.read(["git", "status", "--porcelain"], self.work))
+        if not notices_only(changed):
+            outcome.notes.append(
+                "`just notices` changed "
+                + (", ".join(changed) if changed else "nothing")
+                + "; not committed"
+            )
+            return pr
+        for step in (["git", "add", "--", *changed], ["git", "commit", "-q", "-m", NOTICES_COMMIT]):
+            if not self.sh.run(step, cwd=self.work, mutating=True).ok:
+                raise RuntimeError(f"`{' '.join(step[:2])}` failed in the notices refresh")
+        if self.input_tree("HEAD") != self.input_tree(pr.head_sha):
+            outcome.notes.append("the notices refresh changes an app input; not pushed")
+            return pr
+        if not self.push_work(pr):
+            raise RuntimeError("pushing the notices refresh failed")
+        outcome.notes.append("pushed regenerated third-party notices (`just notices`)")
+        return self.wait_for_head(pr, pr.head_sha)
+
     def wait_for_checks(self, pr: PullRequest) -> tuple[str, list[str]]:
         """Poll the required checks; three failed reads in a row end the PR's processing."""
 
@@ -998,7 +1087,8 @@ class Upkeep:
     def security_scope_problem(self, paths: Sequence[str]) -> str | None:
         """Why these changed files may not go to the gatekeeper, or None when they may."""
 
-        decision = sec.classify_change(paths)
+        # The notices are generated from the lockfiles (refresh_notices), not new behaviour.
+        decision = sec.classify_change([p for p in paths if p not in NOTICE_OUTPUTS])
         return None if decision.action == "merge" else decision.reason
 
     def hand_security_pr_to_owner(self, pr: PullRequest, outcome: Outcome, reason: str) -> Outcome:
@@ -1054,6 +1144,7 @@ class Upkeep:
 
     def _process(self, pr: PullRequest, outcome: Outcome) -> Outcome:
         pr, app_ok = self.bring_current(pr, outcome)
+        pr = self.refresh_notices(pr, outcome)
         state, failing = self.wait_for_checks(pr)
         fixed = False
         failed_fix: str | None = None

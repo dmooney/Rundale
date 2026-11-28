@@ -30,6 +30,7 @@
 # work is still unstaged.
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$(git rev-parse --show-toplevel)"
 
 evidence_base_url="https://dmooney.github.io/rundale-pages/pr"
@@ -204,8 +205,18 @@ scan_for_debt_markers() {
         -- "$file"
 }
 
+# A Rust file on a runtime path is still test-only when every changed line sits
+# in a `#[cfg(test)]` module, or the whole file is cfg(test)-gated by its
+# `mod` declaration. The helper is conservative: any doubt (no python3,
+# unparseable file) leaves the file runtime-shipping.
+is_rust_test_only_change() {
+    [[ "$1" == *.rs ]] || return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 -I "$script_dir/rust-test-only.py" "$base" "$1"
+}
+
 while IFS= read -r file; do
-    if is_runtime_path "$file"; then
+    if is_runtime_path "$file" && ! is_rust_test_only_change "$file"; then
         echo "$file" >>"$runtime"
     fi
 done <"$changed"
