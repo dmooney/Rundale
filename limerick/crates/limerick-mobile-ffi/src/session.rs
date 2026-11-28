@@ -17,7 +17,9 @@ use std::time::Instant;
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{EndpointInput, InvocationEnvelope};
 use limerick_core::error::LimerickError;
-use limerick_core::game_loop::world_pump::{AdvanceOptions, GossipMode, WeatherMode};
+use limerick_core::game_loop::world_pump::{
+    AdvanceOptions, GossipMode, WeatherMode, gossip_hour_seed,
+};
 use limerick_core::game_loop::{GameLoopContext, advance_world, load_fresh_world_and_npcs};
 use limerick_core::game_mod::{EndpointRole, GameMod};
 use limerick_core::inference::{AnyClient, InferenceQueue};
@@ -59,7 +61,6 @@ pub const MAX_SNAPSHOT_REQUESTS: usize = 100;
 pub const MAX_RECORDED_EXCHANGES: usize = 8;
 /// Most journaled events a bug report reads its transcript from.
 const BUG_REPORT_EVENTS: usize = 40;
-
 /// Why an operation could not be carried out. Nothing changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpError {
@@ -628,7 +629,7 @@ impl Session {
             // Gossip rolls are keyed to the game hour (one roll per hour,
             // however many turns), so a repeat game, a relaunch and a test
             // see the same spread; weather stays random.
-            let gossip_seed = world.clock.now().timestamp().unsigned_abs() / 3600;
+            let gossip_seed = gossip_hour_seed(world.clock.now());
             advance_world(
                 &mut world,
                 &mut npcs,

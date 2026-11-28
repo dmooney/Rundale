@@ -102,6 +102,13 @@ dialogue input lists the gossip they hold under `aboutYou.knows`. Tier-2/3
 dialogue simulation, reactions and banter do need inference and wait for the
 background inference seam ([#2025](https://github.com/dmooney/Rundale/issues/2025)).
 
+The authored `path` in `mods/rundale/living-world.json` (`[2, 3]`) is not read by
+propagation. The engine spreads a fact between any co-located Tier-2 NPCs by
+chance, so "never Peig" holds because Peig's schedule never puts her in a place
+with either Connolly while the fact is circulating, not because of the path. A
+schedule change that did could route the fact to Peig; step 2 and step 4 would
+then fail.
+
 ### P6-04 Weather behaviour ([#2198](https://github.com/dmooney/Rundale/issues/2198))
 
 Set the weather with the existing `/weather <name>` command

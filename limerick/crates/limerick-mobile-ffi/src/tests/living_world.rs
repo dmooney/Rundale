@@ -211,6 +211,14 @@ mod gossip {
                 "run {run}: Róisín's context carries the fact: {roisin}"
             );
             go(&game, "Letter Office");
+            // Peig is in the village from 08:00 to 09:00, so how long the
+            // spread took decides whether she is at her counter yet.
+            let mut waits = 0;
+            while people_here(&game).is_empty() {
+                waits += 1;
+                assert!(waits <= 12, "run {run}: Peig never reached her counter");
+                wait(&game, 15);
+            }
             let peig = hear(&game, PEIG, "Any news on the road?", "None that I know.");
             assert!(
                 !peig.to_string().contains(CATTLE_BUYER),

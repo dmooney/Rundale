@@ -84,6 +84,17 @@ pub enum GossipMode {
     Budgeted { cursor: usize, budget: usize },
 }
 
+/// The [`GossipMode::AllSeeded`] seed for the game hour containing `now`: the
+/// same for every instant from `HH:00:00` to `HH:59:59`, so gossip gets one
+/// roll per game hour however many turns the player takes in it. Game time
+/// predates 1970, so the timestamp is negative; `div_euclid` floors it,
+/// where truncating division would give `HH:00:00` the previous hour's seed.
+pub fn gossip_hour_seed(now: chrono::DateTime<chrono::Utc>) -> u64 {
+    // `!` counts hours back from the epoch (so the pre-1970 game gets small
+    // seeds); it is a bijection, so each hour still has its own seed.
+    (!now.timestamp().div_euclid(3600)) as u64
+}
+
 /// Per-runtime knobs for [`advance_world`]. Each call site reproduces its own
 /// scheduling by selecting which atoms run and how — this is the
 /// "per-runtime scheduling" the single core pump preserves.
@@ -627,6 +638,133 @@ mod tests {
         assert_eq!(report.gossip_count, 0);
         assert_eq!(report.tier4_event_count, 0);
         // RNG untouched: a second generator at the same seed is still in lockstep.
+        assert_eq!(rng_a.next_u64(), rng_b.next_u64());
+    }
+
+    // ── AllSeeded gossip ──────────────────────────────────────────────────────
+
+    #[test]
+    fn the_gossip_seed_changes_exactly_at_the_hour() {
+        use chrono::TimeZone;
+        let at = |h, m, s| chrono::Utc.with_ymd_and_hms(1820, 3, 20, h, m, s).unwrap();
+        assert_eq!(
+            gossip_hour_seed(at(7, 0, 0)),
+            gossip_hour_seed(at(7, 59, 59))
+        );
+        assert_ne!(
+            gossip_hour_seed(at(7, 59, 59)),
+            gossip_hour_seed(at(8, 0, 0))
+        );
+        assert_eq!(
+            gossip_hour_seed(at(8, 0, 0)),
+            gossip_hour_seed(at(8, 30, 0))
+        );
+        assert_ne!(gossip_hour_seed(at(8, 0, 0)), gossip_hour_seed(at(9, 0, 0)));
+    }
+
+    /// Two Tier-2 neighbours one step from the player, one holding a rumour.
+    fn gossip_pair() -> (
+        crate::world::WorldState,
+        NpcManager,
+        limerick_types::NpcId,
+        limerick_types::NpcId,
+    ) {
+        use crate::npc::Npc;
+        use limerick_types::NpcId;
+
+        let locations: Vec<serde_json::Value> = (0..=2u32)
+            .map(|i| {
+                let mut connections = Vec::new();
+                if i > 0 {
+                    connections
+                        .push(serde_json::json!({"target": i - 1, "path_description": "a path"}));
+                }
+                if i < 2 {
+                    connections
+                        .push(serde_json::json!({"target": i + 1, "path_description": "a path"}));
+                }
+                serde_json::json!({
+                    "id": i, "name": format!("Loc {i}"), "description_template": "Test",
+                    "indoor": false, "public": true, "connections": connections
+                })
+            })
+            .collect();
+        let mut world = crate::world::WorldState::new();
+        world.graph = limerick_world::graph::WorldGraph::load_from_str(
+            &serde_json::json!({ "locations": locations }).to_string(),
+        )
+        .unwrap();
+        world.player_location = LocationId(0);
+
+        let (source, listener) = (NpcId(1), NpcId(2));
+        let mut manager = NpcManager::new();
+        for id in [source, listener] {
+            let mut npc = Npc::new_test_npc();
+            npc.id = id;
+            npc.set_location(LocationId(1));
+            manager.add_npc(npc);
+        }
+        manager.assign_tiers(&world, &[]);
+        assert_eq!(manager.tier2_groups().len(), 1, "the pair is Tier 2");
+        let heard_at = world.clock.now();
+        world
+            .gossip_network
+            .create("A cattle buyer is about.".to_string(), source, heard_at);
+        (world, manager, source, listener)
+    }
+
+    /// One roll per seed: however many times the pump runs under the same
+    /// seed (turns in the same game hour), the listener hears the rumour on
+    /// the first pump or on none of them. Other seeds go the other way.
+    #[test]
+    fn all_seeded_gossip_rolls_once_per_seed_however_many_pumps_run() {
+        let options = |seed| AdvanceOptions {
+            weather: WeatherMode::Skip,
+            run_banshee: false,
+            gossip: GossipMode::AllSeeded { seed },
+            run_tier4: false,
+        };
+        let (mut spread, mut held) = (0, 0);
+        for seed in 0..40u64 {
+            let (mut world, mut manager, _, listener) = gossip_pair();
+            let mut rng = rand::rng();
+            advance_world(&mut world, &mut manager, &mut rng, options(seed));
+            let after_one = world.gossip_network.known_by(listener).len();
+            for _ in 0..5 {
+                advance_world(&mut world, &mut manager, &mut rng, options(seed));
+            }
+            assert_eq!(
+                world.gossip_network.known_by(listener).len(),
+                after_one,
+                "seed {seed}: more pumps in the hour added chances"
+            );
+            if after_one == 1 {
+                spread += 1;
+            } else {
+                held += 1;
+            }
+        }
+        assert!(spread > 0 && held > 0, "spread {spread}, held {held}");
+    }
+
+    #[test]
+    fn all_seeded_gossip_does_not_consume_the_pump_rng() {
+        use rand::rngs::StdRng;
+        use rand::{Rng, SeedableRng};
+        let (mut world, mut manager, _, _) = gossip_pair();
+        let mut rng_a = StdRng::seed_from_u64(9);
+        let mut rng_b = StdRng::seed_from_u64(9);
+        advance_world(
+            &mut world,
+            &mut manager,
+            &mut rng_a,
+            AdvanceOptions {
+                weather: WeatherMode::Skip,
+                run_banshee: false,
+                gossip: GossipMode::AllSeeded { seed: 3 },
+                run_tier4: false,
+            },
+        );
         assert_eq!(rng_a.next_u64(), rng_b.next_u64());
     }
 
