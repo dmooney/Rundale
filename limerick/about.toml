@@ -1,6 +1,8 @@
 # cargo-about configuration for generating THIRD_PARTY_NOTICES.rust.md.
 #
-# Run: `just notices` (or `cargo about generate about.hbs > THIRD_PARTY_NOTICES.rust.md`)
+# Run: `just notices` (it pins cargo-about, validates the output against the
+# previous file and Cargo.lock, and writes notices-dev-only.txt; do not call
+# `cargo about generate` by hand, an unpinned version once dropped 28 notices).
 #
 # This file declares the set of licences we accept from upstream Rust crates.
 # If a new transitive dep arrives with a licence not on this list, cargo-about

@@ -5,9 +5,9 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 648 crates
+- [MIT License](#MIT) — 647 crates
 - [Apache License 2.0](#Apache-2.0) — 25 crates
-- [ISC License](#ISC) — 20 crates
+- [ISC License](#ISC) — 25 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 10 crates
 - [Mozilla Public License 2.0](#MPL-2.0) — 5 crates
@@ -2849,6 +2849,42 @@ impl N0 {
 - [ring 0.17.14](https://github.com/briansmith/ring)
 
 ```
+// Copyright 2015-2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+#[cfg(target_pointer_width &#x3D; &quot;64&quot;)]
+type CompilerWord &#x3D; u64;
+
+#[cfg(target_pointer_width &#x3D; &quot;32&quot;)]
+type CompilerWord &#x3D; u32;
+
+/// A native word that isn&#x27;t secret.
+///
+/// &#x60;LeakyWord&#x60; supports &#x60;as&#x60; conversions to/from native types.
+///
+/// XXX: This isn&#x27;t the native word size on targets where a pointer isn&#x27;t the
+/// same size as a native word. TODO: Fix this.
+pub(crate) type LeakyWord &#x3D; CompilerWord;
+
+```
+
+
+**Used by:**
+
+- [ring 0.17.14](https://github.com/briansmith/ring)
+
+```
 // Copyright 2015-2025 Brian Smith.
 //
 // Permission to use, copy, modify, and/or distribute this software for any
@@ -2967,6 +3003,47 @@ impl From&lt;KeyRejected&gt; for Unspecified {
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(target_arch &#x3D; &quot;x86&quot;)]
+pub fn shift_full_blocks&lt;const BLOCK_LEN: usize&gt;(
+    in_out: super::overlapping::Overlapping&lt;&#x27;_, u8&gt;,
+    mut transform: impl FnMut(&amp;[u8; BLOCK_LEN]) -&gt; [u8; BLOCK_LEN],
+) {
+    let (in_out, src) &#x3D; in_out.into_slice_src_mut();
+    let in_out_len &#x3D; in_out[src.clone()].len();
+
+    for i in (0..in_out_len).step_by(BLOCK_LEN) {
+        let block &#x3D; {
+            let input &#x3D;
+                &lt;&amp;[u8; BLOCK_LEN]&gt;::try_from(&amp;in_out[(src.start + i)..][..BLOCK_LEN]).unwrap();
+            transform(input)
+        };
+        let output &#x3D; &lt;&amp;mut [u8; BLOCK_LEN]&gt;::try_from(&amp;mut in_out[i..][..BLOCK_LEN]).unwrap();
+        *output &#x3D; block;
+    }
+}
+
+```
+
+
+**Used by:**
+
+- [ring 0.17.14](https://github.com/briansmith/ring)
+
+```
+// Copyright 2018 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 //! Serialization and deserialization.
 
 #[doc(hidden)]
@@ -3027,6 +3104,44 @@ mod ffi;
 pub(super) mod fallback;
 mod sha2_32;
 mod sha2_64;
+
+```
+
+
+**Used by:**
+
+- [ring 0.17.14](https://github.com/briansmith/ring)
+
+```
+// Copyright 2022 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+/// Polyfill for &#x60;Option::unwrap()&#x60; as a const fn; feature &#x60;const_option&#x60;.
+/// https://github.com/rust-lang/rust/issues/67441.
+/// TODO(MSRV): Replace this with &#x60;x.unwrap()&#x60;.
+///
+/// &#x60;T: Copy&#x60; avoids &quot;constant functions cannot evaluate destructors.&quot;
+pub const fn unwrap_const&lt;T&gt;(x: Option&lt;T&gt;) -&gt; T
+where
+    T: Copy,
+{
+    if let Some(x) &#x3D; x {
+        x
+    } else {
+        panic!(&quot;unwrap_const on &#x60;None&#x60;&quot;);
+    }
+}
 
 ```
 
@@ -3112,6 +3227,38 @@ mod bits_tests;
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+//! Utilities to make dealing with slices less tediuous.
+
+/// Replaces the first N elements of &#x60;a&#x60; with the first N elements of &#x60;b&#x60;, where
+/// N is &#x60;core::cmp::min(a.len(), b.len())&#x60;, leaving the rest unchanged.
+pub fn overwrite_at_start&lt;T: Copy&gt;(a: &amp;mut [T], b: &amp;[T]) {
+    a.iter_mut().zip(b).for_each(|(a, b)| {
+        *a &#x3D; *b;
+    });
+}
+
+```
+
+
+**Used by:**
+
+- [ring 0.17.14](https://github.com/briansmith/ring)
+
+```
+// Copyright 2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 pub use self::{
     array::Array,
     base::{IndexError, Overlapping},
@@ -3121,6 +3268,45 @@ pub use self::{
 mod array;
 mod base;
 mod partial_block;
+
+```
+
+
+**Used by:**
+
+- [ring 0.17.14](https://github.com/briansmith/ring)
+
+```
+// Copyright 2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+use crate::testutil;
+use core::{marker::PhantomData, mem::size_of};
+
+/// A ZST that can be added to any type to make the type &#x60;!Send&#x60;.
+#[derive(Clone, Copy)]
+pub struct NotSend(PhantomData&lt;*mut ()&gt;);
+
+impl NotSend {
+    pub const VALUE: Self &#x3D; Self(PhantomData);
+}
+
+#[allow(deprecated)]
+const _: () &#x3D; testutil::compile_time_assert_clone::&lt;NotSend&gt;();
+#[allow(deprecated)]
+const _: () &#x3D; testutil::compile_time_assert_copy::&lt;NotSend&gt;();
+const _: () &#x3D; assert!(size_of::&lt;NotSend&gt;() &#x3D;&#x3D; 0);
 
 ```
 
@@ -3938,7 +4124,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [form_urlencoded 1.2.2](https://github.com/servo/rust-url)
+- [form_urlencoded 1.2.3](https://github.com/servo/rust-url)
 
 ```
 Copyright (c) 2013-2016 The rust-url developers
@@ -3974,7 +4160,7 @@ DEALINGS IN THE SOFTWARE.
 
 - [idna 1.1.0](https://github.com/servo/rust-url/)
 - [percent-encoding 2.3.2](https://github.com/servo/rust-url/)
-- [url 2.5.8](https://github.com/servo/rust-url)
+- [url 2.5.9](https://github.com/servo/rust-url)
 
 ```
 Copyright (c) 2013-2025 The rust-url developers
@@ -4263,9 +4449,9 @@ DEALINGS IN THE SOFTWARE.
 - [num-rational 0.4.2](https://github.com/rust-num/num-rational)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [num 0.4.3](https://github.com/rust-num/num)
-- [regex-automata 0.4.18](https://github.com/rust-lang/regex)
-- [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
-- [regex 1.13.1](https://github.com/rust-lang/regex)
+- [regex-automata 0.4.19](https://github.com/rust-lang/regex)
+- [regex-syntax 0.8.12](https://github.com/rust-lang/regex)
+- [regex 1.13.2](https://github.com/rust-lang/regex)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -4299,7 +4485,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.28.0](https://github.com/uuid-rs/uuid)
+- [uuid 1.29.3](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -4370,8 +4556,8 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [libsqlite3-sys 0.38.2](https://github.com/rusqlite/rusqlite)
-- [rusqlite 0.40.2](https://github.com/rusqlite/rusqlite)
+- [libsqlite3-sys 0.40.0](https://github.com/rusqlite/rusqlite)
+- [rusqlite 0.42.0](https://github.com/rusqlite/rusqlite)
 
 ```
 Copyright (c) 2014 The rusqlite developers
@@ -4898,7 +5084,6 @@ THE SOFTWARE.
 
 **Used by:**
 
-- [png 0.17.16](https://github.com/image-rs/image-png)
 - [png 0.18.1](https://github.com/image-rs/image-png)
 
 ```
@@ -5974,7 +6159,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [cookie 0.18.1](https://github.com/SergioBenitez/cookie-rs)
+- [cookie 0.18.3](https://github.com/SergioBenitez/cookie-rs)
 
 ```
 Copyright (c) 2017 Sergio Benitez
@@ -8228,9 +8413,9 @@ DEALINGS IN THE SOFTWARE.
 - [anstyle-query 1.1.5](https://github.com/rust-cli/anstyle.git)
 - [anstyle-wincon 3.0.11](https://github.com/rust-cli/anstyle.git)
 - [anstyle 1.0.14](https://github.com/rust-cli/anstyle.git)
-- [clap 4.6.7](https://github.com/clap-rs/clap)
+- [clap 4.6.9](https://github.com/clap-rs/clap)
 - [clap_builder 4.6.7](https://github.com/clap-rs/clap)
-- [clap_derive 4.6.7](https://github.com/clap-rs/clap)
+- [clap_derive 4.6.9](https://github.com/clap-rs/clap)
 - [clap_lex 1.1.0](https://github.com/clap-rs/clap)
 - [colorchoice 1.0.5](https://github.com/rust-cli/anstyle.git)
 - [is_terminal_polyfill 1.70.2](https://github.com/polyfill-rs/is_terminal_polyfill)
@@ -8330,7 +8515,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [libc 0.2.190](https://github.com/rust-lang/libc)
+- [libc 0.2.191](https://github.com/rust-lang/libc)
 
 ```
 Copyright (c) The Rust Project Developers
@@ -8430,7 +8615,7 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 
 **Used by:**
 
-- [rand 0.10.3](https://github.com/rust-random/rand)
+- [rand 0.10.4](https://github.com/rust-random/rand)
 - [rand 0.8.6](https://github.com/rust-random/rand)
 - [rand 0.9.4](https://github.com/rust-random/rand)
 - [rand_chacha 0.3.1](https://github.com/rust-random/rand)
@@ -8644,7 +8829,7 @@ The above is the version of the MIT &quot;Expat&quot; License used by X.org:
 
 **Used by:**
 
-- [lru 0.18.5](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.19.2](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
@@ -8763,13 +8948,13 @@ SOFTWARE.
 
 **Used by:**
 
-- [tauri-build 2.7.3](https://github.com/tauri-apps/tauri)
-- [tauri-codegen 2.7.3](https://github.com/tauri-apps/tauri)
-- [tauri-macros 2.7.3](https://github.com/tauri-apps/tauri)
-- [tauri-runtime-wry 2.12.2](https://github.com/tauri-apps/tauri)
-- [tauri-runtime 2.12.2](https://github.com/tauri-apps/tauri)
-- [tauri-utils 2.10.2](https://github.com/tauri-apps/tauri)
-- [tauri 2.12.4](https://github.com/tauri-apps/tauri)
+- [tauri-build 2.7.6](https://github.com/tauri-apps/tauri)
+- [tauri-codegen 2.7.6](https://github.com/tauri-apps/tauri)
+- [tauri-macros 2.7.6](https://github.com/tauri-apps/tauri)
+- [tauri-runtime-wry 2.12.5](https://github.com/tauri-apps/tauri)
+- [tauri-runtime 2.12.4](https://github.com/tauri-apps/tauri)
+- [tauri-utils 2.10.4](https://github.com/tauri-apps/tauri)
+- [tauri 2.12.7](https://github.com/tauri-apps/tauri)
 
 ```
 MIT License
@@ -8951,7 +9136,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [ico 0.5.0](https://github.com/mdsteele/rust-ico)
+- [ico 0.6.0](https://github.com/mdsteele/rust-ico)
 
 ```
 MIT License
@@ -9934,7 +10119,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [sqlite-wasm-rs 0.5.5](https://github.com/Spxg/sqlite-wasm-rs)
+- [sqlite-wasm-rs 0.6.3](https://github.com/Spxg/sqlite-wasm-rs)
 
 ```
 MIT License
@@ -10010,7 +10195,7 @@ SOFTWARE.
 - [objc2 0.6.5](https://github.com/madsmtm/objc2)
 - [r-efi 5.3.0](https://github.com/r-efi/r-efi)
 - [r-efi 6.0.0](https://github.com/r-efi/r-efi)
-- [rsqlite-vfs 0.1.1](https://crates.io/crates/rsqlite-vfs)
+- [rsqlite-vfs 0.2.0](https://github.com/Spxg/sqlite-wasm-rs)
 - [siphasher 1.0.3](https://github.com/jedisct1/rust-siphash)
 - [tower-sessions-core 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [tower-sessions-memory-store 0.15.0](https://github.com/maxcountryman/tower-sessions)
@@ -10092,7 +10277,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 - [tokio-stream 0.1.18](https://github.com/tokio-rs/tokio)
 - [tokio-util 0.7.20](https://github.com/tokio-rs/tokio)
-- [tokio 1.53.3](https://github.com/tokio-rs/tokio)
+- [tokio 1.54.1](https://github.com/tokio-rs/tokio)
 
 ```
 MIT License
@@ -10366,8 +10551,8 @@ DEALINGS IN THE SOFTWARE.
 - [proc-macro-crate 1.3.1](https://github.com/bkchr/proc-macro-crate)
 - [proc-macro-crate 2.0.2](https://github.com/bkchr/proc-macro-crate)
 - [proc-macro-crate 3.5.0](https://github.com/bkchr/proc-macro-crate)
-- [proc-macro2 1.0.106](https://github.com/dtolnay/proc-macro2)
-- [quote 1.0.45](https://github.com/dtolnay/quote)
+- [proc-macro2 1.0.107](https://github.com/dtolnay/proc-macro2)
+- [quote 1.0.47](https://github.com/dtolnay/quote)
 - [ref-cast-impl 1.0.25](https://github.com/dtolnay/ref-cast)
 - [ref-cast 1.0.25](https://github.com/dtolnay/ref-cast)
 - [rustix 0.38.44](https://github.com/bytecodealliance/rustix)
@@ -10387,7 +10572,7 @@ DEALINGS IN THE SOFTWARE.
 - [servo_arc 0.4.3](https://github.com/servo/stylo)
 - [syn 1.0.109](https://github.com/dtolnay/syn)
 - [syn 2.0.117](https://github.com/dtolnay/syn)
-- [syn 3.0.4](https://github.com/dtolnay/syn)
+- [syn 3.0.10](https://github.com/dtolnay/syn)
 - [system-deps 6.2.2](https://github.com/gdesmott/system-deps)
 - [system-deps 7.0.8](https://github.com/gdesmott/system-deps)
 - [thiserror-impl 1.0.69](https://github.com/dtolnay/thiserror)
@@ -10544,7 +10729,7 @@ SOFTWARE
 - [glib-sys 0.18.1](https://github.com/gtk-rs/gtk-rs-core)
 - [glib-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [glib 0.18.5](https://github.com/gtk-rs/gtk-rs-core)
-- [glib 0.22.10](https://github.com/gtk-rs/gtk-rs-core)
+- [glib 0.22.11](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.18.0](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [gtk-sys 0.18.2](https://github.com/gtk-rs/gtk3-rs)

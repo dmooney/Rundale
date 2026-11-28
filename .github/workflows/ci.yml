@@ -298,6 +298,12 @@ jobs:
       - name: Dependabot lockfile coverage
         run: python3 scripts/check_dependabot_coverage.py
 
+      # The committed Rust and UI third-party notices must account for exactly the
+      # crates and packages in Cargo.lock and package-lock.json (issue 2441). Stdlib
+      # only, no network; fix a failure with `just notices` in limerick/.
+      - name: Third-party notices match lockfiles
+        run: python3 limerick/scripts/notices/check_notices.py
+
   promptfoo-quality:
     name: Promptfoo keyless end-to-end
     needs: changes
