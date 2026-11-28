@@ -437,6 +437,8 @@ fn about_you(
         relationships,
         // What the speaker was authored to know, then the gossip that has
         // reached them: the same state the world pump spreads between NPCs.
+        // The cap drops gossip first, so an NPC with MAX_LIST_ENTRIES
+        // authored lines would hide it; no authored NPC is near that.
         knows: speaker
             .knowledge
             .iter()

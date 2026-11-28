@@ -625,8 +625,9 @@ impl Session {
         self.runtime.block_on(async {
             let mut world = self.live.world.lock().await;
             let mut npcs = self.live.npc_manager.lock().await;
-            // Gossip rolls are keyed to the game hour (one roll per hour, however many turns), so a repeat game, a
-            // relaunch and a test see the same spread; weather stays random.
+            // Gossip rolls are keyed to the game hour (one roll per hour,
+            // however many turns), so a repeat game, a relaunch and a test
+            // see the same spread; weather stays random.
             let gossip_seed = world.clock.now().timestamp().unsigned_abs() / 3600;
             advance_world(
                 &mut world,
