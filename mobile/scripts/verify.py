@@ -74,9 +74,59 @@ JOURNEY_MODES = ("auto", "on", "off", "only")
 # EngineScenarioTests), and the nightly journeys run reports any drift the
 # next day. Pass `--journeys on` for a presenter change that moves a view.
 JOURNEY_GUI_PATHS = ("mobile/Rundale/", "mobile/RundaleUITests/", "mobile/project.yml")
-IMPLEMENTED_PHASE = 4
-IMPLEMENTED_PHASES = (1, 2, 3, 4)
+# Phase 5 (NPC dialogue) has no gate of its own yet; Phase 6 (Living world) does.
+IMPLEMENTED_PHASES = (1, 2, 3, 4, 6)
+# Phases that run the earlier regression chain (Phases 1 to 4) before their own gates.
+CHAIN_PHASES = (4, 6)
 LAST_PHASE = 7
+LIVING_WORLD_PACKAGE = "limerick-mobile-ffi"
+# Cargo feature that builds the proof cases whose proof issue has not landed.
+LIVING_WORLD_PENDING_FEATURE = "living-world-pending"
+# The living-world proofs (spec Milestone 6), each a filter over the cases in
+# `limerick-mobile-ffi/src/tests/living_world.rs`. `issue` is the proof issue
+# a pending case waits on, or None once it has landed. A landed case blocks
+# every run that includes Phase 6. A pending case fails until its issue
+# lands, so only an explicit `--phase 6` blocks on it; `--phase all` reports it
+# without blocking, so the recorded pass and the nightly gate stay usable. Set
+# `issue` to None in the PR that lands the proof.
+LIVING_WORLD_PROOFS: tuple[tuple[str, str, str, int | None], ...] = (
+    (
+        "living-world-memory",
+        "Memory proof: an NPC remembers what the player told it across save/resume",
+        "tests::living_world::memory",
+        None,
+    ),
+    (
+        "living-world-gossip-start",
+        "Gossip proof: the fact starts with its source alone",
+        "tests::living_world::gossip::the_fact_starts",
+        None,
+    ),
+    (
+        "living-world-gossip-spread",
+        "Gossip proof: the fact reaches Roisin from Micheal and never Peig",
+        "tests::living_world::gossip::pending",
+        2197,
+    ),
+    (
+        "living-world-task",
+        "Task proof: Roisin's message to Peig is assigned, advanced and completed",
+        "tests::living_world::task",
+        2308,
+    ),
+    (
+        "living-world-weather",
+        "Weather proof: heavy rain keeps Peig at the Letter Office",
+        "tests::living_world::weather",
+        2198,
+    ),
+    (
+        "living-world-movement",
+        "Scheduled-movement proof: Peig walks to the village at 07:00 and back at 09:00",
+        "tests::living_world::movement",
+        None,
+    ),
+)
 
 
 def _pinned_rust_toolchain() -> str:
@@ -1883,6 +1933,8 @@ class VerificationRun:
         package: str,
         cargo_args: Sequence[str] = (),
         phase: int = 2,
+        required: bool = True,
+        extra_details: Mapping[str, Any] | None = None,
     ) -> None:
         if self.journeys == "only":
             self._skip(identifier, name, phase, "--journeys only runs just the UI journeys")
@@ -1912,10 +1964,12 @@ class VerificationRun:
             name=name,
             phase=phase,
             command=command,
+            required=required,
             env=self._rust_env(),
             details={
                 "package": package,
                 "toolchain": RUST_TOOLCHAIN,
+                **(extra_details or {}),
                 **({"cache_key": key} if key else {}),
             },
         )
@@ -3145,8 +3199,29 @@ class VerificationRun:
                 reason=reason,
             )
 
-    def _future(self) -> None:
-        for phase in range(IMPLEMENTED_PHASE + 1, LAST_PHASE + 1):
+    def _phase6(self, *, strict: bool) -> None:
+        """Living world: the five proofs through the C boundary, scripted at the Endpoint.
+
+        `strict` (an explicit `--phase 6`) makes every proof block, including the
+        pending ones; otherwise only the landed proofs block.
+        """
+
+        for identifier, name, test_filter, issue in LIVING_WORLD_PROOFS:
+            pending = issue is not None
+            self._cargo_test(
+                identifier=identifier,
+                name=f"{name} (pending #{issue})" if pending else name,
+                package=LIVING_WORLD_PACKAGE,
+                cargo_args=["--features", LIVING_WORLD_PENDING_FEATURE, test_filter],
+                phase=6,
+                required=strict or not pending,
+                extra_details={"proof_issue": issue, "pending": pending, "filter": test_filter},
+            )
+
+    def _future(self, *, below: int = LAST_PHASE + 1) -> None:
+        for phase in range(1, below):
+            if phase in IMPLEMENTED_PHASES:
+                continue
             self._missing(
                 f"phase-{phase}-verification",
                 f"Phase {phase} verification",
@@ -3528,7 +3603,7 @@ class VerificationRun:
         self._device_preflight()
         # SwiftLint and SwiftFormat check source text, so they run only in
         # --fast (CI's Linux Swift lane), not on a Mac.
-        if phase is None or phase == 4:
+        if phase is None or phase in CHAIN_PHASES:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
             # single packaging result when Phase 2 runs its remaining gates.
@@ -3540,12 +3615,16 @@ class VerificationRun:
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            if phase is None or phase == 6:
+                self._phase6(strict=phase == 6)
             if self.smoke:
                 self._smoke_simulator_tests()
             self._run_deferred_simulator_suites()
             self._optional_physical_suites()
             if phase is None:
                 self._future()
+            elif phase == 6:
+                self._future(below=6)
         elif phase == 1:
             self._phase1(standalone=True)
         elif phase == 2:
@@ -3564,16 +3643,16 @@ class VerificationRun:
 
     def run(self, phase: int | None = None, *, fast: bool = False) -> dict[str, Any]:
         if phase in {1, 2, 3} and (self.live_endpoint or self.soak or self.performance):
-            raise ValueError("device opt-in suites require --phase 4 or all")
+            raise ValueError("device opt-in suites require --phase 4, 6 or all")
         if fast and (phase is not None or self.physical_device is not None):
             raise ValueError("--fast runs no phase or device suites")
         if self.smoke and (fast or phase is not None or self.physical_device is not None):
             raise ValueError("--smoke runs every phase on the simulator, without --fast")
         if self.skip_time_sensitive and (
-            fast or phase not in {None, 4} or self.physical_device is not None
+            fast or phase not in {None, *CHAIN_PHASES} or self.physical_device is not None
         ):
             raise ValueError(
-                "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+                "--skip-time-sensitive applies to the simulator run of --phase 4, 6 or all, without --device"
             )
         self.report_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as held:
@@ -4104,7 +4183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if (args.live_endpoint or args.soak or args.performance) and not args.device:
         parser.error("--live-endpoint, --soak, and --performance require --device")
     if args.phase in {1, 2, 3} and (args.live_endpoint or args.soak or args.performance):
-        parser.error("device opt-in suites require --phase 4 or all")
+        parser.error("device opt-in suites require --phase 4, 6 or all")
     if args.fast and (args.phase is not None or args.device):
         parser.error("--fast runs no phase or device suites")
     if args.smoke and (args.fast or args.phase is not None or args.device):
@@ -4113,9 +4192,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(
             "--journeys only runs the simulator journeys, without --fast, --smoke or --device"
         )
-    if args.skip_time_sensitive and (args.fast or args.phase not in {None, 4} or args.device):
+    if args.skip_time_sensitive and (
+        args.fast or args.phase not in {None, *CHAIN_PHASES} or args.device
+    ):
         parser.error(
-            "--skip-time-sensitive applies to the simulator run of --phase 4 or all, without --device"
+            "--skip-time-sensitive applies to the simulator run of --phase 4, 6 or all, without --device"
         )
     if _hosted_runner() and args.parallel_workers > HOSTED_PARALLEL_WORKERS:
         parser.error(

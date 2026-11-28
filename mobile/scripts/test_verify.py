@@ -91,6 +91,8 @@ class FakeRunner:
             "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
         )
         self.cargo_tree_output = "limerick-mobile-ffi v0.1.0\n"
+        # Cargo test filters (the argument naming the cases) whose run fails.
+        self.failing_rust_filters: set[str] = set()
         self.simctl_output = SIMCTL_JSON
         self.xcresult_output = XCRESULT_JSON
         # Makes the exported recording exceed the evidence size bound.
@@ -155,6 +157,11 @@ class FakeRunner:
         if command[:5] == ("xcrun", "devicectl", "list", "devices", "--json-output"):
             return CommandResult(0, stdout=self.device_output)
         if command[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test"):
+            if any(failing in command for failing in self.failing_rust_filters):
+                return CommandResult(
+                    101,
+                    stdout="test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n",
+                )
             return CommandResult(0, stdout=self.rust_output)
         if command[:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "tree"):
             return CommandResult(0, stdout=self.cargo_tree_output)
@@ -1307,10 +1314,10 @@ class VerificationRunnerTests(unittest.TestCase):
             report = VerificationRun(root, command_runner=FakeRunner()).run()
 
             future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
-            self.assertEqual([suite["phase"] for suite in future], [5, 6, 7])
+            self.assertEqual([suite["phase"] for suite in future], [5, 7])
             self.assertTrue(all(suite["status"] == "unavailable" for suite in future))
             self.assertTrue(all(not suite["blocking"] for suite in future))
-            self.assertEqual(report["implemented_phases"], [1, 2, 3, 4])
+            self.assertEqual(report["implemented_phases"], [1, 2, 3, 4, 6])
             self.assertEqual(
                 {suite["status"] for suite in report["suites"] if suite["phase"] == 2}
                 - {"passed", "not_automatable", "unavailable"},
@@ -1355,6 +1362,113 @@ class VerificationRunnerTests(unittest.TestCase):
         self.assertIsNone(parser.parse_args(["--phase", "all"]).phase)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parser.parse_args(["--phase", "8"])
+
+    def _living_world_calls(self, fake):
+        calls = [
+            call["argv"]
+            for call in fake.calls
+            if call["argv"][:5] == ("rustup", "run", verify_module.RUST_TOOLCHAIN, "cargo", "test")
+            and "limerick-mobile-ffi" in call["argv"]
+        ]
+        return {argv[-1]: argv for argv in calls}
+
+    def test_phase6_runs_each_living_world_proof_and_lists_only_phase5_as_future(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run(6)
+
+            self.assertEqual(report["exit_code"], 0)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            proofs = verify_module.LIVING_WORLD_PROOFS
+            self.assertEqual(
+                [identifier for identifier, *_ in proofs],
+                [
+                    "living-world-memory",
+                    "living-world-gossip-start",
+                    "living-world-gossip-spread",
+                    "living-world-task",
+                    "living-world-weather",
+                    "living-world-movement",
+                ],
+            )
+            calls = self._living_world_calls(fake)
+            for identifier, _name, test_filter, issue in proofs:
+                suite = by_id[identifier]
+                self.assertEqual(suite["status"], "passed", identifier)
+                self.assertEqual(suite["phase"], 6, identifier)
+                self.assertEqual(suite["kind"], "automated", identifier)
+                self.assertEqual(suite["details"]["pending"], issue is not None)
+                argv = calls[test_filter]
+                self.assertIn("--features", argv)
+                self.assertEqual(
+                    argv[argv.index("--features") + 1], verify_module.LIVING_WORLD_PENDING_FEATURE
+                )
+            future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
+            self.assertEqual([suite["phase"] for suite in future], [5])
+            self.assertFalse(future[0]["blocking"])
+            self.assertEqual(report["phase"], "6")
+            # The earlier regression chain ran too, once.
+            self.assertEqual(by_id["phase4-ios-simulator-tests"]["status"], "passed")
+
+    def test_explicit_phase6_blocks_on_a_pending_proof_that_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.failing_rust_filters = {"tests::living_world::weather"}
+            report = VerificationRun(root, command_runner=fake).run(6)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["living-world-weather"]["status"], "failed")
+            self.assertTrue(by_id["living-world-weather"]["blocking"])
+            self.assertEqual(by_id["living-world-memory"]["status"], "passed")
+            self.assertEqual(report["exit_code"], 1)
+
+    def test_all_reports_a_failing_pending_proof_without_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.failing_rust_filters = {
+                "tests::living_world::task",
+                "tests::living_world::gossip::pending",
+            }
+            report = VerificationRun(root, command_runner=fake).run()
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            for identifier in ("living-world-task", "living-world-gossip-spread"):
+                self.assertEqual(by_id[identifier]["status"], "failed", identifier)
+                self.assertFalse(by_id[identifier]["blocking"], identifier)
+                self.assertTrue(by_id[identifier]["details"]["pending"], identifier)
+            self.assertEqual(by_id["living-world-movement"]["status"], "passed")
+            self.assertEqual(report["exit_code"], 0)
+
+    def test_all_blocks_on_a_landed_living_world_proof_that_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.failing_rust_filters = {"tests::living_world::movement"}
+            report = VerificationRun(root, command_runner=fake).run()
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["living-world-movement"]["status"], "failed")
+            self.assertTrue(by_id["living-world-movement"]["blocking"])
+            self.assertEqual(report["exit_code"], 1)
+
+    def test_phase4_leaves_the_living_world_to_phase6(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run(4)
+
+            self.assertFalse(
+                any(suite["id"].startswith("living-world-") for suite in report["suites"])
+            )
+            self.assertEqual(self._living_world_calls(fake), {})
 
     def test_explicit_unimplemented_phase_fails(self):
         with tempfile.TemporaryDirectory() as directory:
