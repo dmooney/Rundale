@@ -137,6 +137,11 @@ The engine has no task ledger yet. The case reads one through
 provide (or this case changes with the seam it chooses). Stages are the
 `TASK` block of the world sheet.
 
+Proposed requirements and acceptance criteria for this case, awaiting the owner's
+decisions, are in [Task engine requirements](../design/task-engine-requirements.md)
+(issue [#1891](https://github.com/dmooney/Rundale/issues/1891)). They do not change
+the steps below.
+
 | Step | Exercise                                                     | Required outcome                                               |
 | ---- | ------------------------------------------------------------ | -------------------------------------------------------------- |
 | 1    | Before: at the cottage, `/debug tasks`                       | No tasks                                                       |
