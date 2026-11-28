@@ -1,0 +1,17 @@
+{
+  "gossip": {
+    "content": "A cattle buyer on the village road yesterday afternoon was paying good money for yearlings.",
+    "source": 2,
+    "path": [2, 3],
+    "heard_at": "1820-03-19T15:00:00Z"
+  },
+  "task": {
+    "assigned_by": 3,
+    "location": 2,
+    "description": "Tell Peig Hannigan at the Letter Office to hold any letter that comes for the Connollys until Róisín calls for it.",
+    "assigned": "Róisín asks the player to carry the message and the player agrees.",
+    "in_progress": "The player is at the Letter Office with the task still assigned.",
+    "completed": "The player gives Róisín's message to Peig at the Letter Office.",
+    "afterwards": "Peig and Róisín speak of the message as delivered."
+  }
+}

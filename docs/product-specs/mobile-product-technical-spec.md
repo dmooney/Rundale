@@ -516,6 +516,15 @@ During early development, maintain a concise human-readable representation of th
 The sheet lives with the world at `mods/rundale/world-sheet.txt`, and
 `limerick-engine/tests/world_sheet.rs` checks it against a new game. Presence
 is stated at clock times rather than parts of the day, so each line can be checked.
+For Milestone 6 the sheet also carries one short block for each living-world
+proof that needs an authored fact, and no more: `GOSSIP` (the one initial fact,
+its source, its one NPC-to-NPC path, and who must never be told), `TASK` (who
+assigns it, where it is advanced, and its assigned, in-progress and completed
+states), `WEATHER` (one NPC's behaviour and the weather that triggers it) and
+`MOVEMENT` (one NPC's scheduled walks). The gossip fact and the task are runtime
+data in `mods/rundale/living-world.json`; the weather behaviour and the movement
+come from the NPC's schedule and the engine's weather rules. The same test fails
+when any of them disagrees with the sheet.
 
 **Example (the sheet's body):**
 

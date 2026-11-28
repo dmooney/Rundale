@@ -17,6 +17,24 @@
 #                        backstory, and words each relationship
 #
 # Every location and NPC in the mod appears here, and nothing else does.
+#
+# Living-world proof blocks (product spec §17 Milestone 6). Each names the
+# one fact a proof uses, so a tester knows what should happen and to whom.
+# GOSSIP (living-world.json)
+#   fact, source:      the one initial fact, known to its source alone
+#   path:              the one intended NPC-to-NPC path, source first
+#   never told:        the NPCs the fact must never reach
+# TASK (living-world.json)
+#   giver, site:       who assigns it, and where it is advanced and completed
+#   task:              the work, as the task ledger records it
+#   assigned, in progress, completed, afterwards:
+#                      the states it passes through and how later talk shows it
+# WEATHER (engine rule: a non-farm NPC does not go outdoors in rain)
+#   npc, weather:      who, and the weather that triggers it
+#   in that weather at HH:MM, otherwise at HH:MM:
+#                      where the NPC is at that time with and without it
+# MOVEMENT (the NPC's schedule in npcs.json)
+#   npc, out, back:    who, and each scheduled walk as "HH:MM from to to"
 
 START
  time: 07:00
@@ -51,3 +69,29 @@ RÓISÍN
  village: Kilteevan
  home: Connolly Cottage
  knows: Peig, Mícheál
+
+GOSSIP
+ fact: A cattle buyer on the village road yesterday afternoon was paying good money for yearlings.
+ source: Mícheál
+ path: Mícheál, Róisín
+ never told: Peig
+
+TASK
+ giver: Róisín
+ site: Letter Office
+ task: Tell Peig Hannigan at the Letter Office to hold any letter that comes for the Connollys until Róisín calls for it.
+ assigned: Róisín asks the player to carry the message and the player agrees.
+ in progress: The player is at the Letter Office with the task still assigned.
+ completed: The player gives Róisín's message to Peig at the Letter Office.
+ afterwards: Peig and Róisín speak of the message as delivered.
+
+WEATHER
+ npc: Peig
+ weather: Heavy Rain
+ in that weather at 08:00: Letter Office
+ otherwise at 08:00: Kilteevan Village
+
+MOVEMENT
+ npc: Peig
+ out: 07:00 Letter Office to Kilteevan Village
+ back: 09:00 Kilteevan Village to Letter Office

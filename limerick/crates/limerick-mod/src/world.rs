@@ -16,6 +16,9 @@ pub fn world_state_from_mod(
         game_mod.start_date(),
     )?;
     world.content = Some(game_mod.content_identity());
+    // A new game starts with the mod's one gossip fact, known to its source
+    // alone. A resumed save restores its own network over this one.
+    game_mod.living_world.seed_gossip(&mut world.gossip_network);
     Ok(world)
 }
 

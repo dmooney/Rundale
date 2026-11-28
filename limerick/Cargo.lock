@@ -3433,6 +3433,7 @@ dependencies = [
 name = "limerick-mod"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "limerick-config",
  "limerick-npc",
  "limerick-palette",

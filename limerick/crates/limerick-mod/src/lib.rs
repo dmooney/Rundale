@@ -21,6 +21,8 @@ pub mod dialogue_context;
 
 pub mod endpoints;
 
+pub mod living_world;
+
 pub mod manifest;
 
 #[cfg(test)]
@@ -41,6 +43,9 @@ pub use world::world_state_from_mod;
 
 // Re-export the dialogue prompt's authored content
 pub use dialogue_context::DialogueContext;
+
+// Re-export the living-world proof facts
+pub use living_world::{GossipFact, LivingWorld, TaskFact};
 
 // Re-export Endpoint definition types
 pub use endpoints::{
@@ -89,6 +94,9 @@ pub struct GameMod {
     pub reactions: limerick_npc::reactions::ReactionTemplates,
     /// Endpoint definitions declared in the manifest's `[endpoints]` table.
     pub endpoints: EndpointCatalog,
+    /// The facts behind the living-world proofs (`[files] living_world`);
+    /// empty when the mod declares none.
+    pub living_world: LivingWorld,
 }
 
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
@@ -277,6 +285,14 @@ impl GameMod {
             dialogue_context,
         };
 
+        // -- living-world proof facts (optional) -------------------------------
+        let living_world = if let Some(ref living_file) = manifest.files.living_world {
+            LivingWorld::parse(&read_json(living_file)?)
+                .map_err(|e| LimerickError::Config(format!("failed to parse {living_file}: {e}")))?
+        } else {
+            LivingWorld::default()
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -289,6 +305,7 @@ impl GameMod {
             transport,
             reactions,
             endpoints,
+            living_world,
         })
     }
 
