@@ -435,11 +435,22 @@ fn about_you(
         workplace: speaker.workplace.and_then(|id| location_name(world, id)),
         day,
         relationships,
+        // What the speaker was authored to know, then the gossip that has
+        // reached them: the same state the world pump spreads between NPCs.
+        // The cap drops gossip first, so an NPC with MAX_LIST_ENTRIES
+        // authored lines would hide it; no authored NPC is near that.
         knows: speaker
             .knowledge
             .iter()
-            .take(MAX_LIST_ENTRIES)
             .cloned()
+            .chain(
+                world
+                    .gossip_network
+                    .recent_known_by(speaker.id, MAX_LIST_ENTRIES)
+                    .into_iter()
+                    .map(|item| item.content.clone()),
+            )
+            .take(MAX_LIST_ENTRIES)
             .collect(),
         mood: speaker.mood.clone(),
         backstory: authored
@@ -791,5 +802,48 @@ mod tests {
             the_stranger(&["They told you their name is Seán.".to_string()]),
             "Someone you have met before. What you know of them: They told you their name is Seán."
         );
+    }
+
+    /// `knows` for one speaker holding `authored` lines and two rumours, the
+    /// older heard before the newer.
+    fn knows_of(authored: usize) -> Vec<String> {
+        use chrono::TimeZone;
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(5);
+        npc.knowledge = (0..authored).map(|i| format!("authored {i}")).collect();
+        let mut manager = NpcManager::new();
+        manager.add_npc(npc);
+        let mut world = WorldState::new();
+        let day = |hour| {
+            chrono::Utc
+                .with_ymd_and_hms(1820, 3, 19, hour, 0, 0)
+                .unwrap()
+        };
+        world
+            .gossip_network
+            .create("older rumour".into(), NpcId(5), day(9));
+        world
+            .gossip_network
+            .create("newer rumour".into(), NpcId(5), day(15));
+        let speaker = manager.get(NpcId(5)).unwrap();
+        about_you(&world, &manager, &DialogueContext::default(), speaker).knows
+    }
+
+    #[test]
+    fn knows_lists_authored_lines_then_gossip_newest_first() {
+        assert_eq!(
+            knows_of(2),
+            ["authored 0", "authored 1", "newer rumour", "older rumour"]
+        );
+    }
+
+    #[test]
+    fn the_knows_cap_drops_gossip_before_authored_lines() {
+        let room_for_one = knows_of(MAX_LIST_ENTRIES - 1);
+        assert_eq!(room_for_one.len(), MAX_LIST_ENTRIES);
+        assert_eq!(room_for_one.last().unwrap(), "newer rumour");
+        let full = knows_of(MAX_LIST_ENTRIES);
+        assert_eq!(full.len(), MAX_LIST_ENTRIES);
+        assert!(full.iter().all(|line| line.starts_with("authored")));
     }
 }

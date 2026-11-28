@@ -17,7 +17,9 @@ use std::time::Instant;
 use limerick_core::config::{InferenceConfig, InferenceSubrole};
 use limerick_core::endpoint_input::{EndpointInput, InvocationEnvelope};
 use limerick_core::error::LimerickError;
-use limerick_core::game_loop::world_pump::{AdvanceOptions, GossipMode, WeatherMode};
+use limerick_core::game_loop::world_pump::{
+    AdvanceOptions, GossipMode, WeatherMode, gossip_hour_seed,
+};
 use limerick_core::game_loop::{GameLoopContext, advance_world, load_fresh_world_and_npcs};
 use limerick_core::game_mod::{EndpointRole, GameMod};
 use limerick_core::inference::{AnyClient, InferenceQueue};
@@ -59,7 +61,6 @@ pub const MAX_SNAPSHOT_REQUESTS: usize = 100;
 pub const MAX_RECORDED_EXCHANGES: usize = 8;
 /// Most journaled events a bug report reads its transcript from.
 const BUG_REPORT_EVENTS: usize = 40;
-
 /// Why an operation could not be carried out. Nothing changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpError {
@@ -617,12 +618,18 @@ impl Session {
 
     /// Advances the world's deterministic schedule (weather, NPC schedules,
     /// tiers) to the clock before the player acts, as the desktop per-turn
-    /// pump does. Background simulation that needs inference waits for the
-    /// background inference seam (#2025).
+    /// pump does, including gossip between co-located Tier-2 NPCs, which is
+    /// deterministic state with no inference. Tier-2/3 dialogue simulation,
+    /// reactions and banter need inference and wait for the background
+    /// inference seam (#2025).
     fn pump_world(&self) {
         self.runtime.block_on(async {
             let mut world = self.live.world.lock().await;
             let mut npcs = self.live.npc_manager.lock().await;
+            // Gossip rolls are keyed to the game hour (one roll per hour,
+            // however many turns), so a repeat game, a relaunch and a test
+            // see the same spread; weather stays random.
+            let gossip_seed = gossip_hour_seed(world.clock.now());
             advance_world(
                 &mut world,
                 &mut npcs,
@@ -630,7 +637,7 @@ impl Session {
                 AdvanceOptions {
                     weather: WeatherMode::Single,
                     run_banshee: false,
-                    gossip: GossipMode::Skip,
+                    gossip: GossipMode::AllSeeded { seed: gossip_seed },
                     run_tier4: false,
                 },
             );

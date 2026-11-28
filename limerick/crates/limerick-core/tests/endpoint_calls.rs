@@ -2150,7 +2150,13 @@ async fn the_request_is_the_frozen_prompts_request_for_the_labs_moments() {
             .unwrap_or_else(|e| panic!("{description}: {when}: {e}"));
             live.set_time(&format!("{}Z", at.format("%Y-%m-%dT%H:%M:%S")))
                 .await;
-            live.world.lock().await.weather = moment["weather"].as_str().unwrap().parse().unwrap();
+            {
+                let mut world = live.world.lock().await;
+                world.weather = moment["weather"].as_str().unwrap().parse().unwrap();
+                // The lab's moments hold no gossip: the authored fact
+                // that a new game seeds would add a line to `knows`.
+                world.gossip_network = limerick_types::GossipNetwork::new();
+            }
             let here = place(moment["where"].as_str().unwrap());
             let present: Vec<&str> = moment["alsoHere"]
                 .as_sequence()

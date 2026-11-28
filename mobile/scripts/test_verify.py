@@ -1466,15 +1466,11 @@ class VerificationRunnerTests(unittest.TestCase):
             fake = FakeRunner()
             fake.failing_rust_filters = {
                 "tests::living_world::task",
-                "tests::living_world::gossip::pending",
             }
             report = VerificationRun(root, command_runner=fake).run()
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
-            for identifier in (
-                "living-world-task",
-                "living-world-gossip-spread",
-            ):
+            for identifier in ("living-world-task",):
                 self.assertEqual(by_id[identifier]["status"], "failed", identifier)
                 self.assertFalse(by_id[identifier]["blocking"], identifier)
                 self.assertTrue(by_id[identifier]["details"]["pending"], identifier)

@@ -52,7 +52,7 @@ new game that must give the same before and after.
 | ----- | ---------------------------- | -------- | ----------------------- |
 | P6-01 | `living-world-memory`        | Memory   | Passes on this checkout |
 | P6-02 | `living-world-gossip-start`  | Gossip   | Passes on this checkout |
-| P6-03 | `living-world-gossip-spread` | Gossip   | Pending #2197           |
+| P6-03 | `living-world-gossip-spread` | Gossip   | Passes on this checkout |
 | P6-04 | `living-world-weather`       | Weather  | Passes on this checkout |
 | P6-05 | `living-world-movement`      | Movement | Passes on this checkout |
 | P6-06 | `living-world-task`          | Task     | Pending #2308           |
@@ -95,9 +95,19 @@ from Connolly Cottage while Mícheál and Róisín are there together.
 | 4    | After: ask Róisín for news; then ask Peig at the Letter Office   | Róisín's dialogue input carries the fact; Peig's never does |
 | 5    | Repeat on a new game                                             | The fact spreads again along the same path                  |
 
-The phone's per-turn world pump skips gossip (`GossipMode::Skip`) until the
-background inference seam ([#2025](https://github.com/dmooney/Rundale/issues/2025))
-lets it run.
+Gossip spread is deterministic world state with no inference, so the phone's
+per-turn world pump runs it (`GossipMode::AllSeeded`, rolls keyed to the game
+hour, so a repeat game and a relaunch see the same spread). A character's
+dialogue input lists the gossip they hold under `aboutYou.knows`. Tier-2/3
+dialogue simulation, reactions and banter do need inference and wait for the
+background inference seam ([#2025](https://github.com/dmooney/Rundale/issues/2025)).
+
+The authored `path` in `mods/rundale/living-world.json` (`[2, 3]`) is not read by
+propagation. The engine spreads a fact between any co-located Tier-2 NPCs by
+chance, so "never Peig" holds because Peig's schedule never puts her in a place
+with either Connolly while the fact is circulating, not because of the path. A
+schedule change that did could route the fact to Peig; step 2 and step 4 would
+then fail.
 
 ### P6-04 Weather behaviour ([#2198](https://github.com/dmooney/Rundale/issues/2198))
 

@@ -47,6 +47,12 @@ just ios-sim-save-lock                                             # save-lock t
   gate, and set its `issue` to `None` in `LIVING_WORLD_PROOFS`
   (`mobile/scripts/verify.py`) so `--phase all` blocks on it. The gate enforces
   this: a pending proof whose cases pass fails every run until you do.
+- **Gossip runs in the per-turn pump, but only while the player is away.** It
+  spreads between co-located Tier-2 NPCs (the player is not in their place),
+  once per pump, and the pump's rolls are seeded from the game hour
+  (`GossipMode::AllSeeded`). A test that waits in the same place sees the same
+  spread every run, but any change to when the pump runs or how many rolls it
+  draws can move it; the P6-02 case relies on the first roll not spreading.
 - **A new `#[ignore]` test fails CI.** Full CI's `rust-mobile-build` job
   (`.github/workflows/full-ci.yml`) fails when this crate or `limerick-core`'s
   mobile configuration ignores a test its "only the expected mobile tests are
