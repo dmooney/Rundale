@@ -57,11 +57,13 @@ and `graphify-out/` trees anywhere:
 
 A Rust file on these paths is still exempt when the change is confined to
 test-only code, decided by `limerick/scripts/rust-test-only.py`: every changed
-line (old and new side, blank lines aside) lies inside a `#[cfg(test)] mod`
+line (old and new side, blank lines outside string literals) lies inside a
+`#[cfg(test)] mod`
 block or `mod name;` declaration, or the whole file is cfg(test)-gated (it opens
 with `#![cfg(test)]`, or its parent `mod.rs`, `lib.rs`, `main.rs` or `<dir>.rs`
 declares it under `#[cfg(test)]`, transitively). Only the exact attribute
-`#[cfg(test)]` counts. Anything the helper cannot prove, including a hunk in
+`#[cfg(test)]` counts. A `#[path` attribute in any candidate parent file
+disables the whole-file rule. Anything the helper cannot prove, including a hunk in
 runtime code, a mixed change, or a missing `python3`, keeps the file
 runtime-shipping; so does adding or removing the `#[cfg(test)]` gate itself on code that stays.
 
