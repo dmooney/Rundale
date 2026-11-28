@@ -203,14 +203,17 @@ jobs:
           if [ -n "${SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "$SIGNING_KEYCHAIN" || true; fi
 
       - name: Report the failed upload in an issue
-        # A job timeout cancels the job, which failure() does not match.
-        if: (failure() || cancelled()) && steps.changed.outputs.upload == 'true'
+        # Any failed step opens the issue, including the decide step: it sets
+        # `upload`, so a condition on that output would skip this step exactly
+        # when deciding failed (#2474). A job timeout cancels the job, which
+        # failure() does not match.
+        if: failure() || cancelled()
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title="TestFlight upload or delivery failed"
-          body="The TestFlight upload or the wait for Testing in Internal Beta failed on ${GITHUB_SHA}. The job may have failed before the upload (signing, archive) or been cancelled by its timeout; the run's log names the failing step.
+          body="The TestFlight upload or the wait for Testing in Internal Beta failed on ${GITHUB_SHA}. The job may have failed before the upload (deciding whether to upload, signing, archive) or been cancelled by its timeout; the run's log names the failing step.
 
           Run: ${RUN_URL}
 
