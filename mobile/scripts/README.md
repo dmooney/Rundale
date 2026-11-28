@@ -46,11 +46,13 @@ just mobile-verify --fast
 "Phase N" is product spec Milestone N. The spec's §17 table maps Milestones 4–7 to the
 named GitHub milestones (Stability, Existing features usable, Full village, Release).
 
-- `just mobile-verify --phase 1`, `--phase 2`, `--phase 3`, or `--phase 4` runs
-  that implemented gate.
-- `just mobile-verify` and `just mobile-verify --phase all` run Phases 1–4 and
-  report Phases 5–7 as non-blocking future work.
-- `just mobile-verify --phase 5`, `--phase 6`, and `--phase 7` report the selected phase as
+- `just mobile-verify --phase 1`, `--phase 2`, `--phase 3`, `--phase 4`, or
+  `--phase 6` runs that implemented gate. Phases 4 and 6 run the earlier
+  regression suites too; Phase 6 runs the living-world proofs after them and
+  lists Phase 5 as non-blocking future work.
+- `just mobile-verify` and `just mobile-verify --phase all` run Phases 1–4 and 6
+  and report Phases 5 and 7 as non-blocking future work.
+- `just mobile-verify --phase 5` and `--phase 7` report the selected phase as
   unavailable and exit nonzero until it is implemented.
 - `--journeys auto|on|off|only` chooses whether the XCUITest journeys (the
   `RundaleUITests` bundle) run. `off` keeps every other suite (packages, the
@@ -98,6 +100,20 @@ desktop crates or desktop features (`limerick-core`/`limerick-inference`
 `desktop`, `limerick-diagnostics` `github`), the device and simulator `LimerickMobileFFI.xcframework`, the
 `RundaleBridge` and `LimerickEndpointKit` packages, and the Phase 2 and scene UI
 suites with the engine lifecycle tests. Phase 3 adds the Phase 3 UI suite.
+
+Phase 6 (Living world) adds one gate per living-world proof, from the
+[Phase 6 test plan](../../docs/test-plans/phase-6-test-cases.md): memory, the
+gossip fact's start and its spread, the task, weather behaviour and scheduled
+movement. Each is a `cargo test -p limerick-mobile-ffi --features
+living-world-pending` run of the cases in
+`limerick/crates/limerick-mobile-ffi/src/tests/living_world.rs`, which drive the
+shipped world through the C boundary with inference scripted at the Endpoint
+(`LIVING_WORLD_PROOFS` in `verify.py` lists them). A proof whose issue is open
+(#2197 gossip spread, #2198 weather, #2308 task) fails until it lands. An
+explicit `--phase 6` blocks on it; `--phase all` and `--smoke` report it as a
+failed, non-blocking suite (details name the proof issue), so the recorded pass
+and the nightly gate stay usable. A proof's PR makes its cases pass and sets its
+`issue` to `None`, which makes the gate block everywhere.
 
 The other Rust crates' tests are not part of this gate: they build for the host,
 not iOS, so CI runs them on Linux (`full-ci.yml`). There, `rust-mobile-build`

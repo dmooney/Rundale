@@ -9,6 +9,7 @@ repository review, with source provenance retained in each plan.
 | 1     | [Phase 1 test cases](phase-1-test-cases.md) | Fixture-only transcript/composer interaction, streaming, keyboard, accessibility, and UI scope  |
 | 2     | [Phase 2 test cases](phase-2-test-cases.md) | Embedded Rust, one location/one NPC, inference, cancellation/retry, and local recovery          |
 | 4     | [Phase 4 test cases](phase-4-test-cases.md) | Lifecycle, connectivity, retry, save safety, long history, accessibility, and physical sessions |
+| 6     | [Phase 6 test cases](phase-6-test-cases.md) | Living world: memory, gossip, task, weather behaviour, and scheduled movement proofs            |
 
 "Phase N" here, in the plan file names, and in `just mobile-verify --phase N` means
 product spec Milestone N. It is not the same as the "Mobile Phase N" GitHub

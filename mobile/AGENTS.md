@@ -12,7 +12,7 @@ shared-engine work.
 ```sh
 bash mobile/scripts/build-rust-mobile.sh   # rebuild the Rust xcframework after engine changes
 xcodegen generate --spec mobile/project.yml
-just mobile-verify --phase N               # iPhone gate for product spec Milestone N (macOS + Xcode)
+just mobile-verify --phase N               # iPhone gate for product spec Milestone N: 1-4 and 6 (macOS + Xcode)
 just mobile-build                          # unsigned Release build
 just testflight-update                      # verify, sign, upload an internal beta
 swift test --package-path mobile/RundaleKit

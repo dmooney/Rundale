@@ -39,6 +39,12 @@ just ios-sim-save-lock                                             # save-lock t
   call, attempt, or revision): the engine still waits on the same call.
   Clearing it made `pending_endpoint` answer `null` while the engine waited,
   and dropped the real answer from the bug report's exchange log (#2022).
+- **Living-world cases for an unlanded proof fail on purpose.** They sit in
+  `pending` modules behind the `living-world-pending` feature
+  (`src/tests/living_world.rs`), which only `just mobile-verify --phase 6`
+  builds, so `cargo test` and CI stay green. When a proof lands, make its cases
+  pass, drop the module's feature gate, and set its `issue` to `None` in
+  `LIVING_WORLD_PROOFS` (`mobile/scripts/verify.py`) so `--phase all` blocks on it.
 - **A new `#[ignore]` test fails CI.** Full CI's `rust-mobile-build` job
   (`.github/workflows/full-ci.yml`) fails when this crate or `limerick-core`'s
   mobile configuration ignores a test its "only the expected mobile tests are
