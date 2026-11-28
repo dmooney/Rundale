@@ -180,6 +180,20 @@ ATTESTATION_IGNORED_PATHSPECS = (
     "mobile/scripts/testflight_delivery.py",
     "mobile/scripts/__init__.py",
 )
+# Crates whose `cargo test` the full gate runs on the Mac (_phase2): their
+# tests/, benches/ and examples/ stay in the recorded pass's input tree.
+GATE_TESTED_CRATES = (LIVING_WORLD_PACKAGE, "limerick-persistence")
+# Cargo targets that only `cargo test`, `cargo bench` and `cargo run --example`
+# compile. build-rust-mobile.sh builds the limerick-mobile-ffi library alone, so
+# none is linked into the app (#2469), and CI's Linux Rust gates run them. Test
+# code inside `src/` (`#[cfg(test)]` modules, limerick-mobile-ffi's src/tests*)
+# stays in: a pathspec cannot tell it from runtime code, and an unsure file
+# counts as an app input.
+ATTESTATION_TEST_TARGET_PATHSPECS = (
+    ":(glob)limerick/crates/*/tests/**",
+    ":(glob)limerick/crates/*/benches/**",
+    ":(glob)limerick/crates/*/examples/**",
+)
 # Everything a full run builds or reads. A recorded pass covers only these, so
 # a merge that changes CI, Endpoints or desktop code leaves it valid. CI's
 # `mobile_app` path filter and the TestFlight triggers list the same paths.
@@ -206,6 +220,11 @@ def attestation_removals() -> list[list[str]]:
     return [
         [*base, ".", *(f":(exclude){spec}" for spec in ATTESTATION_PATHSPECS)],
         [*base, *ATTESTATION_IGNORED_PATHSPECS],
+        [
+            *base,
+            *ATTESTATION_TEST_TARGET_PATHSPECS,
+            *(f":(exclude)limerick/crates/{crate}" for crate in GATE_TESTED_CRATES),
+        ],
     ]
 
 
@@ -3271,7 +3290,7 @@ class VerificationRun:
         self._cargo_test(
             identifier="limerick-persistence-tests",
             name="Limerick save format, journal, and kernel save-lock tests",
-            package="limerick-persistence",
+            package=GATE_TESTED_CRATES[1],
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:

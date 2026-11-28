@@ -85,6 +85,13 @@ upload would have. `testflight_delivery.py decide` makes that call; a delivery i
 lightweight tag `testflight/<build>` on the uploaded commit, pushed by `testflight_delivery.py
 record` only after the build reaches Testing (a failed wait records nothing, so the next
 push uploads again). With no tag yet, the next push uploads once and records the first.
+The input tree leaves out the `tests/`, `benches/` and `examples/` directories of crates
+whose tests the Mac gate does not run (`ATTESTATION_TEST_TARGET_PATHSPECS` in `verify.py`),
+which the phone library never links. A merge that changes only those still starts this
+workflow (its path filter is coarse) but uploads nothing. `#[cfg(test)]` code inside a
+crate's `src/` and the `limerick-persistence` and `limerick-mobile-ffi` tests count as app inputs. Both
+sides of the comparison use the current definition (the last tag's tree is recomputed from its commit), so
+a change to the definition causes no extra upload.
 Run workflow always uploads. A `just testflight-update` from a Mac writes no tag, so the next push that changes the app uploads an equivalent build once. To seed a baseline without an upload, tag the commit of a
 build you know is in Testing: `git tag testflight/<build> <sha> && git push origin testflight/<build>`.
 
