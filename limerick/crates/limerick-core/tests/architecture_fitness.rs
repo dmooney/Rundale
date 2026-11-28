@@ -264,7 +264,9 @@ const SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK: &[(&str, &str)] = &[
 /// `clock.game_time` on a slow runner and a "nothing changed" assertion
 /// fails at random. Test code that captures snapshots must pause the clock
 /// (`clock.pause()`) or detach it (`detach_from_wall_clock()`, which still
-/// lets a turn's own `advance` show up), or sit in the allowlist above.
+/// lets a turn's own `advance` show up), or sit in the allowlist above. The
+/// check is per file, a coarse textual sensor: it cannot tell which test in a
+/// file freezes its world, so review a new capturing test on its own.
 #[test]
 fn snapshot_comparing_tests_freeze_the_game_clock() {
     let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
