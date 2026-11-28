@@ -18,12 +18,12 @@ pass" job looks for (issue #2098). For every open Dependabot pull request it:
    runs at a time: verify.py holds a lock shared by every worktree on the Mac;
 4. regenerates the third-party notices (`just notices`) when a bump changed a
    lockfile and `just notices-check` fails, and pushes that one commit;
-   waits for the required checks. On a red PR it makes one bounded fix
+5. waits for the required checks. On a red PR it makes one bounded fix
    attempt (`claude -p`), and leaves the PR open if that fails. A red PR is
    never handed on for merge;
-5. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
+6. dry-runs `release.yml` on the PR branch when an Actions bump changes it,
    since that workflow never runs on pull requests;
-6. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
+7. runs a fresh gatekeeper on a green PR, which merges it, sends it back, or
    hands it to the owner. The gatekeeper is a headless Claude run in a fresh
    context (AGENTS.md, Gatekeeper review), whether the commits are
    Dependabot's or this routine's own fix.
@@ -34,7 +34,7 @@ audit failing on `main`, which Dependabot never sees. For each one it makes one
 bounded `claude -p` fix in a fresh checkout from `main` (flagged lockfiles
 bumped, `overrides` where a parent pins a vulnerable version), proves the scan
 passes locally, opens a PR labelled `security-upkeep`, and runs it through the
-same steps 3 to 6. A change that proposes an ignore or touches anything but
+same steps 3 to 7. A change that proposes an ignore or touches anything but
 lockfiles and manifests is opened with `needs-owner` and never reaches the
 gatekeeper. A fix that cannot be made labels the issue `needs-owner`, comments,
 and is reported in the summary below, which notifies the owner.
@@ -1087,7 +1087,8 @@ class Upkeep:
     def security_scope_problem(self, paths: Sequence[str]) -> str | None:
         """Why these changed files may not go to the gatekeeper, or None when they may."""
 
-        decision = sec.classify_change(paths)
+        # The notices are generated from the lockfiles (refresh_notices), not new behaviour.
+        decision = sec.classify_change([p for p in paths if p not in NOTICE_OUTPUTS])
         return None if decision.action == "merge" else decision.reason
 
     def hand_security_pr_to_owner(self, pr: PullRequest, outcome: Outcome, reason: str) -> Outcome:

@@ -853,6 +853,14 @@ class NoticesRefreshTests(UpkeepCase):
         self.assertEqual(self.world.ran("just"), [])
         self.assertEqual(self.world.ran("git", "push"), [])
 
+    def test_regenerated_notices_do_not_make_a_security_fix_owner_only(self) -> None:
+        routine = self.make()
+        self.assertIsNone(routine.security_scope_problem([*LOCKS[:1], *upkeep.NOTICE_OUTPUTS]))
+        self.assertIsNotNone(routine.security_scope_problem(list(upkeep.NOTICE_OUTPUTS)))
+        self.assertIsNotNone(
+            routine.security_scope_problem([LOCKS[0], "limerick/crates/x/src/lib.rs"])
+        )
+
     def test_pure_helpers(self) -> None:
         self.assertTrue(upkeep.lockfile_changed(["a", "limerick/Cargo.lock"]))
         self.assertFalse(upkeep.lockfile_changed(["limerick/Cargo.toml", "Cargo.lock"]))
