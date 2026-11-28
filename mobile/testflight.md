@@ -78,8 +78,15 @@ head's input tree, which the squash merge matches unless `main` moved under it.
 The `upload` job runs `release.py testflight --verify none` and goes straight to
 the Rust build, archive, distribution export check and upload, about 15 minutes,
 then waits for Testing (see above).
-A push that leaves every app input unchanged (its input tree equals `main`'s
-before the push, `verify_record.py tree`) uploads nothing.
+A push uploads only when `main`'s app input tree (`verify_record.py tree`) differs
+from the tree of the last build delivered, so a push that changes no app input uploads
+nothing, and one that lands while an upload is pending still ships the app change that
+upload would have. `testflight_delivery.py decide` makes that call; a delivery is a
+lightweight tag `testflight/<build>` on the uploaded commit, pushed by `testflight_delivery.py
+record` only after the build reaches Testing (a failed wait records nothing, so the next
+push uploads again). With no tag yet, the next push uploads once and records the first.
+Run workflow always uploads. To seed a baseline without an upload, tag the commit of a
+build you know is in Testing: `git tag testflight/<build> <sha> && git push origin testflight/<build>`.
 
 The workflow's nightly `gate` job (07:41 UTC) uploads nothing and runs outside
 the `testflight` environment and the upload's concurrency group. It checks what

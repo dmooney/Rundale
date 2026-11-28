@@ -175,6 +175,8 @@ ATTESTATION_IGNORED_PATHSPECS = (
     "mobile/scripts/verify.py",
     "mobile/scripts/verify_record.py",
     "mobile/scripts/record-ui-test.py",
+    # Decides the TestFlight upload; ships nothing in the app.
+    "mobile/scripts/testflight_delivery.py",
     "mobile/scripts/__init__.py",
 )
 # Everything a full run builds or reads. A recorded pass covers only these, so

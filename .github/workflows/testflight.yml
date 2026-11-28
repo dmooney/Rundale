@@ -1,8 +1,10 @@
 name: TestFlight
 
-# Uploads an internal TestFlight build on every merge to main that changes what
-# the iPhone app ships, so the owner can try it without a Mac session, and on
-# Run workflow. CI's required gate passed the PR first: a full `mobile-verify`
+# Uploads an internal TestFlight build when a push to main leaves the app inputs
+# different from the last build delivered (a `testflight/<build>` tag on the
+# uploaded commit, #2433), so a newer push that replaces a pending run cannot
+# leave the replaced app change unshipped; and on Run workflow. The owner can
+# then try it without a Mac session. CI's required gate passed the PR first: a full `mobile-verify`
 # pass recorded from the author's Mac (verify_record.py), or the hosted smoke
 # gate (`verify.py --smoke`). CI tested the PR head's input tree, which the
 # squash merge matches unless main moved under it; the upload runs
@@ -61,7 +63,8 @@ jobs:
       group: testflight
       cancel-in-progress: false
     permissions:
-      contents: read
+      # Pushes the testflight/<build> tag that records a delivery.
+      contents: write
       # A failed upload or delivery opens or updates an issue.
       issues: write
     steps:
@@ -71,27 +74,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A push that leaves every app input as it was builds the same app. It is
-      # compared with main before the push, so a push of several commits that
-      # changed the app before its last commit still uploads.
-      - name: Check that the push changed the app
+      # Compares main's app input tree with the tree of the last build
+      # delivered to TestFlight (the `testflight/<build>` tag the upload
+      # records below), not with this push's `before`: a newer pending run
+      # replaces an older one in the concurrency group, and a replacing push
+      # that changed no app input must still ship the app change it replaced.
+      # Run workflow always uploads; with no delivery recorded yet, a push
+      # uploads once and records the first (mobile/scripts/testflight_delivery.py).
+      - name: Check that main has an app change not yet delivered
         id: changed
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          base="$GITHUB_SHA^"
-          if [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
-            git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            base="$BEFORE"
-          fi
-          if [ "$GITHUB_EVENT_NAME" = push ] &&
-            [ "$(python3 mobile/scripts/verify_record.py tree "$GITHUB_SHA")" = \
-              "$(python3 mobile/scripts/verify_record.py tree "$base")" ]; then
-            echo "No app input changed in this push; nothing new to upload."
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "upload=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python3 mobile/scripts/testflight_delivery.py decide --event "$GITHUB_EVENT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Select Xcode 26.6
         if: steps.changed.outputs.upload == 'true'
@@ -178,6 +170,12 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: python3 mobile/scripts/release.py testflight --verify none
+
+      # Only a build that reached Testing is recorded as delivered (the
+      # receipt says so), so a failed wait leaves the next push to upload again.
+      - name: Record the delivery
+        if: steps.changed.outputs.upload == 'true'
+        run: python3 mobile/scripts/testflight_delivery.py record --receipt mobile/.build/release/receipt.json
 
       # Saved even when signing or the upload fails after the Rust build.
       - name: Save the Rust mobile build
