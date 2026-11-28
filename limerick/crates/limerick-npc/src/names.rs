@@ -132,7 +132,7 @@ pub const MAX_PLAYER_FACT_CHARS: usize = 160;
 
 /// Openings that make a clause a first-person statement of fact about the
 /// player. Deliberately a short allowlist of plain statements: questions,
-/// requests, plans ("I'll", "I'd") and hedges ("I think") say nothing the
+/// questions, commands to the NPC, plans ("I'll", "I'd") and hedges ("I think") say nothing the
 /// NPC can hold as true of the player.
 const FACT_OPENINGS: &[&str] = &[
     "i am ",
