@@ -2918,7 +2918,8 @@ async fn saves_of_every_prior_format_open_and_journal_turns() {
         ("turn_journal_v2_save.db", 2, 0),
         ("format_3_save.db", 3, 0),
         ("format_4_save.db", 4, 0),
-        ("future_format_unknown_event_save.db", 6, 1),
+        ("format_5_save.db", 5, 0),
+        ("future_format_unknown_event_save.db", 7, 1),
     ] {
         let live = Live::rundale();
         let content = live.world.lock().await.content.clone();

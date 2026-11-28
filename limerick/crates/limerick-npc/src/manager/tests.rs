@@ -1091,6 +1091,33 @@ fn a_new_introduction_replaces_only_that_npcs_name() {
 }
 
 #[test]
+fn each_npc_keeps_only_the_facts_it_was_told() {
+    let mut mgr = NpcManager::new();
+    mgr.teach_player_fact(NpcId(1), "I am looking for work.");
+    mgr.teach_player_fact(NpcId(1), "I am looking for work.");
+    mgr.teach_player_fact(NpcId(1), "  ");
+    assert_eq!(
+        mgr.player_facts_known_by(NpcId(1)),
+        ["I am looking for work."]
+    );
+    assert!(mgr.player_facts_known_by(NpcId(2)).is_empty());
+}
+
+#[test]
+fn the_oldest_fact_is_forgotten_past_the_bound() {
+    let mut mgr = NpcManager::new();
+    for n in 1..=5 {
+        mgr.teach_player_fact(NpcId(1), format!("I have {n} cows."));
+    }
+    assert_eq!(
+        mgr.player_facts_known_by(NpcId(1)),
+        ["I have 3 cows.", "I have 4 cows.", "I have 5 cows."]
+    );
+    mgr.remove_npc(NpcId(1));
+    assert!(mgr.player_facts_known_by(NpcId(1)).is_empty());
+}
+
+#[test]
 fn a_blank_name_teaches_nothing() {
     let mut mgr = NpcManager::new();
     mgr.teach_player_name(NpcId(1), "  ");

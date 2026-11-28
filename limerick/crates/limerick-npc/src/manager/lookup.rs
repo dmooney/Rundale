@@ -48,6 +48,7 @@ impl NpcManager {
         self.tier_assignments.remove(&id);
         self.introduced_npcs.remove(&id);
         self.player_names_by_npc.remove(&id);
+        self.player_facts_by_npc.remove(&id);
         for npc in self.npcs.values_mut() {
             npc.relationships.remove(&id);
         }

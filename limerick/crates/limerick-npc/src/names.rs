@@ -127,6 +127,104 @@ pub fn detect_player_introduction(input: &str) -> Option<PlayerIntroduction> {
     })
 }
 
+/// Most characters kept of one fact the player stated.
+pub const MAX_PLAYER_FACT_CHARS: usize = 160;
+
+/// Openings that make a clause a first-person statement of fact about the
+/// player. Deliberately a short allowlist of plain statements: questions,
+/// requests, plans ("I'll", "I'd") and hedges ("I think") say nothing the
+/// NPC can hold as true of the player.
+const FACT_OPENINGS: &[&str] = &[
+    "i am ",
+    "i'm ",
+    "i have ",
+    "i've ",
+    "i came ",
+    "i come ",
+    "i was ",
+    "i walked ",
+    "i travelled ",
+    "i traveled ",
+    "i work ",
+    "i worked ",
+    "i live ",
+    "i lived ",
+    "i need ",
+    "i want ",
+    "i lost ",
+    "i left ",
+    "i sell ",
+    "i buy ",
+    "i keep ",
+    "i own ",
+];
+
+/// Splits a sentence into clauses at ", and I …" so "My name is Seán and I
+/// am looking for work" yields the name clause and the statement.
+fn split_first_person_clauses(sentence: &str) -> Vec<&str> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+
+    static JOINER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i),?\s+and\s+").unwrap());
+
+    let mut clauses = Vec::new();
+    let mut start = 0;
+    for joiner in JOINER.find_iter(sentence) {
+        let rest = &sentence[joiner.end()..];
+        let mut next = rest.chars();
+        let first_person = next.next() == Some('I')
+            && next
+                .next()
+                .is_none_or(|c| c.is_whitespace() || c == '\'' || c == '’');
+        if first_person {
+            clauses.push(&sentence[start..joiner.start()]);
+            start = joiner.end();
+        }
+    }
+    clauses.push(&sentence[start..]);
+    clauses
+}
+
+/// The plain first-person statements about themselves in the player's line,
+/// in the player's own words ("I am looking for work droving yearlings.").
+///
+/// Derived only from what the player typed, never from a reply, so the NPC
+/// holds what it was actually told. A clause that gives the player's name is
+/// left to [`detect_player_introduction`]; a question is not a statement.
+/// Each fact is trimmed to [`MAX_PLAYER_FACT_CHARS`] characters and ends in a
+/// full stop.
+pub fn detect_player_facts(input: &str) -> Vec<String> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+
+    static SENTENCE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^.!?;]+[.!?;]?").unwrap());
+
+    let mut facts = Vec::new();
+    for sentence in SENTENCE_RE.find_iter(input).map(|m| m.as_str().trim()) {
+        if sentence.ends_with('?') {
+            continue;
+        }
+        let sentence = sentence.trim_end_matches(['.', '!', ';']);
+        for clause in split_first_person_clauses(sentence) {
+            let clause = clause.trim();
+            let lowered = clause.to_lowercase().replace('’', "'");
+            if !FACT_OPENINGS.iter().any(|open| lowered.starts_with(open)) {
+                continue;
+            }
+            if clause.split_whitespace().count() < 3 || detect_player_introduction(clause).is_some()
+            {
+                continue;
+            }
+            let clipped: String = clause.chars().take(MAX_PLAYER_FACT_CHARS).collect();
+            let fact = format!("{}.", clipped.trim_end());
+            if !facts.contains(&fact) {
+                facts.push(fact);
+            }
+        }
+    }
+    facts
+}
+
 /// Whether the last words of `before` negate what follows ("don't",
 /// "never").
 fn negated_before(before: &str) -> bool {

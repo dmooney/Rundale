@@ -228,6 +228,51 @@ fn test_build_named_action_line_emote_with_name() {
 }
 
 #[test]
+fn player_facts_are_the_plain_statements_the_player_made() {
+    assert_eq!(
+        detect_player_facts("My name is Seán and I am looking for work droving yearlings."),
+        ["I am looking for work droving yearlings."]
+    );
+    assert_eq!(
+        detect_player_facts("I walked from Athlone. I’m near dead and I have two shillings!"),
+        [
+            "I walked from Athlone.",
+            "I’m near dead.",
+            "I have two shillings."
+        ]
+    );
+}
+
+#[test]
+fn player_facts_skip_names_questions_requests_and_plans() {
+    for line in [
+        "I'm Seán.",
+        "My name is Seán.",
+        "Do you remember my name?",
+        "Am I late? I have no watch?",
+        "I'll come back later.",
+        "I think it will rain.",
+        "Tell me the news.",
+        "Good morning to you.",
+        "Peig is looking for work.",
+    ] {
+        assert!(detect_player_facts(line).is_empty(), "{line}");
+    }
+}
+
+#[test]
+fn a_long_player_fact_is_clipped_and_a_repeat_is_kept_once() {
+    let long = format!("I am {}", "very ".repeat(60));
+    let facts = detect_player_facts(&long);
+    assert_eq!(facts.len(), 1);
+    assert!(facts[0].chars().count() <= MAX_PLAYER_FACT_CHARS + 1);
+    assert_eq!(
+        detect_player_facts("I am hungry. I am hungry."),
+        ["I am hungry."]
+    );
+}
+
+#[test]
 fn test_detect_player_name_my_name_is() {
     assert_eq!(
         detect_player_name("My name is Ciaran"),

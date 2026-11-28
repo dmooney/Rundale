@@ -13,7 +13,9 @@ use crate::npc::manager::NpcManager;
 use crate::npc::{LanguageSettings, NpcId};
 use crate::world::{LocationId, WorldState};
 
-/// Detects if the player is introducing themselves and records the name.
+/// Detects if the player is introducing themselves and records the name,
+/// and records the plain statements about themselves in the line
+/// ([`crate::npc::detect_player_facts`]) as what the speaker was told.
 ///
 /// If detected, teaches the speaking NPC the name it was given and sets
 /// `world.player_name`, the player's global name for NPC-independent
@@ -32,6 +34,11 @@ pub fn detect_and_record_player_name(
     player_input: &str,
     speaker_id: NpcId,
 ) {
+    // What the player said about themselves is held beside the name, so the
+    // speaker still knows it at the next meeting (issue 2196).
+    for fact in crate::npc::detect_player_facts(player_input) {
+        npc_manager.teach_player_fact(speaker_id, fact);
+    }
     let Some(intro) = crate::npc::detect_player_introduction(player_input) else {
         return;
     };

@@ -14,6 +14,7 @@
 //! | 3 | #2038 | stamps `user_version`; snapshots record their content identity |
 //! | 4 | #2221 | snapshots record the conversation partner |
 //! | 5 | #2429 | snapshots record the name the player gave each NPC |
+//! | 6 | #2196 | snapshots record what the player told each NPC about themselves |
 //!
 //! Unmarked saves are detected as version 1 or 2 by their tables. Opening an
 //! older save migrates it forward and stamps the current version. A save
@@ -42,7 +43,7 @@ use crate::IntoLimerickDbError as _;
 use limerick_types::{ContentIdentity, LimerickError};
 
 /// The save format this build writes.
-pub const SAVE_FORMAT_VERSION: u32 = 5;
+pub const SAVE_FORMAT_VERSION: u32 = 6;
 
 /// The first format that stamps `user_version` (#2038).
 const FIRST_STAMPED_FORMAT: u32 = 3;

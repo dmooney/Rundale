@@ -392,6 +392,9 @@ fn sample_snapshot() -> GameSnapshot {
     snapshot
         .player_names_by_npc
         .insert(npc.id, "Ciarán".to_string());
+    snapshot
+        .player_facts_by_npc
+        .insert(npc.id, vec!["I am looking for work.".to_string()]);
     snapshot.visited_order = vec![crate::world::LocationId(1)];
     snapshot.edge_traversals.insert(
         (crate::world::LocationId(1), crate::world::LocationId(2)),

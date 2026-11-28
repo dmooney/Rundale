@@ -40,6 +40,7 @@ impl GameSnapshot {
             player_progress: world.player_progress.clone(),
             npcs_who_know_player_name: npc_manager.player_names_known().into_keys().collect(),
             player_names_by_npc: npc_manager.player_names_known(),
+            player_facts_by_npc: npc_manager.player_facts_known(),
             conversation_partner: npc_manager.partner(),
             active_session: world.active_session.clone(),
             content: world.content.clone(),
@@ -237,6 +238,7 @@ impl GameSnapshot {
                 self.player_name.as_deref(),
             ),
         );
+        npc_manager.restore_player_facts_known(self.player_facts_by_npc);
         // The partnership is current conversation state, saved like
         // presence (design §3.2); it ends if the partner is not with the
         // player in the restored world.

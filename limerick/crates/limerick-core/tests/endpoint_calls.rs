@@ -808,10 +808,11 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     let micheal = live.id_of("Mícheál Connolly").await;
     let roisin = live.id_of("Róisín Connolly").await;
     live.world.lock().await.player_name = Some("Cormac".to_string());
-    live.npc_manager
-        .lock()
-        .await
-        .teach_player_name(roisin, "Cormac");
+    {
+        let mut npcs = live.npc_manager.lock().await;
+        npcs.teach_player_name(roisin, "Cormac");
+        npcs.teach_player_fact(roisin, "I am looking for work droving yearlings.");
+    }
     let world = live.world.lock().await;
     let npcs = live.npc_manager.lock().await;
     let snapshot = |speaker| {
@@ -836,7 +837,8 @@ async fn a_speakers_snapshot_holds_only_what_the_speaker_could_know() {
     );
     assert_eq!(
         for_roisin["thisMoment"]["theStranger"],
-        "Someone you have met before. What you know of them: They told you their name is Cormac."
+        "Someone you have met before. What you know of them: They told you their name is Cormac. \
+         They told you: \"I am looking for work droving yearlings.\""
     );
     let for_micheal = snapshot(micheal);
     assert_eq!(
