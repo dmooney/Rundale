@@ -58,11 +58,14 @@ pub(crate) fn committed(record: &mut RequestRecord, tasks: Vec<PlayerTask>) -> T
 }
 
 /// An authoritative state to commit.
+///
+/// Every call returns an equal snapshot: the clock is detached from the wall
+/// clock, so tests that compare a stored snapshot with a fresh `state()` do
+/// not depend on how long they took (#2466).
 pub(crate) fn state() -> GameSnapshot {
-    GameSnapshot::capture(
-        &crate::world::WorldState::new(),
-        &crate::npc::manager::NpcManager::new(),
-    )
+    let mut world = crate::world::WorldState::new();
+    world.clock.detach_from_wall_clock();
+    GameSnapshot::capture(&world, &crate::npc::manager::NpcManager::new())
 }
 
 /// One freshly assigned player task.

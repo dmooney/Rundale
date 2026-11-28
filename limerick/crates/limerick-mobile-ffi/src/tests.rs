@@ -1729,7 +1729,7 @@ fn the_phone_slash_commands_answer_locally_as_turns() {
     for advertised in names {
         assert!(help.contains(advertised), "{help}");
     }
-    for hidden in ["/wait", "/pause", "/resume", "/debug", "/flags"] {
+    for hidden in ["/wait", "/pause", "/resume", "/debug", "/flags", "/weather"] {
         assert!(!help.contains(hidden), "{hidden} is not advertised: {help}");
     }
 
@@ -1794,7 +1794,7 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
         words(completions),
         [
             "/look", "/people", "/exits", "/help", "/new", "/wait", "/pause", "/resume", "/debug",
-            "/flags"
+            "/flags", "/weather"
         ]
     );
     let debug = completions
@@ -1806,6 +1806,24 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
     assert_eq!(
         words(&debug["next"])[..4],
         ["memory", "schedule", "relationships", "gossip"]
+    );
+    let weather = completions
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|word| word["word"] == "/weather")
+        .unwrap();
+    assert_eq!(
+        words(&weather["next"]),
+        [
+            "clear",
+            "partly",
+            "overcast",
+            "lightrain",
+            "heavyrain",
+            "fog",
+            "storm"
+        ]
     );
     assert_eq!(debug["next"][0]["takesNpc"], true);
     assert_eq!(debug["next"][4]["word"], "clock");

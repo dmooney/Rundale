@@ -288,6 +288,17 @@ check "pr: a declaration inside an inline module is not resolved" "$(run_gate --
 git reset -q --hard base
 mkdir -p "$(dirname "$gated_file")"
 printf '#[cfg(test)]\npub(crate) mod contract;\n' >"$rt_mod"
+printf '#[path = "contract.rs"]\nmod alias;\n' >"$(dirname "$gated_file")/main.rs"
+printf 'pub fn a() {}\n' >"$gated_file"
+git add -A
+git commit -qm "test: fixture with a #[path] alias in a sibling parent"
+printf 'pub fn b() {}\n' >>"$gated_file"
+git add -A
+git commit -qm "test: edit"
+check "pr: a #[path] module in another parent file needs a link" "$(run_gate --source=pr 42)" "fail"
+git reset -q --hard base
+mkdir -p "$(dirname "$gated_file")"
+printf '#[cfg(test)]\npub(crate) mod contract;\n' >"$rt_mod"
 printf 'pub fn a() {}\n' >"$gated_file"
 git add -A
 git commit -qm "test: fixture"

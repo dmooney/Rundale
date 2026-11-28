@@ -109,7 +109,7 @@ living-world-pending` run of the cases in
 `limerick/crates/limerick-mobile-ffi/src/tests/living_world.rs`, which drive the
 shipped world through the C boundary with inference scripted at the Endpoint
 (`LIVING_WORLD_PROOFS` in `verify.py` lists them). A proof whose issue is open
-(#2198 weather, #2308 task) fails until it lands. An
+(#2308 task) fails until it lands. An
 explicit `--phase 6` blocks on it; `--phase all` and `--smoke` report it as a
 failed, non-blocking suite (details name the proof issue), so the recorded pass
 and the nightly gate stay usable. A proof's PR makes its cases pass and sets its

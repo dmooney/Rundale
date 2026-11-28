@@ -313,7 +313,6 @@ mod movement {
     }
 }
 
-#[cfg(feature = "living-world-pending")]
 mod weather {
     use super::*;
 
@@ -340,8 +339,20 @@ mod weather {
                 );
                 game.relaunch();
                 assert_eq!(people_here(&game).is_empty(), !in_village, "run {run}");
+                // The save kept the weather the rule read, not just Peig's place.
+                let kept = if in_village { "clear" } else { "heavy rain" };
+                assert!(
+                    command(&game, "/weather")
+                        .to_lowercase()
+                        .contains(&format!("the weather is {kept}")),
+                    "run {run}, {weather}"
+                );
 
-                if !in_village {
+                if in_village {
+                    assert_eq!(people_here(&game), [PEIG_LOOKS], "run {run}, clear");
+                    let input = hear(&game, PEIG, "Fine day.", "It is that.");
+                    assert_eq!(input["thisMoment"]["where"], "Kilteevan Village");
+                } else {
                     go(&game, "Letter Office");
                     assert_eq!(people_here(&game), [PEIG_LOOKS], "run {run}, {weather}");
                     let input = hear(&game, PEIG, "Terrible weather.", "It is that.");

@@ -244,6 +244,105 @@ fn gameplay_test_corpus_separates_regressions_from_proofs() {
     );
 }
 
+/// Test files whose `GameSnapshot::capture` calls may leave the game clock
+/// running, each with the reason. Add a row only when the test never
+/// compares two captures (or a capture against later state); a comparing
+/// test freezes the clock instead.
+///
+/// Every row must still be needed: a row whose file no longer captures
+/// without freezing the clock fails the sensor as stale, so an exception
+/// cannot outlive its justification.
+const SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK: &[(&str, &str)] = &[];
+
+/// Allowlist rows in `allow` that `needed` never used.
+fn stale_allowlist_rows<'a>(allow: &'a [(&'a str, &'a str)], needed: &[String]) -> Vec<&'a str> {
+    allow
+        .iter()
+        .map(|(path, _)| *path)
+        .filter(|path| !needed.iter().any(|n| n == path))
+        .collect()
+}
+
+#[test]
+fn stale_allowlist_rows_are_reported() {
+    let allow = [("a.rs", "x"), ("b.rs", "y")];
+    assert_eq!(
+        stale_allowlist_rows(&allow, &["a.rs".to_string()]),
+        vec!["b.rs"]
+    );
+    assert!(stale_allowlist_rows(&allow, &["a.rs".into(), "b.rs".into()]).is_empty());
+}
+
+/// Sensor for #2466. Game time follows the wall clock unless a test stops
+/// it, so two `GameSnapshot::capture`s taken moments apart differ in
+/// `clock.game_time` on a slow runner and a "nothing changed" assertion
+/// fails at random. Test code that captures snapshots must pause the clock
+/// (`clock.pause()`) or detach it (`detach_from_wall_clock()`, which still
+/// lets a turn's own `advance` show up), or sit in the allowlist above. The
+/// check is per file, a coarse textual sensor: it cannot tell which test in a
+/// file freezes its world, so review a new capturing test on its own.
+#[test]
+fn snapshot_comparing_tests_freeze_the_game_clock() {
+    let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    walk_rs_files(&crate_root.join("src"), &mut files);
+    walk_rs_files(&crate_root.join("tests"), &mut files);
+
+    let mut offenders = Vec::new();
+    let mut needed_rows: Vec<String> = Vec::new();
+    for file in files {
+        let rel = file
+            .strip_prefix(&crate_root)
+            .expect("under crate root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == "tests/architecture_fitness.rs" {
+            continue;
+        }
+        let text = fs::read_to_string(&file).expect("read source");
+        let test_code = if rel.starts_with("tests/") {
+            text.as_str()
+        } else if let Some(at) = text.find("#[cfg(test)]") {
+            &text[at..]
+        } else if text.contains("#[test]") || text.contains("tokio::test") {
+            text.as_str()
+        } else {
+            continue;
+        };
+        if !test_code.contains("GameSnapshot::capture") {
+            continue;
+        }
+        let freezes =
+            test_code.contains("detach_from_wall_clock") || test_code.contains("clock.pause()");
+        let allowed = SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK
+            .iter()
+            .any(|(path, _)| *path == rel);
+        if !freezes && allowed {
+            needed_rows.push(rel.clone());
+        }
+        if !freezes && !allowed {
+            offenders.push(rel);
+        }
+    }
+
+    let stale = stale_allowlist_rows(SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK, &needed_rows);
+    assert!(
+        stale.is_empty(),
+        "stale SNAPSHOT_CAPTURE_WITHOUT_FROZEN_CLOCK rows (the file no longer \
+         captures with a running clock); delete them:\n  - {}",
+        stale.join("\n  - ")
+    );
+
+    assert!(
+        offenders.is_empty(),
+        "tests capture GameSnapshot with a running game clock (#2466):\n  - {}\n\n\
+         FIX: call `world.clock.detach_from_wall_clock()` (or `pause()`) on the \
+         test world before capturing, so two captures of unchanged state are \
+         equal. See limerick/crates/limerick-core/AGENTS.md.",
+        offenders.join("\n  - ")
+    );
+}
+
 /// Sensor for the narration-drift class behind #1156.
 ///
 /// Player-facing minute counts must be pluralized through the shared

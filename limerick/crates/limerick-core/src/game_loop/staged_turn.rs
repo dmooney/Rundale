@@ -452,6 +452,11 @@ mod tests {
     #[tokio::test]
     async fn second_insert_failure_leaks_no_state_or_output_and_retry_commits_once() {
         let mut world_state = WorldState::new();
+        // The test compares whole snapshots for "nothing leaked". Stop game
+        // time following the wall clock so a slow runner cannot move it
+        // between captures (#2466); a clock advance made by the turn itself
+        // still shows up, because `advance` works on a detached clock.
+        world_state.clock.detach_from_wall_clock();
         world_state.text_log.push("unchanged sentinel".to_string());
         let player_location = world_state.player_location;
         let mut npc_manager_state = NpcManager::new();

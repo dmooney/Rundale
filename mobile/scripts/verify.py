@@ -119,7 +119,7 @@ LIVING_WORLD_PROOFS: tuple[tuple[str, str, str, int | None], ...] = (
         "living-world-weather",
         "Weather proof: heavy rain keeps Peig at the Letter Office",
         "tests::living_world::weather",
-        2198,
+        None,
     ),
     (
         "living-world-movement",
