@@ -85,7 +85,7 @@ upload would have. `testflight_delivery.py decide` makes that call; a delivery i
 lightweight tag `testflight/<build>` on the uploaded commit, pushed by `testflight_delivery.py
 record` only after the build reaches Testing (a failed wait records nothing, so the next
 push uploads again). With no tag yet, the next push uploads once and records the first.
-Run workflow always uploads. To seed a baseline without an upload, tag the commit of a
+Run workflow always uploads. A `just testflight-update` from a Mac writes no tag, so the next push that changes the app uploads an equivalent build once. To seed a baseline without an upload, tag the commit of a
 build you know is in Testing: `git tag testflight/<build> <sha> && git push origin testflight/<build>`.
 
 The workflow's nightly `gate` job (07:41 UTC) uploads nothing and runs outside
