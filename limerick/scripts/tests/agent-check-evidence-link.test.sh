@@ -179,6 +179,13 @@ add_test_mod() { printf '\n#[cfg(test)]\nmod more {\n    #[test]\n    fn extra()
 add_plain_mod() { printf '\nmod more {\n    pub fn extra() {}\n}\n' >>"$rt"; }
 add_not_test_mod() { printf '\n#[cfg(not(test))]\nmod more {\n    pub fn extra() {}\n}\n' >>"$rt"; }
 delete_test_mod() { printf 'pub fn run() -> u32 {\n    1\n}\n' >"$rt"; }
+remove_gate() { sed -i.bak '/^#\[cfg(test)\]$/d' "$rt" && rm -f "$rt.bak"; }
+add_gate() {
+    printf 'pub fn run() -> u32 {\n    1\n}\n\nmod tests {\n    pub fn t() {}\n}\n' >"$rt"
+    git add -A
+    git commit -qm "test: ungated"
+    sed -i.bak 's/^mod tests {$/#[cfg(test)]\nmod tests {/' "$rt" && rm -f "$rt.bak"
+}
 add_runtime_after_tests() { printf 'pub fn late() {}\n' >>"$rt"; }
 body "No link here."
 rs_change edit_test_body
@@ -199,6 +206,11 @@ rs_change add_not_test_mod
 check "pr: cfg(not(test)) is not test-only" "$(run_gate --source=pr 42)" "fail"
 rs_change add_runtime_after_tests
 check "pr: runtime code appended after the test module needs a link" "$(run_gate --source=pr 42)" "fail"
+
+rs_change remove_gate
+check "pr: removing the cfg(test) gate from a module needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change add_gate
+check "pr: adding a cfg(test) gate to existing code needs a link" "$(run_gate --source=pr 42)" "fail"
 
 # Whole-file gating through the parent's `#[cfg(test)] mod name;`.
 gated_file=limerick/crates/limerick-core/src/game_loop/contract.rs
@@ -225,6 +237,16 @@ gated_setup '#[cfg(test)]
 pub(crate) mod other;
 pub(crate) mod contract;'
 check "pr: gate on a different module does not cover the file" "$(run_gate --source=pr 42)" "fail"
+git reset -q --hard base
+mkdir -p "$(dirname "$gated_file")"
+printf '#[cfg(test)]\npub(crate) mod contract;\n' >"$rt_mod"
+printf 'pub fn a() {}\n' >"$gated_file"
+git add -A
+git commit -qm "test: fixture"
+printf 'pub(crate) mod contract;\n' >"$rt_mod"
+git add -A
+git commit -qm "test: remove the parent gate"
+check "pr: removing the parent's cfg(test) gate needs a link" "$(run_gate --source=pr 42)" "fail"
 git reset -q --hard base
 mkdir -p "$(dirname "$gated_file")"
 printf '#![cfg(test)]\npub fn a() {}\n' >"$gated_file"

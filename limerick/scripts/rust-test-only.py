@@ -18,6 +18,7 @@ Test-only means one of:
   - each changed line, on the old side and the new side, lies inside a
     `#[cfg(test)] mod name { ... }` block (or a `#[cfg(test)] mod name;`
     declaration) of that side's content.
+Adding or removing the gate itself on code that stays is a runtime change.
 Only the exact attribute `#[cfg(test)]` counts; `cfg(any(test, ..))` and
 `cfg(not(test))` do not.
 """
@@ -106,10 +107,14 @@ def mask(src: str) -> str:
     return "".join(out)
 
 
-def test_line_set(src: str) -> set[int]:
-    """1-based line numbers covered by `#[cfg(test)] mod` items."""
+def test_spans(src: str) -> list[tuple[int, int, int]]:
+    """(first, last, header_last) 1-based lines of each `#[cfg(test)] mod` item.
+
+    The header runs from the attribute through the `{` or `;` that ends the
+    `mod` line; the span runs on to the closing brace.
+    """
     masked = mask(src)
-    covered: set[int] = set()
+    spans: list[tuple[int, int, int]] = []
     for m in TEST_MOD.finditer(masked):
         start = m.start()
         if m.group(2) == ";":
@@ -124,17 +129,32 @@ def test_line_set(src: str) -> set[int]:
             end = j - 1
         first = masked.count("\n", 0, start) + 1
         last = masked.count("\n", 0, end) + 1
-        covered.update(range(first, last + 1))
-    return covered
+        header_last = masked.count("\n", 0, m.end() - 1) + 1
+        spans.append((first, last, header_last))
+    return spans
 
 
-def covered_or_blank(src: str | None) -> set[int]:
-    """Test-module lines plus blank lines, which are never runtime code."""
+def side_ok(src: str | None, changed: set[int]) -> bool:
+    """Every changed line of one side is a blank or inside a test-module span.
+
+    Touching a span's header (the `#[cfg(test)]` attribute or `mod` line)
+    counts only when the whole span is changed with it: adding or removing the
+    gate on code that stays turns runtime code into test code or back.
+    """
+    if not changed:
+        return True
     if src is None:
-        return set()
-    lines = src.split("\n")
-    blank = {i + 1 for i, line in enumerate(lines) if not line.strip()}
-    return test_line_set(src) | blank
+        return False
+    spans = test_spans(src)
+    covered = {i + 1 for i, line in enumerate(src.split("\n")) if not line.strip()}
+    for first, last, header_last in spans:
+        covered.update(range(first, last + 1))
+        if (
+            changed & set(range(first, header_last + 1))
+            and not set(range(first, last + 1)) <= changed
+        ):
+            return False
+    return changed <= covered
 
 
 def git_show(base: str, path: str) -> str | None:
@@ -235,14 +255,12 @@ def test_only(base: str, path: str) -> bool:
     hs = hunks(base, path, old, new)
     if not hs:
         return False
-    old_cov = covered_or_blank(old)
-    new_cov = covered_or_blank(new)
+    old_changed: set[int] = set()
+    new_changed: set[int] = set()
     for a, b, c, d in hs:
-        if b and not set(range(a, a + b)) <= old_cov:
-            return False
-        if d and not set(range(c, c + d)) <= new_cov:
-            return False
-    return True
+        old_changed.update(range(a, a + b) if b else ())
+        new_changed.update(range(c, c + d) if d else ())
+    return side_ok(old, old_changed) and side_ok(new, new_changed)
 
 
 def main() -> int:

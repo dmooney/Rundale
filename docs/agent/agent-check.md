@@ -63,7 +63,7 @@ with `#![cfg(test)]`, or its parent `mod.rs`, `lib.rs`, `main.rs` or `<dir>.rs`
 declares it under `#[cfg(test)]`, transitively). Only the exact attribute
 `#[cfg(test)]` counts. Anything the helper cannot prove, including a hunk in
 runtime code, a mixed change, or a missing `python3`, keeps the file
-runtime-shipping. `*/benches/*` is test code like `*/tests/*`.
+runtime-shipping; so does adding or removing the `#[cfg(test)]` gate itself on code that stays.
 
 No link is required for pure documentation, `.github/**`, `.agents/**`,
 `.claude/**`, `limerick/scripts/**`, `justfile`, `limerick/justfile`,

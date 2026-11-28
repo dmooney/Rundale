@@ -110,12 +110,11 @@ runtime="$tmpdir/runtime"
 
 : >"$runtime"
 
-# (Rust files are also checked hunk-wise below: see is_rust_test_only_change.)
 # Rust, UI, and Swift unit-test code never ships into a live process; a
 # test run is honest evidence for it. Mobile UI tests are handled below.
 is_test_path() {
     case "$1" in
-        *.test.* | *.spec.* | */tests/* | */benches/* | */e2e/* | limerick/apps/ui/src/test-setup.ts)
+        *.test.* | *.spec.* | */tests/* | */e2e/* | limerick/apps/ui/src/test-setup.ts)
             return 0
             ;;
         *)
