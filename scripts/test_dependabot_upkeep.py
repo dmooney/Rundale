@@ -102,6 +102,13 @@ class FakeWorld:
         self.comment_fail: set[int] = set()
         self.list_ok = 1_000  # pr list calls that succeed before GitHub "fails"
         self.list_resets = 0  # pr list calls that hit a dropped connection first
+        self.notices_stale: set[int] = set()  # PRs whose notices-check fails until regenerated
+        self.notices_rc = 0  # exit status of `just notices`
+        self.notices_wrote = [
+            "limerick/THIRD_PARTY_NOTICES.rust.md",
+            "limerick/notices-dev-only.txt",
+        ]
+        self.regenerated = False
 
     def add(self, number: int, *, behind: int = 0, classify: int = 3, **extra: Any) -> None:
         self.prs[number] = pr_json(number, f"{number:04d}{'0' * 36}", **extra)
@@ -159,6 +166,13 @@ class FakeWorld:
             return Result(self.classify[int(cmd[-1])])
         if cmd[0] == "pgrep":
             return Result(self.pgrep.pop(0) if len(self.pgrep) > 1 else self.pgrep[0])
+        if cmd[:2] == ("just", "notices-check"):
+            assert cwd == self.work / "limerick"
+            return Result(1 if self.work_pr in self.notices_stale else 0)
+        if cmd[:2] == ("just", "notices"):
+            assert cwd == self.work / "limerick"
+            self.regenerated = self.notices_rc == 0
+            return Result(self.notices_rc)
         if cmd[:2] == ("just", "mobile-verify"):
             return Result(self.verify_rc)
         if cmd[:2] == ("just", "mobile-verify-record"):
@@ -285,6 +299,12 @@ class FakeWorld:
             return Result(0, "base\n")
         if args[0] == "show":
             return Result(0, self.workflows[args[-1].split(":", 1)[1]])
+        if args[:2] == ("status", "--porcelain"):
+            return Result(
+                0, "".join(f" M {p}\n" for p in self.notices_wrote) if self.regenerated else ""
+            )
+        if args[0] in ("add", "commit"):
+            return Result(0)
         if args[0] in ("fetch", "clean", "merge", "reset"):
             return Result(0)
         raise AssertionError(f"unexpected git {args}")
@@ -738,6 +758,118 @@ class FlowTests(UpkeepCase):
         self.assertEqual(len(self.world.ran("gh", "issue", "create")), 1)
         self.assertEqual(self.world.ran("gh", "issue", "pin")[0][3], "77")
         self.assertEqual(self.world.ran("gh", "issue", "comment")[0][3], "77")
+
+
+LOCKS = ["limerick/Cargo.lock", "limerick/apps/ui/package-lock.json"]
+
+
+class NoticesRefreshTests(UpkeepCase):
+    """A lockfile bump gets its stale third-party notices regenerated and pushed."""
+
+    def stale(self, number: int, files: list[str] | None = None) -> None:
+        self.world.add(number)
+        self.world.files[number] = files or ["limerick/Cargo.lock"]
+        self.world.notices_stale.add(number)
+        self.world.gatekeeper[number] = self.world.approve_and_merge(number)
+
+    def test_stale_notices_are_regenerated_committed_and_pushed(self) -> None:
+        self.stale(60)
+        outcome = self.outcome(60)
+        self.assertEqual(outcome.status, "merged")
+        self.assertEqual(self.world.ran("just", "notices")[0][:3], ("just", "notices"))
+        self.assertEqual(len(self.world.ran("git", "push")), 1)
+        commit = self.world.ran("git", "commit")[0]
+        self.assertTrue(commit[-1].startswith("chore(notices): "))
+        self.assertNotIn("Co-Authored-By", " ".join(commit))
+        added = self.world.ran("git", "add")[0]
+        self.assertEqual(added[3:], tuple(self.world.notices_wrote))
+        self.assertIn("pushed regenerated third-party notices (`just notices`)", outcome.notes)
+        order = [
+            c[:2] for c, _ in self.world.calls if c[:2] in {("git", "commit"), ("git", "push")}
+        ]
+        self.assertEqual(order, [("git", "commit"), ("git", "push")])
+
+    def test_ui_lockfile_alone_triggers_the_check(self) -> None:
+        self.stale(61, ["limerick/apps/ui/package-lock.json"])
+        self.assertEqual(self.outcome(61).status, "merged")
+        self.assertEqual(len(self.world.ran("git", "push")), 1)
+
+    def test_current_notices_are_left_alone(self) -> None:
+        self.world.add(62)
+        self.world.files[62] = list(LOCKS)
+        self.world.gatekeeper[62] = self.world.approve_and_merge(62)
+        self.assertEqual(self.outcome(62).status, "merged")
+        self.assertEqual(len(self.world.ran("just", "notices-check")), 1)
+        self.assertFalse(self.world.regenerated)
+        self.assertEqual(self.world.ran("git", "push"), [])
+
+    def test_a_pr_without_lockfile_changes_runs_nothing(self) -> None:
+        self.world.add(63)
+        self.world.files[63] = ["limerick/crates/x/src/lib.rs", ".github/workflows/ci.yml"]
+        self.world.gatekeeper[63] = self.world.approve_and_merge(63)
+        self.outcome(63)
+        self.assertEqual(self.world.ran("just"), [])
+
+    def test_a_full_file_list_still_gets_the_check(self) -> None:
+        self.world.add(64)
+        self.world.files[64] = [f"f{i}" for i in range(100)]
+        self.world.gatekeeper[64] = self.world.approve_and_merge(64)
+        self.outcome(64)
+        self.assertEqual(len(self.world.ran("just", "notices-check")), 1)
+
+    def test_a_failed_regeneration_pushes_nothing_and_goes_on_to_ci(self) -> None:
+        self.stale(65)
+        self.world.notices_rc = 1
+        outcome = self.outcome(65)
+        self.assertEqual(self.world.ran("git", "push"), [])
+        self.assertEqual(self.world.ran("git", "commit"), [])
+        self.assertTrue(any("`just notices` failed" in n for n in outcome.notes))
+
+    def test_files_outside_the_notices_are_never_committed(self) -> None:
+        self.stale(66)
+        self.world.notices_wrote = ["limerick/THIRD_PARTY_NOTICES.rust.md", "limerick/Cargo.toml"]
+        outcome = self.outcome(66)
+        self.assertEqual(self.world.ran("git", "commit"), [])
+        self.assertEqual(self.world.ran("git", "push"), [])
+        self.assertTrue(any("not committed" in n for n in outcome.notes))
+
+    def test_a_refresh_that_changes_nothing_pushes_nothing(self) -> None:
+        self.stale(67)
+        self.world.notices_wrote = []
+        self.outcome(67)
+        self.assertEqual(self.world.ran("git", "commit"), [])
+
+    def test_a_commit_that_would_change_an_app_input_is_not_pushed(self) -> None:
+        self.stale(68)
+        self.world.fix_app_inputs.add(68)
+        outcome = self.outcome(68)
+        self.assertEqual(self.world.ran("git", "push"), [])
+        self.assertIn("the notices refresh changes an app input; not pushed", outcome.notes)
+
+    def test_dry_run_plans_the_refresh_and_changes_nothing(self) -> None:
+        self.stale(69)
+        outcome = self.outcome(69, dry_run=True)
+        self.assertTrue(any("would run `just notices-check`" in n for n in outcome.notes))
+        self.assertEqual(self.world.ran("just"), [])
+        self.assertEqual(self.world.ran("git", "push"), [])
+
+    def test_regenerated_notices_do_not_make_a_security_fix_owner_only(self) -> None:
+        routine = self.make()
+        self.assertIsNone(routine.security_scope_problem([*LOCKS[:1], *upkeep.NOTICE_OUTPUTS]))
+        self.assertIsNotNone(routine.security_scope_problem(list(upkeep.NOTICE_OUTPUTS)))
+        self.assertIsNotNone(
+            routine.security_scope_problem([LOCKS[0], "limerick/crates/x/src/lib.rs"])
+        )
+
+    def test_pure_helpers(self) -> None:
+        self.assertTrue(upkeep.lockfile_changed(["a", "limerick/Cargo.lock"]))
+        self.assertFalse(upkeep.lockfile_changed(["limerick/Cargo.toml", "Cargo.lock"]))
+        self.assertEqual(
+            upkeep.status_paths(" M a.md\nR  old -> new.md\n?? c\n"), ["a.md", "new.md", "c"]
+        )
+        self.assertTrue(upkeep.notices_only(list(upkeep.NOTICE_OUTPUTS)))
+        self.assertFalse(upkeep.notices_only([]))
+        self.assertFalse(upkeep.notices_only(["limerick/Cargo.lock"]))
 
 
 class SweepAndSummaryTests(UpkeepCase):
