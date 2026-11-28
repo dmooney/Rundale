@@ -163,7 +163,7 @@ so newer clarification and request-lifecycle behavior is marked Planned there.
 Mobile details:
 
 - The Commands button advertises `/look`, `/people`, `/exits` and `/help`.
-  `/wait`, `/pause`, `/resume`, `/debug` and `/flags` also work. The rest of the
+  `/wait`, `/pause`, `/resume`, `/debug`, `/flags` and `/weather` also work. The rest of the
   engine command catalogue is not exposed; [#2146](https://github.com/dmooney/Rundale/issues/2146)
   added step-by-step argument completion for accepted commands.
 - Shared movement, weather and schedule code is present on the phone. Arrival

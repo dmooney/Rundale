@@ -26,7 +26,7 @@ rusqlite = { workspace = true }
 tempfile = { workspace = true }
 
 [features]
-# Living-world proof cases whose proof issue has not landed (#2196 to #2198,
+# Living-world proof cases whose proof issue has not landed (#2196 to #2197,
 # #2308). They fail until it does, so only the Phase 6 gate builds them
 # (`just mobile-verify` with `--phase 6`, `--phase all` or `--smoke`); the
 # default `cargo test` and CI do not.
