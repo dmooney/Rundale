@@ -80,6 +80,7 @@ IMPLEMENTED_PHASES = (1, 2, 3, 4, 6)
 CHAIN_PHASES = (4, 6)
 LAST_PHASE = 7
 LIVING_WORLD_PACKAGE = "limerick-mobile-ffi"
+PERSISTENCE_PACKAGE = "limerick-persistence"
 # Cargo feature that builds the proof cases whose proof issue has not landed.
 LIVING_WORLD_PENDING_FEATURE = "living-world-pending"
 # The living-world proofs (spec Milestone 6), each a filter over the cases in
@@ -182,7 +183,7 @@ ATTESTATION_IGNORED_PATHSPECS = (
 )
 # Crates whose `cargo test` the full gate runs on the Mac (_phase2): their
 # tests/, benches/ and examples/ stay in the recorded pass's input tree.
-GATE_TESTED_CRATES = (LIVING_WORLD_PACKAGE, "limerick-persistence")
+GATE_TESTED_CRATES = (LIVING_WORLD_PACKAGE, PERSISTENCE_PACKAGE)
 # Cargo targets that only `cargo test`, `cargo bench` and `cargo run --example`
 # compile. build-rust-mobile.sh builds the limerick-mobile-ffi library alone, so
 # none is linked into the app (#2469), and CI's Linux Rust gates run them. Test
@@ -3290,7 +3291,7 @@ class VerificationRun:
         self._cargo_test(
             identifier="limerick-persistence-tests",
             name="Limerick save format, journal, and kernel save-lock tests",
-            package=GATE_TESTED_CRATES[1],
+            package=PERSISTENCE_PACKAGE,
         )
         self._mobile_dependency_graph()
         if not rust_packaging_already_run:
