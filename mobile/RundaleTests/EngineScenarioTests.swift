@@ -74,6 +74,33 @@ final class EngineScenarioTests: XCTestCase {
         XCTAssertEqual(game.presenter.draft, "/save", "A refused command keeps the draft")
     }
 
+    /// #2327: a malformed, negative or overflowing `/wait` argument is refused
+    /// with feedback and leaves the clock alone; a valid one still advances it.
+    func testInvalidWaitIsRefusedAndLeavesTheClockAlone() async throws {
+        try await game.launch()
+        await game.submit("/pause")
+        await game.submit("/debug clock")
+        await game.waitForRow("[DEBUG CLOCK]")
+        let before = game.labels.last { $0.contains("[DEBUG CLOCK]") }
+
+        let refused = ["/wait -1", "/wait bananas", "/wait 999999999999999999999999999999999"]
+        for command in refused {
+            await game.submit(command)
+        }
+        await waitUntil { game.labels.filter { $0.contains("You can't wait") }.count == refused.count }
+        XCTAssertFalse(game.hasRow("You wait for"), "A refused wait must not narrate a wait")
+
+        await game.submit("/debug clock")
+        await waitUntil { game.labels.filter { $0.contains("[DEBUG CLOCK]") }.count == 2 }
+        XCTAssertEqual(game.labels.last { $0.contains("[DEBUG CLOCK]") }, before)
+
+        await game.submit("/wait 30")
+        await game.waitForRow("You wait for 30 minutes")
+        await game.submit("/debug clock")
+        await waitUntil { game.labels.filter { $0.contains("[DEBUG CLOCK]") }.count == 3 }
+        XCTAssertNotEqual(game.labels.last { $0.contains("[DEBUG CLOCK]") }, before)
+    }
+
     /// Was `RundaleCommandsUITests.testCompletionOffersEachNextWordAndRunsDebugMemory`
     /// (its sideways swipes of the strip stay in `RundaleCommandsUITests`).
     func testCompletionOffersEachNextWordAndRunsDebugMemory() async throws {
