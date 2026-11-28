@@ -32,7 +32,15 @@ from pathlib import Path
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - CI and the dev venv run 3.11+
-    import tomli as tomllib
+    try:
+        import tomli as tomllib
+    except ImportError:
+        raise SystemExit(
+            f"differences.py needs Python 3.11+ (tomllib) or the tomli package; this is "
+            f"{sys.version.split()[0]}.\nInstall a newer Python (macOS: `brew install "
+            "python@3.12`) and run the script with it, or build the dev venv from it: "
+            "`python3.12 -m venv .venv-dev`."
+        ) from None
 
 INTENDED_FENCE = "```toml intended-diffs"
 
