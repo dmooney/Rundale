@@ -210,6 +210,8 @@ jobs:
         if: failure() || cancelled()
         env:
           GH_TOKEN: ${{ github.token }}
+          # Names the repository when the checkout step itself failed.
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title="TestFlight upload or delivery failed"
