@@ -21,8 +21,8 @@ The app plays the canonical world on the shared engine:
   relaunch leave no state effects; the request can be retried.
 - Slash commands answer locally, with no Endpoint call. Commands lists the
   advertised four (`/look`, `/people`, `/exits`, `/help`). Typing `/` offers
-  every command, including `/wait`, `/pause`, `/resume`, `/debug`, and
-  `/flags`, then each next word from the engine's registry: after `/debug`
+  every command, including `/wait`, `/pause`, `/resume`, `/debug`,
+  `/flags`, and `/weather`, then each next word from the engine's registry: after `/debug`
   it offers the views, and after `/debug memory` everyone in the world. Names match
   without case or fadas, on the phone and in the engine.
 - The app runs in portrait only (`UISupportedInterfaceOrientations` in

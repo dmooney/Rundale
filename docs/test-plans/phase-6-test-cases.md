@@ -53,7 +53,7 @@ new game that must give the same before and after.
 | P6-01 | `living-world-memory`        | Memory   | Passes on this checkout |
 | P6-02 | `living-world-gossip-start`  | Gossip   | Passes on this checkout |
 | P6-03 | `living-world-gossip-spread` | Gossip   | Pending #2197           |
-| P6-04 | `living-world-weather`       | Weather  | Pending #2198           |
+| P6-04 | `living-world-weather`       | Weather  | Passes on this checkout |
 | P6-05 | `living-world-movement`      | Movement | Passes on this checkout |
 | P6-06 | `living-world-task`          | Task     | Pending #2308           |
 
@@ -104,19 +104,19 @@ lets it run.
 ### P6-04 Weather behaviour ([#2198](https://github.com/dmooney/Rundale/issues/2198))
 
 Set the weather with the existing `/weather <name>` command
-(`limerick-core/src/ipc/commands/weather.rs`). The phone does not offer it yet:
-until [#2198](https://github.com/dmooney/Rundale/issues/2198) exposes a seam
-without player-visible debug UI, the case fails at the command. The engine rule is
-in `limerick-npc/src/schedule.rs`: a non-farm NPC bound for an outdoor place in
-light rain, heavy rain or a storm goes home instead.
+(`limerick-core/src/ipc/commands/weather.rs`). The phone runs it like `/debug`:
+the engine's local commands accept it (`limerick-core/src/turn/commands.rs`),
+it is not advertised or shown in `/help`, and it adds no player-visible UI.
+The engine rule is in `limerick-npc/src/schedule.rs`: a non-farm NPC bound for an
+outdoor place in light rain, heavy rain or a storm goes home instead.
 
-| Step | Exercise                                           | Required outcome                                                 |
-| ---- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| 1    | New game, `/weather heavy rain`, wait to 08:00     | The village is empty and `/people` lists no one                  |
-| 2    | Close and reopen the save                          | Still empty                                                      |
-| 3    | Go to the Letter Office                            | Peig is there and can be spoken to; her input says it is raining |
-| 4    | Control: new game, `/weather clear`, wait to 08:00 | Peig is in the village                                           |
-| 5    | Repeat both                                        | Same outcomes                                                    |
+| Step | Exercise                                           | Required outcome                                                  |
+| ---- | -------------------------------------------------- | ----------------------------------------------------------------- |
+| 1    | New game, `/weather heavy rain`, wait to 08:00     | The village is empty and `/people` lists no one                   |
+| 2    | Close and reopen the save                          | Still empty, and `/weather` still reports heavy rain              |
+| 3    | Go to the Letter Office                            | Peig is there and can be spoken to; her input says it is raining  |
+| 4    | Control: new game, `/weather clear`, wait to 08:00 | `/people` lists Peig, she can be spoken to, and a relaunch agrees |
+| 5    | Repeat both                                        | Same outcomes                                                     |
 
 ### P6-05 Scheduled movement ([#2201](https://github.com/dmooney/Rundale/issues/2201))
 

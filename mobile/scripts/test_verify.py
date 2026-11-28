@@ -1450,12 +1450,12 @@ class VerificationRunnerTests(unittest.TestCase):
             root = Path(directory)
             create_phase2_fixture(root)
             fake = FakeRunner()
-            fake.failing_rust_filters = {"tests::living_world::weather"}
+            fake.failing_rust_filters = {"tests::living_world::task"}
             report = VerificationRun(root, command_runner=fake).run(6)
 
             by_id = {suite["id"]: suite for suite in report["suites"]}
-            self.assertEqual(by_id["living-world-weather"]["status"], "failed")
-            self.assertTrue(by_id["living-world-weather"]["blocking"])
+            self.assertEqual(by_id["living-world-task"]["status"], "failed")
+            self.assertTrue(by_id["living-world-task"]["blocking"])
             self.assertEqual(by_id["living-world-memory"]["status"], "passed")
             self.assertEqual(report["exit_code"], 1)
 
@@ -1467,7 +1467,6 @@ class VerificationRunnerTests(unittest.TestCase):
             fake.failing_rust_filters = {
                 "tests::living_world::task",
                 "tests::living_world::gossip::pending",
-                "tests::living_world::weather",
             }
             report = VerificationRun(root, command_runner=fake).run()
 
@@ -1475,7 +1474,6 @@ class VerificationRunnerTests(unittest.TestCase):
             for identifier in (
                 "living-world-task",
                 "living-world-gossip-spread",
-                "living-world-weather",
             ):
                 self.assertEqual(by_id[identifier]["status"], "failed", identifier)
                 self.assertFalse(by_id[identifier]["blocking"], identifier)
