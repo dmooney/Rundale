@@ -37,8 +37,20 @@ def _der_int(value: bytes) -> bytes:
     return bytes([0x02, len(value)]) + value
 
 
+# Settings a configured Mac exports (the repo `.env` loaded by `just` or the
+# shell) that change what release.py does. Tests that want one set it themselves.
+AMBIENT_SETTINGS = (*release.ASC_KEY_ENV, release.DISTRIBUTION_PROFILE_ENV)
+
+
 class ReleaseTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Hermetic: a machine's ASC_* key (as in the owner's `.env`) or distribution
+        # profile must not reach tests that read os.environ. patch.dict restores it.
+        ambient = patch.dict(release.os.environ)
+        ambient.start()
+        self.addCleanup(ambient.stop)
+        for name in AMBIENT_SETTINGS:
+            release.os.environ.pop(name, None)
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         (self.root / "mobile" / "Rundale" / "Resources").mkdir(parents=True)
@@ -804,6 +816,31 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("archive", self.commands[2])
         self.assertEqual(release.parse_args(["testflight"]).verify, "all")
         self.assertEqual(release.parse_args(["testflight", "--verify", "none"]).verify, "none")
+
+    def test_ambient_api_key_settings_do_not_reach_tests(self):
+        # A hostile ambient key (unexpanded `~`, as in the owner's `.env`) is
+        # cleared for each test and restored afterwards.
+        self.assertFalse(any(name in release.os.environ for name in AMBIENT_SETTINGS))
+        self.assertEqual(release.signing_auth_args(), ["-allowProvisioningUpdates"])
+        self.assertEqual(release.archive_signing_args(), ["CODE_SIGN_STYLE=Automatic"])
+
+    def test_the_isolation_hides_and_restores_a_configured_machine(self):
+        hostile = {
+            "ASC_KEY_PATH": "~/missing/AuthKey.p8",
+            "ASC_KEY_ID": "FAKE",
+            "ASC_ISSUER_ID": "FAKE",
+            release.DISTRIBUTION_PROFILE_ENV: "FAKE",
+        }
+        with patch.dict(release.os.environ, hostile):
+            case = ReleaseTests("test_ambient_api_key_settings_do_not_reach_tests")
+            case.setUp()
+            try:
+                self.assertFalse(any(name in release.os.environ for name in hostile))
+                self.assertEqual(release.signing_auth_args(), ["-allowProvisioningUpdates"])
+            finally:
+                case.doCleanups()
+                case.tearDown()
+            self.assertEqual(release.os.environ["ASC_KEY_PATH"], hostile["ASC_KEY_PATH"])
 
     def test_signing_uses_the_xcode_account_without_an_api_key(self):
         self.assertEqual(release.signing_auth_args({}), ["-allowProvisioningUpdates"])
