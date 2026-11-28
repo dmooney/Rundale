@@ -55,6 +55,16 @@ and `graphify-out/` trees anywhere:
   these (`*.test.*`, `*.spec.*`, `*/tests/*`, `*/e2e/*`, `test-setup.ts`) is
   exempt.
 
+A Rust file on these paths is still exempt when the change is confined to
+test-only code, decided by `limerick/scripts/rust-test-only.py`: every changed
+line (old and new side, blank lines aside) lies inside a `#[cfg(test)] mod`
+block or `mod name;` declaration, or the whole file is cfg(test)-gated (it opens
+with `#![cfg(test)]`, or its parent `mod.rs`, `lib.rs`, `main.rs` or `<dir>.rs`
+declares it under `#[cfg(test)]`, transitively). Only the exact attribute
+`#[cfg(test)]` counts. Anything the helper cannot prove, including a hunk in
+runtime code, a mixed change, or a missing `python3`, keeps the file
+runtime-shipping; so does adding or removing the `#[cfg(test)]` gate itself on code that stays.
+
 No link is required for pure documentation, `.github/**`, `.agents/**`,
 `.claude/**`, `limerick/scripts/**`, `justfile`, `limerick/justfile`,
 `mobile/scripts/**`, pure-logic crates, or Rust, UI, or Swift unit-test-only

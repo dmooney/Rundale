@@ -39,7 +39,7 @@ bash limerick/scripts/publish-pr-page.sh <pr> <dir>         # publish the PR's e
 ### `agent-check.sh` — PR evidence gate
 
 - Two modes: `--source=local` (lints, and reports whether the diff is runtime-shipping) and `--source=pr <number>` (also requires `https://dmooney.github.io/rundale-pages/pr/<number>/` in the PR body via `gh`, used by CI).
-- Runtime-shipping: `mobile/**` (except `mobile/scripts/**`), `mods/**`, and the engine runtime crates; Markdown, `graphify-out/`, and Rust/UI test code never are. Rejects `.proofs/` paths and placeholder debt markers in every mode.
+- Runtime-shipping: `mobile/**` (except `mobile/scripts/**`), `mods/**`, and the engine runtime crates; Markdown, `graphify-out/`, and Rust/UI test code never are. A Rust file's change that stays inside `#[cfg(test)]` modules, or in a file its parent declares under `#[cfg(test)]`, is also test-only (`rust-test-only.py`, conservative: any doubt means runtime). Rejects `.proofs/` paths and placeholder debt markers in every mode.
 
 ### `check-docs-format.sh` — Docs/data formatting gate
 
