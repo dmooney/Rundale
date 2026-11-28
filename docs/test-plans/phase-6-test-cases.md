@@ -132,8 +132,9 @@ outdoor place in light rain, heavy rain or a storm goes home instead.
 
 ### P6-06 Task ([#2308](https://github.com/dmooney/Rundale/issues/2308))
 
-The engine has no task ledger yet. The case reads one through
-`/debug tasks`, which [#2308](https://github.com/dmooney/Rundale/issues/2308) must
+The engine has a durable task ledger, but nothing yet creates the authored
+task's record, completes it, or shows it on the phone. The case reads the ledger
+through `/debug tasks`, which [#2308](https://github.com/dmooney/Rundale/issues/2308) must
 provide (or this case changes with the seam it chooses). Stages are the
 `TASK` block of the world sheet.
 
