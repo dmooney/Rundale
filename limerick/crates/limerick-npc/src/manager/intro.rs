@@ -11,6 +11,9 @@ use crate::{Npc, NpcId, dialogue_self_identifies_speaker};
 
 use super::NpcManager;
 
+/// Most facts about the player one NPC keeps; the oldest is forgotten first.
+pub const MAX_PLAYER_FACTS_PER_NPC: usize = 3;
+
 impl NpcManager {
     // ── Conversation partner (dynamic NPC context design §2, §3.2) ──────────
 
@@ -67,6 +70,46 @@ impl NpcManager {
     /// The name the player gave the given NPC, if they gave it one.
     pub fn player_name_known_by(&self, id: NpcId) -> Option<&str> {
         self.player_names_by_npc.get(&id).map(String::as_str)
+    }
+
+    /// Records that the player told the given NPC `fact` about themselves
+    /// (see [`crate::detect_player_facts`]). A repeat is ignored; past
+    /// [`MAX_PLAYER_FACTS_PER_NPC`] the oldest is forgotten. Blank is ignored.
+    pub fn teach_player_fact(&mut self, id: NpcId, fact: impl Into<String>) {
+        let fact = fact.into();
+        let fact = fact.trim();
+        if fact.is_empty() {
+            return;
+        }
+        let known = self.player_facts_by_npc.entry(id).or_default();
+        if known.iter().any(|existing| existing == fact) {
+            return;
+        }
+        known.push(fact.to_string());
+        if known.len() > MAX_PLAYER_FACTS_PER_NPC {
+            known.remove(0);
+        }
+    }
+
+    /// What the player told the given NPC about themselves, oldest first.
+    pub fn player_facts_known_by(&self, id: NpcId) -> &[String] {
+        self.player_facts_by_npc.get(&id).map_or(&[], Vec::as_slice)
+    }
+
+    /// Returns a clone of what each NPC was told (for snapshots).
+    pub fn player_facts_known(&self) -> BTreeMap<NpcId, Vec<String>> {
+        self.player_facts_by_npc.clone()
+    }
+
+    /// Restores what each NPC was told (for snapshot restore), keeping each
+    /// NPC within the bound.
+    pub fn restore_player_facts_known(&mut self, facts: BTreeMap<NpcId, Vec<String>>) {
+        self.player_facts_by_npc.clear();
+        for (id, facts) in facts {
+            for fact in facts {
+                self.teach_player_fact(id, fact);
+            }
+        }
     }
 
     /// Returns whether the given NPC has been told the player's name.

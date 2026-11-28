@@ -626,6 +626,34 @@ fn player_names_given_to_each_npc_survive_save_and_load() {
     assert_eq!(new_world.player_name.as_deref(), Some("Seán"));
 }
 
+/// What the player told each NPC survives a save, and an older snapshot
+/// without it restores no facts.
+#[test]
+fn player_facts_given_to_each_npc_survive_save_and_load() {
+    let world = WorldState::new();
+    let mut npc_manager = NpcManager::new();
+    for id in 1..=2 {
+        npc_manager.add_npc(make_test_npc(id, 1));
+    }
+    npc_manager.teach_player_fact(NpcId(1), "I am looking for work droving yearlings.");
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    let json = serde_json::to_string(&snapshot).unwrap();
+    let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+    let mut new_npcs = NpcManager::new();
+    restored.restore(&mut WorldState::new(), &mut new_npcs);
+    assert_eq!(
+        new_npcs.player_facts_known_by(NpcId(1)),
+        ["I am looking for work droving yearlings."]
+    );
+    assert!(new_npcs.player_facts_known_by(NpcId(2)).is_empty());
+
+    let mut value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    value.as_object_mut().unwrap().remove("player_facts_by_npc");
+    let older: GameSnapshot = serde_json::from_value(value).unwrap();
+    assert!(older.player_facts_by_npc.is_empty());
+}
+
 /// A save written before save format 5 kept one global `player_name` and
 /// the set of NPCs that knew it. Each listed NPC restores knowing that
 /// name; an unlisted one knows none.

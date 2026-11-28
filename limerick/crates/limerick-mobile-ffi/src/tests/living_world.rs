@@ -90,12 +90,13 @@ fn people_here(game: &Game) -> Vec<String> {
 mod memory {
     use super::*;
 
-    /// P6-01: the player gives a name to Mícheál. He remembers it as state
-    /// (`/debug memory`), it reaches his next dialogue input, a relaunch
-    /// keeps it, and Róisín, who was not told, still sees a stranger. A
-    /// repeat on a new game gives the same before and after.
+    /// P6-01: the player gives a name and says what they are about to
+    /// Mícheál. He remembers both as state (`/debug memory`), they reach his
+    /// next dialogue input, a relaunch keeps them, and Róisín, who was not
+    /// told, still sees a stranger. A repeat on a new game gives the same
+    /// before and after.
     #[test]
-    fn a_name_given_to_one_npc_is_remembered_by_that_npc_across_a_relaunch() {
+    fn a_name_and_fact_given_to_one_npc_are_remembered_by_that_npc_across_a_relaunch() {
         for run in 1..=2 {
             let (mut game, _) = Game::new();
             game.go_to_the_cottage();
@@ -107,6 +108,7 @@ mod memory {
                 stranger(&before)
             );
             assert!(!command(&game, "/debug memory Mícheál").contains("Seán"));
+            assert!(command(&game, "/debug memory Mícheál").contains("(nothing)"));
 
             hear(
                 &game,
@@ -116,9 +118,18 @@ mod memory {
             );
             let memory = command(&game, "/debug memory Mícheál");
             assert!(memory.contains("Seán"), "run {run}: {memory}");
+            assert!(
+                memory.contains("fact: I am looking for work droving yearlings."),
+                "run {run}: the fact is held as state: {memory}"
+            );
 
             let after = hear(&game, MICHEAL, "Do you remember my name?", "I do, Seán.");
             assert!(stranger(&after).contains("Seán"), "run {run}: {after}");
+            assert!(
+                stranger(&after)
+                    .contains("They told you: \"I am looking for work droving yearlings.\""),
+                "run {run}: the fact reaches his dialogue input: {after}"
+            );
 
             game.relaunch();
             assert!(command(&game, "/debug memory Mícheál").contains("Seán"));
@@ -127,10 +138,14 @@ mod memory {
                 stranger(&resumed).contains("Seán"),
                 "run {run}: the memory survives the relaunch: {resumed}"
             );
+            assert!(
+                stranger(&resumed).contains("looking for work droving yearlings"),
+                "run {run}: the fact survives the relaunch: {resumed}"
+            );
 
             let roisin = hear(&game, ROISIN, "Good morning to you.", "And to you.");
             assert!(
-                !stranger(&roisin).contains("Seán"),
+                !stranger(&roisin).contains("Seán") && !stranger(&roisin).contains("yearlings"),
                 "run {run}: Róisín was not told: {roisin}"
             );
         }

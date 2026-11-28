@@ -612,13 +612,17 @@ fn just_said(world: &WorldState, speaker_id: NpcId) -> Vec<SaidLine> {
 }
 
 /// What `speaker_id` knows of the player from before this line: the name
-/// the player gave them, if any. The engine keeps no other per-NPC knowledge
-/// of the player yet (issue 2196).
+/// the player gave them and what the player told them about themselves, one
+/// sentence each, from the state the NPC holds (issue 2196).
 fn stranger_known(npc_manager: &NpcManager, speaker_id: NpcId) -> Vec<String> {
-    npc_manager
+    let name = npc_manager
         .player_name_known_by(speaker_id)
-        .map(|name| vec![format!("They told you their name is {name}.")])
-        .unwrap_or_default()
+        .map(|name| format!("They told you their name is {name}."));
+    let facts = npc_manager
+        .player_facts_known_by(speaker_id)
+        .iter()
+        .map(|fact| format!("They told you: \"{fact}\""));
+    name.into_iter().chain(facts).collect()
 }
 
 /// `thisMoment.theStranger` for what the speaker knows of the player.

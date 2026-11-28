@@ -416,6 +416,21 @@ fn debug_memory(app: &DebugView<'_>, name: Option<&str>) -> Vec<String> {
 
     let mut lines = vec![format!("[DEBUG MEMORY: {}]", npc.name)];
 
+    // What the player told this NPC: held state, sent to the dialogue
+    // Endpoint as `thisMoment.theStranger` (issue 2196).
+    let told_name = app.npc_manager.player_name_known_by(npc.id);
+    let told_facts = app.npc_manager.player_facts_known_by(npc.id);
+    lines.push("  Told by the player:".to_string());
+    if told_name.is_none() && told_facts.is_empty() {
+        lines.push("    (nothing)".to_string());
+    }
+    if let Some(name) = told_name {
+        lines.push(format!("    name: {name}"));
+    }
+    for fact in told_facts {
+        lines.push(format!("    fact: {fact}"));
+    }
+
     // Short-term memory
     lines.push(format!("  Short-term ({}/{}):", npc.memory.len(), 20));
     let recent = npc.memory.recent(10);

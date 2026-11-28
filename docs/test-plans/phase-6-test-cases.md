@@ -59,19 +59,21 @@ new game that must give the same before and after.
 
 ### P6-01 Memory ([#2196](https://github.com/dmooney/Rundale/issues/2196))
 
-| Step | Exercise                                                           | Required outcome                                                                                         |
-| ---- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 1    | Before: at the cottage, say "Good morning to you." to Mícheál      | His dialogue input names the player a stranger he has never seen; `/debug memory Mícheál` lacks the name |
-| 2    | Say "My name is Seán and I am looking for work droving yearlings." | `/debug memory Mícheál` holds the line and the name                                                      |
-| 3    | After: ask "Do you remember my name?"                              | The next dialogue input says he has met the player and the player told him the name Seán                 |
-| 4    | Save/resume: close and reopen the save                             | The memory is still there and the next input still carries the name                                      |
-| 5    | Say hello to Róisín, who was not told                              | Her input still shows a stranger without the name                                                        |
-| 6    | Repeat on a new game                                               | Same before and after                                                                                    |
+| Step | Exercise                                                           | Required outcome                                                                                             |
+| ---- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 1    | Before: at the cottage, say "Good morning to you." to Mícheál      | His dialogue input names the player a stranger he has never seen; `/debug memory Mícheál` lists nothing told |
+| 2    | Say "My name is Seán and I am looking for work droving yearlings." | `/debug memory Mícheál` lists the name Seán and the fact "I am looking for work droving yearlings."          |
+| 3    | After: ask "Do you remember my name?"                              | The next dialogue input says he has met the player: the name Seán and the player's own statement             |
+| 4    | Save/resume: close and reopen the save                             | The memory is still there and the next input still carries the name and the statement                        |
+| 5    | Say hello to Róisín, who was not told                              | Her input still shows a stranger without the name or the statement                                           |
+| 6    | Repeat on a new game                                               | Same before and after                                                                                        |
 
 The memory is saved state read from the engine, not inferred from the generated
-reply. The name is the fact the engine records today; if
-[#2196](https://github.com/dmooney/Rundale/issues/2196) chooses a richer fact,
-change this case with it.
+reply: the name, and the plain first-person statements the player typed
+(`detect_player_facts`: "I am…", "I have…", "I walked…"), at most three per
+character, in the player's own words. Both go to the dialogue Endpoint as
+`thisMoment.theStranger`. Whether the model's reply uses them is a model
+behaviour the live run reports, not something this case asserts.
 
 ### P6-02 Gossip, before propagation
 

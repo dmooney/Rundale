@@ -209,6 +209,10 @@ pub struct GameSnapshot {
     /// none; see [`Self::npcs_who_know_player_name`].
     #[serde(default)]
     pub player_names_by_npc: BTreeMap<NpcId, String>,
+    /// What the player told each NPC about themselves, in the player's words
+    /// (save format 6). Older saves have none.
+    #[serde(default)]
+    pub player_facts_by_npc: BTreeMap<NpcId, Vec<String>>,
     /// The person the player is talking to (dynamic NPC context design §2,
     /// §3.2). Older saves have none.
     #[serde(default)]

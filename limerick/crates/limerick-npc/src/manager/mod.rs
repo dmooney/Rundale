@@ -63,6 +63,10 @@ pub struct NpcManager {
     /// only the name it was told: introducing yourself to one NPC never
     /// changes what another calls you.
     player_names_by_npc: BTreeMap<NpcId, String>,
+    /// What the player told each NPC about themselves, in the player's words
+    /// ([`crate::detect_player_facts`]), oldest first and bounded per NPC.
+    /// Like the name, it is state the NPC holds, not text a model wrote.
+    player_facts_by_npc: BTreeMap<NpcId, Vec<String>>,
     /// The person the player is talking to: later unaddressed lines go to
     /// them (dynamic NPC context design §2, §3.2). Saved with the game.
     partner: Option<NpcId>,
@@ -110,6 +114,7 @@ impl NpcManager {
             tier4_state: TierTickState::default(),
             introduced_npcs: HashSet::new(),
             player_names_by_npc: BTreeMap::new(),
+            player_facts_by_npc: BTreeMap::new(),
             partner: None,
             recent_tier4_events: VecDeque::with_capacity(crate::tier4::RING_BUFFER_CAPACITY),
             reaction_emoji_buffer: VecDeque::with_capacity(REACTION_EMOJI_BUFFER_CAPACITY),
