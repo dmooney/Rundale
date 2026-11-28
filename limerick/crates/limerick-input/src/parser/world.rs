@@ -141,10 +141,7 @@ mod tests {
     #[test]
     fn test_parse_wait_rejects_overflow() {
         assert_invalid_wait("/wait 4294967296", "too many");
-        assert_invalid_wait(
-            "/wait 999999999999999999999999999999999",
-            "too many",
-        );
+        assert_invalid_wait("/wait 999999999999999999999999999999999", "too many");
     }
 
     #[test]
