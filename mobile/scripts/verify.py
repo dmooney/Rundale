@@ -106,8 +106,8 @@ LIVING_WORLD_PROOFS: tuple[tuple[str, str, str, int | None], ...] = (
     (
         "living-world-gossip-spread",
         "Gossip proof: the fact reaches Roisin from Micheal and never Peig",
-        "tests::living_world::gossip::pending",
-        2197,
+        "tests::living_world::gossip::the_fact_reaches",
+        None,
     ),
     (
         "living-world-task",
