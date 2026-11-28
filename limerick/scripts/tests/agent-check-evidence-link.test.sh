@@ -142,6 +142,96 @@ for path in \
     check "pr: $path needs no link" "$(run_gate --source=pr 42)" "pass"
 done
 
+# 4b: Rust test-only hunks inside runtime-path files (hunk-aware gate).
+rt=limerick/crates/limerick-core/src/game_loop/staged.rs
+rt_mod=limerick/crates/limerick-core/src/game_loop/mod.rs
+fixture_base='pub fn run() -> u32 {
+    1
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_runs() {
+        assert_eq!(super::run(), 1); // "}" in a string and a comment }
+    }
+}
+'
+# Reset to base, commit the fixture file, run the edit function given as
+# arguments, and commit that as the change under test (the gate diffs HEAD^).
+rs_change() {
+    git reset -q --hard base
+    mkdir -p "$(dirname "$rt")"
+    printf '%s' "$fixture_base" >"$rt"
+    git add -A
+    git commit -qm "test: fixture"
+    "$@"
+    git add -A
+    git commit -qm "test: edit"
+}
+edit_test_body() { sed -i.bak 's/assert_eq!(super::run(), 1);/assert_eq!(super::run(), 1); let _x = 2;/' "$rt" && rm -f "$rt.bak"; }
+edit_runtime_body() { sed -i.bak 's/^    1$/    2/' "$rt" && rm -f "$rt.bak"; }
+edit_both() {
+    edit_test_body
+    edit_runtime_body
+}
+add_test_mod() { printf '\n#[cfg(test)]\nmod more {\n    #[test]\n    fn extra() {}\n}\n' >>"$rt"; }
+add_plain_mod() { printf '\nmod more {\n    pub fn extra() {}\n}\n' >>"$rt"; }
+add_not_test_mod() { printf '\n#[cfg(not(test))]\nmod more {\n    pub fn extra() {}\n}\n' >>"$rt"; }
+delete_test_mod() { printf 'pub fn run() -> u32 {\n    1\n}\n' >"$rt"; }
+add_runtime_after_tests() { printf 'pub fn late() {}\n' >>"$rt"; }
+body "No link here."
+rs_change edit_test_body
+check "pr: edit confined to a cfg(test) module needs no link" "$(run_gate --source=pr 42)" "pass"
+grep -Fq 'no runtime-shipping changes' "$tmp/out.txt" && said=yes || said=no
+check "pr: test-only hunk is reported as no runtime change" "$said" "yes"
+rs_change add_test_mod
+check "pr: adding a cfg(test) module needs no link" "$(run_gate --source=pr 42)" "pass"
+rs_change delete_test_mod
+check "pr: deleting the cfg(test) module needs no link" "$(run_gate --source=pr 42)" "pass"
+rs_change edit_runtime_body
+check "pr: runtime hunk in the same file needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change edit_both
+check "pr: mixed test and runtime hunks need a link" "$(run_gate --source=pr 42)" "fail"
+rs_change add_plain_mod
+check "pr: a new non-test module needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change add_not_test_mod
+check "pr: cfg(not(test)) is not test-only" "$(run_gate --source=pr 42)" "fail"
+rs_change add_runtime_after_tests
+check "pr: runtime code appended after the test module needs a link" "$(run_gate --source=pr 42)" "fail"
+
+# Whole-file gating through the parent's `#[cfg(test)] mod name;`.
+gated_file=limerick/crates/limerick-core/src/game_loop/contract.rs
+gated_setup() {
+    git reset -q --hard base
+    mkdir -p "$(dirname "$gated_file")"
+    printf '%s\n' "$1" >"$rt_mod"
+    printf 'pub fn a() {}\n' >"$gated_file"
+    git add -A
+    git commit -qm "test: fixture"
+    printf 'pub fn b() {}\n' >>"$gated_file"
+    git add -A
+    git commit -qm "test: edit"
+}
+gated_setup '#[cfg(test)]
+pub(crate) mod contract;'
+check "pr: file declared under #[cfg(test)] in mod.rs needs no link" "$(run_gate --source=pr 42)" "pass"
+gated_setup 'pub(crate) mod contract;'
+check "pr: ungated module file needs a link" "$(run_gate --source=pr 42)" "fail"
+gated_setup '#[cfg(not(test))]
+pub(crate) mod contract;'
+check "pr: file under cfg(not(test)) needs a link" "$(run_gate --source=pr 42)" "fail"
+gated_setup '#[cfg(test)]
+pub(crate) mod other;
+pub(crate) mod contract;'
+check "pr: gate on a different module does not cover the file" "$(run_gate --source=pr 42)" "fail"
+git reset -q --hard base
+mkdir -p "$(dirname "$gated_file")"
+printf '#![cfg(test)]\npub fn a() {}\n' >"$gated_file"
+git add -A
+git commit -qm "test: inner cfg(test) file"
+check "pr: new file starting with #![cfg(test)] needs no link" "$(run_gate --source=pr 42)" "pass"
+
 # 6: a leaked .proofs/ file fails in both modes, even with the link.
 commit_change docs/note.md
 mkdir -p .proofs/demo
