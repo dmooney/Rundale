@@ -49,7 +49,7 @@ just ios-sim-save-lock                                             # save-lock t
   this: a pending proof whose cases pass fails every run until you do.
 - **Gossip runs in the per-turn pump, but only while the player is away.** It
   spreads between co-located Tier-2 NPCs (the player is not in their place),
-  once per pump, and the pump's rolls are seeded from the game minute
+  once per pump, and the pump's rolls are seeded from the game hour
   (`GossipMode::AllSeeded`). A test that waits in the same place sees the same
   spread every run, but any change to when the pump runs or how many rolls it
   draws can move it; the P6-02 case relies on the first roll not spreading.

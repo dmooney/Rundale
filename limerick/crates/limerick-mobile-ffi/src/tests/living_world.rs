@@ -158,7 +158,7 @@ mod gossip {
 
             // The player goes straight to the cottage, so the Connollys are
             // together only while the player is one step away for the single
-            // gossip roll of this first turn (seeded by the game minute, so
+            // gossip roll of this first turn (seeded by the game hour, so
             // it is the same in every run).
             go(&game, "Connolly Cottage");
             let roisin = hear(&game, ROISIN, "Good morning to you.", "And to you.");

@@ -97,7 +97,7 @@ from Connolly Cottage while Mícheál and Róisín are there together.
 
 Gossip spread is deterministic world state with no inference, so the phone's
 per-turn world pump runs it (`GossipMode::AllSeeded`, rolls keyed to the game
-minute, so a repeat game and a relaunch see the same spread). A character's
+hour, so a repeat game and a relaunch see the same spread). A character's
 dialogue input lists the gossip they hold under `aboutYou.knows`. Tier-2/3
 dialogue simulation, reactions and banter do need inference and wait for the
 background inference seam ([#2025](https://github.com/dmooney/Rundale/issues/2025)).
