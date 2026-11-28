@@ -350,7 +350,8 @@ for the design (owner direction, 2026-10-04).
 **None of these is decided.** Each lists options and a recommendation; the
 recommendation is a proposal only. Implementation of #2308 should not start on any
 decision it depends on until the owner records an answer. Decisions needed before
-issue #2308 can be built: D1, D2, D3, D4, D5, D6. The rest can follow.
+issue #2308 can be built: D1, D2, D3, D4, D5, D6, D11 (the recipient field and AC-6
+depend on D11). The rest can follow.
 
 | Id  | Decision                                                                                  | Options                                                                                                                                                                                                                                                                                     | Recommendation (not decided)                                                                                                                                                                                                           |
 | --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
