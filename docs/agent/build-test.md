@@ -16,7 +16,7 @@ recording are in the [mobile scripts README](../../mobile/scripts/README.md).
 Simulator suites run with Xcode parallel testing on a developer Mac (6
 cloned-simulator workers by default; `--parallel-workers 1` is serial). A
 GitHub-hosted runner (the nightly gate and the PR smoke gate) runs them with one
-worker, and `verify.py` refuses more there (#2301). A full or Phase 4 run puts every
+worker, and `verify.py` refuses more there (#2301). A full, Phase 4 or Phase 6 run puts every
 simulator suite that has no cached pass into one `xcodebuild`; a cold full run
 takes about 10 minutes on an M5 Pro. While iterating, do not run the full
 gate: build once, then run only the affected class with
@@ -80,6 +80,13 @@ Presenter, kit and engine changes are covered by the unit and engine-scenario
 tests that stay in every gate. The
 [Swift quality gates](swift-quality-gates.md) give the full matrix, the lint
 exclusions, the coverage policy, and where physical-device evidence goes.
+
+Phase 6 (Living world) runs the Phase 1-4 regression suites, then one gate per
+living-world proof (memory, gossip, task, weather behaviour, scheduled movement)
+from the [Phase 6 test plan](../test-plans/phase-6-test-cases.md): Rust cases at
+the C boundary with inference scripted at the Endpoint. A proof whose issue is
+open fails until it lands; only an explicit `--phase 6` blocks on it
+([mobile scripts README](../../mobile/scripts/README.md#phases)).
 
 Phase 1 must report deterministic fixture/UI checks; Phase 2 adds portable Rust,
 persistence fault injection, binding contracts, device/simulator builds, and
