@@ -186,6 +186,12 @@ add_gate() {
     git commit -qm "test: ungated"
     sed -i.bak 's/^mod tests {$/#[cfg(test)]\nmod tests {/' "$rt" && rm -f "$rt.bak"
 }
+swallow_runtime_fn() {
+    printf '%s\npub fn late() {}\n' "$fixture_base" >"$rt"
+    git add -A
+    git commit -qm "test: runtime fn after the tests"
+    printf 'pub fn run() -> u32 {\n    1\n}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        assert_eq!(super::run(), 1); // "}" in a string and a comment }\n    }\n\npub fn late() {}\n}\n' >"$rt"
+}
 add_runtime_after_tests() { printf 'pub fn late() {}\n' >>"$rt"; }
 body "No link here."
 rs_change edit_test_body
@@ -207,6 +213,8 @@ check "pr: cfg(not(test)) is not test-only" "$(run_gate --source=pr 42)" "fail"
 rs_change add_runtime_after_tests
 check "pr: runtime code appended after the test module needs a link" "$(run_gate --source=pr 42)" "fail"
 
+rs_change swallow_runtime_fn
+check "pr: moving the module's closing brace needs a link" "$(run_gate --source=pr 42)" "fail"
 rs_change remove_gate
 check "pr: removing the cfg(test) gate from a module needs a link" "$(run_gate --source=pr 42)" "fail"
 rs_change add_gate

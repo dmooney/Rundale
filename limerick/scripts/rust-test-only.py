@@ -137,7 +137,8 @@ def test_spans(src: str) -> list[tuple[int, int, int]]:
 def side_ok(src: str | None, changed: set[int]) -> bool:
     """Every changed line of one side is a blank or inside a test-module span.
 
-    Touching a span's header (the `#[cfg(test)]` attribute or `mod` line)
+    Touching a span's header (the `#[cfg(test)]` attribute or `mod` line) or
+    its closing line (moving the brace changes what the gate covers)
     counts only when the whole span is changed with it: adding or removing the
     gate on code that stays turns runtime code into test code or back.
     """
@@ -150,7 +151,7 @@ def side_ok(src: str | None, changed: set[int]) -> bool:
     for first, last, header_last in spans:
         covered.update(range(first, last + 1))
         if (
-            changed & set(range(first, header_last + 1))
+            changed & (set(range(first, header_last + 1)) | {last})
             and not set(range(first, last + 1)) <= changed
         ):
             return False
