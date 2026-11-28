@@ -1807,6 +1807,24 @@ fn the_read_model_offers_every_command_and_debug_names_match_without_fadas() {
         words(&debug["next"])[..4],
         ["memory", "schedule", "relationships", "gossip"]
     );
+    let weather = completions
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|word| word["word"] == "/weather")
+        .unwrap();
+    assert_eq!(
+        words(&weather["next"]),
+        [
+            "clear",
+            "partly",
+            "overcast",
+            "lightrain",
+            "heavyrain",
+            "fog",
+            "storm"
+        ]
+    );
     assert_eq!(debug["next"][0]["takesNpc"], true);
     assert_eq!(debug["next"][4]["word"], "clock");
     assert_eq!(debug["next"][4]["takesNpc"], false);
