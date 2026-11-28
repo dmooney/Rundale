@@ -87,8 +87,9 @@ impl LivingWorld {
 
     /// Checks the facts against the mod's NPC and location ids.
     ///
-    /// Run by the loader's callers that hold the catalogues (the world-sheet
-    /// test); `GameMod::load` cannot, because it does not load NPCs.
+    /// Run by `world_state_from_mod` on the production load path, where the
+    /// catalogues are available (`GameMod::load` cannot, because it loads
+    /// neither NPCs nor the world graph), and by the world-sheet test.
     pub fn validate(&self, npcs: &BTreeSet<u32>, locations: &BTreeSet<u32>) -> Result<(), String> {
         if let Some(gossip) = &self.gossip {
             if gossip.content.trim().is_empty() {

@@ -692,14 +692,27 @@ fn the_task_matches_the_sheet_and_fits_the_task_ledger() {
     assert_eq!(task.afterwards, sheet.task.afterwards);
 
     // Someone other than the giver is at the site to receive the message.
-    let receiver = "Peig";
-    assert!(task.description.contains(receiver));
-    assert_ne!(sheet.task.giver, receiver);
+    // The receiver is the one sheet NPC, other than the giver, that the task
+    // names; it is derived so the test needs no edit if the task changes hands.
+    let description = task.description.to_uppercase();
+    let receivers: Vec<&String> = sheet
+        .npcs
+        .keys()
+        .filter(|name| {
+            description.contains(name.as_str()) && **name != sheet.task.giver.to_uppercase()
+        })
+        .collect();
+    assert_eq!(
+        receivers.len(),
+        1,
+        "the task names exactly one receiver besides its giver: {receivers:?}"
+    );
+    let receiver = receivers[0];
     let site = &sheet.locations[&sheet.task.site.to_uppercase()];
     assert!(
         site.present
             .values()
-            .any(|present| present.contains(receiver)),
+            .any(|present| present.iter().any(|name| name.to_uppercase() == *receiver)),
         "{receiver} is at the {} on the sheet",
         sheet.task.site
     );
