@@ -152,6 +152,10 @@ pub enum Command {
     Time,
     /// Wait in place for a number of game minutes, advancing time.
     Wait(u32),
+    /// A `/wait` argument that is not a whole number of minutes (negative,
+    /// non-numeric, or too large). Carries the player-facing message; the
+    /// clock does not move.
+    InvalidWait(String),
     /// Start a fresh new game, resetting world and NPCs.
     NewGame,
     /// Manually tick NPC schedules without advancing time.

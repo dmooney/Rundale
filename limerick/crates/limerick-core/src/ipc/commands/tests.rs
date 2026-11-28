@@ -668,6 +668,45 @@ fn wait_command_advances_clock() {
 }
 
 #[test]
+fn invalid_wait_arguments_leave_the_clock_unchanged() {
+    // #2327: `/wait -1`, `/wait bananas` and an overflowing count used to
+    // fall back to 15 minutes and move authoritative game time.
+    for input in [
+        "/wait -1",
+        "/wait bananas",
+        "/wait 999999999999999999999999999999999",
+    ] {
+        let (mut world, mut npc, mut config) = default_state();
+        world.clock.pause();
+        let start = world.clock.now();
+        let command = crate::input::parse_system_command(input)
+            .unwrap_or_else(|| panic!("{input} is a system command"));
+        assert!(matches!(command, Command::InvalidWait(_)), "{input}");
+        let result = handle_command(command, &mut world, &mut npc, &mut config);
+        assert_eq!(world.clock.now(), start, "{input} moved the clock");
+        assert!(result.response.contains("You can't wait"), "{input}");
+        assert!(result.response.contains("/wait 30"), "{input}");
+        assert!(!result.response.contains("You wait for"), "{input}");
+        assert!(result.effects.is_empty(), "{input}");
+    }
+}
+
+#[test]
+fn wait_zero_and_bare_wait_keep_their_meaning() {
+    let (mut world, mut npc, mut config) = default_state();
+    world.clock.pause();
+    let start = world.clock.now();
+    let zero = crate::input::parse_system_command("/wait 0").unwrap();
+    let result = handle_command(zero, &mut world, &mut npc, &mut config);
+    assert_eq!(world.clock.now(), start);
+    assert!(result.response.contains("You wait for 0 minutes"));
+
+    let bare = crate::input::parse_system_command("/wait").unwrap();
+    handle_command(bare, &mut world, &mut npc, &mut config);
+    assert_eq!((world.clock.now() - start).num_minutes(), 15);
+}
+
+#[test]
 fn tick_command_with_empty_roster() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(Command::Tick, &mut world, &mut npc, &mut config);

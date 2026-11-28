@@ -42,6 +42,7 @@ pub fn handle_command(
         | Command::SetSpeed(_)
         | Command::InvalidSpeed(_)
         | Command::Wait(_)
+        | Command::InvalidWait(_)
         | Command::Tick => handle_time_control_command(cmd, world, npc_manager, config),
 
         Command::About | Command::NpcsHere | Command::Time => {

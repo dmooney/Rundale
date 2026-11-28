@@ -96,6 +96,7 @@ pub(super) fn handle_time_control_command(
             "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
             name
         )),
+        Command::InvalidWait(msg) => CommandResult::text(msg),
         Command::Wait(minutes) => {
             world.clock.advance(minutes as i64);
             npc_manager.assign_tiers(world, &[]);
