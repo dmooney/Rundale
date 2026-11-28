@@ -24,17 +24,21 @@ Every statement is labelled by kind:
 
 ## 1. Governing requirements and traceability
 
+Numbering note: the technical vision's "Phase 5 — Living-world proof" is spec
+Milestone 6 and the test plans' "Phase 6". Citations below to "Vision Phase 5"
+mean that section.
+
 | Id  | Requirement                                                                                                                       | Source                                                                                                                                                                                        |
 | --- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G1  | One NPC can assign one simple, concrete task to the player.                                                                       | [Spec §17 Milestone 6](../product-specs/mobile-product-technical-spec.md) (living-world checklist)                                                                                            |
 | G2  | The task has an authoritative state that distinguishes at least assignment, progress where applicable, and completion.            | Spec §17 Milestone 6; [vision §11.6](../product-specs/software-technical-vision.md)                                                                                                           |
 | G3  | The task state survives save/resume.                                                                                              | Spec §17 Milestone 6; vision §7.2 (task state is domain data, not a dialogue-log field)                                                                                                       |
 | G4  | Completing the task through the intended world action is reflected in later NPC interaction.                                      | Spec §17 Milestone 6                                                                                                                                                                          |
-| G5  | A model's statement that a task is complete does not complete it. Tasks are not inferred from dialogue wording.                   | Vision §11.6 and the Phase 6 "protect later phases" paragraph                                                                                                                                 |
+| G5  | A model's statement that a task is complete does not complete it. Tasks are not inferred from dialogue wording.                   | Vision §11.6 and the Phase 5 "protect later phases" paragraph                                                                                                                                 |
 | G6  | Model output is a proposal; the engine validates it against current state before commit. Rejected generation cannot mutate state. | Vision §6.2 and §11.6; [engineering rules](../agent/engineering-rules.md)                                                                                                                     |
-| G7  | Cancelling a conversation does not complete a task.                                                                               | Vision Phase 6 exit evidence                                                                                                                                                                  |
+| G7  | Cancelling a conversation does not complete a task.                                                                               | Vision Phase 5 exit evidence                                                                                                                                                                  |
 | G8  | Reproducible in the canonical three-location, three-NPC world; the sheet gains only the facts the task needs.                     | Spec §13 and §17 Milestone 6; [`mods/rundale/world-sheet.txt`](../../mods/rundale/world-sheet.txt)                                                                                            |
-| G9  | Record the explainable cause: "the action that fulfilled a task".                                                                 | Vision Phase 6 implementation paragraph                                                                                                                                                       |
+| G9  | Record the explainable cause: "the action that fulfilled a task".                                                                 | Vision Phase 5 implementation paragraph                                                                                                                                                       |
 | G10 | Generated dialogue does not casually contradict who is present, what has happened, or what an NPC knows.                          | Spec §17 Milestone 6                                                                                                                                                                          |
 | G11 | The Phase 6 proof has a before, an action, an after, save/resume and a repeat run.                                                | [Phase 6 test plan](../test-plans/phase-6-test-cases.md) (P6-06)                                                                                                                              |
 | G12 | Nothing inspects, rewrites or replaces an NPC reply; the only reply check is the structural contract.                             | [`limerick-core/AGENTS.md:27`](../../limerick/crates/limerick-core/AGENTS.md), [inference rules](../agent/inference-rules.md) (issue [#2295](https://github.com/dmooney/Rundale/issues/2295)) |
@@ -317,11 +321,14 @@ asked who might have work. It is **speech, not state**:
 - **Grounding (Current):** the Endpoint input carries each person's `work` and
   `workplace` and instructs "send the stranger only to a person or place the request
   names, and only for a reason the request gives about them" (C16).
-- **Gap:** in the canonical three-NPC world the authored work is a shopkeeper's, a
-  postmistress's and Mícheál's. There may be no "farmer with work" to refer to, so
-  the correct answer to a #1890-shaped question is often an honest "I don't know of
-  any", which is also a pass. Whether the tiny world should contain a worker-seeking
-  referral at all is a product choice (D10).
+- **Gap:** in the canonical three-NPC world the authored occupations are Peig's
+  (letter-office keeper), Mícheál's (smallholder and cattle drover) and Róisín's
+  (spinner and household bookkeeper). A farm-work question to Peig or Róisín can
+  be grounded by pointing at Mícheál (a smallholder), but nothing authored says he
+  has work to give, so the grounded answer is "he farms; whether he needs hands is
+  his own affair", and an honest "I do not know of any" is also a pass. A grounded
+  answer must not claim a vacancy. Whether the tiny world should carry a
+  worker-seeking referral check at all is a product choice (D10).
 - **Gap:** no deterministic test exercises a referral on the shipped Endpoint input
   (the desktop proof `play_1853_grounded_work_referral.txt` scripts replies at the
   desktop path). The phone path has no referral case in the Phase 6 gates.
@@ -343,7 +350,7 @@ for the design (owner direction, 2026-10-04).
 **None of these is decided.** Each lists options and a recommendation; the
 recommendation is a proposal only. Implementation of #2308 should not start on any
 decision it depends on until the owner records an answer. Decisions needed before
-#2308 can be built: D1, D2, D3, D4, D5, D6. The rest can follow.
+issue #2308 can be built: D1, D2, D3, D4, D5, D6. The rest can follow.
 
 | Id  | Decision                                                                                  | Options                                                                                                                                                                                                                                                                                     | Recommendation (not decided)                                                                                                                                                                                                           |
 | --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
