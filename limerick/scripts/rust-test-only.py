@@ -19,6 +19,9 @@ Test-only means one of:
     `#[cfg(test)] mod name { ... }` block (or a `#[cfg(test)] mod name;`
     declaration) of that side's content.
 Adding or removing the gate itself on code that stays is a runtime change.
+Every declaration of a module must be gated (a lib.rs gate does not cover an
+ungated main.rs declaration). `#[path = ".."]` modules and declarations inside
+inline modules are not resolved; they fall back to the line-by-line check.
 Only the exact attribute `#[cfg(test)]` counts; `cfg(any(test, ..))` and
 `cfg(not(test))` do not.
 """
@@ -47,14 +50,26 @@ class Unparseable(Exception):
 
 def mask(src: str) -> str:
     """Blank comments and string/char literal bodies, keeping length and newlines."""
+    return scan(src)[0]
+
+
+def literal_lines(src: str) -> set[int]:
+    """1-based lines that begin inside a string literal (never ignorable)."""
+    return scan(src)[1]
+
+
+def scan(src: str) -> tuple[str, set[int]]:
     out = list(src)
     n = len(src)
     i = 0
+    lit_lines: set[int] = set()
 
-    def blank(a: int, b: int) -> None:
+    def blank(a: int, b: int, literal: bool = False) -> None:
         for k in range(a, b):
             if out[k] != "\n":
                 out[k] = " "
+            elif literal:
+                lit_lines.add(src.count("\n", 0, k) + 2)
 
     while i < n:
         c = src[i]
@@ -82,7 +97,7 @@ def mask(src: str) -> str:
                 end = src.find('"' + m.group(1), m.end())
                 if end < 0:
                     raise Unparseable("unterminated raw string")
-                blank(m.end(), end)
+                blank(m.end(), end, True)
                 i = end + 1 + len(m.group(1))
             elif src.startswith('b"', i):
                 i += 1  # fall through to the string branch next loop
@@ -94,7 +109,7 @@ def mask(src: str) -> str:
                 j += 2 if src[j] == "\\" else 1
             if j >= n:
                 raise Unparseable("unterminated string")
-            blank(i + 1, j)
+            blank(i + 1, j, True)
             i = j + 1
         elif c == "'":
             m = CHAR_LIT.match(src, i)
@@ -105,7 +120,7 @@ def mask(src: str) -> str:
                 i += 1  # a lifetime
         else:
             i += 1
-    return "".join(out)
+    return "".join(out), lit_lines
 
 
 def test_spans(src: str) -> list[tuple[int, int, int]]:
@@ -138,6 +153,9 @@ def test_spans(src: str) -> list[tuple[int, int, int]]:
 def side_ok(src: str | None, changed: set[int]) -> bool:
     """Every changed line of one side is a blank or inside a test-module span.
 
+    Blank lines are ignorable only outside string literals: a blank line in a
+    multi-line or raw string changes what the program emits.
+
     Touching a span's header (the `#[cfg(test)]` attribute or `mod` line) or
     its closing line (moving the brace changes what the gate covers)
     counts only when the whole span is changed with it: adding or removing the
@@ -148,7 +166,12 @@ def side_ok(src: str | None, changed: set[int]) -> bool:
     if src is None:
         return False
     spans = test_spans(src)
-    covered = {i + 1 for i, line in enumerate(src.split("\n")) if not line.strip()}
+    in_literal = literal_lines(src)
+    covered = {
+        i + 1
+        for i, line in enumerate(src.split("\n"))
+        if not line.strip() and (i + 1) not in in_literal
+    }
     for first, last, header_last in spans:
         covered.update(range(first, last + 1))
         if (
@@ -204,19 +227,24 @@ def whole_file_gated(path: str, reader, depth: int = 0) -> bool:
         return False
     name, cands = declaring_files(path)
     decl = re.compile(CFG_TEST + ATTRS + r"\s*" + VIS + r"mod\s+" + re.escape(name) + r"\s*;")
+    any_decl = re.compile(r"\bmod\s+" + re.escape(name) + r"\s*;")
+    found = False
     for cand in cands:
         ctext = reader(cand)
         if ctext is None:
             continue
         try:
-            if decl.search(mask(ctext)):
-                return True
-            if re.search(r"\bmod\s+" + re.escape(name) + r"\s*;", mask(ctext)):
-                # Declared here without the gate; a gated parent may still cover it.
-                return whole_file_gated(cand, reader, depth + 1)
+            masked = mask(ctext)
         except Unparseable:
             return False
-    return False
+        gated_ends = {m.end() for m in decl.finditer(masked)}
+        for m in any_decl.finditer(masked):
+            if masked.count("{", 0, m.start()) != masked.count("}", 0, m.start()):
+                return False  # inside an inline module: a different path
+            found = True
+            if m.end() not in gated_ends and not whole_file_gated(cand, reader, depth + 1):
+                return False  # declared ungated somewhere it is compiled
+    return found
 
 
 def hunks(base: str, path: str, old: str | None, new: str | None):

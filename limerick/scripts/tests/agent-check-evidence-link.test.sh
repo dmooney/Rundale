@@ -192,6 +192,24 @@ swallow_runtime_fn() {
     git commit -qm "test: runtime fn after the tests"
     printf 'pub fn run() -> u32 {\n    1\n}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        assert_eq!(super::run(), 1); // "}" in a string and a comment }\n    }\n\npub fn late() {}\n}\n' >"$rt"
 }
+blank_line_in_string() {
+    printf 'pub fn prompt() -> &'"'"'static str {\n    "first\nsecond"\n}\n' >"$rt"
+    git add -A
+    git commit -qm "test: string literal"
+    printf 'pub fn prompt() -> &'"'"'static str {\n    "first\n\nsecond"\n}\n' >"$rt"
+}
+blank_line_in_raw_string() {
+    printf 'pub fn prompt() -> &'"'"'static str {\n    r#"first\nsecond"#\n}\n' >"$rt"
+    git add -A
+    git commit -qm "test: raw string literal"
+    printf 'pub fn prompt() -> &'"'"'static str {\n    r#"first\n  \nsecond"#\n}\n' >"$rt"
+}
+blank_line_in_code() {
+    printf 'pub fn a() {}\npub fn b() {}\n' >"$rt"
+    git add -A
+    git commit -qm "test: two fns"
+    printf 'pub fn a() {}\n\npub fn b() {}\n' >"$rt"
+}
 add_runtime_after_tests() { printf 'pub fn late() {}\n' >>"$rt"; }
 body "No link here."
 rs_change edit_test_body
@@ -215,6 +233,12 @@ check "pr: runtime code appended after the test module needs a link" "$(run_gate
 
 rs_change swallow_runtime_fn
 check "pr: moving the module's closing brace needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change blank_line_in_string
+check "pr: a blank line added inside a string literal needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change blank_line_in_raw_string
+check "pr: a blank line added inside a raw string needs a link" "$(run_gate --source=pr 42)" "fail"
+rs_change blank_line_in_code
+check "pr: a blank line added between runtime fns is not a runtime change" "$(run_gate --source=pr 42)" "pass"
 rs_change remove_gate
 check "pr: removing the cfg(test) gate from a module needs a link" "$(run_gate --source=pr 42)" "fail"
 rs_change add_gate
@@ -245,6 +269,22 @@ gated_setup '#[cfg(test)]
 pub(crate) mod other;
 pub(crate) mod contract;'
 check "pr: gate on a different module does not cover the file" "$(run_gate --source=pr 42)" "fail"
+git reset -q --hard base
+mkdir -p "$(dirname "$gated_file")"
+printf '#[cfg(test)]\npub(crate) mod contract;\n' >"$rt_mod"
+printf 'pub(crate) mod contract;\n' >"$(dirname "$gated_file")/main.rs"
+printf 'pub fn a() {}\n' >"$gated_file"
+git add -A
+git commit -qm "test: fixture with an ungated main.rs declaration"
+printf 'pub fn b() {}\n' >>"$gated_file"
+git add -A
+git commit -qm "test: edit"
+check "pr: a gated mod.rs does not cover an ungated main.rs declaration" "$(run_gate --source=pr 42)" "fail"
+gated_setup 'mod inline {
+    #[cfg(test)]
+    mod contract;
+}'
+check "pr: a declaration inside an inline module is not resolved" "$(run_gate --source=pr 42)" "fail"
 git reset -q --hard base
 mkdir -p "$(dirname "$gated_file")"
 printf '#[cfg(test)]\npub(crate) mod contract;\n' >"$rt_mod"
