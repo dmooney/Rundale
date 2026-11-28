@@ -76,7 +76,7 @@ each open Dependabot pull request it:
    `limerick/Cargo.lock` or `limerick/apps/ui/package-lock.json` and
    `just notices-check` fails (CI's `python-quality` would), it runs
    `just notices` on the head and pushes one `chore(notices)` commit with the
-   owner's `gh` token, so CI runs on it. Only the three notices files may
+   owner's `gh` token, so CI runs on it. Only the four notices files may
    change and the commit must leave the app-input tree alone (a recorded
    mobile-verify pass stays valid); otherwise nothing is pushed and the pull
    request goes on to CI. This runs on the Mac, not in a workflow, because

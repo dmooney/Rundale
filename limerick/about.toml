@@ -1,7 +1,8 @@
 # cargo-about configuration for generating THIRD_PARTY_NOTICES.rust.md.
 #
 # Run: `just notices` (it pins cargo-about, validates the output against the
-# previous file and Cargo.lock, and writes notices-dev-only.txt; do not call
+# previous file and Cargo.lock, and writes notices-dev-only.txt,
+# notices-shipped.txt and applies notices-supplement.txt; do not call
 # `cargo about generate` by hand, an unpinned version once dropped 28 notices).
 #
 # This file declares the set of licences we accept from upstream Rust crates.
@@ -26,6 +27,10 @@ accepted = [
     "Zlib",
 ]
 
+# No `targets` here: restricting them only removes crates, and cargo-about's feature
+# resolution misses `security-framework` 3.x either way (see notices-supplement.txt).
+# What ships is checked independently of this file by notices-shipped.txt.
+#
 # Don't include build-script-only or dev-only deps in the generated notices;
 # they don't ship in the binary.
 ignore-build-dependencies = false

@@ -107,6 +107,7 @@ class FakeWorld:
         self.notices_wrote = [
             "limerick/THIRD_PARTY_NOTICES.rust.md",
             "limerick/notices-dev-only.txt",
+            "limerick/notices-shipped.txt",
         ]
         self.regenerated = False
 

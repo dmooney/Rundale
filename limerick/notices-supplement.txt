@@ -1,0 +1,10 @@
+# Crates cargo-about cannot see but that ship, one per line:
+#   crate@version same-as sibling@version   # reason
+# `just notices` adds the crate to every notice list the sibling is in (same license
+# text). A line fails `just notices` once cargo-about finds the crate itself or the
+# lockfile drops it, so it cannot outlive its reason.
+#
+# keyring 3 declares security-framework twice (2.x for iOS, 3.x for macOS) behind one
+# optional-dependency feature; cargo-about resolves only the 2.x one, so the macOS desktop
+# app's 3.7.0 got no notice (issue 2477). Both are `MIT OR Apache-2.0` from the same repo.
+security-framework@3.7.0 same-as security-framework@2.11.1
