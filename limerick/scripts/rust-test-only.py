@@ -29,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 
 CFG_TEST = r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]"
 ATTRS = r"(?:\s*#\s*\[[^\]]*\])*"
@@ -245,7 +246,7 @@ def test_only(base: str, path: str) -> bool:
     def old_reader(p: str) -> str | None:
         return git_show(base, p)
 
-    sides = []
+    sides: list[Callable[[str], str | None]] = []
     if old is not None:
         sides.append(old_reader)
     if new is not None:
