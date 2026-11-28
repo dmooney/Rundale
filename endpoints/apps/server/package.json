@@ -11,9 +11,9 @@
     "definitions": "NODE_OPTIONS=--conditions=source tsx src/definitions.ts"
   },
   "dependencies": {
-    "@fastify/cors": "11.4.2",
-    "@fastify/multipart": "10.1.8",
-    "@fastify/rate-limit": "11.2.2",
+    "@fastify/cors": "11.4.3",
+    "@fastify/multipart": "10.1.9",
+    "@fastify/rate-limit": "11.3.0",
     "@limerick/auth": "workspace:*",
     "@limerick/database": "workspace:*",
     "@limerick/domain": "workspace:*",
