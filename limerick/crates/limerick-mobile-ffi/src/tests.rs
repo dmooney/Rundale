@@ -10,6 +10,8 @@ use limerick_core::endpoint_input::Addressing;
 use limerick_core::turn::INTERRUPTED_MESSAGE;
 use std::path::Path;
 
+mod living_world;
+
 const CATTLE_LINE: &str = "The wet ground has made moving cattle hard this week.";
 
 fn repo_root() -> PathBuf {
