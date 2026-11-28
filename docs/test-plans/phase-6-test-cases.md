@@ -118,15 +118,15 @@ light rain, heavy rain or a storm goes home instead.
 
 ### P6-05 Scheduled movement ([#2201](https://github.com/dmooney/Rundale/issues/2201))
 
-| Step | Exercise                                                 | Required outcome                                                                               |
-| ---- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 1    | New game at 07:00 in the village; `/debug schedule Peig` | Schedule shows 07:00-08:00 Kilteevan Village; the village is empty (she is on the lane)        |
-| 2    | Wait to 08:00                                            | `/people` lists the woman with the satchel; she can be spoken to; input says Kilteevan Village |
-| 3    | Close and reopen the save, wait to 08:59                 | She is still in the village                                                                    |
-| 4    | Wait to 09:01 (mid-walk back)                            | Nobody is in the village; `/people` is empty; the intent call offers no one to speak to        |
-| 5    | Close and reopen the save made mid-walk                  | Clock still 09:01, still nobody; after the walk she is at the Letter Office                    |
-| 6    | Go to the Letter Office                                  | Peig is there; input says Letter Office; the save agrees after a relaunch                      |
-| 7    | Repeat on a new game                                     | Same sequence                                                                                  |
+| Step | Exercise                                                 | Required outcome                                                                                                        |
+| ---- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1    | New game at 07:00 in the village; `/debug schedule Peig` | Schedule shows 07:00-08:00 Kilteevan Village; the village is empty (she is on the lane), and a relaunch changes nothing |
+| 2    | Wait to 08:00                                            | `/people` lists the woman with the satchel; she can be spoken to; input says Kilteevan Village                          |
+| 3    | Close and reopen the save, wait to 08:59                 | She is still in the village                                                                                             |
+| 4    | Wait to 09:01 (mid-walk back)                            | Nobody is in the village; `/people` is empty; the intent call offers no one to speak to                                 |
+| 5    | Close and reopen the save made mid-walk                  | Clock still 09:01, still nobody; after the walk she is at the Letter Office                                             |
+| 6    | Go to the Letter Office                                  | Peig is there; input says Letter Office; the save agrees after a relaunch                                               |
+| 7    | Repeat on a new game                                     | Same sequence                                                                                                           |
 
 ### P6-06 Task ([#2308](https://github.com/dmooney/Rundale/issues/2308))
 

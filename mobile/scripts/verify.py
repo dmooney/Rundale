@@ -88,7 +88,8 @@ LIVING_WORLD_PENDING_FEATURE = "living-world-pending"
 # every run that includes Phase 6. A pending case fails until its issue
 # lands, so only an explicit `--phase 6` blocks on it; `--phase all` reports it
 # without blocking, so the recorded pass and the nightly gate stay usable. Set
-# `issue` to None in the PR that lands the proof.
+# `issue` to None in the PR that lands the proof; a pending proof that passes
+# fails the gate in every mode until you do.
 LIVING_WORLD_PROOFS: tuple[tuple[str, str, str, int | None], ...] = (
     (
         "living-world-memory",
@@ -3219,6 +3220,31 @@ class VerificationRun:
                 required=strict or not pending,
                 extra_details={"proof_issue": issue, "pending": pending, "filter": test_filter},
             )
+            if pending:
+                self._expire_landed_pending_proof(identifier, issue)
+
+    def _expire_landed_pending_proof(self, identifier: str, issue: int | None) -> None:
+        """Fail a pending proof that passes: it has landed, so mark it landed.
+
+        A pending proof may fail without blocking only until its issue lands.
+        Left in `LIVING_WORLD_PROOFS` with `issue` set, a passing proof would sit
+        as a quiet non-blocking pass and stop blocking regressions. The failure
+        blocks in every mode, so the PR that makes the proof pass is the PR that
+        sets its `issue` to None.
+        """
+
+        record = next((r for r in reversed(self.records) if r["id"] == identifier), None)
+        if record is None or record["status"] != PASSED:
+            return
+        record["required"] = True
+        self._change(
+            record,
+            FAILED,
+            f"pending proof for #{issue} now passes: set its issue to None in "
+            "LIVING_WORLD_PROOFS (mobile/scripts/verify.py) and drop its `pending` "
+            "module and feature gate so it blocks regressions",
+            {"landed_but_marked_pending": True},
+        )
 
     def _future(self, *, below: int = LAST_PHASE + 1) -> None:
         for phase in range(1, below):

@@ -239,6 +239,11 @@ mod movement {
                 "run {run}: she is still on the way out at 07:00"
             );
 
+            // A save made on the walk out resumes mid-walk, not in either place.
+            game.relaunch();
+            assert_eq!(clock(&game), "07:00", "run {run}: resumed on the walk out");
+            assert!(people_here(&game).is_empty(), "run {run}: after relaunch");
+
             wait(&game, 60);
             assert_eq!(clock(&game), "08:00");
             assert_eq!(people_here(&game), [PEIG_LOOKS], "run {run}");

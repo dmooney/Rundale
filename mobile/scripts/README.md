@@ -113,7 +113,9 @@ shipped world through the C boundary with inference scripted at the Endpoint
 explicit `--phase 6` blocks on it; `--phase all` and `--smoke` report it as a
 failed, non-blocking suite (details name the proof issue), so the recorded pass
 and the nightly gate stay usable. A proof's PR makes its cases pass and sets its
-`issue` to `None`, which makes the gate block everywhere.
+`issue` to `None`, which makes the gate block everywhere. A pending proof whose
+cases pass is itself a blocking failure (`landed_but_marked_pending`) until its
+`issue` is set to `None`, so a landed proof cannot stay quietly non-blocking.
 
 The other Rust crates' tests are not part of this gate: they build for the host,
 not iOS, so CI runs them on Linux (`full-ci.yml`). There, `rust-mobile-build`
